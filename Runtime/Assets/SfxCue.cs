@@ -40,7 +40,9 @@ namespace WallstopStudios.DxAudio
 
         [Min(0f)]
         [SerializeField]
-        [Tooltip("Shortest gap between two plays of this cue. Zero lets every request through.")]
+        [Tooltip(
+            "Shortest gap between two plays of this one-shot cue. Zero lets every request through. Loops are never limited."
+        )]
         private float _minimumIntervalSeconds = DefaultMinimumIntervalSeconds;
 
         [SerializeField]

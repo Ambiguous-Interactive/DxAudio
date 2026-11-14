@@ -1,6 +1,6 @@
 {
   "name": "com.wallstop-studios.dxaudio",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "displayName": "DxAudio",
   "description": "Data-driven sound effects and music for Unity. Cue and music libraries as assets, a pooled voice player with priority, rate limits and no-repeat variants, and a music player with per-context tracks, fades, overrides and ducks that compose. No dependencies.",
   "unity": "2021.3",

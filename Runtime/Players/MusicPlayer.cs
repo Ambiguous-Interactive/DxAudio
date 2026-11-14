@@ -221,15 +221,9 @@ namespace WallstopStudios.DxAudio
             {
                 if (voice != null && voice.source != null)
                 {
-                    GameObject owned = voice.source.gameObject;
-                    if (Application.isPlaying)
-                    {
-                        Destroy(owned);
-                    }
-                    else
-                    {
-                        DestroyImmediate(owned);
-                    }
+                    // OnDestroy runs only in Play mode for this component, and Destroy is deferred, so a voice
+                    // already going down with the hierarchy is not destroyed twice.
+                    Destroy(voice.source.gameObject);
                 }
             }
         }
@@ -384,8 +378,12 @@ namespace WallstopStudios.DxAudio
                     continue;
                 }
 
-                // Never saved with the scene: the player owns its voices and rebuilds them on demand.
-                GameObject child = new($"Music Voice {index}") { hideFlags = HideFlags.DontSave };
+                // Never saved with a scene in edit mode. In Play mode the flag would hide the voices from
+                // FindObjectsOfType, so a game's own pause-all could not reach them.
+                GameObject child = new($"Music Voice {index}")
+                {
+                    hideFlags = Application.isPlaying ? HideFlags.None : HideFlags.DontSave,
+                };
                 child.transform.SetParent(transform, worldPositionStays: false);
                 AudioSource source = child.AddComponent<AudioSource>();
                 source.playOnAwake = false;

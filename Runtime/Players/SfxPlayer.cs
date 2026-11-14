@@ -455,8 +455,12 @@ namespace WallstopStudios.DxAudio
             _random = null;
             for (int index = 0; index < count; index++)
             {
-                // Never saved with the scene: the player owns its voices and rebuilds them on load.
-                GameObject child = new($"Sfx Voice {index}") { hideFlags = HideFlags.DontSave };
+                // Never saved with a scene in edit mode. In Play mode the flag would hide the voices from
+                // FindObjectsOfType, so a game's own pause-all could not reach them.
+                GameObject child = new($"Sfx Voice {index}")
+                {
+                    hideFlags = Application.isPlaying ? HideFlags.None : HideFlags.DontSave,
+                };
                 child.transform.SetParent(transform, worldPositionStays: false);
                 AudioSource voice = child.AddComponent<AudioSource>();
                 voice.playOnAwake = false;

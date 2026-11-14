@@ -100,11 +100,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(player.StopLoop(first), Is.False, "a stale handle never stops a newer loop on its voice");
             Assert.That(player.HeldVoiceCount, Is.EqualTo(1));
 
-            player.Library = SfxLibrary.Create(new[] { hum }, voiceCount: 1, loopingVoiceLimit: 1);
+            player.Library = Made(SfxLibrary.Create(new[] { hum }, voiceCount: 1, loopingVoiceLimit: 1));
             Assert.That(player.TryPlayLooping(hum, out SfxLoopHandle rebuilt), Is.True);
+            Assert.That(player.StopLoop(first), Is.False, "the first lease is never handed out again after a rebuild");
             Assert.That(player.StopLoop(reused), Is.False, "a handle from before a rebuild matches nothing after it");
             Assert.That(player.StopLoop(rebuilt), Is.True);
-            Object.DestroyImmediate(player.Library);
         }
 
         [Test]

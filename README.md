@@ -25,13 +25,13 @@ Extracted from [Isho Boy](https://github.com/Ambiguous-Interactive)'s audio syst
 In Unity, open **Window > Package Manager**, choose **+ > Add package from git URL**, and enter:
 
 ```text
-https://github.com/Ambiguous-Interactive/DxAudio.git#v0.1.0
+https://github.com/Ambiguous-Interactive/DxAudio.git#v0.1.1
 ```
 
 Or add it to `Packages/manifest.json`:
 
 ```json
-"com.wallstop-studios.dxaudio": "https://github.com/Ambiguous-Interactive/DxAudio.git#v0.1.0"
+"com.wallstop-studios.dxaudio": "https://github.com/Ambiguous-Interactive/DxAudio.git#v0.1.1"
 ```
 
 Unity 2021.3 or newer.
