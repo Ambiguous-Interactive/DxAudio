@@ -1,0 +1,65 @@
+namespace WallstopStudios.DxAudio
+{
+    using System;
+
+    /// <summary>The shape of a fade or a duck, from start (0) to finish (1).</summary>
+    /// <remarks>
+    /// A small closed set rather than a tweening package's, so the package depends on nothing. Each value is
+    /// one formula in <see cref="MusicEasing.Evaluate"/>.
+    /// </remarks>
+    public enum MusicEase
+    {
+        Linear = 0,
+        InQuad = 1,
+        OutQuad = 2,
+        InOutQuad = 3,
+        InSine = 4,
+        OutSine = 5,
+        InOutSine = 6,
+        InCubic = 7,
+        OutCubic = 8,
+        InOutCubic = 9,
+    }
+
+    public static class MusicEasing
+    {
+        /// <summary>How far through <paramref name="ease"/> the fade is at <paramref name="t"/>, both in [0, 1].</summary>
+        public static float Evaluate(MusicEase ease, float t)
+        {
+            float x = AudioMath.Clamp01(t);
+            switch (ease)
+            {
+                case MusicEase.InQuad:
+                    return x * x;
+                case MusicEase.OutQuad:
+                    return 1f - ((1f - x) * (1f - x));
+                case MusicEase.InOutQuad:
+                    return x < 0.5f ? 2f * x * x : 1f - (Square((-2f * x) + 2f) / 2f);
+                case MusicEase.InSine:
+                    return 1f - (float)Math.Cos(x * Math.PI / 2.0);
+                case MusicEase.OutSine:
+                    return (float)Math.Sin(x * Math.PI / 2.0);
+                case MusicEase.InOutSine:
+                    return -((float)Math.Cos(Math.PI * x) - 1f) / 2f;
+                case MusicEase.InCubic:
+                    return x * x * x;
+                case MusicEase.OutCubic:
+                    return 1f - Cube(1f - x);
+                case MusicEase.InOutCubic:
+                    return x < 0.5f ? 4f * x * x * x : 1f - (Cube((-2f * x) + 2f) / 2f);
+                default:
+                    return x;
+            }
+        }
+
+        private static float Square(float value)
+        {
+            return value * value;
+        }
+
+        private static float Cube(float value)
+        {
+            return value * value * value;
+        }
+    }
+}

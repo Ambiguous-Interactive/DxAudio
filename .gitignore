@@ -1,0 +1,17 @@
+# Unity, when the package is opened as a project
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+
+# .NET test build output
+.net-tests/bin/
+.net-tests/obj/
+
+# Editors
+.vs/
+.idea/
+*.csproj.user
+.DS_Store

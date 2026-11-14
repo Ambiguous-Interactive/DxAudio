@@ -1,0 +1,153 @@
+# DxAudio
+
+Data-driven sound effects and music for Unity, with no dependencies.
+
+- **Cues and tracks are assets.** An `SfxCue` holds interchangeable takes, volume, pitch jitter, a rate
+  limit, a priority and 3D falloff. A `MusicTrack` holds a clip, its trim and where it starts. Libraries
+  look them up by key, or you play them by reference.
+- **A pooled voice player.** `SfxPlayer` plays cues on a fixed pool of voices. It never allocates per
+  play, never repeats a take twice in a row, rate-limits each cue on its own, and lets important cues
+  take a voice from less important ones when the pool is full. Looping cues hold their voice until their
+  handle stops them.
+- **Music per context.** `MusicPlayer` crossfades between contexts (a screen, a level, an area), keeps
+  playing when the same music is asked for again, and fades music back in from where it was if you return
+  while it is still fading out. Overrides play other music until their lease is released.
+- **Ducks that compose.** A `MusicDuck` asset (menu, dialogue, cutscene) lowers and filters the music
+  while it is held. Every live duck composes into the most restrictive volume and filters, so systems duck
+  and release without knowing about each other. A holder destroyed without releasing is released for it.
+- **Your game wires the hooks.** Sound on/off and music on/off are one property each. Events are plain
+  method calls, so DxMessaging messages, UnityEvents or your own code can drive them.
+
+Extracted from [Isho Boy](https://github.com/Ambiguous-Interactive)'s audio system.
+
+## Install
+
+In Unity, open **Window > Package Manager**, choose **+ > Add package from git URL**, and enter:
+
+```text
+https://github.com/Ambiguous-Interactive/DxAudio.git#v0.1.0
+```
+
+Or add it to `Packages/manifest.json`:
+
+```json
+"com.wallstop-studios.dxaudio": "https://github.com/Ambiguous-Interactive/DxAudio.git#v0.1.0"
+```
+
+Unity 2021.3 or newer.
+
+## Sound effects
+
+1. Create cues with **Create > DxAudio > Sfx Cue**. Add one or more takes; each take has its own start
+   offset to skip a lead-in.
+2. Create a library with **Create > DxAudio > Sfx Library**, list the cues, and set the voice count.
+3. Add an **Sfx Player** component and assign the library.
+
+```csharp
+using WallstopStudios.DxAudio;
+
+public sealed class Door : MonoBehaviour
+{
+    [SerializeField] private SfxPlayer _sfx;
+    [SerializeField] private SfxCue _open;
+
+    public void Open()
+    {
+        _sfx.Play(_open);                       // flat
+        _sfx.Play(_open, transform.position);   // placed, if the cue has a spatial blend
+        _sfx.Play("door/creak");                // by key, through the library
+    }
+}
+```
+
+A looping cue stands for a state, so whoever starts it stops it:
+
+```csharp
+if (_sfx.TryPlayLooping(_hum, out SfxLoopHandle hum))
+{
+    _humHandle = hum;
+}
+
+_sfx.StopLoop(_humHandle); // a stale handle stops nothing
+```
+
+`SfxPlayer.CueDropped` reports every cue that did not play, and why (`Throttled`, `NoVoice`,
+`LoopLimit`, ...).
+
+### How a voice is chosen
+
+| Situation | Result |
+| --- | --- |
+| A voice is idle | The cue takes it, searching round-robin so cues spread across the pool. |
+| Every voice is busy | The cue takes the least important voice of **strictly lower** priority, oldest first. |
+| Only equal or higher priority is playing | The cue is dropped. Cutting off an audible sound is worse than one that never starts. |
+| A voice holds a loop | It is never taken. |
+
+## Music
+
+1. Create tracks with **Create > DxAudio > Music Track** and give each a context, such as `title` or
+   `level-1`.
+2. Create a library with **Create > DxAudio > Music Library**, list the tracks, and set the fades.
+3. Add a **Music Player** component and assign the library.
+
+```csharp
+_music.PlayContext("level-1");     // crossfades; the same music asked for again keeps playing
+_music.Play(track);                // or by reference
+_music.Stop();                     // fades out
+
+using (_music.Override(bossTrack)) // plays over the context, then hands back
+{
+    await BossFight();
+}
+```
+
+### Ducking
+
+Create a duck with **Create > DxAudio > Music Duck**. Set its volume, low-pass and high-pass, its apply
+and release times, and its holders:
+
+- **One** for a state that is on or off, such as a menu. Asserting it again changes nothing, and one
+  release ends it.
+- **Many** for a claim several things make at once, such as two speakers. The music stays down until the
+  last one releases.
+
+```csharp
+MusicDuckLease lease = _music.Duck(_dialogueDuck, holder: this);
+// ...
+_music.Release(lease);
+```
+
+A `Many` duck whose holder is destroyed without releasing is released on the next frame.
+`MusicPlayer.DescribeDucks()` lists every live duck and its holder.
+
+## Settings and events
+
+```csharp
+_sfx.Muted = !settings.SoundOn;
+_music.Muted = !settings.MusicOn;
+```
+
+Muting keeps every voice's state, so loops and music resume in time when unmuted. To drive the players
+from DxMessaging, register handlers that call them:
+
+```csharp
+_registration.RegisterUntargeted<DialogueStarted>(m => _lease = _music.Duck(_dialogueDuck, m.speaker));
+_registration.RegisterUntargeted<DialogueEnded>(m => _music.Unduck(_dialogueDuck, m.speaker));
+```
+
+## The core is engine-free
+
+`Runtime/Core` (the arbiter, rate limit, take selection, duck stack, attenuation, ramps, hand-off and
+override) uses no Unity types. Use those types directly to build your own player, and test them on plain
+.NET:
+
+```bash
+dotnet test .net-tests
+```
+
+The same tests, plus tests of the assets and players, run in Unity's Test Runner when the package is
+listed under `testables` in your project manifest.
+
+## License
+
+[MIT No Attribution](LICENSE.md).

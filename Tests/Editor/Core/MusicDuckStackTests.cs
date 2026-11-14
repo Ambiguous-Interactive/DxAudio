@@ -1,0 +1,109 @@
+namespace WallstopStudios.DxAudio.Tests.Editor
+{
+    using NUnit.Framework;
+
+    public sealed class MusicDuckStackTests
+    {
+        private static readonly MusicAttenuation Half = new(0.5f, 2_000f, MusicAttenuation.OpenHighPassCutoffHz);
+        private static readonly MusicAttenuation Quiet = new(0.2f, MusicAttenuation.OpenLowPassCutoffHz, 300f);
+
+        [Test]
+        public void HoldsComposeToTheMostRestrictiveAndReleaseIndependently()
+        {
+            MusicDuckStack stack = new();
+            Reason menu = new("menu", MusicDuckHolders.One);
+            Reason dialogue = new("dialogue", MusicDuckHolders.Many);
+
+            MusicDuckLease menuLease = stack.Take(menu, Half);
+            MusicDuckLease dialogueLease = stack.Take(dialogue, Quiet, holder: "speaker");
+
+            Assert.That(stack.Current, Is.EqualTo(new MusicAttenuation(0.2f, 2_000f, 300f)));
+            Assert.That(stack.Release(dialogueLease), Is.True);
+            Assert.That(stack.Current, Is.EqualTo(Half), "the menu stays in force");
+            Assert.That(stack.Release(menuLease), Is.True);
+            Assert.That(stack.Current, Is.EqualTo(MusicAttenuation.Unattenuated));
+            Assert.That(stack.ActiveCount, Is.Zero);
+        }
+
+        [Test]
+        public void AOneReasonIsOneHoldHoweverOftenItIsAsserted()
+        {
+            MusicDuckStack stack = new();
+            Reason menu = new("menu", MusicDuckHolders.One);
+
+            MusicDuckLease first = stack.Take(menu, Half);
+            MusicDuckLease second = stack.Take(menu, Quiet);
+
+            Assert.That(second, Is.EqualTo(first), "the same state asserted again is the same hold");
+            Assert.That(stack.Current, Is.EqualTo(Quiet), "the repeat replaces the attenuation");
+            Assert.That(stack.Release(first), Is.True);
+            Assert.That(stack.IsActive(menu), Is.False, "one release ends it");
+            Assert.That(stack.Release(second), Is.False, "the hold is already gone");
+        }
+
+        [Test]
+        public void AManyReasonHoldsUntilTheLastHolderReleases()
+        {
+            MusicDuckStack stack = new();
+            Reason dialogue = new("dialogue", MusicDuckHolders.Many);
+
+            MusicDuckLease first = stack.Take(dialogue, Half, holder: "a");
+            _ = stack.Take(dialogue, Half, holder: "b");
+
+            Assert.That(stack.HolderCount(dialogue), Is.EqualTo(2));
+            Assert.That(stack.Release(first), Is.False, "the target does not move while b still holds");
+            Assert.That(stack.IsActive(dialogue), Is.True);
+            Assert.That(stack.Release(dialogue, holder: "b"), Is.True);
+            Assert.That(stack.IsActive(dialogue), Is.False);
+        }
+
+        [Test]
+        public void StaleForeignAndDefaultLeasesReleaseNothing()
+        {
+            MusicDuckStack stack = new();
+            MusicDuckStack other = new();
+            Reason menu = new("menu", MusicDuckHolders.One);
+            MusicDuckLease lease = stack.Take(menu, Half);
+            MusicDuckLease foreign = other.Take(menu, Half);
+
+            Assert.That(default(MusicDuckLease).IsValid, Is.False);
+            Assert.That(stack.Release(default), Is.False);
+            Assert.That(stack.Release(foreign), Is.False, "another stack's lease, though its id matches");
+            Assert.That(stack.IsActive(menu), Is.True);
+            Assert.That(stack.Release(lease), Is.True);
+            _ = stack.Take(menu, Quiet);
+            Assert.That(stack.Release(lease), Is.False, "a released lease never releases a later hold");
+            Assert.That(stack.Take(null, Half).IsValid, Is.False);
+        }
+
+        [Test]
+        public void DescribeAndClear()
+        {
+            MusicDuckStack stack = new();
+            Assert.That(stack.DescribeHolds(), Does.Contain("Nothing"));
+            _ = stack.Take(new Reason("dialogue", MusicDuckHolders.Many), Half, holder: "speaker");
+
+            Assert.That(stack.DescribeHolds(), Does.Contain("dialogue #1 held by speaker"));
+            Assert.That(stack.Clear(), Is.True);
+            Assert.That(stack.Current, Is.EqualTo(MusicAttenuation.Unattenuated));
+        }
+
+        private sealed class Reason : IMusicDuckReason
+        {
+            private readonly string _name;
+
+            public Reason(string name, MusicDuckHolders holders)
+            {
+                _name = name;
+                Holders = holders;
+            }
+
+            public MusicDuckHolders Holders { get; }
+
+            public override string ToString()
+            {
+                return _name;
+            }
+        }
+    }
+}

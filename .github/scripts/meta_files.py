@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+"""Check, or write, the .meta file Unity needs beside every file and folder of the package.
+
+A package installed from git is read-only, so Unity cannot write a missing .meta itself: it warns and
+ignores the asset, and a script without one never compiles. An orphan .meta (its asset deleted) makes
+Unity warn on every import. Both are easy to commit by accident, so CI runs this with --check.
+
+New metas get a GUID derived from the path, so writing them twice gives the same result.
+
+    python3 .github/scripts/meta_files.py          # write missing metas
+    python3 .github/scripts/meta_files.py --check  # fail on a missing or orphan meta
+"""
+
+import hashlib
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+PACKAGE_DIRS = ("Runtime", "Tests")
+PACKAGE_FILES = ("package.json", "README.md", "CHANGELOG.md", "LICENSE.md")
+
+
+def importer_for(path: Path) -> str:
+    if path.is_dir():
+        return "folderAsset: yes\nDefaultImporter:\n  externalObjects: {}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n"
+    suffix = path.suffix.lower()
+    if suffix == ".cs":
+        return (
+            "MonoImporter:\n  externalObjects: {}\n  serializedVersion: 2\n  defaultReferences: []\n"
+            "  executionOrder: 0\n  icon: {instanceID: 0}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n"
+        )
+    if suffix == ".asmdef":
+        return "AssemblyDefinitionImporter:\n  externalObjects: {}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n"
+    if path.name == "package.json":
+        return "PackageManifestImporter:\n  externalObjects: {}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n"
+    return "TextScriptImporter:\n  externalObjects: {}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n"
+
+
+def assets() -> list[Path]:
+    found = [ROOT / name for name in PACKAGE_FILES if (ROOT / name).exists()]
+    for directory in PACKAGE_DIRS:
+        top = ROOT / directory
+        if not top.exists():
+            continue
+        found.append(top)
+        found.extend(p for p in sorted(top.rglob("*")) if p.suffix != ".meta" and not p.name.startswith("."))
+    return found
+
+
+def meta_text(path: Path) -> str:
+    relative = path.relative_to(ROOT).as_posix()
+    guid = hashlib.md5(f"com.wallstop-studios.dxaudio/{relative}".encode()).hexdigest()
+    return f"fileFormatVersion: 2\nguid: {guid}\n{importer_for(path)}"
+
+
+def main() -> int:
+    check = "--check" in sys.argv[1:]
+    expected = assets()
+    problems = []
+    for asset in expected:
+        meta = asset.with_name(asset.name + ".meta")
+        if meta.exists():
+            continue
+        if check:
+            problems.append(f"missing: {meta.relative_to(ROOT)}")
+        else:
+            meta.write_text(meta_text(asset), encoding="utf-8", newline="\n")
+            print(f"wrote {meta.relative_to(ROOT)}")
+
+    expected_metas = {asset.with_name(asset.name + ".meta") for asset in expected}
+    for directory in PACKAGE_DIRS:
+        for meta in (ROOT / directory).rglob("*.meta"):
+            if meta not in expected_metas:
+                problems.append(f"orphan: {meta.relative_to(ROOT)}")
+
+    for problem in problems:
+        print(problem, file=sys.stderr)
+    return 1 if problems else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,96 @@
+namespace WallstopStudios.DxAudio
+{
+    using UnityEngine;
+
+    /// <summary>One piece of music and how it plays: its trim, whether it loops, and where it starts.</summary>
+    [CreateAssetMenu(fileName = "MusicTrack", menuName = "DxAudio/Music Track")]
+    public sealed class MusicTrack : ScriptableObject
+    {
+        [SerializeField]
+        [Tooltip(
+            "The context this plays for (a screen, a level, an area) when looked up through a MusicLibrary. "
+                + "Optional when the track is only played by reference."
+        )]
+        private string _context;
+
+        [SerializeField]
+        [Tooltip("What plays. A track with no clip is refused rather than played as silence.")]
+        private AudioClip _clip;
+
+        [SerializeField]
+        [Tooltip("AudioClip carries no loop flag of its own; looping is a property of playback.")]
+        private bool _loop = true;
+
+        [Range(0f, 1f)]
+        [SerializeField]
+        [Tooltip("Per-track trim, so one loud master does not force every other track to be re-authored.")]
+        private float _volumeScale = 1f;
+
+        [Min(0f)]
+        [SerializeField]
+        [Tooltip(
+            "Where the track begins on its first play. A looping track still loops back to zero, so this skips "
+                + "an intro rather than setting a loop point."
+        )]
+        private float _startTimeSeconds;
+
+        public string Context => _context;
+
+        public AudioClip Clip => _clip;
+
+        public bool Loop => _loop;
+
+        public float VolumeScale => _volumeScale;
+
+        public bool IsPlayable => _clip != null;
+
+        /// <summary>Where playback begins, clamped so it never starts at or past the clip's end.</summary>
+        public float StartTimeSeconds => AudioClipStart.Clamped(_clip, _startTimeSeconds);
+
+        /// <summary>Builds a track in code, for tests and for games that author audio at runtime.</summary>
+        public static MusicTrack Create(
+            AudioClip clip,
+            string context = null,
+            bool loop = true,
+            float volumeScale = 1f,
+            float startTimeSeconds = 0f
+        )
+        {
+            MusicTrack track = CreateInstance<MusicTrack>();
+            track._clip = clip;
+            track._context = context;
+            track._loop = loop;
+            track._volumeScale = Mathf.Clamp01(volumeScale);
+            track._startTimeSeconds = Mathf.Max(0f, startTimeSeconds);
+            return track;
+        }
+
+        /// <summary>Whether two tracks would sound the same, so switching between them is not a change.</summary>
+        /// <remarks>
+        /// By value, not reference: two contexts that share a clip should keep it playing across the switch
+        /// rather than restart it. The context is not compared, for the same reason.
+        /// </remarks>
+        public static bool SameMusic(MusicTrack first, MusicTrack second)
+        {
+            if (ReferenceEquals(first, second))
+            {
+                return true;
+            }
+
+            if (first == null || second == null)
+            {
+                return false;
+            }
+
+            return first._clip == second._clip
+                && first._loop == second._loop
+                && Mathf.Approximately(first._volumeScale, second._volumeScale)
+                && Mathf.Approximately(first._startTimeSeconds, second._startTimeSeconds);
+        }
+
+        private void OnValidate()
+        {
+            MusicLibrary.ForgetEveryIndex();
+        }
+    }
+}
