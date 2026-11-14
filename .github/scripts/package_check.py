@@ -28,7 +28,9 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 NAME = "com.wallstop-studios.dxaudio"
 PACKAGE_DIRS = ("Runtime", "Tests")
 ROOT_FILES = ("package.json", "README.md", "CHANGELOG.md", "LICENSE.md")
-TAG = re.compile(r"^v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$")
+# Lowercase prerelease names only: GitHub compares concurrency groups without case, so two tags that
+# differ only in case would share the release workflow's group.
+TAG = re.compile(r"^v(\d+\.\d+\.\d+(?:-[0-9a-z.-]+)?)$")
 
 
 def pack(destination: Path | None) -> dict:
