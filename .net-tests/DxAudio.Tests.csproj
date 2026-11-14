@@ -15,6 +15,7 @@
   <ItemGroup>
     <Compile Include="../Runtime/Core/**/*.cs" />
     <Compile Include="../Tests/Editor/Core/**/*.cs" />
+    <Compile Include="*.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />

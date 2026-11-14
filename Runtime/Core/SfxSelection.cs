@@ -8,19 +8,33 @@ namespace WallstopStudios.DxAudio
     /// enough to be heard as a stutter, the machine-gun effect that makes repeated pickups sound synthetic.
     /// Drawing only from the variants that are not the previous one costs nothing and removes it.
     ///
-    /// Memory is per key, for the same reason <see cref="SfxThrottle"/> is: "not twice in a row" is a
+    /// Memory is per key, for the same reason <see cref="SfxThrottle{TKey}"/> is: "not twice in a row" is a
     /// statement about one set of takes. With one shared memory, a pickup landing between two footsteps
     /// overwrites what the footstep last played, and the footstep is free to repeat.
     ///
     /// The random value is a parameter rather than drawn here, so the choice is a pure function of its
-    /// inputs and testable without stubbing a generator.
+    /// inputs and testable without stubbing a generator. The key is a type parameter, so a struct key does
+    /// not box per draw.
     /// </remarks>
-    public sealed class SfxSelection
+    /// <typeparam name="TKey">What a set of takes belongs to, such as a cue asset or a game's cue id.</typeparam>
+    public sealed class SfxSelection<TKey>
     {
         private const float LargestUnitRandom = 0.9999f;
 
+        private readonly IEqualityComparer<TKey> _comparer;
+
         // A missing key means "nothing has played yet" for that set of takes, rather than a -1 sentinel.
-        private readonly Dictionary<object, int> _lastIndexByKey = new();
+        private readonly Dictionary<TKey, int> _lastIndexByKey;
+
+        public SfxSelection()
+            : this(null) { }
+
+        /// <param name="comparer">How keys compare, or <see langword="null"/> for the type's default.</param>
+        public SfxSelection(IEqualityComparer<TKey> comparer)
+        {
+            _comparer = comparer ?? EqualityComparer<TKey>.Default;
+            _lastIndexByKey = new Dictionary<TKey, int>(_comparer);
+        }
 
         /// <summary>Picks the next of <paramref name="variantCount"/> variants for <paramref name="key"/>.</summary>
         /// <param name="key">What the variants belong to. Only its own history is consulted.</param>
@@ -28,7 +42,7 @@ namespace WallstopStudios.DxAudio
         /// <param name="unitRandom">A value in [0, 1). Values outside are clamped into range.</param>
         /// <param name="index">The variant to play.</param>
         /// <returns><see langword="false"/> when there is nothing to choose.</returns>
-        public bool TryNext(object key, int variantCount, float unitRandom, out int index)
+        public bool TryNext(TKey key, int variantCount, float unitRandom, out int index)
         {
             if (key == null || variantCount <= 0)
             {
@@ -76,12 +90,12 @@ namespace WallstopStudios.DxAudio
         /// <see langword="false"/> when the leader has played nothing yet, or played a take this key does
         /// not have. The caller then draws with <see cref="TryNext"/> as usual.
         /// </returns>
-        public bool TryFollow(object key, object leader, int variantCount, out int index)
+        public bool TryFollow(TKey key, TKey leader, int variantCount, out int index)
         {
             if (
                 key == null
                 || leader == null
-                || Equals(key, leader)
+                || _comparer.Equals(key, leader)
                 || !_lastIndexByKey.TryGetValue(leader, out int last)
                 || variantCount <= last
             )
@@ -95,7 +109,7 @@ namespace WallstopStudios.DxAudio
             return true;
         }
 
-        public void Forget(object key)
+        public void Forget(TKey key)
         {
             if (key != null)
             {
