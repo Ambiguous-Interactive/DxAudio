@@ -195,7 +195,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             MusicTrack town = Made(MusicTrack.Create(Clip(), context: "town"));
             MusicTrack boss = Made(MusicTrack.Create(Clip()));
-            MusicOverride<MusicTrack> selection = new();
+            List<MusicTrack> heard = new();
+            MusicOverride<MusicTrack> selection = new(heard.Add);
             _ = selection.SetContextTrack(town);
             MusicOverrideLease lease = selection.Take(boss);
 
@@ -203,8 +204,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(selection.Current, Is.SameAs(town), "a destroyed override no longer counts");
             Assert.That(selection.Take(boss).IsValid, Is.False, "a destroyed track is refused");
-            Assert.That(selection.Release(lease), Is.False, "the context's music was already wanted");
-            Assert.That(selection.Current, Is.SameAs(town));
+            Assert.That(selection.Release(lease), Is.True, "the player still plays the destroyed track");
+            Assert.That(heard, Has.Count.EqualTo(3));
+            Assert.That(heard[2], Is.SameAs(town), "the release hands the music back");
         }
 
         private SfxPlayer SfxPlayer(SfxLibrary library)

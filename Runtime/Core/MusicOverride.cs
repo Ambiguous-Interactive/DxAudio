@@ -23,6 +23,7 @@ namespace WallstopStudios.DxAudio
 
         private TTrack _contextTrack;
         private TTrack _overrideTrack;
+        private TTrack _announced;
         private long _nextId = MusicOverrideLease.NoneId + 1;
         private long _activeId = MusicOverrideLease.NoneId;
 
@@ -46,14 +47,13 @@ namespace WallstopStudios.DxAudio
         public bool IsOverridden => _activeId != MusicOverrideLease.NoneId;
 
         /// <summary>Sets the context's music and clears any override.</summary>
-        /// <returns>Whether <see cref="Current"/> changed.</returns>
+        /// <returns>Whether the wanted music changed.</returns>
         public bool SetContextTrack(TTrack track)
         {
-            TTrack previous = Current;
             _contextTrack = track;
             _overrideTrack = null;
             _activeId = MusicOverrideLease.NoneId;
-            return Publish(previous);
+            return Publish();
         }
 
         /// <summary>Plays <paramref name="track"/> over the context until the lease is released.</summary>
@@ -65,15 +65,14 @@ namespace WallstopStudios.DxAudio
                 return MusicOverrideLease.None;
             }
 
-            TTrack previous = Current;
             _activeId = _nextId++;
             _overrideTrack = track;
-            _ = Publish(previous);
+            _ = Publish();
             return new MusicOverrideLease(_activeId, this);
         }
 
         /// <summary>Ends the override <paramref name="lease"/> names, if it is still the active one.</summary>
-        /// <returns>Whether <see cref="Current"/> changed.</returns>
+        /// <returns>Whether the wanted music changed.</returns>
         public bool Release(in MusicOverrideLease lease)
         {
             if (!lease.IsValid || !lease.IssuedBy(this) || lease.Id != _activeId)
@@ -81,14 +80,20 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
-            TTrack previous = Current;
             _activeId = MusicOverrideLease.NoneId;
             _overrideTrack = null;
-            return Publish(previous);
+            return Publish();
         }
 
-        private bool Publish(TTrack previous)
+        /// <summary>Announces <see cref="Current"/> when it is other music than was last announced.</summary>
+        /// <remarks>
+        /// It compares with the last announcement, not with <see cref="Current"/> before the change, because
+        /// <see cref="Current"/> also changes with no call here: when the override track is destroyed. Its
+        /// release must still hand the music back to the context.
+        /// </remarks>
+        private bool Publish()
         {
+            TTrack previous = _announced;
             TTrack current = Current;
             bool unchanged =
                 previous == null ? current == null : current != null && _sameMusic.Equals(previous, current);
@@ -97,6 +102,7 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
+            _announced = current;
             _onSelectionChanged?.Invoke(current);
             return true;
         }

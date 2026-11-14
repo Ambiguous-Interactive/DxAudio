@@ -9,8 +9,9 @@ All notable changes to this package are documented here. The format follows
 ### Fixed
 
 - `MusicOverride<TTrack>` sees a destroyed Unity track. `Current` gives the context's music while the
-  override track is destroyed, and `Take` refuses a destroyed track. Generic code compares by reference,
-  so `??` and `== null` treated a destroyed track as music to play.
+  override track is destroyed, `Take` refuses a destroyed track, and releasing the override announces the
+  context's music again. Generic code compares by reference, so `??` and `== null` treated a destroyed
+  track as music to play.
 
 ### Changed
 
