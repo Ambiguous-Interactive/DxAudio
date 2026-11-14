@@ -46,6 +46,11 @@ The `com.wallstop-studios` scope also covers DxMessaging, Unity Helpers and the 
 packages on npm. If your manifest already has a scoped registry for `https://registry.npmjs.org`, add the
 scope to it instead.
 
+**From OpenUPM.** With the [OpenUPM CLI](https://openupm.com/docs/getting-started-cli.html), run
+`openupm add com.wallstop-studios.dxaudio`. Without it, add a scoped registry for
+`https://package.openupm.com` with the scope `com.wallstop-studios.dxaudio`, as the
+[package page](https://openupm.com/packages/com.wallstop-studios.dxaudio/) shows.
+
 **From git.** Open **Window > Package Manager**, choose **+ > Add package from git URL**, and enter:
 
 ```text
@@ -58,8 +63,8 @@ tarball**.
 
 ### Dependencies
 
-DxAudio needs no other package. Its assemblies reference only Unity's, so npm, a git URL and a release
-tarball install the same files and fetch nothing else. DxMessaging, UnityEvents or your own code drive the
+DxAudio needs no other package. Its assemblies reference only Unity's, so npm, OpenUPM, a git URL and a
+release tarball install the same files and fetch nothing else. DxMessaging, UnityEvents or your own code drive the
 players with plain method calls (see [Settings and events](#settings-and-events)).
 
 If a later version needs another package, `package.json` lists it at an exact version. Unity then
