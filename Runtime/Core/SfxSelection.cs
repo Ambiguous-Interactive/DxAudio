@@ -91,9 +91,9 @@ namespace WallstopStudios.DxAudio
         /// not have. The caller then draws with <see cref="TryNext"/> as usual.
         /// </returns>
         /// <remarks>
-        /// A key equal to <paramref name="leader"/> never follows, so a cue cannot repeat its own last take.
-        /// Only equality is checked. A game whose key splits one cue into several sets of takes, such as
-        /// by what struck it, must refuse a cue that follows itself before it calls this.
+        /// A key equal to <paramref name="leader"/> never follows it. Only equality is checked: a game whose
+        /// key splits one cue into several sets of takes, such as by what struck it, must refuse a cue that
+        /// follows itself before it calls this.
         /// </remarks>
         public bool TryFollow(TKey key, TKey leader, int variantCount, out int index)
         {
