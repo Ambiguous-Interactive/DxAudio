@@ -8,6 +8,12 @@ name: Release
 # Every step skips what is already done, so a failed release is finished by re-running its run, or
 # by `gh workflow run release.yml --ref vX.Y.Z`. The job runs only on a tag, in the `npm`
 # environment, which admits `v*` tags only: npm trusts that environment, not a branch.
+#
+# npm trusts this workflow once a maintainer with npm 2FA has run, for an existing package:
+#   npx --yes npm@12.2.2 trust github com.wallstop-studios.dxaudio \
+#     --repo Ambiguous-Interactive/DxAudio --file release.yml --env npm --allow-publish
+# A new trust configuration expires unless a publish uses it within 2 days, so run it just before
+# pushing a release tag.
 
 on:
   push:
@@ -98,16 +104,18 @@ jobs:
             echo "${PACKAGE}@${VERSION} is already on npm."
             exit 0
           fi
-          if ! npm view "${PACKAGE}" name >/dev/null 2>&1; then
-            # npm cannot trust a workflow for a name that does not exist yet.
-            url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${TAG}/$(basename "${TARBALL}")"
-            echo "::error::${PACKAGE} is not on npm yet, so trusted publishing cannot create it. A maintainer with npm 2FA runs, once:"
-            echo "::error::npx --yes npm@12.2.2 publish ${url} --access public"
-            echo "::error::npx --yes npm@12.2.2 trust github ${PACKAGE} --repo ${GITHUB_REPOSITORY} --file release.yml --env npm --allow-publish"
-            exit 1
-          fi
           # A stable version takes npm's default tag, whose guard refuses to move "latest" back to an
           # older version (a backport); a prerelease goes to "next".
           flags=()
           if [ "${PRERELEASE}" = "true" ]; then flags+=(--tag next); fi
-          npx --yes npm@12.2.2 publish "${TARBALL}" --access public "${flags[@]}"
+          if ! npm view "${PACKAGE}" name >/dev/null 2>&1; then
+            # npm cannot trust a workflow for a name that does not exist yet.
+            url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${TAG}/$(basename "${TARBALL}")"
+            echo "::error::${PACKAGE} is not on npm yet, and trusted publishing cannot create it. A maintainer with npm 2FA publishes this version once, then trusts this workflow before the next tag (see the top of release.yml):"
+            echo "::error::npx --yes npm@12.2.2 publish ${url} --access public ${flags[*]}"
+            exit 1
+          fi
+          if ! npx --yes npm@12.2.2 publish "${TARBALL}" --access public "${flags[@]}"; then
+            echo "::error::If npm refused the OIDC exchange, trust this workflow (see the top of release.yml) and re-run."
+            exit 1
+          fi
