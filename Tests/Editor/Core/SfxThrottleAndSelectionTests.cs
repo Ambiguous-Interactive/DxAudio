@@ -38,6 +38,32 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(throttle.IsReady("step", 0.5f, 1f), Is.True, "a forgotten key starts over");
         }
 
+        [Test]
+        public void ARefusedAttemptDoesNotPushTheWindowOut()
+        {
+            SfxThrottle<string> throttle = new();
+            Assert.That(throttle.TryBegin("drop", 0f, 0.1f), Is.True);
+            Assert.That(throttle.TryBegin("drop", 0.05f, 0.1f), Is.False);
+
+            Assert.That(throttle.TryBegin("drop", 0.11f, 0.1f), Is.True, "the window runs from the last play");
+        }
+
+        [Test]
+        public void ClearingForgetsEveryKey()
+        {
+            SfxThrottle<string> throttle = new();
+            SfxSelection<string> selection = new();
+            Assert.That(throttle.TryBegin("drop", 0f, 10f), Is.True);
+            Assert.That(selection.TryNext("step", 3, 0f, out int first), Is.True);
+
+            throttle.Clear();
+            selection.Clear();
+
+            Assert.That(throttle.TryBegin("drop", 0f, 10f), Is.True, "the throttle forgot the last play");
+            Assert.That(selection.TryNext("step", 3, 0f, out int again), Is.True);
+            Assert.That(again, Is.EqualTo(first), "the selection forgot the last take, so it may repeat");
+        }
+
         [TestCase(2)]
         [TestCase(3)]
         [TestCase(5)]

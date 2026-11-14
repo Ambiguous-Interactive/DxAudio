@@ -73,6 +73,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(middle.volumeScale, Is.EqualTo(0.65f).Within(Tolerance));
         }
 
+        [TestCase(22_000f, 10f, 10f, TestName = "An ordered band is kept")]
+        [TestCase(900f, 4_000f, 900f, TestName = "A crossing high-pass yields to the low-pass")]
+        [TestCase(500f, 500f, 500f, TestName = "An equal band is kept")]
+        [TestCase(1_000f, -50f, 10f, TestName = "A high-pass below range is lifted to open")]
+        [TestCase(80_000f, 90_000f, 22_000f, TestName = "Two overshooting cutoffs are held at the ceiling")]
+        public void TheHighPassStaysInsideTheBand(float lowPassCutoffHz, float highPassCutoffHz, float expected)
+        {
+            MusicAttenuation attenuation = new(1f, lowPassCutoffHz, highPassCutoffHz);
+
+            Assert.That(attenuation.highPassCutoffHz, Is.EqualTo(expected));
+        }
+
         [Test]
         public void AttenuationEqualityIsQuantizedAndAgreesWithItsHash()
         {
@@ -109,6 +121,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(schedule.TryFinish(4f), Is.False, "a passed deadline is spent");
             schedule.Arm(now: 0f, fadeSeconds: -5f);
             Assert.That(schedule.TryFinish(0f), Is.True, "a negative fade is an immediate stop");
+        }
+
+        [Test]
+        public void ACancelledStopNeverFinishes()
+        {
+            MusicStopSchedule schedule = new();
+            schedule.Arm(now: 0f, fadeSeconds: 1f);
+
+            schedule.Cancel();
+
+            Assert.That(schedule.IsScheduled, Is.False);
+            Assert.That(schedule.TryFinish(5f), Is.False);
         }
 
         [TestCase(-21f, -6f, -21f, 0f, 1f, TestName = "A clip already on target keeps unity gain")]
