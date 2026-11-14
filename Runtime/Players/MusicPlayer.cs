@@ -215,6 +215,25 @@ namespace WallstopStudios.DxAudio
             Tick(Time.unscaledDeltaTime);
         }
 
+        private void OnDestroy()
+        {
+            foreach (Voice voice in _voices)
+            {
+                if (voice != null && voice.source != null)
+                {
+                    GameObject owned = voice.source.gameObject;
+                    if (Application.isPlaying)
+                    {
+                        Destroy(owned);
+                    }
+                    else
+                    {
+                        DestroyImmediate(owned);
+                    }
+                }
+            }
+        }
+
         private void OnSelectionChanged(MusicTrack next)
         {
             EnsureVoices();
@@ -243,12 +262,12 @@ namespace WallstopStudios.DxAudio
                     return;
                 default:
                     FadeOut(_current);
-                    _current = Start(next, fadeIn, fadeInEase);
+                    _current = StartVoice(next, fadeIn, fadeInEase);
                     return;
             }
         }
 
-        private Voice Start(MusicTrack track, float fadeIn, MusicEase fadeInEase)
+        private Voice StartVoice(MusicTrack track, float fadeIn, MusicEase fadeInEase)
         {
             Voice voice = FreeVoice();
             AudioSource source = voice.source;
@@ -270,8 +289,18 @@ namespace WallstopStudios.DxAudio
 
         private void FadeOut(Voice voice)
         {
-            if (voice == null || voice.fadingOut || voice.source == null || !voice.source.isPlaying)
+            if (voice == null || voice.fadingOut || voice.source == null)
             {
+                return;
+            }
+
+            // A voice not reporting playback (a clip still loading, a paused listener) is stopped outright,
+            // so it cannot resume later under the music that replaced it.
+            if (!voice.source.isPlaying)
+            {
+                voice.source.Stop();
+                voice.track = null;
+                voice.fade = MusicRamp.At(0f);
                 return;
             }
 
@@ -355,7 +384,8 @@ namespace WallstopStudios.DxAudio
                     continue;
                 }
 
-                GameObject child = new($"Music Voice {index}");
+                // Never saved with the scene: the player owns its voices and rebuilds them on demand.
+                GameObject child = new($"Music Voice {index}") { hideFlags = HideFlags.DontSave };
                 child.transform.SetParent(transform, worldPositionStays: false);
                 AudioSource source = child.AddComponent<AudioSource>();
                 source.playOnAwake = false;

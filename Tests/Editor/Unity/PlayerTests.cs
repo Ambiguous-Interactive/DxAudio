@@ -81,12 +81,30 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(player.StopLoop(first), Is.True);
             Assert.That(player.StopLoop(first), Is.False, "a handle stops once");
-            Assert.That(player.TryPlayLooping(hum, out SfxLoopHandle reused), Is.True);
-            Assert.That(player.StopLoop(first), Is.False, "a stale handle never stops a newer loop on its voice");
-            Assert.That(player.HeldVoiceCount, Is.EqualTo(2));
             player.StopAll();
             Assert.That(player.HeldVoiceCount, Is.Zero);
-            Assert.That(player.StopLoop(reused), Is.False);
+            Assert.That(player.StopLoop(second), Is.False);
+        }
+
+        [Test]
+        public void AStaleHandleNeverStopsANewerLoopOnItsVoice()
+        {
+            // The default interval, so a rate limit on loops would refuse the restart in the same frame.
+            SfxCue hum = Cue(loop: true, minimumIntervalSeconds: 0.05f);
+            SfxPlayer player = SfxPlayer(SfxLibrary.Create(new[] { hum }, voiceCount: 1, loopingVoiceLimit: 1));
+
+            Assert.That(player.TryPlayLooping(hum, out SfxLoopHandle first), Is.True);
+            Assert.That(player.StopLoop(first), Is.True);
+            Assert.That(player.TryPlayLooping(hum, out SfxLoopHandle reused), Is.True, "a loop is never rate-limited");
+            Assert.That(reused.voice, Is.EqualTo(first.voice), "the only voice is reused");
+            Assert.That(player.StopLoop(first), Is.False, "a stale handle never stops a newer loop on its voice");
+            Assert.That(player.HeldVoiceCount, Is.EqualTo(1));
+
+            player.Library = SfxLibrary.Create(new[] { hum }, voiceCount: 1, loopingVoiceLimit: 1);
+            Assert.That(player.TryPlayLooping(hum, out SfxLoopHandle rebuilt), Is.True);
+            Assert.That(player.StopLoop(reused), Is.False, "a handle from before a rebuild matches nothing after it");
+            Assert.That(player.StopLoop(rebuilt), Is.True);
+            Object.DestroyImmediate(player.Library);
         }
 
         [Test]

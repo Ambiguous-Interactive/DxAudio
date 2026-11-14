@@ -8,8 +8,7 @@ namespace WallstopStudios.DxAudio
     /// </summary>
     /// <remarks>
     /// A boss fight, an elevator or a cutscene plays its own music and then hands back. Holding that as a
-    /// lease means the context can change underneath an override without losing either: the override keeps
-    /// playing, and its release returns to the newest context rather than to a stale one.
+    /// lease means only the holder can end it, and ending it returns to the context's music.
     ///
     /// The last override taken wins, and only its lease releases it, so an older holder releasing late cannot
     /// end a newer holder's music. Setting a new context clears any override, because a context change is a

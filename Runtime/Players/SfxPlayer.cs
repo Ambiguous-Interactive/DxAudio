@@ -92,6 +92,7 @@ namespace WallstopStudios.DxAudio
         private bool[] _held = Array.Empty<bool>();
         private int[] _leases = Array.Empty<int>();
         private int _heldCount;
+        private int _nextLease;
         private int _roundRobin;
         private System.Random _random;
 
@@ -226,6 +227,19 @@ namespace WallstopStudios.DxAudio
         private void OnDestroy()
         {
             CueDropped = null;
+            DestroyVoices();
+        }
+
+        /// <summary>Frees the hold of every loop whose voice was destroyed, so it stops counting against the limit.</summary>
+        private void ReclaimDestroyedLoops()
+        {
+            for (int index = 0; index < _voices.Length; index++)
+            {
+                if (_held[index] && _voices[index] == null)
+                {
+                    Release(index);
+                }
+            }
         }
 
         private bool TryResolve(string key, out SfxCue cue)
@@ -256,13 +270,21 @@ namespace WallstopStudios.DxAudio
             if (_voices.Length == 0)
             {
                 BuildVoices();
+                if (_voices.Length == 0)
+                {
+                    return Drop(cue, SfxDropReason.NoVoice);
+                }
             }
 
+            // A loop stands for a state, so it is never rate-limited: stopping and restarting one in a
+            // frame, or two owners starting the same hum together, must both get their loop.
             float now = Time.unscaledTime;
-            if (!_throttle.IsReady(cue, now, cue.MinimumIntervalSeconds))
+            if (!looping && !_throttle.IsReady(cue, now, cue.MinimumIntervalSeconds))
             {
                 return Drop(cue, SfxDropReason.Throttled);
             }
+
+            ReclaimDestroyedLoops();
 
             int loopingLimit = _library != null ? _library.LoopingVoiceLimit : _voices.Length;
             if (looping && loopingLimit <= _heldCount)
@@ -281,14 +303,18 @@ namespace WallstopStudios.DxAudio
                 return Drop(cue, SfxDropReason.NotPlayable);
             }
 
-            _ = _throttle.TryBegin(cue, now, cue.MinimumIntervalSeconds);
+            if (!looping)
+            {
+                _ = _throttle.TryBegin(cue, now, cue.MinimumIntervalSeconds);
+            }
+
             _roundRobin = index + 1;
             AudioSource voice = _voices[index];
             voice.Stop();
             Configure(voice, cue, variant, position);
             _priorities[index] = cue.Priority;
             _startedAt[index] = now;
-            _leases[index]++;
+            _leases[index] = ++_nextLease;
             if (looping)
             {
                 _held[index] = true;
@@ -383,7 +409,7 @@ namespace WallstopStudios.DxAudio
         {
             _held[index] = false;
             _heldCount--;
-            _leases[index]++;
+            _leases[index] = ++_nextLease;
         }
 
         private bool Drop(SfxCue cue, SfxDropReason reason)
@@ -403,7 +429,7 @@ namespace WallstopStudios.DxAudio
             return _random.NextDouble();
         }
 
-        private void BuildVoices()
+        private void DestroyVoices()
         {
             foreach (AudioSource old in _voices)
             {
@@ -412,7 +438,11 @@ namespace WallstopStudios.DxAudio
                     DestroyVoice(old.gameObject);
                 }
             }
+        }
 
+        private void BuildVoices()
+        {
+            DestroyVoices();
             int count = _library != null ? _library.VoiceCount : 0;
             _voices = new AudioSource[count];
             _states = new SfxVoiceState[count];
@@ -425,7 +455,8 @@ namespace WallstopStudios.DxAudio
             _random = null;
             for (int index = 0; index < count; index++)
             {
-                GameObject child = new($"Sfx Voice {index}");
+                // Never saved with the scene: the player owns its voices and rebuilds them on load.
+                GameObject child = new($"Sfx Voice {index}") { hideFlags = HideFlags.DontSave };
                 child.transform.SetParent(transform, worldPositionStays: false);
                 AudioSource voice = child.AddComponent<AudioSource>();
                 voice.playOnAwake = false;
