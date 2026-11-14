@@ -22,19 +22,38 @@ Extracted from [Isho Boy](https://github.com/Ambiguous-Interactive)'s audio syst
 
 ## Install
 
-In Unity, open **Window > Package Manager**, choose **+ > Add package from git URL**, and enter:
+Unity 2021.3 or newer.
 
-```text
-https://github.com/Ambiguous-Interactive/DxAudio.git#v0.1.1
-```
-
-Or add it to `Packages/manifest.json`:
+**From npm.** Add the scoped registry and the package to `Packages/manifest.json`. Package Manager then
+lists new versions under **My Registries**:
 
 ```json
-"com.wallstop-studios.dxaudio": "https://github.com/Ambiguous-Interactive/DxAudio.git#v0.1.1"
+{
+  "scopedRegistries": [
+    {
+      "name": "npmjs",
+      "url": "https://registry.npmjs.org",
+      "scopes": ["com.wallstop-studios.dxaudio"]
+    }
+  ],
+  "dependencies": {
+    "com.wallstop-studios.dxaudio": "0.1.2"
+  }
+}
 ```
 
-Unity 2021.3 or newer.
+If your manifest already has a scoped registry for `https://registry.npmjs.org`, add the scope to it
+instead.
+
+**From git.** Open **Window > Package Manager**, choose **+ > Add package from git URL**, and enter:
+
+```text
+https://github.com/Ambiguous-Interactive/DxAudio.git#v0.1.2
+```
+
+**From a tarball.** Download `com.wallstop-studios.dxaudio-<version>.tgz` from a
+[release](https://github.com/Ambiguous-Interactive/DxAudio/releases) and choose **+ > Add package from
+tarball**.
 
 ## Sound effects
 

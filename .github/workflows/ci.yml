@@ -42,3 +42,5 @@ jobs:
           dotnet csharpier check .
       - name: Check every package asset has a .meta file
         run: python3 .github/scripts/meta_files.py --check
+      - name: Check what npm would publish
+        run: python3 .github/scripts/package_check.py
