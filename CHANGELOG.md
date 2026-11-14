@@ -4,6 +4,18 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the package uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] - 2026-11-14
+
+### Added
+
+- Releases publish to npm as `com.wallstop-studios.dxaudio`, so Unity can install the package from a
+  scoped registry. Each GitHub Release carries the same tarball and its SHA-256.
+
+### Changed
+
+- The package holds only `Runtime`, `Tests` and the docs. CI, the .NET test project and editor settings
+  stay in the repository.
+
 ## [0.1.1] - 2026-11-14
 
 ### Fixed

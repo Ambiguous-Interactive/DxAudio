@@ -1,6 +1,6 @@
 {
   "name": "com.wallstop-studios.dxaudio",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "displayName": "DxAudio",
   "description": "Data-driven sound effects and music for Unity. Cue and music libraries as assets, a pooled voice player with priority, rate limits and no-repeat variants, and a music player with per-context tracks, fades, overrides and ducks that compose. No dependencies.",
   "unity": "2021.3",
@@ -26,5 +26,18 @@
   "homepage": "https://github.com/Ambiguous-Interactive/DxAudio",
   "documentationUrl": "https://github.com/Ambiguous-Interactive/DxAudio#readme",
   "changelogUrl": "https://github.com/Ambiguous-Interactive/DxAudio/blob/main/CHANGELOG.md",
-  "licensesUrl": "https://github.com/Ambiguous-Interactive/DxAudio/blob/main/LICENSE.md"
+  "licensesUrl": "https://github.com/Ambiguous-Interactive/DxAudio/blob/main/LICENSE.md",
+  "files": [
+    "Runtime",
+    "Runtime.meta",
+    "Tests",
+    "Tests.meta",
+    "CHANGELOG.md",
+    "CHANGELOG.md.meta",
+    "LICENSE.md",
+    "LICENSE.md.meta",
+    "README.md",
+    "README.md.meta",
+    "package.json.meta"
+  ]
 }
