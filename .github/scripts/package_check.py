@@ -99,8 +99,9 @@ def dependency_problems(manifest: dict) -> list[str]:
         where = path.relative_to(ROOT).as_posix()
         constraints = set(asmdef.get("defineConstraints", []))
         is_test = "UNITY_INCLUDE_TESTS" in constraints
-        # An optional integration compiles only when its package is present, so it lists nothing.
-        optional = constraints & {entry["define"] for entry in asmdef.get("versionDefines", [])}
+        # An optional integration compiles only when its package is present, so that package is not listed.
+        # Only a package whose own versionDefines entry sets one of the constraints is guarded that way.
+        guarded = {entry["name"] for entry in asmdef.get("versionDefines", []) if entry["define"] in constraints}
         for reference in asmdef.get("references", []):
             if reference.startswith("GUID:"):
                 problems.append(f"{where} references {reference}: name the assembly, so this check can read it")
@@ -109,11 +110,10 @@ def dependency_problems(manifest: dict) -> list[str]:
                 continue
             package = package_of(reference)
             if package is None:
-                if not optional:
-                    problems.append(f"{where} references {reference}, whose package is not in ASSEMBLY_PACKAGES")
+                problems.append(f"{where} references {reference}, whose package is not in ASSEMBLY_PACKAGES")
             elif package in dependencies:
                 used.add(package)
-            elif not optional:
+            elif package not in guarded:
                 problems.append(f"{where} references {reference}, but package.json does not list {package}")
         if not asmdef.get("overrideReferences", False):
             problems.append(f"{where} sets no overrideReferences, so it takes every auto-referenced DLL in the project")
