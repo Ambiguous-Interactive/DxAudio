@@ -38,7 +38,8 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>The music wanted now: the override when there is one, otherwise the context's.</summary>
-        public TTrack Current => _overrideTrack ?? _contextTrack;
+        /// <remarks>A destroyed override track no longer counts, so the context's music is wanted.</remarks>
+        public TTrack Current => UnityObjects.IsGone(_overrideTrack) ? _contextTrack : _overrideTrack;
 
         public TTrack ContextTrack => _contextTrack;
 
@@ -56,10 +57,10 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>Plays <paramref name="track"/> over the context until the lease is released.</summary>
-        /// <returns>The lease, or an invalid one when <paramref name="track"/> is null.</returns>
+        /// <returns>The lease, or an invalid one when <paramref name="track"/> is null or destroyed.</returns>
         public MusicOverrideLease Take(TTrack track)
         {
-            if (track == null)
+            if (UnityObjects.IsGone(track))
             {
                 return MusicOverrideLease.None;
             }
