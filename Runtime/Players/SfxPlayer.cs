@@ -82,8 +82,8 @@ namespace WallstopStudios.DxAudio
         [Tooltip("The listener a centred cue is placed in front of. Empty uses the main camera's.")]
         private AudioListener _listener;
 
-        private readonly SfxThrottle _throttle = new();
-        private readonly SfxSelection _selection = new();
+        private readonly SfxThrottle<SfxCue> _throttle = new();
+        private readonly SfxSelection<SfxCue> _selection = new();
 
         private AudioSource[] _voices = Array.Empty<AudioSource>();
         private SfxVoiceState[] _states = Array.Empty<SfxVoiceState>();

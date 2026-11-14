@@ -9,16 +9,27 @@ namespace WallstopStudios.DxAudio
     /// global, because a pickup must not silence a footstep at the same moment.
     ///
     /// Time is a parameter, so the decision is a pure function of its inputs. A key is any value with
-    /// equality: <c>SfxPlayer</c> uses the cue asset itself.
+    /// equality: <c>SfxPlayer</c> uses the cue asset itself. The key is a type parameter, so a game that keys
+    /// cues by a struct does not box one per sound played.
     /// </remarks>
-    public sealed class SfxThrottle
+    /// <typeparam name="TKey">What a rate limit belongs to, such as a cue asset or a game's cue id.</typeparam>
+    public sealed class SfxThrottle<TKey>
     {
-        private readonly Dictionary<object, float> _lastPlayedByKey = new();
+        private readonly Dictionary<TKey, float> _lastPlayedByKey;
+
+        public SfxThrottle()
+            : this(null) { }
+
+        /// <param name="comparer">How keys compare, or <see langword="null"/> for the type's default.</param>
+        public SfxThrottle(IEqualityComparer<TKey> comparer)
+        {
+            _lastPlayedByKey = new Dictionary<TKey, float>(comparer);
+        }
 
         /// <summary>
         /// Starts <paramref name="key"/>'s window when it is outside its last one, and says whether it was.
         /// </summary>
-        public bool TryBegin(object key, float now, float minimumIntervalSeconds)
+        public bool TryBegin(TKey key, float now, float minimumIntervalSeconds)
         {
             if (!IsReady(key, now, minimumIntervalSeconds))
             {
@@ -34,7 +45,7 @@ namespace WallstopStudios.DxAudio
         /// Lets a caller tell "this cue was rate-limited" from "this cue could not get a voice" before it
         /// commits to either. Only the second is a dropped cue worth reporting.
         /// </remarks>
-        public bool IsReady(object key, float now, float minimumIntervalSeconds)
+        public bool IsReady(TKey key, float now, float minimumIntervalSeconds)
         {
             if (key == null)
             {
@@ -46,7 +57,7 @@ namespace WallstopStudios.DxAudio
                 || minimumIntervalSeconds <= now - lastPlayed;
         }
 
-        public void Forget(object key)
+        public void Forget(TKey key)
         {
             if (key != null)
             {

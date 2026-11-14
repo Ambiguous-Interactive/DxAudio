@@ -37,7 +37,7 @@ lists new versions under **My Registries**:
     }
   ],
   "dependencies": {
-    "com.wallstop-studios.dxaudio": "0.1.2"
+    "com.wallstop-studios.dxaudio": "0.2.0"
   }
 }
 ```
@@ -48,7 +48,7 @@ instead.
 **From git.** Open **Window > Package Manager**, choose **+ > Add package from git URL**, and enter:
 
 ```text
-https://github.com/Ambiguous-Interactive/DxAudio.git#v0.1.2
+https://github.com/Ambiguous-Interactive/DxAudio.git#v0.2.0
 ```
 
 **From a tarball.** Download `com.wallstop-studios.dxaudio-<version>.tgz` from a

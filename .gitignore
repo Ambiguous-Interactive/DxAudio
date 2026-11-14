@@ -15,3 +15,6 @@
 .idea/
 *.csproj.user
 .DS_Store
+
+# Python
+__pycache__/

@@ -9,7 +9,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TestCase(0f, 1f, true, TestName = "Past the window is allowed")]
         public void ThrottleRefusesOnlyInsideTheWindow(float first, float second, bool expected)
         {
-            SfxThrottle throttle = new();
+            SfxThrottle<string> throttle = new();
             Assert.That(throttle.TryBegin("step", first, 0.05f), Is.True);
 
             Assert.That(throttle.TryBegin("step", second, 0.05f), Is.EqualTo(expected));
@@ -18,7 +18,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void ThrottleKeepsKeysApartAndZeroIntervalsOpen()
         {
-            SfxThrottle throttle = new();
+            SfxThrottle<string> throttle = new();
             Assert.That(throttle.TryBegin("step", 0f, 1f), Is.True);
             Assert.That(throttle.TryBegin("pickup", 0f, 1f), Is.True, "another key has its own window");
             Assert.That(throttle.TryBegin("tick", 0f, 0f), Is.True);
@@ -29,7 +29,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void IsReadyDoesNotSpendTheWindow()
         {
-            SfxThrottle throttle = new();
+            SfxThrottle<string> throttle = new();
             Assert.That(throttle.IsReady("step", 0f, 1f), Is.True);
             Assert.That(throttle.IsReady("step", 0f, 1f), Is.True);
             Assert.That(throttle.TryBegin("step", 0f, 1f), Is.True);
@@ -43,7 +43,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TestCase(5)]
         public void SelectionNeverRepeatsAndReachesEveryVariant(int variantCount)
         {
-            SfxSelection selection = new();
+            SfxSelection<string> selection = new();
             bool[] seen = new bool[variantCount];
             int previous = -1;
             const int Draws = 200;
@@ -66,7 +66,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TestCase(7f)]
         public void SelectionClampsOutOfRangeDraws(float unitRandom)
         {
-            SfxSelection selection = new();
+            SfxSelection<string> selection = new();
             Assert.That(selection.TryNext("cue", 4, unitRandom, out int first), Is.True);
             Assert.That(selection.TryNext("cue", 4, unitRandom, out int second), Is.True);
 
@@ -77,7 +77,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void SelectionHandlesDegenerateCounts()
         {
-            SfxSelection selection = new();
+            SfxSelection<string> selection = new();
             Assert.That(selection.TryNext("cue", 0, 0.5f, out _), Is.False, "nothing to choose");
             Assert.That(selection.TryNext(null, 3, 0.5f, out _), Is.False, "a null key names nothing");
             Assert.That(selection.TryNext("one", 1, 0.9f, out int only), Is.True);
@@ -89,7 +89,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void SelectionMemoryIsPerKeyAndSurvivesAShrink()
         {
-            SfxSelection selection = new();
+            SfxSelection<string> selection = new();
             Assert.That(selection.TryNext("step", 4, 0.99f, out int step), Is.True);
             Assert.That(step, Is.EqualTo(3));
             Assert.That(selection.TryNext("pickup", 4, 0.99f, out int pickup), Is.True);
@@ -105,7 +105,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void FollowingPlaysTheLeadersTake()
         {
-            SfxSelection selection = new();
+            SfxSelection<string> selection = new();
             Assert.That(selection.TryFollow("answer", "question", 3, out _), Is.False, "the leader has played nothing");
             Assert.That(selection.TryNext("question", 3, 0.99f, out int asked), Is.True);
 
