@@ -5,42 +5,39 @@ name: Release
 #
 # To release: bump "version" in package.json, add its CHANGELOG.md section, merge to main, then
 #   git tag vX.Y.Z origin/main && git push origin vX.Y.Z
-# Every step skips what is already done, so a failed run is fixed by re-running it, or by dispatching
-# this workflow with the tag.
+# Every step skips what is already done, so a failed release is finished by re-running its run, or
+# by `gh workflow run release.yml --ref vX.Y.Z`. The job runs only on a tag, in the `npm`
+# environment, which admits `v*` tags only: npm trusts that environment, not a branch.
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "An existing vX.Y.Z tag"
-        required: true
-        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: release
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   release:
-    name: Release ${{ inputs.tag || github.ref_name }}
+    name: Release ${{ github.ref_name }}
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment: npm
     permissions:
       contents: write # create the GitHub Release
       id-token: write # npm trusted publishing
     env:
       PACKAGE: com.wallstop-studios.dxaudio
-      TAG: ${{ inputs.tag || github.ref_name }}
+      TAG: ${{ github.ref_name }}
     steps:
       - name: Check out the tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/tags/${{ inputs.tag || github.ref_name }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -75,14 +72,17 @@ jobs:
           PRERELEASE: ${{ steps.pack.outputs.prerelease }}
           TARBALL: ${{ steps.pack.outputs.tarball }}
         run: |
+          files=("${TARBALL}" "${TARBALL}.sha256")
           if ! gh release view "${TAG}" >/dev/null 2>&1; then
             flags=()
             if [ "${PRERELEASE}" = "true" ]; then flags+=(--prerelease); fi
-            gh release create "${TAG}" --verify-tag --title "DxAudio ${TAG#v}" \
+            # With files, gh creates a draft, uploads them, then publishes.
+            gh release create "${TAG}" "${files[@]}" --verify-tag --title "DxAudio ${TAG#v}" \
               --notes-file dist/notes.md "${flags[@]}"
+            exit 0
           fi
           assets="$(gh release view "${TAG}" --json assets --jq '.assets[].name')"
-          for file in "${TARBALL}" "${TARBALL}.sha256"; do
+          for file in "${files[@]}"; do
             if ! grep -qxF "$(basename "${file}")" <<<"${assets}"; then
               gh release upload "${TAG}" "${file}"
             fi
@@ -90,7 +90,7 @@ jobs:
 
       - name: Publish to npm
         env:
-          NPM_TAG: ${{ steps.pack.outputs.npm_tag }}
+          PRERELEASE: ${{ steps.pack.outputs.prerelease }}
           TARBALL: ${{ steps.pack.outputs.tarball }}
           VERSION: ${{ steps.pack.outputs.version }}
         run: |
@@ -103,7 +103,11 @@ jobs:
             url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${TAG}/$(basename "${TARBALL}")"
             echo "::error::${PACKAGE} is not on npm yet, so trusted publishing cannot create it. A maintainer with npm 2FA runs, once:"
             echo "::error::npx --yes npm@12.2.2 publish ${url} --access public"
-            echo "::error::npx --yes npm@12.2.2 trust github ${PACKAGE} --repo ${GITHUB_REPOSITORY} --file release.yml --allow-publish"
+            echo "::error::npx --yes npm@12.2.2 trust github ${PACKAGE} --repo ${GITHUB_REPOSITORY} --file release.yml --env npm --allow-publish"
             exit 1
           fi
-          npx --yes npm@12.2.2 publish "./${TARBALL}" --access public --tag "${NPM_TAG}"
+          # A stable version takes npm's default tag, whose guard refuses to move "latest" back to an
+          # older version (a backport); a prerelease goes to "next".
+          flags=()
+          if [ "${PRERELEASE}" = "true" ]; then flags+=(--tag next); fi
+          npx --yes npm@12.2.2 publish "${TARBALL}" --access public "${flags[@]}"

@@ -12,7 +12,7 @@ npm never takes a version back, so everything a bad release could ship is checke
     python3 .github/scripts/package_check.py --tag v1.2.3 --out dist  # also pack and write notes
 
 With --out, it writes the tarball, its .sha256 and the release notes into that folder, and when
-GITHUB_OUTPUT is set it records version, tarball, npm_tag and prerelease for later steps.
+GITHUB_OUTPUT is set it records version, tarball and prerelease for later steps.
 """
 
 import argparse
@@ -35,14 +35,17 @@ def pack(destination: Path | None) -> dict:
     command = ["npm", "pack", "--json"]
     command += ["--pack-destination", str(destination)] if destination else ["--dry-run"]
     result = subprocess.run(command, cwd=ROOT, check=True, capture_output=True, text=True)
-    return json.loads(result.stdout)[0]
+    packed = json.loads(result.stdout)
+    # npm 10 and 11 print a list of packages, npm 12 an object keyed by package name.
+    return packed[0] if isinstance(packed, list) else packed[NAME]
 
 
 def payload_problems(paths: set[str]) -> list[str]:
     allowed = set(ROOT_FILES) | {f"{name}.meta" for name in ROOT_FILES + PACKAGE_DIRS}
     stray = {path for path in paths if path not in allowed and PurePosixPath(path).parts[0] not in PACKAGE_DIRS}
     problems = [f"not package content: {path}" for path in sorted(stray)]
-    paths = paths - stray
+    # Unity imports neither a dotfile nor anything under a folder ending in ~, so neither has a .meta.
+    paths = {path for path in paths - stray if not any(p.startswith(".") or p.endswith("~") for p in PurePosixPath(path).parts)}
     folders = {str(parent) for path in paths for parent in PurePosixPath(path).parents if str(parent) != "."}
     assets = {path for path in paths if not path.endswith(".meta")} | folders
     for asset in sorted(assets):
@@ -72,6 +75,8 @@ def main() -> int:
     parser.add_argument("--tag", help="the release tag, vX.Y.Z")
     parser.add_argument("--out", type=Path, help="pack into this folder and write the release notes")
     args = parser.parse_args()
+    if args.out:
+        args.out = args.out.resolve()  # npm pack runs in ROOT, not in the caller's folder
 
     manifest = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
     version = manifest["version"]
@@ -109,7 +114,6 @@ def main() -> int:
         outputs = {
             "version": version,
             "tarball": tarball.as_posix(),
-            "npm_tag": "next" if prerelease else "latest",
             "prerelease": str(prerelease).lower(),
         }
         if "GITHUB_OUTPUT" in os.environ:
