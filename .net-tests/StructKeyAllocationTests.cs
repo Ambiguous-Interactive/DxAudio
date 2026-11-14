@@ -34,29 +34,35 @@ namespace WallstopStudios.DxAudio.Tests
             SfxSelection<CueKey> selection = new();
             CueKey leader = new(1);
             CueKey follower = new(2);
-            Exercise(throttle, selection, leader, follower);
+            _ = Exercise(throttle, selection, leader, follower, now: 0f);
 
+            int begun = 0;
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int call = 0; call < Calls; call++)
             {
-                Exercise(throttle, selection, leader, follower);
+                // A second apart, so every TryBegin passes its 0.05 s window and writes its key.
+                begun += Exercise(throttle, selection, leader, follower, now: call + 1f);
             }
 
             long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.That(begun, Is.EqualTo(Calls), "every measured TryBegin took the write path");
             Assert.That(allocated, Is.Zero, $"{Calls} rounds on warmed struct keys allocated {allocated} bytes");
         }
 
-        private static void Exercise(
+        /// <returns>1 when <c>TryBegin</c> started a window, so the caller can assert outside the measure.</returns>
+        private static int Exercise(
             SfxThrottle<CueKey> throttle,
             SfxSelection<CueKey> selection,
             CueKey leader,
-            CueKey follower
+            CueKey follower,
+            float now
         )
         {
-            _ = throttle.IsReady(leader, 10f, 0.05f);
-            _ = throttle.TryBegin(leader, 10f, 0.05f);
+            _ = throttle.IsReady(leader, now, 0.05f);
+            bool begun = throttle.TryBegin(leader, now, 0.05f);
             _ = selection.TryNext(leader, 4, 0.5f, out _);
             _ = selection.TryFollow(follower, leader, 4, out _);
+            return begun ? 1 : 0;
         }
     }
 }
