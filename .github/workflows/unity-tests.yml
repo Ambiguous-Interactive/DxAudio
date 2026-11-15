@@ -157,15 +157,6 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         run: ./scripts/unity/show-editmode-log-tail.ps1
 
-      - name: Upload Unity test results
-        if: ${{ always() && steps.run_editmode.outcome != 'skipped' }}
-        timeout-minutes: 2
-        uses: actions/upload-artifact@v4
-        with:
-          name: unity-${{ matrix.unity-version }}-editmode
-          path: ${{ runner.temp }}/dxaudio-results-${{ matrix.unity-version }}/editmode-results.xml
-          if-no-files-found: warn
-
       - name: Return Unity license
         id: return_unity_license
         if: ${{ always() && steps.acquire_lock.outputs.acquired == 'true' }}
