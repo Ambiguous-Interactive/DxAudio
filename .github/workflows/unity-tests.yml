@@ -63,7 +63,7 @@ jobs:
       matrix:
         unity-version:
           - 2021.3.45f1
-          - 6000.6.7f1
+          - 6000.5.2f1
     steps:
       - name: Require current PR head before setup
         timeout-minutes: 2
