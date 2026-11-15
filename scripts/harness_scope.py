@@ -145,6 +145,8 @@ SUBJECTS_BY_PATH: Dict[str, Tuple[str, ...]] = {
     "scripts/lint_line_endings.py": ("test_line_endings.py",),
     "scripts/lint_release_secrets.py": ("test_release_secrets.py",),
     "scripts/run_unity_validation.py": ("test_run_unity_validation.py",),
+    "scripts/unity_tests.py": ("test_run_unity_validation.py",),
+    "scripts/ci_prepare_project.py": ("test_ci_prepare_project.py",),
     "scripts/export_docs_webp.py": ("test_export_docs_webp.py",),
     "scripts/export_docs_webp.py.meta": ("test_export_docs_webp.py",),
     "scripts/tests/test_export_docs_webp.py.meta": ("test_export_docs_webp.py",),

@@ -17,6 +17,8 @@ lock.
 
 ## 2. Editor authoring UX
 
+**Issue:** [#12](https://github.com/Ambiguous-Interactive/DxAudio/issues/12)
+
 **Problem:** cues, tracks, and libraries are authored through Unity's default inspector. Nothing previews a cue,
 validates a library, or shows a falloff.
 
@@ -31,6 +33,8 @@ updated.
 
 ## 3. Mixer routing, measured
 
+**Issue:** [#13](https://github.com/Ambiguous-Interactive/DxAudio/issues/13)
+
 **Problem:** users expect volume groups (Master, Music, SFX) and snapshot-style ducking. DxAudio composes attenuation
 itself.
 
@@ -42,6 +46,8 @@ integration that does not break the zero-dependency install.
 
 ## 4. Runtime diagnostics
 
+**Issue:** [#14](https://github.com/Ambiguous-Interactive/DxAudio/issues/14)
+
 **Problem:** when a cue is dropped or a duck sticks, the only signal is `CueDropped` and `DescribeDucks()`.
 
 **Scope:** a diagnostics overlay showing live voices, priorities, loop handles, active ducks and holders, and
@@ -51,6 +57,8 @@ dropped-cue counters.
 
 ## 5. Addressables and streaming
 
+**Issue:** [#15](https://github.com/Ambiguous-Interactive/DxAudio/issues/15)
+
 **Problem:** long tracks and large cue sets need async loading and unloading.
 
 **Scope:** document clip lifetime rules; add a load handle or a release-safe play path. Define what happens when a clip
@@ -59,6 +67,8 @@ is released while a voice holds it.
 **Acceptance:** a test that releases a clip during playback and observes a defined outcome.
 
 ## 6. Documentation site and sample scene
+
+**Issue:** [#16](https://github.com/Ambiguous-Interactive/DxAudio/issues/16)
 
 **Scope:** `Documentation~/` pages for install, quickstart, cues, music, ducks, and troubleshooting; one sample scene
 that demonstrates the README flows.
