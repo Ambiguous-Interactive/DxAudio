@@ -69,8 +69,9 @@ Stop() -> fade out
 - A held loop whose clip or source is gone is freed by `SfxPlayer`'s frame sweep, and every voice whose clip is gone is
   stopped when the pool is next read. A music voice whose clip is gone is stopped in `MusicPlayer.Tick`, so its context
   can play again.
-- Define the outcome, not the timing: a release frees the voice within a frame while the player component is enabled,
-  and the stale loop handle stops nothing after it.
+- Define the outcome, not the timing: a released clip frees a held loop within a frame while the player component is
+  enabled, and the stale loop handle stops nothing after it. A one-shot voice is not stopped by that sweep; it makes no
+  sound, and the next `Play` stops it while it reads the pool and reuses it.
 - Detected by a null clip only. A clip object that survives with its audio data unloaded (`AudioClip.UnloadAudioData`,
   `Resources.UnloadAsset`) is not detected, and the voice keeps its slot until the game stops it.
 

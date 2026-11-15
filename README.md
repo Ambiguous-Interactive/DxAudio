@@ -163,11 +163,12 @@ while `TargetAttenuation` reports the level the live ducks compose to.
 The players never own a clip. A game that loads and unloads clips itself, with Addressables or `Resources`, decides when
 a clip goes. These are the rules that make a release safe:
 
-| Moment                               | What happens                                                                                         |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| Released before its cue plays        | The cue has nothing to play: `Play` returns false and `CueDropped` reports `NotPlayable`.            |
-| Released while an SFX voice plays it | A loop's hold ends within a frame. Every voice is free for the next cue, which stops the silent one. |
-| Released while its music plays       | The music stops. Asking for its context again returns true and starts it once the track has a clip.  |
+| Moment                               | What happens                                                                                        |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| Released before its cue plays        | The cue has nothing to play: `Play` returns false and `CueDropped` reports `NotPlayable`.           |
+| Released while an SFX loop plays it  | The hold ends within a frame and the handle then stops nothing.                                     |
+| Released while an SFX one-shot plays | The voice is not stopped, but it makes no sound, so the next `Play` stops it and reuses it.         |
+| Released while its music plays       | The music stops. Asking for its context again returns true and starts it once the track has a clip. |
 
 Unity clears a source's clip when that clip's asset is destroyed, and still reports playback with no sound. The players
 check for a missing clip instead of trusting that report, so a voice never stays stranded and a music context never
