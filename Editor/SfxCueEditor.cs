@@ -20,6 +20,7 @@ namespace WallstopStudios.DxAudio.Editor
         static SfxCueEditor()
         {
             AssemblyReloadEvents.beforeAssemblyReload += DestroyPreviewSource;
+            EditorApplication.playModeStateChanged += OnPlayModeChanged;
         }
 
         public override void OnInspectorGUI()
@@ -93,9 +94,26 @@ namespace WallstopStudios.DxAudio.Editor
             source.clip = variant.Clip;
             source.loop = false;
             source.volume = cue.Volume;
+            // Pitch jitter belongs to a voice draw, and a loop never restarts where the preview started.
             source.pitch = 1f;
             source.time = cue.PlaybackStartSecondsFor(variant);
             source.Play();
+        }
+
+        private void OnDisable()
+        {
+            if (_previewSource != null)
+            {
+                _previewSource.Stop();
+            }
+        }
+
+        private static void OnPlayModeChanged(PlayModeStateChange change)
+        {
+            if (change == PlayModeStateChange.ExitingEditMode)
+            {
+                DestroyPreviewSource();
+            }
         }
 
         private static AudioSource PreviewSource()

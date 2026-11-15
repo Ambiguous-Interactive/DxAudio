@@ -39,13 +39,18 @@ namespace WallstopStudios.DxAudio.Editor
                 Refresh();
             }
 
-            int problems = 0;
+            int problemCount = 0;
             for (int index = 0; index < _findings.Count; ++index)
             {
-                problems += _findings[index].Count;
+                problemCount += _findings[index].Count;
             }
 
-            EditorGUILayout.LabelField($"{_libraries.Count} libraries, {problems} problems", EditorStyles.boldLabel);
+            string libraryWord = _libraries.Count == 1 ? "library" : "libraries";
+            string problemWord = problemCount == 1 ? "problem" : "problems";
+            EditorGUILayout.LabelField(
+                $"{_libraries.Count} {libraryWord}, {problemCount} {problemWord}",
+                EditorStyles.boldLabel
+            );
 
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
             if (_libraries.Count == 0)

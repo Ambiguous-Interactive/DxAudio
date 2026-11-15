@@ -129,7 +129,7 @@ def build_plan(repo_root: Path, base_sha: str) -> FastCheckPlan:
         csharp=tuple(path for path in existing if path.endswith(".cs")),
         markdown=tuple(path for path in existing if path.endswith(".md")),
         harness=any(is_surface_path(path) for path in changed),
-        packaging=any(path.startswith(("Runtime/", "Tests/", ".net-tests/")) or path == "package.json" for path in changed),
+        packaging=any(path.startswith(("Runtime/", "Editor/", "Tests/", ".net-tests/")) or path == "package.json" for path in changed),
         assembly_config=any(
             path.endswith((".asmdef", ".ruleset", ".rsp")) or path.endswith(".dll.meta") for path in changed
         ),

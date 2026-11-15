@@ -12,7 +12,8 @@ namespace WallstopStudios.DxAudio.Editor
     [CustomEditor(typeof(MusicDuck))]
     public sealed class MusicDuckEditor : UnityEditor.Editor
     {
-        private readonly List<MusicDuck> _others = new();
+        // One set across inspectors: the question is what the ducks a scene raises compose to.
+        private static readonly List<MusicDuck> _preview = new();
 
         public override void OnInspectorGUI()
         {
@@ -26,13 +27,13 @@ namespace WallstopStudios.DxAudio.Editor
                 MessageType.None
             );
 
-            for (int index = 0; index < _others.Count; ++index)
+            for (int index = 0; index < _preview.Count; ++index)
             {
                 EditorGUILayout.BeginHorizontal();
-                _others[index] = (MusicDuck)EditorGUILayout.ObjectField(_others[index], typeof(MusicDuck), false);
+                _preview[index] = (MusicDuck)EditorGUILayout.ObjectField(_preview[index], typeof(MusicDuck), false);
                 if (GUILayout.Button("Remove", GUILayout.Width(70f)))
                 {
-                    _others.RemoveAt(index);
+                    _preview.RemoveAt(index);
                     --index;
                 }
 
@@ -41,10 +42,10 @@ namespace WallstopStudios.DxAudio.Editor
 
             if (GUILayout.Button("Add Duck"))
             {
-                _others.Add(null);
+                _preview.Add(null);
             }
 
-            MusicAttenuation composed = Compose(duck, _others);
+            MusicAttenuation composed = Compose(duck, _preview);
             EditorGUILayout.LabelField("Composed", composed.ToString());
         }
 

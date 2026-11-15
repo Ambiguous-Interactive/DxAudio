@@ -18,9 +18,9 @@ source of truth.
 - **License**: MIT No Attribution
 
 DxAudio is a data-driven sound-effects and music package: cue and track assets, a pooled voice player with priority and
-rate limits, a music player with crossfades, overrides and composing ducks. It has no package dependencies and no
-editor-only assembly. This folder is the git repo root, nested under a Unity project's `Packages/`; open agent frontends
-with this folder as the workspace root.
+rate limits, a music player with crossfades, overrides and composing ducks. It has no package dependencies. An
+editor-only assembly holds authoring tools and is never referenced by the runtime. This folder is the git repo root,
+nested under a Unity project's `Packages/`; open agent frontends with this folder as the workspace root.
 
 ## Project Structure
 

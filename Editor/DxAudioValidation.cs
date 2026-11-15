@@ -35,7 +35,7 @@ namespace WallstopStudios.DxAudio.Editor
                 string name = CueName(cue, index);
                 if (!cue.IsPlayable)
                 {
-                    findings.Add($"{name} has no playable take; every variant's clip is missing.");
+                    findings.Add($"{name} has no playable take; no take has a clip.");
                 }
 
                 if (cue.FollowsTakeOf == cue)
@@ -51,6 +51,12 @@ namespace WallstopStudios.DxAudio.Editor
                 if (string.IsNullOrWhiteSpace(cue.Key))
                 {
                     findings.Add($"{name} has no key, so nothing can look it up in this library.");
+                    continue;
+                }
+
+                // The runtime index skips a cue with no take, so it cannot be the one a shared key serves.
+                if (!cue.IsPlayable)
+                {
                     continue;
                 }
 
@@ -102,6 +108,12 @@ namespace WallstopStudios.DxAudio.Editor
                     continue;
                 }
 
+                // The runtime index skips a track with no clip, so it cannot be the one a shared context serves.
+                if (!track.IsPlayable)
+                {
+                    continue;
+                }
+
                 if (firstByContext.TryGetValue(track.Context, out MusicTrack first))
                 {
                     findings.Add(
@@ -129,7 +141,7 @@ namespace WallstopStudios.DxAudio.Editor
 
             if (!cue.IsPlayable)
             {
-                findings.Add("This cue has no playable take; every variant's clip is missing.");
+                findings.Add("This cue has no playable take; no take has a clip.");
             }
 
             if (cue.FollowsTakeOf == cue)

@@ -26,15 +26,30 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             SfxCue step = Made(SfxCue.Create(new[] { Variant() }, key: "step"));
             SfxCue repeated = Made(SfxCue.Create(new[] { Variant() }, key: "step"));
             SfxCue silent = Made(SfxCue.Create(new[] { new SfxVariant() }, key: "silent"));
-            SfxCue anonymous = Made(SfxCue.Create(new[] { Variant() }));
+            SfxCue anonymous = Made(SfxCue.Create(new[] { Variant() }, key: "  "));
             SfxLibrary library = Made(SfxLibrary.Create(new[] { step, repeated, silent, anonymous, null }));
 
-            string findings = Joined(DxAudioValidation.Validate(library));
+            List<string> findings = DxAudioValidation.Validate(library);
+            string messages = Joined(findings);
 
-            Assert.That(findings, Does.Contain("shares the key 'step'"));
-            Assert.That(findings, Does.Contain("has no playable take"));
-            Assert.That(findings, Does.Contain("has no key"));
-            Assert.That(findings, Does.Contain("Slot 5 is empty"));
+            Assert.That(findings, Has.Count.EqualTo(4));
+            Assert.That(messages, Does.Contain("shares the key 'step'"));
+            Assert.That(messages, Does.Contain("has no playable take"));
+            Assert.That(messages, Does.Contain("has no key"));
+            Assert.That(messages, Does.Contain("Slot 5 is empty"));
+        }
+
+        [Test]
+        public void AnSfxLibraryCheckFollowsTheRuntimePastASilentDuplicateKey()
+        {
+            SfxCue silent = Made(SfxCue.Create(new[] { new SfxVariant() }, key: "step"));
+            SfxCue step = Made(SfxCue.Create(new[] { Variant() }, key: "step"));
+            SfxLibrary library = Made(SfxLibrary.Create(new[] { silent, step }));
+
+            List<string> findings = DxAudioValidation.Validate(library);
+
+            Assert.That(Joined(findings), Does.Not.Contain("shares the key"));
+            Assert.That(findings, Has.Count.EqualTo(1), "only the silent cue is a problem");
         }
 
         [Test]
@@ -55,12 +70,36 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             MusicTrack silent = Made(MusicTrack.Create(null, context: "cave"));
             MusicLibrary library = Made(MusicLibrary.Create(new[] { town, alsoTown, nowhere, silent, null }));
 
-            string findings = Joined(DxAudioValidation.Validate(library));
+            List<string> findings = DxAudioValidation.Validate(library);
+            string messages = Joined(findings);
 
-            Assert.That(findings, Does.Contain("shares the context 'town'"));
-            Assert.That(findings, Does.Contain("names no context"));
-            Assert.That(findings, Does.Contain("has no clip"));
-            Assert.That(findings, Does.Contain("Slot 5 is empty"));
+            Assert.That(findings, Has.Count.EqualTo(4));
+            Assert.That(messages, Does.Contain("shares the context 'town'"));
+            Assert.That(messages, Does.Contain("names no context"));
+            Assert.That(messages, Does.Contain("has no clip"));
+            Assert.That(messages, Does.Contain("Slot 5 is empty"));
+        }
+
+        [Test]
+        public void AMusicLibraryCheckFollowsTheRuntimePastASilentDuplicateContext()
+        {
+            MusicTrack silent = Made(MusicTrack.Create(null, context: "town"));
+            MusicTrack town = Made(MusicTrack.Create(Clip(), context: "town"));
+            MusicLibrary library = Made(MusicLibrary.Create(new[] { silent, town }));
+
+            List<string> findings = DxAudioValidation.Validate(library);
+
+            Assert.That(Joined(findings), Does.Not.Contain("shares the context"));
+            Assert.That(findings, Has.Count.EqualTo(1), "only the track with no clip is a problem");
+        }
+
+        [Test]
+        public void AMusicLibraryCheckPassesALibraryEveryContextReaches()
+        {
+            MusicTrack town = Made(MusicTrack.Create(Clip(), context: "town"));
+            MusicLibrary library = Made(MusicLibrary.Create(new[] { town }));
+
+            Assert.That(DxAudioValidation.Validate(library), Is.Empty);
         }
 
         [Test]
@@ -78,7 +117,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void ADuckPreviewComposesTheMostRestrictiveOfEveryHeldDuck()
         {
             MusicDuck first = Made(MusicDuck.Create(MusicDuckHolders.One, 0.5f));
-            MusicDuck second = Made(
+            MusicDuck permissive = Made(MusicDuck.Create(MusicDuckHolders.One, 1f));
+            MusicDuck filtered = Made(
                 MusicDuck.Create(
                     MusicDuckHolders.Many,
                     volumeScale: 0.8f,
@@ -86,10 +126,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                     highPassCutoffHz: 300f
                 )
             );
+            MusicDuck quietest = Made(MusicDuck.Create(MusicDuckHolders.One, 0.4f));
 
-            MusicAttenuation composed = MusicDuckEditor.Compose(first, new[] { second, null, first });
+            MusicAttenuation composed = MusicDuckEditor.Compose(
+                first,
+                new[] { permissive, filtered, quietest, null, first }
+            );
 
-            Assert.That(composed.volumeScale, Is.EqualTo(0.5f).Within(0.0001f));
+            Assert.That(composed.volumeScale, Is.EqualTo(0.4f).Within(0.0001f));
             Assert.That(composed.lowPassCutoffHz, Is.EqualTo(4_000f).Within(0.5f));
             Assert.That(composed.highPassCutoffHz, Is.EqualTo(300f).Within(0.5f));
             Assert.That(MusicDuckEditor.Compose(null, null).Equals(MusicAttenuation.Unattenuated), Is.True);
