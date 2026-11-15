@@ -46,6 +46,7 @@ Runtime/                              # The shipped assembly (WallstopStudios.Dx
   Assets/                             # ScriptableObject data: SfxCue, SfxVariant, SfxLibrary,
                                       # MusicTrack, MusicLibrary, MusicDuck
   Players/                            # MonoBehaviours: SfxPlayer, MusicPlayer
+Editor/                               # Editor-only assembly: cue and duck inspectors, library validation
 Tests/Editor/                          # EditMode tests, mirroring Core/ and Unity/
   Core/                               # Engine-free tests, shared with .net-tests
   Unity/                              # Tests that need Unity objects

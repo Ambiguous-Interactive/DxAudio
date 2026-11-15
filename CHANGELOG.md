@@ -6,6 +6,12 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Cue inspector with take start offsets and audition, duck inspector with a composed preview, and a **Tools > DxAudio
+    > Validate Libraries** window that reports missing clips, duplicate keys or contexts, and unreachable tracks
+    > ([#12](https://github.com/Ambiguous-Interactive/DxAudio/issues/12)).
+
 ### Changed
 
 - Local development harness, gates, and MCP tooling for this repository. No package behavior changes.

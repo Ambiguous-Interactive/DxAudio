@@ -30,7 +30,7 @@ from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 NAME = "com.wallstop-studios.dxaudio"
-PACKAGE_DIRS = ("Runtime", "Tests")
+PACKAGE_DIRS = ("Runtime", "Editor", "Tests")
 ROOT_FILES = ("package.json", "README.md", "CHANGELOG.md", "LICENSE.md")
 # Lowercase prerelease names only: GitHub compares concurrency groups without case, so two tags that
 # differ only in case would share the release workflow's group.
