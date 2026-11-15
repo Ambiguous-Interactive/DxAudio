@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "repository": "Ambiguous-Interactive/DxAudio",
+  "rulesets": [
+    {
+      "rulesetId": 27288634,
+      "rulesetName": "Required CI - Unity Tests (default branch)",
+      "enforcement": "active",
+      "requiredContexts": [
+        "Unity CI Success"
+      ],
+      "bypassActors": []
+    }
+  ]
+}

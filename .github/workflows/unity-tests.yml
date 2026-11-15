@@ -1,0 +1,246 @@
+name: Unity Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  # The organization enrollment contract (build-lock #274) requires literal
+  # `cancel-in-progress: true`: a queued superseded run wastes a paid
+  # self-hosted seat. Cancellation is safe for licensed work because the
+  # acquire action releases before activation, the cleanup chain runs under
+  # `if: always()`, and the scheduled reaper recovers a dead holder.
+  group: unity-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+jobs:
+  runner-preflight:
+    name: Self-hosted runner registration preflight
+    # Dependabot and fork pull requests cannot read the organization reader-App
+    # or Unity secrets, so their jobs stay static-only. This exact guard
+    # expression is the enrollment policy's trusted-revision shape.
+    if: >-
+      ${{
+        github.event_name != 'pull_request' ||
+        (github.event.pull_request.user.login != 'dependabot[bot]' &&
+          github.event.pull_request.head.repo.full_name == github.repository)
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Require a registered Unity runner
+        uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/check-unity-runner-availability@20077985093aac0e88f88f931ebedae78c1c9284 # v1.17.1
+        with:
+          reader-app-id: ${{ secrets.BUILD_LOCK_READER_APP_ID }}
+          reader-app-private-key: ${{ secrets.BUILD_LOCK_READER_APP_PRIVATE_KEY }}
+          required-label-sets: '[["self-hosted","Windows","RAM-64GB"]]'
+
+  unity-tests:
+    name: Unity ${{ matrix.unity-version }} EditMode
+    needs:
+      - runner-preflight
+    # Same guard as the preflight: fork and Dependabot pull requests cannot
+    # read the organization Unity serial or build-lock App secrets.
+    if: >-
+      ${{
+        github.event_name != 'pull_request' ||
+        (github.event.pull_request.user.login != 'dependabot[bot]' &&
+          github.event.pull_request.head.repo.full_name == github.repository)
+      }}
+    runs-on: [self-hosted, Windows, RAM-64GB]
+    timeout-minutes: 420
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        unity-version:
+          - 2021.3.45f1
+          - 6000.5.2f1
+    steps:
+      - name: Require current PR head before setup
+        timeout-minutes: 2
+        uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/require-current-pr-head@20077985093aac0e88f88f931ebedae78c1c9284 # v1.17.1
+        with:
+          github-token: ${{ github.token }}
+          pull-request-number: ${{ github.event.pull_request.number }}
+          expected-head-sha: ${{ github.event.pull_request.head.sha }}
+
+      # Contract item 3: the central immutable gate validates the runner-owned
+      # editor before any credential reference or checkout. CI never installs
+      # or repairs an editor; a missing editor is runner maintenance.
+      - name: Require manually installed Unity editor
+        id: ensure_unity_editor
+        timeout-minutes: 10
+        uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/ensure-unity-editor@20077985093aac0e88f88f931ebedae78c1c9284 # v1.17.1
+        with:
+          unity-version: ${{ matrix.unity-version }}
+          install-root: ${{ runner.tool_cache }}\u6-v3
+          provisioning-profile: EditorOnly
+          diagnostics-path: unity-editor-check.json
+          ci-managed-only: true
+          require-healthy-existing: true
+
+      - name: Checkout
+        timeout-minutes: 10
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate Unity license secrets
+        timeout-minutes: 2
+        uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/validate-unity-license@20077985093aac0e88f88f931ebedae78c1c9284 # v1.17.1
+        env:
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+
+      - name: Require current PR head before lock acquisition
+        timeout-minutes: 2
+        uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/require-current-pr-head@20077985093aac0e88f88f931ebedae78c1c9284 # v1.17.1
+        with:
+          github-token: ${{ github.token }}
+          pull-request-number: ${{ github.event.pull_request.number }}
+          expected-head-sha: ${{ github.event.pull_request.head.sha }}
+
+      - name: Acquire organization Unity lock
+        id: acquire_lock
+        timeout-minutes: 305
+        uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/acquire-build-lock@20077985093aac0e88f88f931ebedae78c1c9284 # v1.17.1
+        with:
+          lock-name: wallstop-organization-builds
+          holder-id-suffix: ${{ matrix.unity-version }}-editmode
+          require-resource-lifecycle: "true"
+          minimum-release-cooldown-seconds: "0"
+          runner-id: ${{ runner.name }}
+          github-token: ${{ github.token }}
+          pull-request-number: ${{ github.event.pull_request.number }}
+          expected-head-sha: ${{ github.event.pull_request.head.sha }}
+          timeout-minutes: "300"
+        env:
+          BUILD_LOCK_APP_ID: ${{ secrets.BUILD_LOCK_APP_ID }}
+          BUILD_LOCK_APP_PRIVATE_KEY: ${{ secrets.BUILD_LOCK_APP_PRIVATE_KEY }}
+
+      - name: Require acquired Unity lock
+        if: ${{ steps.acquire_lock.outputs.acquired != 'true' }}
+        timeout-minutes: 1
+        shell: pwsh
+        run: exit 1
+
+      - name: Run Unity EditMode tests
+        id: run_editmode
+        timeout-minutes: 45
+        shell: pwsh
+        env:
+          UNITY_VERSION: ${{ matrix.unity-version }}
+          UNITY_EDITOR_PATH: ${{ steps.ensure_unity_editor.outputs.editor-path }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: ./scripts/unity/run-editmode-tests.ps1
+
+      - name: Report the Unity log tail
+        if: ${{ failure() && steps.run_editmode.outcome != 'skipped' }}
+        timeout-minutes: 2
+        shell: pwsh
+        env:
+          UNITY_VERSION: ${{ matrix.unity-version }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: ./scripts/unity/show-editmode-log-tail.ps1
+
+      - name: Return Unity license
+        id: return_unity_license
+        if: ${{ always() && steps.acquire_lock.outputs.acquired == 'true' }}
+        timeout-minutes: 5
+        uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/return-unity-license@20077985093aac0e88f88f931ebedae78c1c9284 # v1.17.1
+        with:
+          unity-version: ${{ matrix.unity-version }}
+          tool-cache: ${{ runner.tool_cache }}
+          unity-email: ${{ secrets.UNITY_EMAIL }}
+          unity-password: ${{ secrets.UNITY_PASSWORD }}
+          evidence-suffix: unity-tests-editmode
+
+      - name: Classify Unity cleanup evidence
+        id: cleanup_classification
+        if: ${{ always() && steps.acquire_lock.outputs.acquired == 'true' }}
+        timeout-minutes: 2
+        uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/classify-unity-cleanup-evidence@20077985093aac0e88f88f931ebedae78c1c9284 # v1.17.1
+        with:
+          return-log-path: ${{ steps.return_unity_license.outputs.return-log-path }}
+          return-command-completed: ${{ steps.return_unity_license.outputs.return-command-completed }}
+          return-exit-code: ${{ steps.return_unity_license.outputs.return-exit-code }}
+          evidence-capture-complete: ${{ steps.return_unity_license.outputs.evidence-capture-complete }}
+          return-log-digest: ${{ steps.return_unity_license.outputs.return-log-digest }}
+
+      - name: Release organization Unity lock
+        id: release_unity_lock
+        if: always()
+        timeout-minutes: 5
+        uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/release-build-lock@20077985093aac0e88f88f931ebedae78c1c9284 # v1.17.1
+        with:
+          lock-name: wallstop-organization-builds
+          holder-id-suffix: ${{ matrix.unity-version }}-editmode
+          runner-id: ${{ runner.name }}
+          resource-cleanup-status: ${{ steps.cleanup_classification.outputs.resource-cleanup-status }}
+          resource-health: ${{ steps.cleanup_classification.outputs.resource-health }}
+          resource-reason: ${{ steps.cleanup_classification.outputs.resource-reason }}
+        env:
+          BUILD_LOCK_APP_ID: ${{ secrets.BUILD_LOCK_APP_ID }}
+          BUILD_LOCK_APP_PRIVATE_KEY: ${{ secrets.BUILD_LOCK_APP_PRIVATE_KEY }}
+
+      - name: Require confirmed Unity cleanup
+        if: always()
+        timeout-minutes: 2
+        uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/require-confirmed-unity-cleanup@20077985093aac0e88f88f931ebedae78c1c9284 # v1.17.1
+        with:
+          acquired: ${{ steps.acquire_lock.outputs.acquired }}
+          classification-complete: ${{ steps.cleanup_classification.outputs.classification-complete }}
+          cleanup-status: ${{ steps.cleanup_classification.outputs.resource-cleanup-status }}
+          cleanup-health: ${{ steps.cleanup_classification.outputs.resource-health }}
+          cleanup-reason: ${{ steps.cleanup_classification.outputs.resource-reason }}
+          release-outcome: ${{ steps.release_unity_lock.outcome }}
+          cleanup-result: ${{ steps.release_unity_lock.outputs.cleanup-result }}
+          released: ${{ steps.release_unity_lock.outputs.released }}
+          release-health: ${{ steps.release_unity_lock.outputs.resource-health }}
+          release-reason: ${{ steps.release_unity_lock.outputs.resource-reason }}
+          reservation-state: ${{ steps.release_unity_lock.outputs.reservation-state }}
+          reservation-id: ${{ steps.release_unity_lock.outputs.reservation-id }}
+          incident-id: ${{ steps.release_unity_lock.outputs.incident-id }}
+
+  # One always-reporting context so the default-branch ruleset requires a single
+  # "Unity CI Success". A skipped required check counts as passing, so this job
+  # uses a falsifiable job-level `if: always()` plus exact per-job result checks.
+  unity-ci-success:
+    name: Unity CI Success
+    needs:
+      - runner-preflight
+      - unity-tests
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify Unity CI result shape
+        shell: bash
+        env:
+          RUNNER_PREFLIGHT_RESULT: ${{ needs.runner-preflight.result }}
+          UNITY_TESTS_RESULT: ${{ needs.unity-tests.result }}
+          FORK_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+          DEPENDABOT_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' }}
+        run: |
+          set -euo pipefail
+          if [ "${FORK_PR}" = "true" ] || [ "${DEPENDABOT_PR}" = "true" ]; then
+            test "${RUNNER_PREFLIGHT_RESULT}" = skipped
+            test "${UNITY_TESTS_RESULT}" = skipped
+          else
+            test "${RUNNER_PREFLIGHT_RESULT}" = success
+            test "${UNITY_TESTS_RESULT}" = success
+          fi
