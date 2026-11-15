@@ -169,7 +169,7 @@ class Doctor:
                           f'unity pipeline install --project-path {self.project} (unity mcp tools need it).')
         except (OSError, ValueError) as error:
             self.warn(f'Could not read project Packages/manifest.json: {error}')
-        for arguments in (['status', '--format', 'json', '--project-path', str(self.project)], ['pipeline', 'list', '--format', 'json']):
+        for arguments in (['status', '--format', 'json', '--project-path', str(self.project)], ['pipeline', 'editors', '--format', 'json']):
             try:
                 status = object_value(cast(Json, json.loads(self.command(arguments))))
                 errors = status.get('errors')
