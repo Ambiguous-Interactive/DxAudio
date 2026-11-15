@@ -26,8 +26,13 @@ for (int i = 0; i < 1000; i++)
 long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 ```
 
-- In Unity EditMode, `Assert.That(() => subject.Play(cue), Is.Not.AllocatingGCMemory())` works, but **warm the subject and the probe path first**. Unwarmed probes false-positive on
-  first-call JIT for string comparisons, dictionary adds, and other BCL paths.
+- `GC.GetAllocatedBytesForCurrentThread` is exact on plain .NET but reports 0 for every call under Unity's Mono, so in
+  Unity it can only ever prove nothing. Probe Unity with the heap instead: collect, read
+  `GC.GetTotalMemory(forceFullCollection: false)`, run a warmed loop of samples, read it again. A path that allocates
+  grows the heap; the same test must include an allocating positive control so the probe is shown to move.
+- Unity's NUnit (3.5) has no `Is.AllocatingGCMemory` constraint; it does not compile. Do not use it in `Tests/Editor`.
+- In Unity EditMode, warm the subject and the probe path first. Unwarmed probes false-positive on first-call JIT for
+  string comparisons, dictionary adds, and other BCL paths.
 - Warm at least 8 iterations. 32 is safer for paths that touch more BCL code.
 - Run the same probe on a deliberate allocation (for example `new byte[16]`) to prove the probe can see an allocation. A probe that cannot fail is not evidence.
 

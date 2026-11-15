@@ -1,5 +1,6 @@
 namespace WallstopStudios.DxAudio.Tests.Editor
 {
+    using System;
     using System.Collections.Generic;
     using NUnit.Framework;
     using UnityEngine;
@@ -96,7 +97,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 overlay.Sample();
             }
 
-            Assert.That(() => overlay.Sample(), Is.Not.AllocatingGCMemory(), "a switched-off sample allocates nothing");
+            long disabledGrowth = HeapGrowth(overlay, samples: 500);
 
             overlay.Enabled = true;
             for (int index = 0; index < 8; index++)
@@ -104,14 +105,39 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 overlay.Sample();
             }
 
+            long enabledGrowth = HeapGrowth(overlay, samples: 500);
+
             Assert.That(
-                () => overlay.Sample(),
-                Is.AllocatingGCMemory(),
-                "the probe must see the enabled path allocate"
+                disabledGrowth,
+                Is.LessThan(1_024L),
+                $"a switched-off overlay grew the heap by {disabledGrowth} bytes over 500 samples"
+            );
+            Assert.That(
+                enabledGrowth,
+                Is.GreaterThan(20_000L),
+                $"the probe must see the enabled path allocate; 500 samples grew the heap by {enabledGrowth} bytes"
             );
 
             overlay.Enabled = false;
             Assert.That(overlay.Text, Is.Empty);
+        }
+
+        /// <summary>
+        /// The heap growth of <paramref name="samples"/> samples after a collection. Unity's Mono reports zero from
+        /// <c>GC.GetAllocatedBytesForCurrentThread</c>, so the heap is the probe that can move here.
+        /// </summary>
+        private static long HeapGrowth(AudioDiagnosticsOverlay overlay, int samples)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            long before = GC.GetTotalMemory(forceFullCollection: false);
+            for (int index = 0; index < samples; index++)
+            {
+                overlay.Sample();
+            }
+
+            return GC.GetTotalMemory(forceFullCollection: false) - before;
         }
 
         private AudioDiagnosticsOverlay Overlay(SfxPlayer sfx, MusicPlayer music)
