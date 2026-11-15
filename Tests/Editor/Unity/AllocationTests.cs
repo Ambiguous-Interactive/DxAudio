@@ -11,10 +11,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     /// </summary>
     /// <remarks>
     /// <c>GC.GetAllocatedBytesForCurrentThread</c> reports 0 for every call under Unity's Mono, so a test built on it
-    /// passes for any implementation. This suite reads the heap instead and calibrates the ceiling: measured on the
-    /// host editor, 100,000 unmodified plays moved it by 0 to 24 KB, while a planted 16-byte allocation per call moved
-    /// it by 3.4 MB. The ceiling sits between those, and <see cref="TheHeapProbeSeesAPlantedAllocation"/> proves the
-    /// probe can still fail.
+    /// passes for any implementation. This suite reads the heap instead: measured on the host editor, 100,000 unmodified
+    /// plays moved it by 0 to 24 KB, and a planted 16-byte allocation per call moved it by 3.4 MB. The ceiling sits
+    /// between those. When an editor's heap counts more coarsely, the ceiling follows the control measurement, so an
+    /// older Mono cannot fail the honest path, and <see cref="TheHeapProbeSeesAPlantedAllocation"/> proves the probe can
+    /// still fail.
     /// </remarks>
     public sealed class AllocationTests
     {
@@ -26,6 +27,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         /// <summary>Measured windows per probe. The smallest is taken, because heap segments commit in coarse steps.</summary>
         private const int Windows = 3;
+
+        private long _planted;
+
+        [OneTimeSetUp]
+        public void MeasureThePlantedControl()
+        {
+            _planted = HeapGrowth(PlantSixteenBytes, PlayCount);
+        }
 
         [Test]
         public void PlayingACueOnAFullPoolDoesNotAllocate()
@@ -42,7 +51,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(
                 growth,
-                Is.LessThan(Ceiling),
+                Is.LessThan(CeilingForTheEditor()),
                 $"Play grew the heap by {growth} bytes over {PlayCount:N0} plays."
             );
         }
@@ -62,7 +71,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(
                 growth,
-                Is.LessThan(Ceiling),
+                Is.LessThan(CeilingForTheEditor()),
                 $"Keyed Play grew the heap by {growth} bytes over {PlayCount:N0} plays."
             );
         }
@@ -70,13 +79,25 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void TheHeapProbeSeesAPlantedAllocation()
         {
-            long growth = HeapGrowth(PlantSixteenBytes, PlayCount);
-
             Assert.That(
-                growth,
+                _planted,
                 Is.GreaterThan(Ceiling),
-                $"a probe that cannot fail is not evidence; {PlayCount:N0} planted 16-byte arrays grew it by {growth} bytes"
+                $"a probe that cannot fail is not evidence; {PlayCount:N0} planted 16-byte arrays grew it by {_planted} bytes"
             );
+        }
+
+        /// <summary>
+        /// The fixed ceiling, or a sixteenth of what a planted allocation grows the heap by, whichever is larger.
+        /// </summary>
+        /// <remarks>
+        /// A coarse heap counter reports a small fraction of the bytes it saw, so a version that under-reports would fail
+        /// the honest path on an absolute number. Scaling to the control keeps the claim honest: the play path must stay
+        /// far below a per-play allocation the same probe can see.
+        /// </remarks>
+        private long CeilingForTheEditor()
+        {
+            long scaled = _planted / 16;
+            return Ceiling < scaled ? scaled : Ceiling;
         }
 
         /// <summary>The smallest heap growth of <paramref name="Windows"/> runs of <paramref name="count"/> calls.</summary>
