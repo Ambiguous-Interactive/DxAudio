@@ -2,6 +2,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System.Collections.Generic;
     using NUnit.Framework;
+    using UnityEditor;
     using UnityEngine;
     using WallstopStudios.DxAudio.Editor;
 
@@ -111,6 +112,20 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(Joined(DxAudioValidation.Validate(loop)), Does.Contain("start offsets are ignored"));
             Assert.That(DxAudioValidation.Validate(oneShot), Is.Empty);
+        }
+
+        [Test]
+        public void ACueCheckWarnsWhenItFollowsItsOwnTakeNumber()
+        {
+            SfxCue cue = Made(SfxCue.Create(new[] { Variant() }, key: "step"));
+            SerializedObject serialized = new(cue);
+            serialized.FindProperty("_followsTakeOf").objectReferenceValue = cue;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+
+            List<string> findings = DxAudioValidation.Validate(cue);
+
+            Assert.That(findings, Has.Count.EqualTo(1));
+            Assert.That(Joined(findings), Does.Contain("follows its own take number"));
         }
 
         [Test]
