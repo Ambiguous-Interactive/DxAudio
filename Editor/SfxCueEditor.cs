@@ -102,16 +102,11 @@ namespace WallstopStudios.DxAudio.Editor
         {
             if (_previewSource == null)
             {
-                GameObject host = GameObject.Find(PreviewName);
-                if (host == null)
-                {
-                    host = EditorUtility.CreateGameObjectWithHideFlags(
-                        PreviewName,
-                        HideFlags.HideAndDontSave,
-                        typeof(AudioSource)
-                    );
-                }
-
+                GameObject host = EditorUtility.CreateGameObjectWithHideFlags(
+                    PreviewName,
+                    HideFlags.HideAndDontSave,
+                    typeof(AudioSource)
+                );
                 _previewSource = host.GetComponent<AudioSource>();
                 if (_previewSource == null)
                 {
