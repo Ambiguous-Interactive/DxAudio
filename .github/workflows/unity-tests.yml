@@ -66,7 +66,7 @@ jobs:
           - 6000.6.7f1
     steps:
       - name: Require current PR head before setup
-        timeout-minutes: 3
+        timeout-minutes: 2
         uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/require-current-pr-head@20077985093aac0e88f88f931ebedae78c1c9284 # v1.17.1
         with:
           github-token: ${{ github.token }}
@@ -103,7 +103,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
 
       - name: Require current PR head before lock acquisition
-        timeout-minutes: 3
+        timeout-minutes: 2
         uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/require-current-pr-head@20077985093aac0e88f88f931ebedae78c1c9284 # v1.17.1
         with:
           github-token: ${{ github.token }}
@@ -143,48 +143,7 @@ jobs:
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          # The package has no Unity project of its own, so create a minimal
-          # one that references the checkout as a local package. The
-          # `testables` entry compiles Tests/Editor, which a plain file
-          # dependency does not include.
-          $projectPath = Join-Path $env:RUNNER_TEMP "dxaudio-unity-$env:UNITY_VERSION"
-          $packagesPath = Join-Path $projectPath 'Packages'
-          $settingsPath = Join-Path $projectPath 'ProjectSettings'
-          New-Item -ItemType Directory -Force -Path (Join-Path $projectPath 'Assets'), $packagesPath, $settingsPath | Out-Null
-          $testFramework = if ($env:UNITY_VERSION -like '2021.*') { '1.1.33' } else { '1.4.6' }
-          $packageRoot = $env:GITHUB_WORKSPACE.Replace('\', '/')
-          $manifest = [ordered]@{
-            dependencies = [ordered]@{
-              'com.unity.test-framework' = $testFramework
-              'com.wallstop-studios.dxaudio' = "file:$packageRoot"
-            }
-            testables = @('com.wallstop-studios.dxaudio')
-          } | ConvertTo-Json -Depth 4
-          Set-Content -LiteralPath (Join-Path $packagesPath 'manifest.json') -Value $manifest -Encoding utf8
-          Set-Content -LiteralPath (Join-Path $settingsPath 'ProjectVersion.txt') -Value "m_EditorVersion: $env:UNITY_VERSION" -Encoding utf8
-
-          $artifactsPath = Join-Path $env:RUNNER_TEMP "dxaudio-results-$env:UNITY_VERSION"
-          New-Item -ItemType Directory -Force -Path $artifactsPath | Out-Null
-          $resultsPath = Join-Path $artifactsPath 'editmode-results.xml'
-          $logPath = Join-Path $artifactsPath 'editmode.log'
-
-          & $env:UNITY_EDITOR_PATH -batchmode -nographics `
-            -projectPath $projectPath `
-            -runTests -testPlatform EditMode `
-            -testResults $resultsPath `
-            -logFile $logPath `
-            -serial $env:UNITY_SERIAL `
-            -username $env:UNITY_EMAIL `
-            -password $env:UNITY_PASSWORD
-          $exitCode = $LASTEXITCODE
-          if (-not (Test-Path -LiteralPath $resultsPath -PathType Leaf)) {
-            throw "Unity did not write an EditMode result file (exit code $exitCode)."
-          }
-          if ($exitCode -ne 0) {
-            throw "Unity EditMode tests failed with exit code $exitCode."
-          }
+        run: ./scripts/unity/run-editmode-tests.ps1
 
       - name: Return Unity license
         id: return_unity_license
