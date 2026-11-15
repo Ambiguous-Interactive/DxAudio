@@ -80,7 +80,8 @@ namespace WallstopStudios.DxAudio
         public MusicAttenuation TargetAttenuation => _ducks.Current;
 
         /// <summary>Whether the current music is audible, rather than stopped or on its way out.</summary>
-        public bool IsPlaying => _current != null && _current.source != null && _current.source.isPlaying;
+        public bool IsPlaying =>
+            _current != null && _current.source != null && _current.source.clip != null && _current.source.isPlaying;
 
         private MusicOverride<MusicTrack> Selection =>
             _selection ??= new MusicOverride<MusicTrack>(OnSelectionChanged, SameMusicComparer.Instance, IsPlayable);
@@ -194,6 +195,18 @@ namespace WallstopStudios.DxAudio
             {
                 if (voice == null || voice.source == null)
                 {
+                    continue;
+                }
+
+                if (voice.track != null && voice.source.clip == null)
+                {
+                    // The track's clip was released while this voice held it. Unity keeps the source reporting
+                    // playback with no clip, so stop it here; music asked for again starts once a clip is back.
+                    voice.source.Stop();
+                    voice.track = null;
+                    voice.fadingOut = false;
+                    voice.stop.Cancel();
+                    voice.fade = MusicRamp.At(0f);
                     continue;
                 }
 

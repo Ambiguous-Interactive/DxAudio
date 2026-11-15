@@ -230,16 +230,44 @@ namespace WallstopStudios.DxAudio
             DestroyVoices();
         }
 
-        /// <summary>Frees the hold of every loop whose voice was destroyed, so it stops counting against the limit.</summary>
-        private void ReclaimDestroyedLoops()
+        /// <summary>Releases every hold whose voice or clip is gone, so it stops counting against the limit.</summary>
+        /// <remarks>
+        /// A released <see cref="AudioClip"/> is a destroyed object, and Unity leaves the source reporting playback
+        /// with no clip once its asset is unloaded. Without this sweep that voice stays held, and silent, for the rest
+        /// of the session.
+        /// </remarks>
+        internal void ReclaimLostHolds()
         {
+            if (_heldCount == 0)
+            {
+                return;
+            }
+
             for (int index = 0; index < _voices.Length; index++)
             {
-                if (_held[index] && _voices[index] == null)
+                if (!_held[index])
                 {
-                    Release(index);
+                    continue;
+                }
+
+                AudioSource voice = _voices[index];
+                if (voice != null && voice.clip != null)
+                {
+                    continue;
+                }
+
+                Release(index);
+                if (voice != null)
+                {
+                    voice.Stop();
+                    voice.loop = false;
                 }
             }
+        }
+
+        private void Update()
+        {
+            ReclaimLostHolds();
         }
 
         private bool TryResolve(string key, out SfxCue cue)
@@ -284,7 +312,7 @@ namespace WallstopStudios.DxAudio
                 return Drop(cue, SfxDropReason.Throttled);
             }
 
-            ReclaimDestroyedLoops();
+            ReclaimLostHolds();
 
             int loopingLimit = _library != null ? _library.LoopingVoiceLimit : _voices.Length;
             if (looping && loopingLimit <= _heldCount)
@@ -395,9 +423,12 @@ namespace WallstopStudios.DxAudio
             {
                 AudioSource voice = _voices[index];
                 bool usable = voice != null;
+
+                // A source whose clip was released reports playback while it makes no sound, so it is not busy.
+                // Reading the clip also keeps a stranded voice from hiding a newer one behind NoVoice drops.
                 _states[index] = new SfxVoiceState(
                     usable,
-                    usable && voice.isPlaying,
+                    usable && voice.clip != null && voice.isPlaying,
                     _held[index],
                     _priorities[index],
                     _startedAt[index]
