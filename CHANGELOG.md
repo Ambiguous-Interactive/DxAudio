@@ -16,6 +16,12 @@ All notable changes to this package are documented here. The format follows
 
 - Local development harness, gates, and MCP tooling for this repository. No package behavior changes.
 
+### Fixed
+
+- Free a voice whose clip was released. Unity keeps the source reporting playback with no clip, so a released loop held
+  its voice and its looping slot for the session, a stranded voice hid idle ones, and music kept reporting playback it
+  did not make ([#15](https://github.com/Ambiguous-Interactive/DxAudio/issues/15)).
+
 ## [0.3.0] - 2026-11-15
 
 ### Added

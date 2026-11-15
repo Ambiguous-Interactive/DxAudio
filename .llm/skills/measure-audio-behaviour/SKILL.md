@@ -47,6 +47,7 @@ long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 | Duck compose allocates nothing | Hold 1 and 8 ducks, compose per frame for 1000 frames       |
 | Music crossfade cost           | 100 context changes, measure the per-change allocation and time |
 | Loop handle safety             | Start, stop, reuse the voice, stop the stale handle         |
+| Released-clip sweep allocation | Destroy a playing clip, run 500 frame sweeps, read heap growth |
 
 ## Recording
 

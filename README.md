@@ -158,6 +158,24 @@ Music, and SFX groups and their volume sliders. Ducking does not need snapshots,
 at once. The composed level goes to each music voice, and `MusicPlayer.Attenuation` reports the level applied this frame
 while `TargetAttenuation` reports the level the live ducks compose to.
 
+## Clip lifetime
+
+The players never own a clip. A game that loads and unloads clips itself, with Addressables or `Resources`, decides when
+a clip goes. These are the rules that make a release safe:
+
+| Moment                               | What happens                                                                              |
+| ------------------------------------ | ----------------------------------------------------------------------------------------- |
+| Released before its cue plays        | The cue has nothing to play: `Play` returns false and `CueDropped` reports `NotPlayable`. |
+| Released while an SFX voice plays it | The voice stops and is free within a frame. A loop's handle then stops nothing.           |
+| Released while its music plays       | The music stops, and asking for its context again starts it once a clip is back.          |
+
+Unity keeps a released `AudioClip` on the `AudioSource` and reports playback while it makes no sound. The players check
+for a released clip instead of trusting that report, so a voice never stays stranded and a music context never sticks as
+silent.
+
+Unload a clip only after the sound it makes has ended: stop a loop through its handle, and stop music with
+`MusicPlayer.Stop`. A cue or track that still points at a released clip stays unplayable until it is given a clip again.
+
 ## Authoring
 
 - **Cue inspector.** Each take shows where playback starts after its clip's lead-in, with an **Audition** button that
