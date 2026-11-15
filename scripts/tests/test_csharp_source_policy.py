@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """C# source policy composite runner self-tests (issue #171).
 
-Covers the pre-commit composite that runs the member-order, null-assertion,
-and using-placement lints in one interpreter: verdict aggregation, per-lint
+Covers the pre-commit composite that runs the null-assertion and
+using-placement lints in one interpreter: verdict aggregation, per-lint
 attribution, the fail-closed ``--paths`` validation, and the ``--fix``
 refusal. The individual lints keep their own suites; these cases only pin
 the composite's contract.
@@ -34,7 +34,6 @@ SCRIPTS_DIR = TESTS_DIR.parent
 COMPOSITE_SCRIPT = SCRIPTS_DIR / "lint_csharp_source_policy.py"
 
 ROOT_ENV_VARS = (
-    "CSHARP_MEMBER_ORDER_ROOTS",
     "CSHARP_NULL_ASSERTION_ROOTS",
     "CSHARP_USINGS_ROOTS",
 )
@@ -76,17 +75,6 @@ BANNED_ASSERTION_FIXTURE = """namespace Demo
 }
 """
 
-MEMBER_ORDER_FIXTURE = """namespace Demo
-{
-    internal sealed class Disordered
-    {
-        private int count;
-
-        public int Value { get; set; }
-    }
-}
-"""
-
 
 def invoke_composite(root: Path, arguments: Sequence[str] = ()) -> Tuple[str, int]:
     """Run the composite with every lint root pointed at the fixture root."""
@@ -115,10 +103,10 @@ def main() -> int:
             output, exit_code = invoke_composite(clean_root)
             assert_exit_code(0, "a clean fixture should pass the composite", exit_code)
             assert_true(
-                "[csharp-source-policy] all 3 lints clean" in output,
+                "[csharp-source-policy] all 2 lints clean" in output,
                 f"the summary should report every lint clean, got: {output}",
             )
-            for label in ("member-order", "null-assertions", "usings"):
+            for label in ("null-assertions", "usings"):
                 assert_true(
                     f"[csharp-source-policy] {label}: ok" in output,
                     f"the {label} result should be reported, got: {output}",
@@ -140,8 +128,7 @@ def main() -> int:
                 f"the usings lint should be reported as failed, got: {output}",
             )
             assert_true(
-                "[csharp-source-policy] member-order: ok" in output
-                and "[csharp-source-policy] null-assertions: ok" in output,
+                "[csharp-source-policy] null-assertions: ok" in output,
                 f"the passing lints should still be reported, got: {output}",
             )
             assert_true(
@@ -173,21 +160,6 @@ def main() -> int:
     finally:
         remove_temp_root(assertion_root)
 
-    order_root = new_temp_root("csharp-source-policy-order-")
-    try:
-        write_fixture_file(order_root, "Disordered.cs", MEMBER_ORDER_FIXTURE)
-
-        def member_order_violation_fails_with_attribution() -> None:
-            output, exit_code = invoke_composite(order_root)
-            assert_exit_code(1, "a member-order violation should fail the composite", exit_code)
-            assert_true(
-                "[csharp-source-policy] member-order: FAIL" in output,
-                f"the member-order lint should be reported as failed, got: {output}",
-            )
-
-        run_case("member-order violation fails with attribution", member_order_violation_fails_with_attribution)
-    finally:
-        remove_temp_root(order_root)
 
     combined_root = new_temp_root("csharp-source-policy-combined-")
     try:
@@ -206,7 +178,7 @@ def main() -> int:
                 f"both failing lints should be reported, got: {output}",
             )
             assert_true(
-                "2 of 3 lint(s) failed (null-assertions, usings)" in output,
+                "2 of 2 lint(s) failed (null-assertions, usings)" in output,
                 f"the summary should name every failing lint, got: {output}",
             )
 

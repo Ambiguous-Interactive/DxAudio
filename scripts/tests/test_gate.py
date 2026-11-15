@@ -72,7 +72,7 @@ def case_plan_prints_the_full_lane_table(python: str) -> None:
         f"the plan must list the five lanes in order, got: {','.join(names)}",
     )
     steps = step_names(plan)
-    assert_true(len(steps) == 16, f"the plan must list 16 steps, got {len(steps)}")
+    assert_true(len(steps) == 15, f"the plan must list 15 steps, got {len(steps)}")
     assert_true(len(steps) == len(set(steps)), "step names must be unique")
     for name in steps:
         assert_true(
@@ -96,8 +96,8 @@ def case_plan_carries_commands_and_dependencies(python: str) -> None:
                     f"{step['name']} must reuse the active interpreter without provisioning another environment: {step['args']}",
                 )
     assert_true(
-        ",".join(steps["csharp.member-order"]["after"]) == "csharp.format",
-        "the member-order lint must run after the CSharpier format",
+        ",".join(steps["csharp.null-assertions"]["after"]) == "csharp.format",
+        "the null-assertions lint must run after the CSharpier format",
     )
     assert_true(
         ",".join(steps["harness.skills-index"]["after"]) == "markdown.format",
@@ -321,12 +321,12 @@ def case_scoped_lane_table_rewrites_the_three_lint_steps(python: str) -> None:
             'scoped = gate.scoped_lanes(gate.DiffScope(changed_csharp=("Runtime/A.cs", "Runtime/B.cs")))',
             "steps = {step.name: list(step.args) for _, lane in scoped for step in lane}",
             "static = {step.name: list(step.args) for _, lane in gate.LANES for step in lane}",
-            'print(json.dumps({"order": steps["csharp.member-order"], "null": steps["csharp.null-assertions"], "usings": steps["csharp.usings"], "restore": steps["csharp.tool-restore"] == static["csharp.tool-restore"], "format": steps["csharp.format"] == static["csharp.format"], "suite": steps["tests.self-tests"] == static["tests.self-tests"], "total": len(steps), "static_total": len(static)}))',
+            'print(json.dumps({"null": steps["csharp.null-assertions"], "usings": steps["csharp.usings"], "restore": steps["csharp.tool-restore"] == static["csharp.tool-restore"], "format": steps["csharp.format"] == static["csharp.format"], "suite": steps["tests.self-tests"] == static["tests.self-tests"], "total": len(steps), "static_total": len(static)}))',
         ],
     )
     assert_exit_code(0, f"the driver must succeed (got {exit_code}): {output}", exit_code)
     result = json.loads(output)
-    for name in ("order", "null", "usings"):
+    for name in ("null", "usings"):
         args = result[name]
         assert_true(
             args[-3:] == ["--paths", "Runtime/A.cs", "Runtime/B.cs"] and "lint_csharp_" in " ".join(args),
@@ -352,7 +352,7 @@ def case_scoped_lane_table_drops_the_csharp_lane_when_no_csharp_changed(python: 
     result = json.loads(output)
     assert_true(
         sorted(result["dropped"])
-        == ["csharp.format", "csharp.member-order", "csharp.null-assertions", "csharp.tool-restore", "csharp.usings"],
+        == ["csharp.format", "csharp.null-assertions", "csharp.tool-restore", "csharp.usings"],
         f"the whole C# lane must be scoped out, got {result['dropped']}",
     )
     assert_true("csharp" not in result["lanes"], "the emptied C# lane must leave the table")
@@ -464,7 +464,7 @@ def case_execution_scopes_the_lint_steps_to_the_scanned_diff(python: str) -> Non
             path_line,
             "import gate",
             f'gate.scan_diff_scope = lambda base_sha: gate.DiffScope(changed_csharp=("{changed}",))',
-            'sys.exit(gate.main(["--only", "csharp.member-order"]))',
+            'sys.exit(gate.main(["--only", "csharp.null-assertions"]))',
         ]
     )
     write_fixture_file(temp_root, "scope-exec-driver.py", driver + "\n")
@@ -483,7 +483,7 @@ def case_execution_scopes_the_lint_steps_to_the_scanned_diff(python: str) -> Non
             "csharp lints: scoped to 1 changed file(s)" in output,
             f"the console must announce the scoped scan, got: {output}",
         )
-        assert_true("[gate] ok   csharp.member-order" in output, f"the scoped step must run and pass, got: {output}")
+        assert_true("[gate] ok   csharp.null-assertions" in output, f"the scoped step must run and pass, got: {output}")
     finally:
         remove_temp_root(temp_root)
 
@@ -498,7 +498,7 @@ def case_execution_skips_the_lint_steps_when_no_csharp_changed(python: str) -> N
             path_line,
             "import gate",
             "gate.scan_diff_scope = lambda base_sha: gate.DiffScope(changed_csharp=())",
-            'sys.exit(gate.main(["--only", "csharp.member-order"]))',
+            'sys.exit(gate.main(["--only", "csharp.null-assertions"]))',
         ]
     )
     write_fixture_file(temp_root, "scope-skip-driver.py", driver + "\n")

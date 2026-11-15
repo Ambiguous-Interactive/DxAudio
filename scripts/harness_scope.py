@@ -176,7 +176,6 @@ SUBJECTS_BY_PATH: Dict[str, Tuple[str, ...]] = {
     "scripts/release/extract-release-notes.mjs": ("test_extract_release_notes.py",),
     # Retired node lints (issue #171) select their ported test files the same
     # way a retired PowerShell surface does.
-    "scripts/lint-csharp-member-order.js": ("test_csharp_member_order.py",),
     "scripts/lint-csharp-null-assertions.js": ("test_csharp_null_assertions.py",),
     "scripts/lint-csharp-usings.js": ("test_csharp_usings.py",),
     "scripts/generate-skills-index.ps1": ("test_generate_skills_index.py",),

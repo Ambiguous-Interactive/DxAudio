@@ -6,9 +6,11 @@ Decisions that constrain future work. Each entry names the decision, the reason,
 
 **Decision:** the package depends on no other UPM package.
 
-**Reason:** npm, OpenUPM, git, and tarball installs all produce the same files. CI fails when an assembly references a package the manifest does not list.
+**Reason:** npm, OpenUPM, git, and tarball installs all produce the same files. CI fails when an assembly references a
+package the manifest does not list.
 
-**Reopen if:** a measured integration (for example an `AudioMixer` binding) is worth the install and versioning cost. That integration must be optional.
+**Reopen if:** a measured integration (for example an `AudioMixer` binding) is worth the install and versioning cost.
+That integration must be optional.
 
 ## ScriptableObject assets over code constants
 
@@ -20,7 +22,8 @@ Decisions that constrain future work. Each entry names the decision, the reason,
 
 **Decision:** a fixed pool, idle-first, then strictly lower priority, oldest first. Loops are never stolen.
 
-**Reason:** never stealing between equals avoids clipping audible sound. Priority prevents frequent low-value cues from starving important ones.
+**Reason:** never stealing between equals avoids clipping audible sound. Priority prevents frequent low-value cues from
+starving important ones.
 
 **Reopen if:** a measured play pattern needs preemption between equals or a reserved-voice tier.
 

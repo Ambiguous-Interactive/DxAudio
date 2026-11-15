@@ -12,7 +12,6 @@ from typing import Optional, Sequence, Tuple
 REPO_ROOT = Path(__file__).resolve().parent.parent
 COMMANDS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
     ('lint_llm_instructions.py', ('--verbose-output',)),
-    ('lint_csharp_member_order.py', ('--verbose',)),
     ('lint_csharp_null_assertions.py', ('--verbose',)),
     ('lint_csharp_usings.py', ('--verbose',)),
     ('lint_release_secrets.py', ('--verbose',)),

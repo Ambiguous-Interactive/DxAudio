@@ -1,6 +1,7 @@
 # Audio Design
 
-Durable design facts and invariants. History and measurements live in `progress/`; this file carries only what the next change must preserve.
+Durable design facts and invariants. History and measurements live in `progress/`; this file carries only what the next
+change must preserve.
 
 ## Layers
 
@@ -10,7 +11,8 @@ Durable design facts and invariants. History and measurements live in `progress/
 | `Runtime/Assets`  | ScriptableObject | Data: cues, variants, tracks, libraries, ducks              |
 | `Runtime/Players` | MonoBehaviour    | Owning `AudioSource` pools and the update loop              |
 
-`UnityObjects.cs` is the only Unity-aware shim in `Core`. A new `UnityEngine` reference in `Core` is a defect, not a convenience.
+`UnityObjects.cs` is the only Unity-aware shim in `Core`. A new `UnityEngine` reference in `Core` is a defect, not a
+convenience.
 
 ## Sound-effects state machine
 
@@ -29,7 +31,8 @@ Play(cue)
 Rules:
 
 1. A held (looping) voice is never stolen. Stopping uses the handle's voice generation; a stale handle stops nothing.
-2. Equal or higher priority drops the incoming cue. Strictly lower priority may be stolen, least important first, then oldest.
+2. Equal or higher priority drops the incoming cue. Strictly lower priority may be stolen, least important first, then
+   oldest.
 3. Round-robin start spreads consecutive cues across the pool.
 4. A take is never repeated twice in a row while any other take exists.
 5. `Play` must not allocate.
@@ -66,11 +69,13 @@ Stop() -> fade out
 | Duck compose per frame  | 0 bytes                               |
 | `DescribeDucks()`       | allowed to allocate; diagnostics only |
 
-Measure with [measure-audio-behaviour](../skills/measure-audio-behaviour/SKILL.md). A budget is only real when a probe pins it.
+Measure with [measure-audio-behaviour](../skills/measure-audio-behaviour/SKILL.md). A budget is only real when a probe
+pins it.
 
 ## Device and format notes
 
-- `AudioSource` configuration is per pooled voice and owned by `SfxPlayer`. Do not reconfigure an `AudioSource` per play if the same settings can be applied once.
+- `AudioSource` configuration is per pooled voice and owned by `SfxPlayer`. Do not reconfigure an `AudioSource` per play
+  if the same settings can be applied once.
 - Spatial blend comes from the cue. A flat play must not set a position.
 - `Time.unscaledTime` orders stealing so hit-stop does not reorder voices.
 

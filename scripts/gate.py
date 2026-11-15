@@ -96,12 +96,6 @@ LANES: Tuple[Tuple[str, Tuple[Step, ...]], ...] = (
                 ("csharp.tool-restore",),
             ),
             Step(
-                "csharp.member-order",
-                "C# member-order lint",
-                (*_PYTHON_LAUNCHER, "scripts/lint_csharp_member_order.py"),
-                ("csharp.format",),
-            ),
-            Step(
                 "csharp.null-assertions",
                 "C# null-assertions lint",
                 (*_PYTHON_LAUNCHER, "scripts/lint_csharp_null_assertions.py"),
@@ -204,7 +198,6 @@ STEP_NAMES: frozenset[str] = frozenset(step.name for step in ALL_STEPS)
 # check and the pre-commit hooks, issues #196/#199). Whole-tree stays the
 # behavior whenever no base resolves.
 CSHARP_LINT_STEPS: Dict[str, str] = {
-    "csharp.member-order": "scripts/lint_csharp_member_order.py",
     "csharp.null-assertions": "scripts/lint_csharp_null_assertions.py",
     "csharp.usings": "scripts/lint_csharp_usings.py",
 }

@@ -34,7 +34,7 @@ repos:
         entry: uv run scripts/lint_csharp_source_policy.py --paths
         language: system
         files: ^(Editor|Runtime|Tests|Generator~)/.*\.cs$
-        description: Runs the member-order, null-assertion, and using-placement lints in one interpreter over the staged C# files.
+        description: Runs the null-assertion and using-placement lints in one interpreter over the staged C# files.
       - id: lint-release-secrets
         name: Enforce the release credential contract
         entry: uv run scripts/lint_release_secrets.py

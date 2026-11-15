@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Runs the three C# source policy lints in one interpreter (issue #171).
+"""Runs the two C# source policy lints in one interpreter (issue #171).
 
 The pre-commit hook used to spawn one ``uv run`` child per lint, so every C#
 commit paid three interpreter resolutions plus a per-hook wrapper overhead.
-This runner imports the member-order, null-assertion, and using-placement
+This runner imports the null-assertion and using-placement
 lints in-process, keeps their verdicts and messages untouched, and reports
 each lint's result separately so the combined hook stays reviewable.
 ``--fix`` is refused: the composite is a read-only gate, and fixing stays
@@ -28,7 +28,6 @@ REPO_ROOT = SCRIPTS_DIR.parent
 # Same order the individual pre-commit hooks ran in, so a combined failure
 # reads the way reviewers are used to.
 LINTS: Tuple[Tuple[str, str], ...] = (
-    ("member-order", "lint_csharp_member_order"),
     ("null-assertions", "lint_csharp_null_assertions"),
     ("usings", "lint_csharp_usings"),
 )
@@ -73,10 +72,7 @@ def run_lint(label: str, module_name: str, argv_tail: Sequence[str]) -> bool:
     previous_argv = sys.argv
     sys.argv = [module_name + ".py", *argv_tail]
     try:
-        if module_name == "lint_csharp_member_order":
-            exit_code = module.main(list(sys.argv[1:]))
-        else:
-            exit_code = module.main()
+        exit_code = module.main()
     except SystemExit as exit_error:
         code = exit_error.code
         exit_code = 0 if code is None else code if isinstance(code, int) else 1

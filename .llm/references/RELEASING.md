@@ -1,6 +1,7 @@
 # Releasing
 
-DxAudio releases through `.github/workflows/release.yml` on a version tag. Publishing uses npm trusted publishing (GitHub OIDC); no `NPM_TOKEN` exists.
+DxAudio releases through `.github/workflows/release.yml` on a version tag. Publishing uses npm trusted publishing
+(GitHub OIDC); no `NPM_TOKEN` exists.
 
 ## Preconditions
 
@@ -35,7 +36,8 @@ The workflow:
 4. Creates or updates the GitHub Release with the tarball and its `.sha256`.
 5. Publishes the same tarball to npm.
 
-Every step skips work already done. Re-run the workflow, or `gh workflow run release.yml --ref vX.Y.Z`, to finish a partial release.
+Every step skips work already done. Re-run the workflow, or `gh workflow run release.yml --ref vX.Y.Z`, to finish a
+partial release.
 
 ## Dist-tags
 
@@ -58,4 +60,5 @@ Every step skips work already done. Re-run the workflow, or `gh workflow run rel
 No custom secrets are required.
 <!-- release-secrets:end -->
 
-The release workflow uses `GITHUB_TOKEN` for the Release and an OIDC token for npm. Any change that adds a secret must document it in this block and in the workflow.
+The release workflow uses `GITHUB_TOKEN` for the Release and an OIDC token for npm. Any change that adds a secret must
+document it in this block and in the workflow.

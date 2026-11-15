@@ -1,6 +1,6 @@
 {
     "$schema": "https://json.schemastore.org/prettierrc",
-    "printWidth": 180,
+    "printWidth": 120,
     "proseWrap": "always",
     "endOfLine": "lf"
 }

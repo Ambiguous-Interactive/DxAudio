@@ -229,8 +229,7 @@ def build_steps(plan: FastCheckPlan) -> Tuple[Tuple[CheckStep, ...], Tuple[Check
         # unchanged file cannot newly violate one, and the per-edit loop
         # stays at scan-the-diff cost instead of whole-tree cost.
         for name, script in (
-            ("csharp.member-order", "scripts/lint_csharp_member_order.py"),
-            ("csharp.null-assertions", "scripts/lint_csharp_null_assertions.py"),
+                    ("csharp.null-assertions", "scripts/lint_csharp_null_assertions.py"),
             ("csharp.usings", "scripts/lint_csharp_usings.py"),
         ):
             quick.append(

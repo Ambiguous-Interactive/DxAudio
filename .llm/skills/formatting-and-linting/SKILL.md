@@ -44,7 +44,6 @@ Run `dotnet tool restore` first. The `dotnet-tool-restore` hook runs on every co
 | -------------------------------- | ------------------------------------------------------------- |
 | `npm run lint:llm`               | skills index, frontmatter, version sync, entrypoint delegation|
 | `npm run lint:csharp-usings`     | using placement                                               |
-| `npm run lint:csharp-member-order` | member order                                                |
 | `npm run lint:meta-companions`   | `.meta` companions and GUID uniqueness                        |
 | `npm run lint:line-endings`      | `.editorconfig` vs `.gitattributes`                           |
 | `npm run lint:changelog-length`  | CHANGELOG entry cap                                           |

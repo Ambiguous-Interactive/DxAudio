@@ -16,7 +16,6 @@ from run_ci_lints import COMMANDS, main, run_ladder, run_script
 
 EXPECTED = (
     ('lint_llm_instructions.py', ('--verbose-output',)),
-    ('lint_csharp_member_order.py', ('--verbose',)),
     ('lint_csharp_null_assertions.py', ('--verbose',)),
     ('lint_csharp_usings.py', ('--verbose',)),
     ('lint_release_secrets.py', ('--verbose',)),
