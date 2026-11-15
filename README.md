@@ -33,27 +33,42 @@ lists new versions under **My Registries**:
     {
       "name": "npmjs",
       "url": "https://registry.npmjs.org",
-      "scopes": ["com.wallstop-studios.dxaudio"]
+      "scopes": ["com.wallstop-studios"]
     }
   ],
   "dependencies": {
-    "com.wallstop-studios.dxaudio": "0.2.0"
+    "com.wallstop-studios.dxaudio": "0.2.1"
   }
 }
 ```
 
-If your manifest already has a scoped registry for `https://registry.npmjs.org`, add the scope to it
-instead.
+The `com.wallstop-studios` scope also covers DxMessaging, Unity Helpers and the other Wallstop Studios
+packages on npm. If your manifest already has a scoped registry for `https://registry.npmjs.org`, add the
+scope to it instead.
+
+**From OpenUPM.** With the [OpenUPM CLI](https://openupm.com/docs/getting-started-cli.html), run
+`openupm add com.wallstop-studios.dxaudio`. Without it, add a scoped registry for
+`https://package.openupm.com` with the scope `com.wallstop-studios.dxaudio`.
 
 **From git.** Open **Window > Package Manager**, choose **+ > Add package from git URL**, and enter:
 
 ```text
-https://github.com/Ambiguous-Interactive/DxAudio.git#v0.2.0
+https://github.com/Ambiguous-Interactive/DxAudio.git#v0.2.1
 ```
 
 **From a tarball.** Download `com.wallstop-studios.dxaudio-<version>.tgz` from a
 [release](https://github.com/Ambiguous-Interactive/DxAudio/releases) and choose **+ > Add package from
 tarball**.
+
+### Dependencies
+
+DxAudio needs no other package. Its assemblies reference only Unity's, so npm, OpenUPM, a git URL and a
+release tarball install the same files and fetch nothing else. DxMessaging, UnityEvents or your own code drive the
+players with plain method calls (see [Settings and events](#settings-and-events)).
+
+If a later version needs another package, `package.json` lists it at an exact version. Unity then
+resolves it from the registries in your manifest for every install path. CI fails when an assembly
+references a package that `package.json` does not list.
 
 ## Sound effects
 

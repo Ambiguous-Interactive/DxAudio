@@ -257,14 +257,7 @@ namespace WallstopStudios.DxAudio
             /// <summary>Whether the holder was a Unity object that has since been destroyed.</summary>
             internal bool IsAbandoned
             {
-                get
-                {
-#if UNITY_5_3_OR_NEWER
-                    return holder is UnityEngine.Object unityObject && unityObject == null;
-#else
-                    return false;
-#endif
-                }
+                get { return UnityObjects.IsDestroyed(holder); }
             }
         }
     }

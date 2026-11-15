@@ -6,6 +6,10 @@ npm never takes a version back, so everything a bad release could ship is checke
 - the tarball holds the package only, not CI, the .NET test harness or editor settings;
 - every asset and folder in it has its .meta, and every .meta its asset (a package installed from a
   registry is read-only, so Unity ignores an asset without one);
+- every assembly an asmdef references is the package's own, Unity's, or from a package that
+  package.json lists in "dependencies" at an exact version. npm, a git URL, a release tarball and
+  OpenUPM all resolve that list, so an assembly from an unlisted package fails to compile only for
+  the user who lacks it, and a version range is an error to Unity;
 - with --tag, the tag names package.json's version and CHANGELOG.md has a section for it.
 
     python3 .github/scripts/package_check.py                      # check the packed file list
@@ -31,6 +35,17 @@ ROOT_FILES = ("package.json", "README.md", "CHANGELOG.md", "LICENSE.md")
 # Lowercase prerelease names only: GitHub compares concurrency groups without case, so two tags that
 # differ only in case would share the release workflow's group.
 TAG = re.compile(r"^v(\d+\.\d+\.\d+(?:-[0-9a-z.-]+)?)$")
+# Unity Package Manager takes exact versions only; "^1.2.0" or "1.x" is an error when it resolves.
+EXACT_VERSION = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$")
+# The package that declares each assembly a DxAudio asmdef may reference. A new reference gets a line here
+# and its package an entry in package.json "dependencies".
+ASSEMBLY_PACKAGES = {
+    "WallstopStudios.DxMessaging": "com.wallstop-studios.dxmessaging",
+    "WallstopStudios.UnityHelpers": "com.wallstop-studios.unity-helpers",
+}
+# What a test assembly may use from com.unity.test-framework, which the project that runs the tests has.
+TEST_ASSEMBLIES = {"UnityEngine.TestRunner", "UnityEditor.TestRunner"}
+TEST_PRECOMPILED = {"nunit.framework.dll"}
 
 
 def pack(destination: Path | None) -> dict:
@@ -62,6 +77,58 @@ def payload_problems(paths: set[str]) -> list[str]:
     return problems
 
 
+def package_of(assembly: str) -> str | None:
+    for prefix, package in ASSEMBLY_PACKAGES.items():
+        if assembly == prefix or assembly.startswith(prefix + "."):
+            return package
+    return None
+
+
+def dependency_problems(manifest: dict) -> list[str]:
+    dependencies = manifest.get("dependencies", {})
+    problems = [
+        f"package.json dependency {name} is {version!r}, not an exact version"
+        for name, version in sorted(dependencies.items())
+        if not EXACT_VERSION.fullmatch(version)
+    ]
+    paths = sorted(path for folder in PACKAGE_DIRS for path in (ROOT / folder).rglob("*.asmdef"))
+    asmdefs = {path: json.loads(path.read_text(encoding="utf-8")) for path in paths}
+    own = {asmdef["name"] for asmdef in asmdefs.values()}
+    used = set()
+    for path, asmdef in asmdefs.items():
+        where = path.relative_to(ROOT).as_posix()
+        constraints = set(asmdef.get("defineConstraints", []))
+        is_test = "UNITY_INCLUDE_TESTS" in constraints
+        # An optional integration compiles only when its package is present, so that package is not listed.
+        # A package guards the assembly when a constraint is a define that only that package's entries set.
+        producers: dict[str, set[str]] = {}
+        for entry in asmdef.get("versionDefines", []):
+            producers.setdefault(entry["define"], set()).add(entry["name"])
+        sole = {define: next(iter(names)) for define, names in producers.items() if len(names) == 1}
+        guarded = {package for define, package in sole.items() if define in constraints}
+        for reference in asmdef.get("references", []):
+            if reference.startswith("GUID:"):
+                problems.append(f"{where} references {reference}: name the assembly, so this check can read it")
+                continue
+            if reference in own or (is_test and reference in TEST_ASSEMBLIES):
+                continue
+            package = package_of(reference)
+            if package is None:
+                problems.append(f"{where} references {reference}, whose package is not in ASSEMBLY_PACKAGES")
+            elif package in dependencies:
+                used.add(package)
+            elif package not in guarded:
+                problems.append(f"{where} references {reference}, but package.json does not list {package}")
+        if not asmdef.get("overrideReferences", False):
+            problems.append(f"{where} sets no overrideReferences, so it takes every auto-referenced DLL in the project")
+        for dll in asmdef.get("precompiledReferences", []):
+            if not (is_test and dll in TEST_PRECOMPILED):
+                problems.append(f"{where} references {dll}, which no listed package provides")
+    unused = sorted(set(dependencies) - used)
+    problems += [f"package.json lists {name}, which no assembly references" for name in unused]
+    return problems
+
+
 def release_notes(version: str) -> str:
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     heading = re.search(rf"^## \[{re.escape(version)}\][^\n]*\n", changelog, re.MULTILINE)
@@ -83,6 +150,7 @@ def main() -> int:
     manifest = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
     version = manifest["version"]
     problems = [] if manifest["name"] == NAME else [f"package.json names {manifest['name']}, not {NAME}"]
+    problems += dependency_problems(manifest)
 
     notes = ""
     if args.tag is not None:
@@ -105,7 +173,9 @@ def main() -> int:
         print(f"::error::{problem}", file=sys.stderr)
     if problems:
         return 1
-    print(f"{NAME}@{version}: {len(paths)} files, {packed['size']} bytes packed")
+    dependencies = manifest.get("dependencies", {})
+    listed = ", ".join(f"{name}@{v}" for name, v in sorted(dependencies.items())) or "none"
+    print(f"{NAME}@{version}: {len(paths)} files, {packed['size']} bytes packed, dependencies: {listed}")
 
     if args.out:
         tarball = args.out / packed["filename"]

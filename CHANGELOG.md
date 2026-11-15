@@ -4,6 +4,25 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the package uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-11-15
+
+### Fixed
+
+- `MusicOverride<TTrack>` sees a destroyed Unity track. `Current` gives the context's music while the
+  override track is destroyed, `Take` refuses a destroyed track, and releasing the override announces the
+  context's music again. Generic code compares by reference, so `??` and `== null` treated a destroyed
+  track as music to play.
+
+### Changed
+
+- `package.json` lists its dependencies, which are none, and the runtime assembly takes no precompiled
+  DLL that it does not name. CI fails when an assembly references a package that `package.json` does not
+  list, or when a listed version is not exact
+  ([#7](https://github.com/Ambiguous-Interactive/DxAudio/issues/7)).
+- The README's scoped registry covers `com.wallstop-studios`, so other Wallstop Studios packages on npm
+  resolve from the same entry. The package is on OpenUPM too, from 0.1.2.
+- `SfxSelection<TKey>.TryFollow` documents that it compares keys for equality only.
+
 ## [0.2.0] - 2026-11-14
 
 ### Changed
