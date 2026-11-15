@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Tests.Editor
+﻿namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System.Collections.Generic;
     using NUnit.Framework;
@@ -175,7 +175,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             player.Library = Made(MusicLibrary.Create(new[] { town }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
 
             Assert.That(player.PlayContext("cave"), Is.False);
-            Assert.That(player.Current, Is.Null);
+            Assert.That(player.Current == null);
             Assert.That(player.PlayContext("town"), Is.True);
             Assert.That(player.Current, Is.SameAs(town));
 
@@ -187,7 +187,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(player.Current, Is.SameAs(town), "disposing the lease hands back");
             player.Stop();
-            Assert.That(player.Current, Is.Null);
+            Assert.That(player.Current == null);
         }
 
         [Test]

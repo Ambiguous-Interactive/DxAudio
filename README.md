@@ -2,21 +2,20 @@
 
 Data-driven sound effects and music for Unity, with no dependencies.
 
-- **Cues and tracks are assets.** An `SfxCue` holds interchangeable takes, volume, pitch jitter, a rate
-  limit, a priority and 3D falloff. A `MusicTrack` holds a clip, its trim and where it starts. Libraries
-  look them up by key, or you play them by reference.
-- **A pooled voice player.** `SfxPlayer` plays cues on a fixed pool of voices. It never allocates per
-  play, never repeats a take twice in a row, rate-limits each cue on its own, and lets important cues
-  take a voice from less important ones when the pool is full. Looping cues hold their voice until their
-  handle stops them.
-- **Music per context.** `MusicPlayer` crossfades between contexts (a screen, a level, an area), keeps
-  playing when the same music is asked for again, and fades music back in from where it was if you return
-  while it is still fading out. Overrides play other music until their lease is released.
-- **Ducks that compose.** A `MusicDuck` asset (menu, dialogue, cutscene) lowers and filters the music
-  while it is held. Every live duck composes into the most restrictive volume and filters, so systems duck
-  and release without knowing about each other. A holder destroyed without releasing is released for it.
-- **Your game wires the hooks.** Sound on/off and music on/off are one property each. Events are plain
-  method calls, so DxMessaging messages, UnityEvents or your own code can drive them.
+- **Cues and tracks are assets.** An `SfxCue` holds interchangeable takes, volume, pitch jitter, a rate limit, a
+  priority and 3D falloff. A `MusicTrack` holds a clip, its trim and where it starts. Libraries look them up by key, or
+  you play them by reference.
+- **A pooled voice player.** `SfxPlayer` plays cues on a fixed pool of voices. It never allocates per play, never
+  repeats a take twice in a row, rate-limits each cue on its own, and lets important cues take a voice from less
+  important ones when the pool is full. Looping cues hold their voice until their handle stops them.
+- **Music per context.** `MusicPlayer` crossfades between contexts (a screen, a level, an area), keeps playing when the
+  same music is asked for again, and fades music back in from where it was if you return while it is still fading out.
+  Overrides play other music until their lease is released.
+- **Ducks that compose.** A `MusicDuck` asset (menu, dialogue, cutscene) lowers and filters the music while it is held.
+  Every live duck composes into the most restrictive volume and filters, so systems duck and release without knowing
+  about each other. A holder destroyed without releasing is released for it.
+- **Your game wires the hooks.** Sound on/off and music on/off are one property each. Events are plain method calls, so
+  DxMessaging messages, UnityEvents or your own code can drive them.
 
 Extracted from [Isho Boy](https://github.com/Ambiguous-Interactive)'s audio system.
 
@@ -24,31 +23,30 @@ Extracted from [Isho Boy](https://github.com/Ambiguous-Interactive)'s audio syst
 
 Unity 2021.3 or newer.
 
-**From npm.** Add the scoped registry and the package to `Packages/manifest.json`. Package Manager then
-lists new versions under **My Registries**:
+**From npm.** Add the scoped registry and the package to `Packages/manifest.json`. Package Manager then lists new
+versions under **My Registries**:
 
 ```json
 {
-  "scopedRegistries": [
-    {
-      "name": "npmjs",
-      "url": "https://registry.npmjs.org",
-      "scopes": ["com.wallstop-studios"]
+    "scopedRegistries": [
+        {
+            "name": "npmjs",
+            "url": "https://registry.npmjs.org",
+            "scopes": ["com.wallstop-studios"]
+        }
+    ],
+    "dependencies": {
+        "com.wallstop-studios.dxaudio": "0.3.0"
     }
-  ],
-  "dependencies": {
-    "com.wallstop-studios.dxaudio": "0.3.0"
-  }
 }
 ```
 
-The `com.wallstop-studios` scope also covers DxMessaging, Unity Helpers and the other Wallstop Studios
-packages on npm. If your manifest already has a scoped registry for `https://registry.npmjs.org`, add the
-scope to it instead.
+The `com.wallstop-studios` scope also covers DxMessaging, Unity Helpers and the other Wallstop Studios packages on npm.
+If your manifest already has a scoped registry for `https://registry.npmjs.org`, add the scope to it instead.
 
 **From OpenUPM.** With the [OpenUPM CLI](https://openupm.com/docs/getting-started-cli.html), run
-`openupm add com.wallstop-studios.dxaudio`. Without it, add a scoped registry for
-`https://package.openupm.com` with the scope `com.wallstop-studios.dxaudio`.
+`openupm add com.wallstop-studios.dxaudio`. Without it, add a scoped registry for `https://package.openupm.com` with the
+scope `com.wallstop-studios.dxaudio`.
 
 **From git.** Open **Window > Package Manager**, choose **+ > Add package from git URL**, and enter:
 
@@ -57,23 +55,22 @@ https://github.com/Ambiguous-Interactive/DxAudio.git#v0.3.0
 ```
 
 **From a tarball.** Download `com.wallstop-studios.dxaudio-<version>.tgz` from a
-[release](https://github.com/Ambiguous-Interactive/DxAudio/releases) and choose **+ > Add package from
-tarball**.
+[release](https://github.com/Ambiguous-Interactive/DxAudio/releases) and choose **+ > Add package from tarball**.
 
 ### Dependencies
 
-DxAudio needs no other package. Its assemblies reference only Unity's, so npm, OpenUPM, a git URL and a
-release tarball install the same files and fetch nothing else. DxMessaging, UnityEvents or your own code drive the
-players with plain method calls (see [Settings and events](#settings-and-events)).
+DxAudio needs no other package. Its assemblies reference only Unity's, so npm, OpenUPM, a git URL and a release tarball
+install the same files and fetch nothing else. DxMessaging, UnityEvents or your own code drive the players with plain
+method calls (see [Settings and events](#settings-and-events)).
 
-If a later version needs another package, `package.json` lists it at an exact version. Unity then
-resolves it from the registries in your manifest for every install path. CI fails when an assembly
-references a package that `package.json` does not list.
+If a later version needs another package, `package.json` lists it at an exact version. Unity then resolves it from the
+registries in your manifest for every install path. CI fails when an assembly references a package that `package.json`
+does not list.
 
 ## Sound effects
 
-1. Create cues with **Create > DxAudio > Sfx Cue**. Add one or more takes; each take has its own start
-   offset to skip a lead-in.
+1. Create cues with **Create > DxAudio > Sfx Cue**. Add one or more takes; each take has its own start offset to skip a
+   lead-in.
 2. Create a library with **Create > DxAudio > Sfx Library**, list the cues, and set the voice count.
 3. Add an **Sfx Player** component and assign the library.
 
@@ -105,22 +102,20 @@ if (_sfx.TryPlayLooping(_hum, out SfxLoopHandle hum))
 _sfx.StopLoop(_humHandle); // a stale handle stops nothing
 ```
 
-`SfxPlayer.CueDropped` reports every cue that did not play, and why (`Throttled`, `NoVoice`,
-`LoopLimit`, ...).
+`SfxPlayer.CueDropped` reports every cue that did not play, and why (`Throttled`, `NoVoice`, `LoopLimit`, ...).
 
 ### How a voice is chosen
 
-| Situation | Result |
-| --- | --- |
-| A voice is idle | The cue takes it, searching round-robin so cues spread across the pool. |
-| Every voice is busy | The cue takes the least important voice of **strictly lower** priority, oldest first. |
+| Situation                                | Result                                                                                |
+| ---------------------------------------- | ------------------------------------------------------------------------------------- |
+| A voice is idle                          | The cue takes it, searching round-robin so cues spread across the pool.               |
+| Every voice is busy                      | The cue takes the least important voice of **strictly lower** priority, oldest first. |
 | Only equal or higher priority is playing | The cue is dropped. Cutting off an audible sound is worse than one that never starts. |
-| A voice holds a loop | It is never taken. |
+| A voice holds a loop                     | It is never taken.                                                                    |
 
 ## Music
 
-1. Create tracks with **Create > DxAudio > Music Track** and give each a context, such as `title` or
-   `level-1`.
+1. Create tracks with **Create > DxAudio > Music Track** and give each a context, such as `title` or `level-1`.
 2. Create a library with **Create > DxAudio > Music Library**, list the tracks, and set the fades.
 3. Add a **Music Player** component and assign the library.
 
@@ -137,13 +132,12 @@ using (_music.Override(bossTrack)) // plays over the context, then hands back
 
 ### Ducking
 
-Create a duck with **Create > DxAudio > Music Duck**. Set its volume, low-pass and high-pass, its apply
-and release times, and its holders:
+Create a duck with **Create > DxAudio > Music Duck**. Set its volume, low-pass and high-pass, its apply and release
+times, and its holders:
 
-- **One** for a state that is on or off, such as a menu. Asserting it again changes nothing, and one
-  release ends it.
-- **Many** for a claim several things make at once, such as two speakers. The music stays down until the
-  last one releases.
+- **One** for a state that is on or off, such as a menu. Asserting it again changes nothing, and one release ends it.
+- **Many** for a claim several things make at once, such as two speakers. The music stays down until the last one
+  releases.
 
 ```csharp
 MusicDuckLease lease = _music.Duck(_dialogueDuck, holder: this);
@@ -151,11 +145,11 @@ MusicDuckLease lease = _music.Duck(_dialogueDuck, holder: this);
 _music.Release(lease);
 ```
 
-A reason that only code raises can be a plain object. `MusicDuckReasonTable<TKey>` hands one per key,
-an enum value or a string, because the stack keys a hold by the reason's reference.
+A reason that only code raises can be a plain object. `MusicDuckReasonTable<TKey>` hands one per key, an enum value or a
+string, because the stack keys a hold by the reason's reference.
 
-A `Many` duck whose holder is destroyed without releasing is released on the next frame.
-`MusicPlayer.DescribeDucks()` lists every live duck and its holder.
+A `Many` duck whose holder is destroyed without releasing is released on the next frame. `MusicPlayer.DescribeDucks()`
+lists every live duck and its holder.
 
 ## Settings and events
 
@@ -164,8 +158,8 @@ _sfx.Muted = !settings.SoundOn;
 _music.Muted = !settings.MusicOn;
 ```
 
-Muting keeps every voice's state, so loops and music resume in time when unmuted. To drive the players
-from DxMessaging, register handlers that call them:
+Muting keeps every voice's state, so loops and music resume in time when unmuted. To drive the players from DxMessaging,
+register handlers that call them:
 
 ```csharp
 _registration.RegisterUntargeted<DialogueStarted>(m => _lease = _music.Duck(_dialogueDuck, m.speaker));
@@ -174,16 +168,37 @@ _registration.RegisterUntargeted<DialogueEnded>(m => _music.Unduck(_dialogueDuck
 
 ## The core is engine-free
 
-`Runtime/Core` (the arbiter, rate limit, take selection, duck stack, attenuation, ramps, hand-off and
-override) uses no Unity types. Use those types directly to build your own player, and test them on plain
-.NET:
+`Runtime/Core` (the arbiter, rate limit, take selection, duck stack, attenuation, ramps, hand-off and override) uses no
+Unity types. Use those types directly to build your own player, and test them on plain .NET:
 
 ```bash
 dotnet test .net-tests
 ```
 
-The same tests, plus tests of the assets and players, run in Unity's Test Runner when the package is
-listed under `testables` in your project manifest.
+The same tests, plus tests of the assets and players, run in Unity's Test Runner when the package is listed under
+`testables` in your project manifest.
+
+## Development
+
+The package repo lives under a Unity project's `Packages/` folder. Open this folder in VS Code and choose **Reopen in
+Container** for the full toolchain. Copy `.env.local.example` to `.env.local` and fill the keys you need.
+
+On the host, keep the Unity editor open and start the MCP bridge:
+
+```bash
+npm run unity:mcp:host
+```
+
+Then, in the container or the host:
+
+```bash
+npm run check:gate      # format, lints, harness self-tests, npm payload
+npm run unity:tests     # EditMode suite through the local editor
+dotnet test .net-tests  # engine-free core on plain .NET
+```
+
+See [.devcontainer/README.md](.devcontainer/README.md) for the container lifecycle and
+[.llm/context.md](.llm/context.md) for agent rules.
 
 ## License
 

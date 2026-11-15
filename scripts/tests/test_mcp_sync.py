@@ -1,0 +1,477 @@
+#!/usr/bin/env python3
+"""mcp-sync contract tests (typed Python port of ``test-mcp-sync.sh``, issue #171).
+
+The Python sync entry drives the typed configurator in throwaway workspaces.
+Each case verifies frontend formats, placeholder-only credentials, and failures.
+The legacy Node entry remains covered separately by its fallback contracts.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any, List, Tuple
+from unittest.mock import patch
+
+sys.dont_write_bytecode = True
+
+from _test_helpers import assert_true, failure_count, new_temp_root, remove_temp_root, run_case
+
+TESTS_DIR = Path(__file__).resolve().parent
+REPO_ROOT = TESTS_DIR.parent.parent
+SYNC = REPO_ROOT / ".llm" / "mcp" / "sync_mcp.py"
+
+# The unity bridge URL port is configurable: unity-mcp-host.mjs binds a dynamic
+# port when 9020 is busy and persists UNITY_MCP_HTTP_PORT to .env.local. Export
+# it so the sandboxed configure.mjs run and these assertions stay in lockstep.
+UNITY_MCP_HTTP_PORT = os.environ.get("UNITY_MCP_HTTP_PORT") or "9020"
+
+SCRUBBED_KEYS = ("GITHUB_PERSONAL_ACCESS_TOKEN", "GITHUB_MCP_PAT", "GITHUB_TOKEN", "ZAI_API_KEY", "Z_AI_API_KEY", "UNITY_MCP_TOKEN", "UNITY_MCP_HTTP_URL")
+
+
+LEGACY_OPENCODE_JSON = """{
+  "$schema": "https://opencode.ai/config.json",
+  "theme": "system",
+  "mcp": {
+    "legacy-local": { "type": "local", "command": ["x"], "enabled": true },
+    "unity": { "type": "remote", "url": "http://stale:1/mcp", "enabled": false, "timeout": 1000 },
+    "timeout": { "startup": 45000 },
+    "servers": {
+      "my-tools": { "type": "remote", "url": "https://example.com/mcp" }
+    }
+  }
+}
+"""
+
+
+class Sandbox:
+    """Hermetic fixture workspace for one sync case."""
+
+    def __init__(self) -> None:
+        self.root = new_temp_root(prefix="mcp-sync-test-")
+        self.home = self.root / "home"
+        self.codex_home = self.root / "codex-home"
+        self.home.mkdir()
+        self.codex_home.mkdir()
+        self.last_exit = -1
+        self.stdout = ""
+        self.stderr = ""
+
+    def run_sync(self, *flags: str) -> None:
+        env = dict(os.environ)
+        for key in SCRUBBED_KEYS:
+            env.pop(key, None)
+        env.update(
+            {
+                "DXAUDIO_MCP_WORKSPACE": str(self.root),
+                "DXAUDIO_IN_CONTAINER": "1",
+                "UV_NO_CACHE": "1",
+                "CODEX_HOME": str(self.codex_home),
+                "HOME": str(self.home),
+                "NANOCODER_CONFIG_DIR": str(self.home / ".config" / "nanocoder"),
+                "UNITY_MCP_HTTP_PORT": UNITY_MCP_HTTP_PORT,
+            }
+        )
+        if os.name == "nt":
+            # Windows tools resolve the home through USERPROFILE; keep both
+            # names pointing inside the sandbox.
+            env["USERPROFILE"] = str(self.home)
+        completed = subprocess.run(
+            [sys.executable, str(SYNC), str(self.root), *flags],
+            cwd=str(self.root),
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        self.last_exit = completed.returncode
+        self.stdout = completed.stdout or ""
+        self.stderr = completed.stderr or ""
+
+    def run_failure_context(self) -> str:
+        """Carry the subject's own output in failure messages.
+
+        The bash original tee'd sandbox output into files beside the case; a
+        failing sync with no captured output is undebuggable from CI, so every
+        assertion about a run can attach what the subject printed.
+        """
+        return f"(exit {self.last_exit}; stdout: {self.stdout!r}; stderr: {self.stderr!r})"
+
+    def path(self, relative: str) -> Path:
+        return self.root / relative
+
+    def load_json(self, relative: str) -> Any:
+        return json.loads(self.path(relative).read_text(encoding="utf-8"))
+
+    def destroy(self) -> None:
+        remove_temp_root(self.root)
+
+
+def assert_eq(description: str, expected: Any, actual: Any, suffix: str = "") -> None:
+    assert_true(expected == actual, f"{description} (expected: [{expected}]; actual: [{actual}]){suffix}")
+
+
+def assert_file_contains(sandbox: Sandbox, relative: str, needle: str, description: str) -> None:
+    path = sandbox.path(relative)
+    assert_true(path.is_file(), f"{description} (missing file {path})")
+    content = path.read_text(encoding="utf-8", errors="replace")
+    assert_true(needle in content, f"{description} (missing [{needle}] in {relative})")
+
+
+def expected_fleet() -> str:
+    # The managed fleet; fetch/git only register when uvx exists and
+    # zai-image only registers when uv exists (mirrors the configurator), so
+    # the expected set is derived from the same conditions.
+    fleet = ["context7", "fetch", "git", "github", "unity", "zai-image", "zai-vision", "zai-web-search"]
+    if shutil.which("uvx") is None:
+        fleet = [name for name in fleet if name not in ("fetch", "git")]
+    if shutil.which("uv") is None:
+        fleet = [name for name in fleet if name != "zai-image"]
+    return " ".join(fleet)
+
+
+def codex_server_names(sandbox: Sandbox) -> str:
+    config = sandbox.path("codex-home/config.toml").read_text(encoding="utf-8", errors="replace")
+    names = re.findall(r"^\[mcp_servers\.([a-z0-9-]+)\]", config, flags=re.MULTILINE)
+    return " ".join(sorted(names))
+
+
+def json_server_names(sandbox: Sandbox, relative: str, keys: List[str]) -> str:
+    document = sandbox.load_json(relative)
+    for key in keys:
+        document = document[key]
+    return " ".join(sorted(document))
+
+
+def case_sync_generates_all_frontends() -> None:
+    sandbox = Sandbox()
+    sandbox.run_sync()
+    assert_eq("sync exits zero", 0, sandbox.last_exit, sandbox.run_failure_context())
+    for relative in (".mcp.json", "opencode.json", ".vscode/mcp.json", ".nanocoder/mcp.json", ".cursor/mcp.json"):
+        assert_true(sandbox.path(relative).is_file(), f"sync generated {relative}")
+    assert_true(sandbox.path("codex-home/config.toml").is_file(), "sync generated codex config.toml")
+    sandbox.destroy()
+
+
+def case_server_fleet_is_identical_across_frontends() -> None:
+    sandbox = Sandbox()
+    sandbox.run_sync()
+    expected = expected_fleet()
+    assert_eq("claude .mcp.json fleet matches catalog", expected, json_server_names(sandbox, ".mcp.json", ["mcpServers"]))
+    assert_eq("opencode fleet matches catalog", expected, json_server_names(sandbox, "opencode.json", ["mcp", "servers"]))
+    assert_eq(
+        "nanocoder fleet matches catalog", expected, json_server_names(sandbox, ".nanocoder/mcp.json", ["mcpServers"])
+    )
+    assert_eq("vscode fleet matches catalog", expected, json_server_names(sandbox, ".vscode/mcp.json", ["servers"]))
+    assert_eq("codex fleet matches catalog", expected, codex_server_names(sandbox))
+    # Cursor runs on the host and only carries host-executable entries, so
+    # zai-image (container-local script path) is intentionally absent.
+    cursor_expected = " ".join(name for name in expected.split(" ") if name != "zai-image")
+    assert_eq("cursor fleet matches host-executable catalog", cursor_expected, json_server_names(sandbox, ".cursor/mcp.json", ["mcpServers"]))
+    sandbox.destroy()
+
+
+def case_opencode_v2_shape_and_legacy_migration() -> None:
+    # Sync must emit the native OpenCode V2 shape (servers under mcp.servers,
+    # `disabled` instead of `enabled`, per-server timeout split into
+    # catalog/execution), strip legacy V1 flat entries on re-sync, and
+    # preserve unrelated user settings and a valid V2 mcp.timeout block.
+    sandbox = Sandbox()
+    sandbox.path("opencode.json").write_bytes(LEGACY_OPENCODE_JSON.encode("utf-8"))
+    sandbox.run_sync()
+    assert_eq("sync migrates legacy v1 opencode.json without error", 0, sandbox.last_exit, sandbox.run_failure_context())
+    document = sandbox.load_json("opencode.json")
+    mcp = document["mcp"]
+    assert_eq(
+        "no mixed v1/v2 map remains",
+        [],
+        [key for key in mcp if key not in ("servers", "timeout")],
+    )
+    servers = mcp["servers"]
+    assert_eq("user-added v1 server is converted and preserved", "x", servers["legacy-local"]["command"][0])
+    assert_eq("converted v1 server carries the v2 disabled field", False, servers["legacy-local"]["disabled"])
+    assert_eq("user-added v2 server survives sync", "https://example.com/mcp", servers["my-tools"]["url"])
+    assert_eq(
+        "stale legacy entry replaced by the catalog definition",
+        f"http://host.docker.internal:{UNITY_MCP_HTTP_PORT}/mcp",
+        servers["unity"]["url"],
+    )
+    assert_eq(
+        "no v2 entry keeps the v1 enabled field",
+        False,
+        any("enabled" in server for server in servers.values()),
+    )
+    assert_eq("managed v2 entries carry the disabled field", True, "disabled" in servers["unity"])
+    assert_eq("v1 timeout splits into catalog/execution", [300000, 300000], [servers["unity"]["timeout"]["catalog"], servers["unity"]["timeout"]["execution"]])
+    assert_eq("valid v2 mcp.timeout block survives sync", 45000, mcp["timeout"]["startup"])
+    assert_eq("unrelated settings survive migration", "system", document["theme"])
+    first_pass = sandbox.path("opencode.json").read_bytes()
+    sandbox.run_sync()
+    assert_eq("re-sync exits zero", 0, sandbox.last_exit, sandbox.run_failure_context())
+    assert_eq("re-sync is idempotent", first_pass, sandbox.path("opencode.json").read_bytes())
+    sandbox.destroy()
+
+
+def case_claude_project_servers_are_preapproved() -> None:
+    # Sync must record approval state the way the interactive dialogs do so
+    # project-scope servers are usable without a first-run prompt.
+    sandbox = Sandbox()
+    sandbox.run_sync()
+    assert_file_contains(
+        sandbox,
+        ".claude/settings.local.json",
+        '"enableAllProjectMcpServers": true',
+        "claude settings auto-approve project servers",
+    )
+    assert_file_contains(
+        sandbox,
+        "home/.claude.json",
+        '"hasTrustDialogAccepted": true',
+        "claude home state records folder trust",
+    )
+    sandbox.destroy()
+
+
+def case_generated_configs_contain_no_literal_secrets() -> None:
+    # Config files must carry env-var REFERENCES only; real credentials live in
+    # .env.local. A literal key in any generated file fails the suite.
+    sandbox = Sandbox()
+    sandbox.run_sync()
+    secret_pattern = re.compile(r"sk-(or-)?[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|Bearer [A-Za-z0-9._-]{16,}")
+    generated = (
+        ".mcp.json",
+        "opencode.json",
+        ".vscode/mcp.json",
+        ".nanocoder/mcp.json",
+        ".cursor/mcp.json",
+        "codex-home/config.toml",
+    )
+    hits = [relative for relative in generated if secret_pattern.search(sandbox.path(relative).read_text(encoding="utf-8", errors="replace"))]
+    assert_eq("no literal bearer/secret tokens in generated configs", [], hits)
+    assert_file_contains(sandbox, ".mcp.json", "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN", "claude github auth uses env placeholder")
+    assert_file_contains(
+        sandbox,
+        ".mcp.json",
+        f'"url": "http://host.docker.internal:{UNITY_MCP_HTTP_PORT}/mcp"',
+        "claude unity uses the official CLI HTTP bridge",
+    )
+    assert_file_contains(sandbox, ".mcp.json", '"X-MCP-Toolsets": "all"', "claude github enables all toolsets")
+    assert_file_contains(sandbox, "codex-home/config.toml", '"X-MCP-Toolsets" = "all"', "codex github enables all toolsets")
+    assert_eq("cursor shares the pinned bridge", sandbox.load_json(".mcp.json")["mcpServers"]["unity"]["url"], sandbox.load_json(".cursor/mcp.json")["mcpServers"]["unity"]["url"])
+    assert_file_contains(sandbox, "opencode.json", "Bearer {env:ZAI_API_KEY}", "opencode zai auth uses env placeholder")
+    assert_file_contains(
+        sandbox,
+        "codex-home/config.toml",
+        'bearer_token_env_var = "GITHUB_PERSONAL_ACCESS_TOKEN"',
+        "codex github auth uses env var name",
+    )
+    assert_file_contains(
+        sandbox,
+        "codex-home/config.toml",
+        'env_vars = ["ZAI_API_KEY", "Z_AI_MODE"]',
+        "codex zai-vision passes Z_AI_MODE through (every other frontend sets it)",
+    )
+    sandbox.destroy()
+
+
+CASES = (
+    case_sync_generates_all_frontends,
+    case_server_fleet_is_identical_across_frontends,
+    case_opencode_v2_shape_and_legacy_migration,
+    case_claude_project_servers_are_preapproved,
+    case_generated_configs_contain_no_literal_secrets,
+)
+
+
+def case_unity_auth_and_url_are_consistent() -> None:
+    sandbox = Sandbox()
+    try:
+        sandbox.path('.env.local').write_text('UNITY_MCP_HTTP_URL=http://bridge:9988/mcp\n', encoding='utf-8')
+        sandbox.run_sync()
+        assert_eq('open bridge sync succeeds', 0, sandbox.last_exit, sandbox.run_failure_context())
+        assert_true('UNITY_MCP_TOKEN=' not in sandbox.path('.env.local').read_text(encoding='utf-8'), 'sync does not change host authentication')
+        assert_true('bearer_token_env_var = "UNITY_MCP_TOKEN"' not in sandbox.path('codex-home/config.toml').read_text(encoding='utf-8'), 'open bridge does not require a token in Codex')
+        for relative, key in [('.mcp.json', 'mcpServers'), ('.cursor/mcp.json', 'mcpServers'), ('.nanocoder/mcp.json', 'mcpServers')]:
+            entry = sandbox.load_json(relative)[key]['unity']
+            assert_eq(f'{relative} honors local endpoint', 'http://bridge:9988/mcp', entry['url'])
+            assert_true('headers' not in entry, f'{relative} omits auth for open bridge')
+        sandbox.path('.env.local').write_text('UNITY_MCP_HTTP_URL=http://bridge:9988/mcp\nUNITY_MCP_TOKEN=fixture-token\n', encoding='utf-8')
+        sandbox.run_sync()
+        assert_eq('authenticated bridge sync succeeds', 0, sandbox.last_exit, sandbox.run_failure_context())
+        vscode = sandbox.load_json('.vscode/mcp.json')['servers']['unity']['args'][-1]
+        for name, definition in sandbox.load_json('.vscode/mcp.json')['servers'].items():
+            if 'command' in definition:
+                assert_true(isinstance(definition['command'], str), f'VS Code {name} has a command string')
+        assert_true('Authorization: Bearer ${UNITY_MCP_TOKEN}' in vscode, 'VS Code sends the bearer scheme')
+        assert_true('fixture-token' not in vscode, 'VS Code loads credentials at spawn')
+        assert_file_contains(sandbox, 'codex-home/config.toml', 'bearer_token_env_var = "UNITY_MCP_TOKEN"', 'authenticated Codex uses token reference')
+    finally:
+        sandbox.destroy()
+
+
+def case_wrapper_forwards_workspace_flags_and_exit_status() -> None:
+    root = new_temp_root(prefix="mcp sync wrapper-")
+    try:
+        script_dir = root / ".llm" / "mcp"
+        script_dir.mkdir(parents=True)
+        wrapper = script_dir / SYNC.name
+        shutil.copyfile(SYNC, wrapper)
+        subject = root / "scripts" / "mcp_configure.py"
+        subject.parent.mkdir()
+        subject.write_text(
+            "import json, os, sys\nprint(json.dumps(dict(args=sys.argv[1:], cwd=os.getcwd(), "
+            "workspace=os.environ['DXAUDIO_MCP_WORKSPACE'])))\nsys.exit(7)\n",
+            encoding="utf-8",
+        )
+        other = root / "other workspace"
+        other.mkdir()
+        cases: List[Tuple[Path, List[str], Path, Path, List[str]]] = [
+            (wrapper, [], other, root, []),
+            (wrapper, ["--check"], other, root, ["--check"]),
+            (wrapper, ["other workspace", "--check", "two words"], root, other, ["--check", "two words"]),
+            (wrapper, [""], other, root, [""]),
+        ]
+        if os.name == "posix":
+            alias = root / "workspace alias"
+            alias.symlink_to(root, target_is_directory=True)
+            cases.extend([
+                (wrapper, [str(alias), "--check"], other, alias, ["--check"]),
+                (alias / ".llm" / "mcp" / SYNC.name, ["--check"], other, alias, ["--check"]),
+            ])
+        else:
+            print("    SKIP: workspace alias cases require a POSIX symlink fixture.")
+        for entry, arguments, working_directory, expected_workspace, flags in cases:
+            completed = subprocess.run(
+                [sys.executable, str(entry), *arguments],
+                cwd=working_directory,
+                env={**os.environ, "DXAUDIO_MCP_WORKSPACE": "ignored inherited workspace"},
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            )
+            assert_eq(f"wrapper exit for {arguments}", 7, completed.returncode, completed.stderr)
+            record = json.loads(completed.stdout)
+            assert_eq("configurator flags", flags, record["args"])
+            assert_eq("configurator cwd", expected_workspace.resolve(), Path(record["cwd"]).resolve())
+            assert_eq("workspace environment preserves logical path", os.path.abspath(expected_workspace), record["workspace"])
+        failed = subprocess.run(
+            [sys.executable, str(wrapper), str(root / "missing workspace")],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+        assert_eq("missing workspace exits one", 1, failed.returncode)
+        assert_true("Cannot sync MCP configuration:" in failed.stderr, failed.stderr)
+        assert_true("Traceback" not in failed.stderr, failed.stderr)
+    finally:
+        remove_temp_root(root)
+
+
+def case_wrapper_succeeds_without_node() -> None:
+    sandbox = Sandbox()
+    try:
+        with patch.dict(os.environ, {'PATH': ''}):
+            sandbox.run_sync('--check')
+        assert_eq("Python sync succeeds without Node", 0, sandbox.last_exit, sandbox.run_failure_context())
+        assert_true("Servers: unity, github, context7, zai-vision, zai-web-search" in sandbox.stdout, sandbox.stdout)
+        assert_true(not sandbox.path('.mcp.json').exists(), 'A direct Python dry run must not write configuration.')
+    finally:
+        sandbox.destroy()
+
+
+def case_codex_persistence_uses_python_when_uv_is_absent() -> None:
+    if os.name != 'posix':
+        print('    SKIP: restricted PATH fixture requires POSIX symlinks.')
+        return
+    sandbox = Sandbox()
+    try:
+        binary = sandbox.path('bin')
+        binary.mkdir()
+        (binary / 'python').symlink_to(sys.executable)
+        with patch.dict(os.environ, {'PATH': str(binary)}):
+            sandbox.run_sync()
+        assert_eq('sync without uv succeeds', 0, sandbox.last_exit, sandbox.run_failure_context())
+        assert_true('❌' not in sandbox.stdout, sandbox.run_failure_context())
+        assert_file_contains(sandbox, 'codex-home/config.toml', '[mcp_servers.unity]', 'Python fallback writes Codex state')
+        assert_true('mcp_servers.zai-image' not in sandbox.path('codex-home/config.toml').read_text(encoding='utf-8'), 'uv-gated server stays optional')
+    finally:
+        sandbox.destroy()
+
+
+def case_sync_reports_blocked_writes_and_continues_other_frontends() -> None:
+    outputs = ('.mcp.json', 'codex-home/config.toml', 'opencode.json', '.nanocoder/mcp.json', '.vscode/mcp.json', '.cursor/mcp.json')
+    cases = (
+        ('.mcp.json', 'Claude Code'),
+        ('.claude/settings.local.json', 'Claude Code'),
+        ('home/.claude.json', 'Claude Code'),
+        ('codex-home/config.toml', 'Codex ('),
+        ('opencode.json', 'OpenCode'),
+        ('.nanocoder/mcp.json', 'Nanocoder'),
+        ('home/.config/nanocoder/nanocoder-preferences.json', 'Nanocoder'),
+        ('agents.config.json', 'Nanocoder'),
+        ('.vscode/mcp.json', 'VS Code'),
+        ('.cursor/mcp.json', 'Cursor'),
+    )
+    for relative, label in cases:
+        sandbox = Sandbox()
+        try:
+            sandbox.path(relative).mkdir(parents=True)
+            before = sorted(path.relative_to(sandbox.root).as_posix() for path in sandbox.root.rglob('*'))
+            sandbox.run_sync('--check')
+            # JSON planning reads existing state and must report unreadable inputs.
+            expected_check_exit = 0 if relative == 'codex-home/config.toml' else 1
+            assert_eq(f'dry run for {relative} reports input readability', expected_check_exit, sandbox.last_exit, sandbox.run_failure_context())
+            after = sorted(path.relative_to(sandbox.root).as_posix() for path in sandbox.root.rglob('*'))
+            assert_true(before == after, f'dry run for {relative} must not create outputs')
+            sandbox.run_sync()
+            assert_eq(f'blocked {relative} exits one', 1, sandbox.last_exit, sandbox.run_failure_context())
+            assert_true('❌ ' + label in sandbox.stdout, f'failure must identify {label}: {sandbox.run_failure_context()}')
+            assert_true(sandbox.path(relative).is_dir(), 'failed replacement must preserve the existing directory')
+            for output in outputs:
+                if output != relative:
+                    assert_true(sandbox.path(output).is_file(), f'{relative} must not prevent independent output {output}')
+        finally:
+            sandbox.destroy()
+
+
+def case_successful_and_unchanged_syncs_exit_zero() -> None:
+    sandbox = Sandbox()
+    try:
+        sandbox.run_sync()
+        assert_eq('successful sync exits zero', 0, sandbox.last_exit, sandbox.run_failure_context())
+        before = {path.relative_to(sandbox.root).as_posix(): path.read_bytes() for path in sandbox.root.rglob('*') if path.is_file()}
+        sandbox.run_sync()
+        assert_eq('unchanged sync exits zero', 0, sandbox.last_exit, sandbox.run_failure_context())
+        after = {path.relative_to(sandbox.root).as_posix(): path.read_bytes() for path in sandbox.root.rglob('*') if path.is_file()}
+        assert_true(before == after, 'unchanged sync must preserve output contents')
+    finally:
+        sandbox.destroy()
+
+
+def main() -> int:
+    assert_true(SYNC.is_file(), f"sync script not found at {SYNC}")
+    print("== mcp-sync contract tests ==")
+    run_case("case_wrapper_succeeds_without_node", case_wrapper_succeeds_without_node)
+    run_case('case_unity_auth_and_url_are_consistent', case_unity_auth_and_url_are_consistent)
+    run_case("case_wrapper_forwards_workspace_flags_and_exit_status", case_wrapper_forwards_workspace_flags_and_exit_status)
+    run_case('case_codex_persistence_uses_python_when_uv_is_absent', case_codex_persistence_uses_python_when_uv_is_absent)
+    run_case('case_sync_reports_blocked_writes_and_continues_other_frontends', case_sync_reports_blocked_writes_and_continues_other_frontends)
+    run_case('case_successful_and_unchanged_syncs_exit_zero', case_successful_and_unchanged_syncs_exit_zero)
+    for case in CASES:
+        run_case(case.__name__, case)
+    failures = failure_count()
+    print(f"== mcp-sync: {failures} failure(s) ==")
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

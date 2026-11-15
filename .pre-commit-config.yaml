@@ -1,0 +1,58 @@
+repos:
+  - repo: local
+    hooks:
+      - id: uv-environment
+        name: Repair the uv project environment
+        entry: uv run --no-project scripts/uv_environment.py --repair
+        language: system
+        always_run: true
+        pass_filenames: false
+        require_serial: true
+        stages:
+          - pre-commit
+          - pre-push
+        description: Rebuilds .venv when an interrupted bootstrap left it unusable, so later hooks that run through uv never die on a missing pyvenv.cfg.
+      - id: dotnet-tool-restore
+        name: Install .NET tools
+        entry: dotnet tool restore
+        language: system
+        always_run: true
+        pass_filenames: false
+        stages:
+          - pre-commit
+          - pre-push
+        description: Install the .NET tools listed at .config/dotnet-tools.json.
+      - id: csharpier
+        name: Run CSharpier on C# files
+        entry: dotnet tool run Csharpier format
+        language: system
+        types:
+          - c#
+        description: CSharpier is an opinionated C# formatter inspired by Prettier.
+      - id: lint-csharp-source-policy
+        name: Enforce C# source policy
+        entry: uv run scripts/lint_csharp_source_policy.py --paths
+        language: system
+        files: ^(Editor|Runtime|Tests|Generator~)/.*\.cs$
+        description: Runs the null-assertion and using-placement lints in one interpreter over the staged C# files.
+      - id: lint-release-secrets
+        name: Enforce the release credential contract
+        entry: uv run scripts/lint_release_secrets.py
+        language: system
+        pass_filenames: false
+        files: ^(\.llm/references/RELEASING\.md|\.github/workflows/release\.yml)$
+        description: Fails when a release workflow reads an undocumented secret, or a documented secret is read by no release workflow.
+      - id: lint-line-endings
+        name: Enforce the line-ending contract
+        entry: uv run scripts/lint_line_endings.py
+        language: system
+        pass_filenames: false
+        files: ^(\.editorconfig|\.gitattributes)$
+        description: Fails when .editorconfig and .gitattributes disagree about the line ending CSharpier writes and git checks out.
+      - id: lint-changelog-length
+        name: Enforce the changelog entry length cap
+        entry: uv run scripts/lint_changelog_length.py
+        language: system
+        pass_filenames: false
+        files: ^CHANGELOG\.md$
+        description: Fails when a CHANGELOG [Unreleased] entry renders over 300 characters, excluding issue references and link targets.
