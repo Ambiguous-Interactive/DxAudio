@@ -48,7 +48,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(dialogue.ToString(), Is.EqualTo("dialogue"));
             Assert.That(table.Of("DIALOGUE"), Is.SameAs(dialogue), "the comparer decides which keys are equal");
             Assert.That(asked, Is.EqualTo(1), "the holders are asked once per key");
-            Assert.That(table.Of(null), Is.Null);
+            Assert.That(table.Of(null) == null);
         }
     }
 }
