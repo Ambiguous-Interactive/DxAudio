@@ -37,6 +37,7 @@ namespace WallstopStudios.DxAudio
         private object[] _duckHolders;
         private long[] _duckIds;
         private string _text = string.Empty;
+        private Vector2 _scroll;
 
         /// <summary>Whether the overlay samples and draws. Switching it off stops both.</summary>
         public bool Enabled
@@ -50,6 +51,7 @@ namespace WallstopStudios.DxAudio
                 }
 
                 _enabled = value;
+                useGUILayout = value;
                 if (value)
                 {
                     PrepareBuffers();
@@ -57,6 +59,7 @@ namespace WallstopStudios.DxAudio
                 else
                 {
                     _text = string.Empty;
+                    _scroll = Vector2.zero;
                 }
             }
         }
@@ -78,6 +81,7 @@ namespace WallstopStudios.DxAudio
 
         private void OnEnable()
         {
+            useGUILayout = _enabled;
             if (_enabled)
             {
                 PrepareBuffers();
@@ -87,6 +91,13 @@ namespace WallstopStudios.DxAudio
         private void OnDisable()
         {
             _text = string.Empty;
+            _scroll = Vector2.zero;
+        }
+
+        private void OnValidate()
+        {
+            // An Inspector edit bypasses the Enabled setter, and the layout phase must follow it.
+            useGUILayout = _enabled;
         }
 
         private void Update()
@@ -118,7 +129,9 @@ namespace WallstopStudios.DxAudio
 
             Rect area = new(OverlayX, OverlayY, OverlayWidth, Math.Max(0f, Screen.height - (2f * OverlayY)));
             GUILayout.BeginArea(area, GUI.skin.box);
+            _scroll = GUILayout.BeginScrollView(_scroll);
             GUILayout.Label(_text);
+            GUILayout.EndScrollView();
             GUILayout.EndArea();
         }
 

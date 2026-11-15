@@ -8,6 +8,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
     public sealed class DiagnosticsTests
     {
+        /// <summary>Samples per heap probe. Unity's Mono reports nothing for a few hundred KB, so the loop is long.</summary>
+        private const int SampleCount = 20_000;
+
         private readonly List<Object> _made = new();
 
         [TearDown]
@@ -49,6 +52,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(player.TryPlayLooping(hum, out SfxLoopHandle handle), Is.True);
             Assert.That(player.TryGetVoiceState(handle.voice, out SfxVoiceState state, out int lease), Is.True);
+            Assert.That(player.StopLoop(handle), Is.True);
             Assert.That(state.isHeld, Is.True);
             Assert.That(state.priority, Is.EqualTo(SfxPriority.High));
             Assert.That(lease, Is.EqualTo(handle.lease), "the lease is the handle's loop lease");
@@ -75,6 +79,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             overlay.Sample();
 
             string text = overlay.Text;
+            Assert.That(sfx.StopLoop(handle), Is.True);
             Assert.That(text, Does.Contain($"loop lease {handle.lease}"));
             Assert.That(text, Does.Contain("High"));
             Assert.That(text, Does.Contain("Dropped: 1 (NotPlayable 1)"));
@@ -87,7 +92,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             SfxCue hum = Cue(loop: true, priority: SfxPriority.High);
             SfxPlayer sfx = SfxPlayer(SfxLibrary.Create(new[] { hum }, voiceCount: 2));
-            _ = sfx.TryPlayLooping(hum, out _);
+            Assert.That(sfx.TryPlayLooping(hum, out SfxLoopHandle handle), Is.True);
             MusicPlayer music = Made(new GameObject("music")).AddComponent<MusicPlayer>();
             AudioDiagnosticsOverlay overlay = Overlay(sfx, music);
 
@@ -97,7 +102,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 overlay.Sample();
             }
 
-            long disabledGrowth = HeapGrowth(overlay, samples: 500);
+            long disabledGrowth = HeapGrowth(overlay, samples: SampleCount);
 
             overlay.Enabled = true;
             for (int index = 0; index < 8; index++)
@@ -105,39 +110,62 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 overlay.Sample();
             }
 
-            long enabledGrowth = HeapGrowth(overlay, samples: 500);
+            long enabledGrowth = HeapGrowth(overlay, samples: SampleCount);
 
             Assert.That(
                 disabledGrowth,
-                Is.LessThan(1_024L),
-                $"a switched-off overlay grew the heap by {disabledGrowth} bytes over 500 samples"
+                Is.LessThan(1_048_576L),
+                $"a switched-off overlay grew the heap by {disabledGrowth} bytes over {SampleCount} samples"
             );
             Assert.That(
                 enabledGrowth,
-                Is.GreaterThan(20_000L),
-                $"the probe must see the enabled path allocate; 500 samples grew the heap by {enabledGrowth} bytes"
+                Is.GreaterThan(1_048_576L),
+                $"the probe must see the enabled path allocate; {SampleCount} samples grew the heap by {enabledGrowth} bytes"
             );
 
+            Assert.That(sfx.StopLoop(handle), Is.True);
             overlay.Enabled = false;
             Assert.That(overlay.Text, Is.Empty);
+        }
+
+        [Test]
+        public void TheOverlaySkipsTheLayoutPhaseWhileItIsOff()
+        {
+            SfxCue hit = Cue(loop: false);
+            SfxPlayer sfx = SfxPlayer(SfxLibrary.Create(new[] { hit }, voiceCount: 1));
+            AudioDiagnosticsOverlay overlay = Overlay(sfx, null);
+
+            Assert.That(overlay.useGUILayout, Is.False, "an overlay that is off must not run a layout pass");
+            overlay.Enabled = true;
+            Assert.That(overlay.useGUILayout, Is.True, "the open overlay lays out its label and scroll view");
+            overlay.Enabled = false;
+            Assert.That(overlay.useGUILayout, Is.False);
         }
 
         /// <summary>
         /// The heap growth of <paramref name="samples"/> samples after a collection. Unity's Mono reports zero from
         /// <c>GC.GetAllocatedBytesForCurrentThread</c>, so the heap is the probe that can move here.
         /// </summary>
+        /// <remarks>
+        /// Every sampled report is kept and both ends of the window force a collection, so the probe reads live bytes.
+        /// A plain heap reading was order dependent: a full suite run reported 0 to 16 KB for the same work. Unity's
+        /// Mono also reports nothing for a few hundred KB of new strings, so the loop runs 20,000 samples.
+        /// </remarks>
         private static long HeapGrowth(AudioDiagnosticsOverlay overlay, int samples)
         {
+            string[] kept = new string[samples];
             GC.Collect();
             GC.WaitForPendingFinalizers();
-            GC.Collect();
-            long before = GC.GetTotalMemory(forceFullCollection: false);
+            long before = GC.GetTotalMemory(forceFullCollection: true);
             for (int index = 0; index < samples; index++)
             {
                 overlay.Sample();
+                kept[index] = overlay.Text;
             }
 
-            return GC.GetTotalMemory(forceFullCollection: false) - before;
+            long growth = GC.GetTotalMemory(forceFullCollection: true) - before;
+            GC.KeepAlive(kept);
+            return growth;
         }
 
         private AudioDiagnosticsOverlay Overlay(SfxPlayer sfx, MusicPlayer music)
