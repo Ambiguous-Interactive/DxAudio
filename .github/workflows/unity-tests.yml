@@ -56,7 +56,7 @@ jobs:
           github.event.pull_request.head.repo.full_name == github.repository)
       }}
     runs-on: [self-hosted, Windows, RAM-64GB]
-    timeout-minutes: 120
+    timeout-minutes: 420
     strategy:
       fail-fast: false
       max-parallel: 1

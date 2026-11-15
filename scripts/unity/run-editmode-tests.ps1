@@ -39,6 +39,9 @@ $packageUri = $PackageRoot.Replace('\', '/')
 $manifest = [ordered]@{
     dependencies = [ordered]@{
         'com.unity.test-framework' = $testFramework
+        # The package uses AudioSource, AudioClip, and AudioMixerGroup. A
+        # built-in module that the manifest omits is excluded from the project.
+        'com.unity.modules.audio' = '1.0.0'
         'com.wallstop-studios.dxaudio' = "file:$packageUri"
     }
     testables = @('com.wallstop-studios.dxaudio')
