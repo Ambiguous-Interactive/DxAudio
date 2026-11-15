@@ -113,18 +113,26 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             );
 
             Assert.That(player.PlayContext("town"), Is.True);
+            Assert.That(player.IsPlaying, Is.True);
             Object.DestroyImmediate(released);
-            player.Tick(0.016f);
             Assert.That(player.IsPlaying, Is.False, "the released clip stopped the music");
 
             AudioClip returned = Clip(made);
-            SerializedObject serialized = new(town);
-            serialized.FindProperty("_clip").objectReferenceValue = returned;
-            serialized.ApplyModifiedPropertiesWithoutUndo();
+            using (SerializedObject serialized = new(town))
+            {
+                SerializedProperty clip = serialized.FindProperty("_clip");
+                Assert.That(clip != null, "MusicTrack keeps a private _clip field for this test");
+                clip.objectReferenceValue = returned;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+            }
 
+            // No tick in between: a clip can come back in the frame that stopped the voice.
             Assert.That(player.PlayContext("town"), Is.True);
             Assert.That(player.Current, Is.SameAs(town), "the same music is still what the context wants");
             Assert.That(player.IsPlaying, Is.True, "the selection did not change, but nothing was sounding it");
+
+            player.Tick(0.016f);
+            Assert.That(player.IsPlaying, Is.True, "the frame sweep keeps the new clip playing");
         }
 
         private static SfxPlayer SfxPlayer(MadeObjects made, SfxLibrary library)

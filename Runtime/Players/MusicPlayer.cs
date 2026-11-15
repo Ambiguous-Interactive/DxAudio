@@ -116,7 +116,11 @@ namespace WallstopStudios.DxAudio
         public MusicOverrideLease Override(MusicTrack track)
         {
             MusicOverrideLease lease = Selection.Take(track);
-            Resume();
+            if (lease.IsValid)
+            {
+                Resume();
+            }
+
             return lease;
         }
 
@@ -275,11 +279,23 @@ namespace WallstopStudios.DxAudio
         /// <remarks>
         /// A released clip stops the voice and clears what it played, but the announced selection still names that
         /// music. Asking for it again is then not a change, so without this second look the request would play nothing.
+        /// The voice counts only while its source still has a clip, so a request in the same frame as a clip comes back
+        /// is not mistaken for music that is already sounding.
         /// </remarks>
         private void Resume()
         {
             MusicTrack track = Selection.Current;
-            if (track == null || (_current != null && MusicTrack.SameMusic(_current.track, track)))
+            if (track == null || !track.IsPlayable)
+            {
+                return;
+            }
+
+            if (
+                _current != null
+                && _current.source != null
+                && _current.source.clip != null
+                && MusicTrack.SameMusic(_current.track, track)
+            )
             {
                 return;
             }

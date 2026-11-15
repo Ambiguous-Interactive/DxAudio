@@ -71,7 +71,7 @@ Stop() -> fade out
   can play again.
 - Define the outcome, not the timing: a released clip frees a held loop within a frame while the player component is
   enabled, and the stale loop handle stops nothing after it. A one-shot voice is not stopped by that sweep; it makes no
-  sound, and the next `Play` stops it while it reads the pool and reuses it.
+  sound and is not busy, and the next `Play` stops it while it reads the pool.
 - Detected by a null clip only. A clip object that survives with its audio data unloaded (`AudioClip.UnloadAudioData`,
   `Resources.UnloadAsset`) is not detected, and the voice keeps its slot until the game stops it.
 
