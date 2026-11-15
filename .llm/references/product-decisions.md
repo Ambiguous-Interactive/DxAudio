@@ -58,21 +58,23 @@ the ramp math shared by all three voices:
 | Mixer exposed parameter write, decibels computed in C# | 265 ns |  273 ns |       0 B |
 
 A snapshot transition is one call per duck change and nothing per frame; the call measured 206 ns once warm. The widest
-gap above, 926 ns against 265 ns, is about 0.005% of a 16.7 ms frame at 60 Hz, so cost does not decide this.
+gap above, 926 ns against 265 ns, is about 0.005% of a 16.7 ms frame at 60 Hz, so cost does not decide this. Reading an
+exposed parameter during and after a 0.4 s transition into the -6 dB snapshot returned the value last passed to
+`SetFloat` (0 dB), not the snapshot's value; the applied curve itself was not measurable here, so that read is recorded
+as API behaviour, not as output evidence.
 
 Three differences do:
 
 - **Composition, from the stack design.** A mixer parameter holds one number per group. Composed ducking takes the
   lowest gain and the lowest low-pass of every live duck, and the highest high-pass. That arithmetic still belongs in
   package code before any mixer write, so a mixer replaces the per-voice write and nothing else.
-- **Read-back, measured.** Every `AudioMixer.GetFloat` during a 0.4 s transition into the -6 dB snapshot, and 1 s after
-  it, returned the value last passed to `SetFloat` (0 dB) rather than the snapshot's value. A snapshot-driven duck would
-  leave `MusicPlayer.Attenuation` holding whatever was last written, not the applied level, and the diagnostics overlay
-  (issue #14) without a number.
+- **Dependencies, from the design rule.** A mixer needs an editor-authored `.mixer` asset, which pulls ducking out of
+  `Runtime/Core` and out of the plain .NET suite where it is tested today. The package promises no dependencies and no
+  asset for ducking.
 - **Granularity, computed from the shipped ramp.** The per-voice ramp steps once per frame: at most 0.36 dB per step at
   60 fps and 1.08 dB at 20 fps for this duck, because the end of an `OutQuad` ramp is steepest. Unity runs a snapshot
-  transition on its own timeline rather than the frame loop. This session did not measure the applied curve, and the
-  group-level probe that would have shown it returned no usable level.
+  transition on its own timeline rather than the frame loop, which is the one thing a mixer could buy here. Measure it
+  before paying for it.
 
 **Reopen if:** a game that renders below 30 fps hears those steps, and a step near 0.5 dB is audible in that game, or a
 project wants snapshot authoring strongly enough to accept an editor-side asset dependency. Any adopted design must keep
