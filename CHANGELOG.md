@@ -14,61 +14,56 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
-- `MusicDuckReasonTable<TKey>` hands one `IMusicDuckReason` per key, the same object on every call, for
-  reasons that only code raises. `MusicDuckStack` keys a hold by reference, so a reason made anew per
-  call could not be released
+- `MusicDuckReasonTable<TKey>` hands one `IMusicDuckReason` per key, the same object on every call, for reasons that
+  only code raises. `MusicDuckStack` keys a hold by reference, so a reason made anew per call could not be released
   ([#18](https://github.com/Ambiguous-Interactive/DxAudio/issues/18)).
-- `MusicOverride<TTrack>` takes an optional `isPlayable` check, and `Take` refuses a track that the check
-  rejects. `MusicPlayer` passes `MusicTrack.IsPlayable`
-  ([#19](https://github.com/Ambiguous-Interactive/DxAudio/issues/19)).
+- `MusicOverride<TTrack>` takes an optional `isPlayable` check, and `Take` refuses a track that the check rejects.
+  `MusicPlayer` passes `MusicTrack.IsPlayable` ([#19](https://github.com/Ambiguous-Interactive/DxAudio/issues/19)).
 
 ## [0.2.1] - 2026-11-15
 
 ### Fixed
 
-- `MusicOverride<TTrack>` sees a destroyed Unity track. `Current` gives the context's music while the
-  override track is destroyed, `Take` refuses a destroyed track, and releasing the override announces the
-  context's music again. Generic code compares by reference, so `??` and `== null` treated a destroyed
-  track as music to play.
+- `MusicOverride<TTrack>` sees a destroyed Unity track. `Current` gives the context's music while the override track is
+  destroyed, `Take` refuses a destroyed track, and releasing the override announces the context's music again. Generic
+  code compares by reference, so `??` and `== null` treated a destroyed track as music to play.
 
 ### Changed
 
-- `package.json` lists its dependencies, which are none, and the runtime assembly takes no precompiled
-  DLL that it does not name. CI fails when an assembly references a package that `package.json` does not
-  list, or when a listed version is not exact
-  ([#7](https://github.com/Ambiguous-Interactive/DxAudio/issues/7)).
-- The README's scoped registry covers `com.wallstop-studios`, so other Wallstop Studios packages on npm
-  resolve from the same entry. The package is on OpenUPM too, from 0.1.2.
+- `package.json` lists its dependencies, which are none, and the runtime assembly takes no precompiled DLL that it does
+  not name. CI fails when an assembly references a package that `package.json` does not list, or when a listed version
+  is not exact ([#7](https://github.com/Ambiguous-Interactive/DxAudio/issues/7)).
+- The README's scoped registry covers `com.wallstop-studios`, so other Wallstop Studios packages on npm resolve from the
+  same entry. The package is on OpenUPM too, from 0.1.2.
 - `SfxSelection<TKey>.TryFollow` documents that it compares keys for equality only.
 
 ## [0.2.0] - 2026-11-14
 
 ### Changed
 
-- **Breaking:** `SfxThrottle` and `SfxSelection` are `SfxThrottle<TKey>` and `SfxSelection<TKey>`, with an
-  optional `IEqualityComparer<TKey>`. A game that keys cues by a struct no longer boxes the key on every
-  call: 1,000 calls on warmed struct keys allocated 120,000 bytes before and allocate none now.
-  `SfxPlayer` keys both by `SfxCue`, as before. Replace `new SfxThrottle()` with
-  `new SfxThrottle<YourKey>()`, and the same for `SfxSelection`.
+- **Breaking:** `SfxThrottle` and `SfxSelection` are `SfxThrottle<TKey>` and `SfxSelection<TKey>`, with an optional
+  `IEqualityComparer<TKey>`. A game that keys cues by a struct no longer boxes the key on every call: 1,000 calls on
+  warmed struct keys allocated 120,000 bytes before and allocate none now. `SfxPlayer` keys both by `SfxCue`, as before.
+  Replace `new SfxThrottle()` with `new SfxThrottle<YourKey>()`, and the same for `SfxSelection`.
 
 ## [0.1.2] - 2026-11-14
 
 ### Added
 
-- Releases publish to npm as `com.wallstop-studios.dxaudio`, so Unity can install the package from a
-  scoped registry. Each GitHub Release carries the same tarball and its SHA-256.
+- Releases publish to npm as `com.wallstop-studios.dxaudio`, so Unity can install the package from a scoped registry.
+  Each GitHub Release carries the same tarball and its SHA-256.
 
 ### Changed
 
-- The package holds only `Runtime`, `Tests` and the docs. CI, the .NET test project and editor settings
-  stay in the repository.
+- The package holds only `Runtime`, `Tests` and the docs. CI, the .NET test project and editor settings stay in the
+  repository.
 
 ## [0.1.1] - 2026-11-14
 
 ### Fixed
 
-- Voices are `DontSave` only in edit mode, so `FindObjectsOfType<AudioSource>` still finds them in
-  Play mode and a game's own pause-all reaches them.
+- Voices are `DontSave` only in edit mode, so `FindObjectsOfType<AudioSource>` still finds them in Play mode and a
+  game's own pause-all reaches them.
 - `MusicPlayer` destroys its voices with a deferred `Destroy` only.
 - The `SfxCue` interval tooltip says loops are never rate-limited.
 
@@ -76,13 +71,13 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
-- `SfxCue`, `SfxVariant` and `SfxLibrary` assets: takes with start offsets, volume, pitch jitter, rate
-  limits, priority, looping, pause behaviour, mixer routing and 3D falloff.
-- `SfxPlayer`: a pooled voice player with priority stealing, per-cue rate limits, no-repeat take
-  selection, matched takes (`FollowsTakeOf`), loop handles, a looping voice limit, mute and drop reports.
+- `SfxCue`, `SfxVariant` and `SfxLibrary` assets: takes with start offsets, volume, pitch jitter, rate limits, priority,
+  looping, pause behaviour, mixer routing and 3D falloff.
+- `SfxPlayer`: a pooled voice player with priority stealing, per-cue rate limits, no-repeat take selection, matched
+  takes (`FollowsTakeOf`), loop handles, a looping voice limit, mute and drop reports.
 - `MusicTrack`, `MusicLibrary` and `MusicDuck` assets.
-- `MusicPlayer`: music per context with crossfades, reclaiming music that is fading out, overrides by
-  lease, composing ducks with low- and high-pass filters, abandoned-holder sweeps and mute.
-- An engine-free core (`SfxVoiceArbiter`, `SfxThrottle`, `SfxSelection`, `MusicDuckStack`,
-  `MusicAttenuation`, `MusicRamp`, `MusicEasing`, `MusicHandOff`, `MusicOverride`, `AudioLoudness`,
-  `AudioMath`) with tests that run on .NET and in Unity.
+- `MusicPlayer`: music per context with crossfades, reclaiming music that is fading out, overrides by lease, composing
+  ducks with low- and high-pass filters, abandoned-holder sweeps and mute.
+- An engine-free core (`SfxVoiceArbiter`, `SfxThrottle`, `SfxSelection`, `MusicDuckStack`, `MusicAttenuation`,
+  `MusicRamp`, `MusicEasing`, `MusicHandOff`, `MusicOverride`, `AudioLoudness`, `AudioMath`) with tests that run on .NET
+  and in Unity.
