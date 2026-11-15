@@ -151,6 +151,14 @@ string, because the stack keys a hold by the reason's reference.
 A `Many` duck whose holder is destroyed without releasing is released on the next frame. `MusicPlayer.DescribeDucks()`
 lists every live duck and its holder.
 
+## Authoring
+
+- **Cue inspector.** Each take shows where playback starts after its clip's lead-in, with an **Audition** button that
+  plays from that point. The same panel reports a cue that no take can play.
+- **Duck inspector.** Add the ducks that can hold the music at the same time to see the attenuation they compose to.
+- **Library validation.** **Tools > DxAudio > Validate Libraries** checks every SFX and music library for missing clips,
+  duplicate keys or contexts, and tracks no context reaches.
+
 ## Settings and events
 
 ```csharp

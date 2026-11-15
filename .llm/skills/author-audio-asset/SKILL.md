@@ -29,12 +29,14 @@ metadata:
 
 ## Inspector work
 
-The package has no `Editor/` assembly yet. Authoring is through Unity's default inspector plus the Create menu. When an editor assembly is added, it must not change runtime
-behavior and must stay out of the `Runtime` assembly references.
+The `Editor/` assembly (`WallstopStudios.DxAudio.Editor`) holds the cue and duck inspectors and the library
+validation window. It references the runtime assembly, stays out of the player build, and changes no runtime
+behavior. Keep new editor code there, not in `Runtime/`.
 
 ## Tests
 
 - Asset behavior: `Tests/Editor/Unity/LibraryTests.cs` (`AnSfxLibraryFindsPlayableCuesByKey`, `AnSfxLibraryWarnsAboutADuplicateKey`, ...).
+- Editor validation and duck composition: `Tests/Editor/Unity/AuthoringTests.cs`.
 - Cue start-clamp behavior: `ACueClampsItsStartAndIgnoresItForAnEngineLoop`.
 
 ## Related

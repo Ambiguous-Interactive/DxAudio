@@ -31,6 +31,8 @@
   "files": [
     "Runtime",
     "Runtime.meta",
+    "Editor",
+    "Editor.meta",
     "Tests",
     "Tests.meta",
     "CHANGELOG.md",

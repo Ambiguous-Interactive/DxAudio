@@ -4,7 +4,8 @@
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
-        "WallstopStudios.DxAudio"
+        "WallstopStudios.DxAudio",
+        "WallstopStudios.DxAudio.Editor"
     ],
     "includePlatforms": [
         "Editor"

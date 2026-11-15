@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-PACKAGE_DIRS = ("Runtime", "Tests")
+PACKAGE_DIRS = ("Runtime", "Editor", "Tests")
 PACKAGE_FILES = ("package.json", "README.md", "CHANGELOG.md", "LICENSE.md")
 
 
