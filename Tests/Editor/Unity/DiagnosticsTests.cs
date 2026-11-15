@@ -12,27 +12,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         /// <summary>Samples per heap probe. Unity's Mono reports nothing for a few hundred KB, so the loop is long.</summary>
         private const int SampleCount = 20_000;
 
-        private readonly List<Object> _made = new();
-
-        [TearDown]
-        public void TearDown()
-        {
-            foreach (Object made in _made)
-            {
-                if (made != null)
-                {
-                    Object.DestroyImmediate(made);
-                }
-            }
-
-            _made.Clear();
-        }
-
         [Test]
         public void DroppedCuesAreCountedByReason()
         {
-            SfxCue hit = Cue(loop: false, minimumIntervalSeconds: 1_000f);
-            SfxPlayer player = SfxPlayer(SfxLibrary.Create(new[] { hit }, voiceCount: 1));
+            using MadeObjects made = new();
+            SfxCue hit = Cue(made, loop: false, minimumIntervalSeconds: 1_000f);
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { hit }, voiceCount: 1));
 
             Assert.That(player.Play((SfxCue)null), Is.False);
             Assert.That(player.Play("missing"), Is.False);
@@ -48,8 +33,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void VoiceStateCarriesItsPriorityAndLoopLease()
         {
-            SfxCue hum = Cue(loop: true, priority: SfxPriority.High);
-            SfxPlayer player = SfxPlayer(SfxLibrary.Create(new[] { hum }, voiceCount: 2));
+            using MadeObjects made = new();
+            SfxCue hum = Cue(made, loop: true, priority: SfxPriority.High);
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { hum }, voiceCount: 2));
 
             Assert.That(player.TryPlayLooping(hum, out SfxLoopHandle handle), Is.True);
             Assert.That(player.TryGetVoiceState(handle.voice, out SfxVoiceState state, out int lease), Is.True);
@@ -65,17 +51,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void TheOverlayReportsVoicesDucksAndDrops()
         {
-            SfxCue hum = Cue(loop: true, priority: SfxPriority.High);
-            SfxPlayer sfx = SfxPlayer(SfxLibrary.Create(new[] { hum }, voiceCount: 2));
+            using MadeObjects made = new();
+            SfxCue hum = Cue(made, loop: true, priority: SfxPriority.High);
+            SfxPlayer sfx = SfxPlayer(made, SfxLibrary.Create(new[] { hum }, voiceCount: 2));
             Assert.That(sfx.TryPlayLooping(hum, out SfxLoopHandle handle), Is.True);
             Assert.That(sfx.Play("missing"), Is.False);
 
-            MusicPlayer music = Made(new GameObject("music")).AddComponent<MusicPlayer>();
-            MusicDuck dialogue = Made(MusicDuck.Create(MusicDuckHolders.Many, volumeScale: 0.5f));
-            GameObject speaker = Made(new GameObject("Speaker"));
+            MusicPlayer music = made.Track(new GameObject("music")).AddComponent<MusicPlayer>();
+            MusicDuck dialogue = made.Track(MusicDuck.Create(MusicDuckHolders.Many, volumeScale: 0.5f));
+            GameObject speaker = made.Track(new GameObject("Speaker"));
             _ = music.Duck(dialogue, speaker);
 
-            AudioDiagnosticsOverlay overlay = Overlay(sfx, music);
+            AudioDiagnosticsOverlay overlay = Overlay(made, sfx, music);
             overlay.Enabled = true;
             overlay.Sample();
 
@@ -91,11 +78,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void SamplingRebuildsTheReportOnlyWhileTheOverlayIsEnabled()
         {
-            SfxCue hum = Cue(loop: true, priority: SfxPriority.High);
-            SfxPlayer sfx = SfxPlayer(SfxLibrary.Create(new[] { hum }, voiceCount: 2));
+            using MadeObjects made = new();
+            SfxCue hum = Cue(made, loop: true, priority: SfxPriority.High);
+            SfxPlayer sfx = SfxPlayer(made, SfxLibrary.Create(new[] { hum }, voiceCount: 2));
             Assert.That(sfx.TryPlayLooping(hum, out SfxLoopHandle handle), Is.True);
-            MusicPlayer music = Made(new GameObject("music")).AddComponent<MusicPlayer>();
-            AudioDiagnosticsOverlay overlay = Overlay(sfx, music);
+            MusicPlayer music = made.Track(new GameObject("music")).AddComponent<MusicPlayer>();
+            AudioDiagnosticsOverlay overlay = Overlay(made, sfx, music);
 
             Assert.That(overlay.Enabled, Is.False);
             for (int index = 0; index < 32; index++)
@@ -125,9 +113,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void TheOverlaySkipsTheLayoutPhaseWhileItIsOff()
         {
-            SfxCue hit = Cue(loop: false);
-            SfxPlayer sfx = SfxPlayer(SfxLibrary.Create(new[] { hit }, voiceCount: 1));
-            AudioDiagnosticsOverlay overlay = Overlay(sfx, null);
+            using MadeObjects made = new();
+            SfxCue hit = Cue(made, loop: false);
+            SfxPlayer sfx = SfxPlayer(made, SfxLibrary.Create(new[] { hit }, voiceCount: 1));
+            AudioDiagnosticsOverlay overlay = Overlay(made, sfx, null);
 
             Assert.That(overlay.useGUILayout, Is.False, "an overlay that is off must not run a layout pass");
             overlay.Enabled = true;
@@ -170,28 +159,33 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             return growth;
         }
 
-        private AudioDiagnosticsOverlay Overlay(SfxPlayer sfx, MusicPlayer music)
+        private static AudioDiagnosticsOverlay Overlay(MadeObjects made, SfxPlayer sfx, MusicPlayer music)
         {
-            AudioDiagnosticsOverlay overlay = Made(new GameObject("diagnostics"))
+            AudioDiagnosticsOverlay overlay = made.Track(new GameObject("diagnostics"))
                 .AddComponent<AudioDiagnosticsOverlay>();
             overlay.Sfx = sfx;
             overlay.Music = music;
             return overlay;
         }
 
-        private SfxPlayer SfxPlayer(SfxLibrary library)
+        private static SfxPlayer SfxPlayer(MadeObjects made, SfxLibrary library)
         {
-            Made(library);
-            SfxPlayer player = Made(new GameObject("sfx")).AddComponent<SfxPlayer>();
+            made.Track(library);
+            SfxPlayer player = made.Track(new GameObject("sfx")).AddComponent<SfxPlayer>();
             player.Library = library;
             return player;
         }
 
-        private SfxCue Cue(bool loop, SfxPriority priority = SfxPriority.Medium, float minimumIntervalSeconds = 0f)
+        private static SfxCue Cue(
+            MadeObjects made,
+            bool loop,
+            SfxPriority priority = SfxPriority.Medium,
+            float minimumIntervalSeconds = 0f
+        )
         {
-            return Made(
+            return made.Track(
                 SfxCue.Create(
-                    new[] { new SfxVariant(Clip()) },
+                    new[] { new SfxVariant(Clip(made)) },
                     priority: priority,
                     minimumIntervalSeconds: minimumIntervalSeconds,
                     loop: loop
@@ -199,16 +193,34 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             );
         }
 
-        private AudioClip Clip()
+        private static AudioClip Clip(MadeObjects made)
         {
-            return Made(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
+            return made.Track(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
         }
 
-        private T Made<T>(T made)
-            where T : Object
+        private sealed class MadeObjects : IDisposable
         {
-            _made.Add(made);
-            return made;
+            private readonly List<Object> _made = new();
+
+            public T Track<T>(T made)
+                where T : Object
+            {
+                _made.Add(made);
+                return made;
+            }
+
+            public void Dispose()
+            {
+                for (int index = 0; index < _made.Count; ++index)
+                {
+                    if (_made[index] != null)
+                    {
+                        Object.DestroyImmediate(_made[index]);
+                    }
+                }
+
+                _made.Clear();
+            }
         }
     }
 }
