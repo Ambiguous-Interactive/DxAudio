@@ -27,14 +27,21 @@ long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 ```
 
 - `GC.GetAllocatedBytesForCurrentThread` is exact on plain .NET but reports 0 for every call under Unity's Mono, so in
-  Unity it can only ever prove nothing. Probe Unity with the heap instead: collect, read
-  `GC.GetTotalMemory(forceFullCollection: false)`, run a warmed loop of samples, read it again. A path that allocates
-  grows the heap; the same test must include an allocating positive control so the probe is shown to move.
+  Unity it can only ever prove nothing.
+- `GC.GetTotalMemory` reads current heap use, not cumulative allocation: a collection during the loop reclaims what the
+  loop made. Unity's Mono also reports nothing for a few hundred KB of new strings - 500 new 225-character strings moved
+  it by 4 KB, 40,000 moved it by 9 MB. A flat heap delta therefore never proves that a path allocates nothing.
+- To measure an allocating path with the heap, keep every sample alive, read `GC.GetTotalMemory(forceFullCollection:
+  true)` at both ends, and run enough samples that the live growth is over about a MB.
+  `Tests/Editor/Unity/DiagnosticsTests.cs` (`HeapGrowth`) is the worked example.
+- To prove a path does nothing at all, assert the observable state it must not change, such as an empty report or an idle
+  voice. That check fails deterministically; a byte ceiling only fails once its slack is spent.
 - Unity's NUnit (3.5) has no `Is.AllocatingGCMemory` constraint; it does not compile. Do not use it in `Tests/Editor`.
 - In Unity EditMode, warm the subject and the probe path first. Unwarmed probes false-positive on first-call JIT for
   string comparisons, dictionary adds, and other BCL paths.
 - Warm at least 8 iterations. 32 is safer for paths that touch more BCL code.
-- Run the same probe on a deliberate allocation (for example `new byte[16]`) to prove the probe can see an allocation. A probe that cannot fail is not evidence.
+- Run the same probe on a deliberate allocation to prove the probe can see one: 20 MB of arrays moved the heap by 21 MB
+  on this host, while 500 small strings moved it by 4 KB. A probe that cannot fail is not evidence.
 
 ## Timing
 
