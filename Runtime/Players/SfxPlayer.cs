@@ -232,9 +232,9 @@ namespace WallstopStudios.DxAudio
 
         /// <summary>Releases every hold whose voice or clip is gone, so it stops counting against the limit.</summary>
         /// <remarks>
-        /// A released <see cref="AudioClip"/> is a destroyed object, and Unity leaves the source reporting playback
-        /// with no clip once its asset is unloaded. Without this sweep that voice stays held, and silent, for the rest
-        /// of the session.
+        /// Unity clears a source's clip when that clip's asset is destroyed, and leaves the source reporting playback
+        /// with no sound. Without this sweep that voice stays held, and silent, for the rest of the session. It runs
+        /// from <c>Update</c> and again before every play, so a released loop is freed within a frame.
         /// </remarks>
         internal void ReclaimLostHolds()
         {
@@ -423,9 +423,13 @@ namespace WallstopStudios.DxAudio
             {
                 AudioSource voice = _voices[index];
                 bool usable = voice != null;
+                if (usable && voice.clip == null)
+                {
+                    // A source whose clip was released reports playback while it makes no sound. It is not busy,
+                    // and it is silent, so stop it while the pool is being read anyway.
+                    voice.Stop();
+                }
 
-                // A source whose clip was released reports playback while it makes no sound, so it is not busy.
-                // Reading the clip also keeps a stranded voice from hiding a newer one behind NoVoice drops.
                 _states[index] = new SfxVoiceState(
                     usable,
                     usable && voice.clip != null && voice.isPlaying,

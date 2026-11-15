@@ -200,22 +200,16 @@ namespace WallstopStudios.DxAudio
 
                 if (voice.track != null && voice.source.clip == null)
                 {
-                    // The track's clip was released while this voice held it. Unity keeps the source reporting
-                    // playback with no clip, so stop it here; music asked for again starts once a clip is back.
-                    voice.source.Stop();
-                    voice.track = null;
-                    voice.fadingOut = false;
-                    voice.stop.Cancel();
-                    voice.fade = MusicRamp.At(0f);
+                    // Unity clears the source's clip when the track's clip asset is destroyed, and keeps the source
+                    // reporting playback with no sound. Music asked for again starts once a clip is back.
+                    Silence(voice);
                     continue;
                 }
 
                 float fade = voice.fade.Advance(step);
                 if (voice.stop.TryFinish(_clock))
                 {
-                    voice.source.Stop();
-                    voice.track = null;
-                    voice.fadingOut = false;
+                    Silence(voice);
                     continue;
                 }
 
@@ -305,9 +299,7 @@ namespace WallstopStudios.DxAudio
             // so it cannot resume later under the music that replaced it.
             if (!voice.source.isPlaying)
             {
-                voice.source.Stop();
-                voice.track = null;
-                voice.fade = MusicRamp.At(0f);
+                Silence(voice);
                 return;
             }
 
@@ -316,6 +308,20 @@ namespace WallstopStudios.DxAudio
             voice.fadingOut = true;
             voice.fade = voice.fade.Retarget(0f, fadeOut, fadeOutEase);
             voice.stop.Arm(_clock, fadeOut);
+        }
+
+        /// <summary>Stops <paramref name="voice"/> and forgets what it played, so it is free for the next track.</summary>
+        private void Silence(Voice voice)
+        {
+            voice.source.Stop();
+            voice.track = null;
+            voice.fadingOut = false;
+            voice.stop.Cancel();
+            voice.fade = MusicRamp.At(0f);
+            if (voice == _current)
+            {
+                _current = null;
+            }
         }
 
         private Voice FindFadingOut(MusicTrack track)

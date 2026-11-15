@@ -24,7 +24,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void AReleasedCueClipIsNeverSentToAVoice()
+        public void AReleasedCueIsRefusedAsNotPlayable()
         {
             AudioClip clip = Clip();
             SfxCue cue = Cue(clip, loop: false);
@@ -52,15 +52,17 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(player.HeldVoiceCount, Is.EqualTo(1));
 
             Object.DestroyImmediate(clip);
-            player.ReclaimLostHolds();
 
-            Assert.That(player.HeldVoiceCount, Is.Zero, "a released clip must not hold a voice for the session");
-            Assert.That(player.StopLoop(held), Is.False, "the hold is gone, so its handle stops nothing");
-            Assert.That(
-                player.TryPlayLooping(other, out _),
-                Is.True,
-                "a released clip no longer counts against the looping limit"
-            );
+            // The same entry point the component's Update calls each frame. A Unity message cannot run in EditMode.
+            player.ReclaimLostHolds();
+            int heldAfterRelease = player.HeldVoiceCount;
+            bool staleStops = player.StopLoop(held);
+            bool restarted = player.TryPlayLooping(other, out SfxLoopHandle restartedHandle);
+
+            Assert.That(heldAfterRelease, Is.Zero, "a released clip must not hold a voice for the session");
+            Assert.That(staleStops, Is.False, "the hold is gone, so its handle stops nothing");
+            Assert.That(restarted, Is.True, "a released clip no longer counts against the looping limit");
+            Assert.That(player.StopLoop(restartedHandle), Is.True);
         }
 
         [Test]
@@ -96,9 +98,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(player.IsPlaying, Is.True);
 
             Object.DestroyImmediate(released);
-            player.Tick(0.016f);
 
-            Assert.That(player.IsPlaying, Is.False, "a released clip stops the music instead of reporting playback");
+            Assert.That(player.IsPlaying, Is.False, "a released clip is not music anyone can hear");
+            player.Tick(0.016f);
+            Assert.That(player.IsPlaying, Is.False, "the voice stops instead of reporting playback");
             Assert.That(player.PlayContext("town"), Is.True, "the context still exists");
             Assert.That(player.Current == null, "a track whose clip is released is refused, not faded in");
             Assert.That(player.PlayContext("cave"), Is.True);
