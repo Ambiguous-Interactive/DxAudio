@@ -18,9 +18,9 @@ All notable changes to this package are documented here. The format follows
 
 ### Fixed
 
-- Free a voice whose clip was released. Unity keeps the source reporting playback with no clip, so a released loop held
-  its voice and its looping slot for the session, a stranded voice hid idle ones, and music kept reporting playback it
-  did not make ([#15](https://github.com/Ambiguous-Interactive/DxAudio/issues/15)).
+- Free a voice whose clip was destroyed. Unity keeps the source reporting playback with no clip, so a released loop held
+  its voice and its looping slot for the session. A stranded voice hid idle ones, and music reported playback it did not
+  make ([#15](https://github.com/Ambiguous-Interactive/DxAudio/issues/15)).
 
 ## [0.3.0] - 2026-11-15
 

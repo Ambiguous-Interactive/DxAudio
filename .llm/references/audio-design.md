@@ -62,14 +62,17 @@ Stop() -> fade out
 
 ## Clip lifetime
 
-- A player never owns a clip, and reads it only through a Unity null check at the moment of use. A released clip is a
-  destroyed object, so a cue or track that points at one is not playable.
-- Unity keeps a released `AudioClip` assigned to its `AudioSource` and reports `isPlaying` with no sound. Never trust
-  `isPlaying` alone: a voice is busy only while its clip still loads.
-- A held loop whose clip or source is gone is released by `SfxPlayer`'s frame sweep, so the looping limit and the pool
-  never strand. A music voice whose clip is gone is stopped in `MusicPlayer.Tick`, so its context can play again.
-- Define the outcome, not the timing: a release stops the voice, it is free within a frame, and the stale loop handle
-  stops nothing.
+- A player never owns a clip, and reads it only through a Unity null check at the moment of use. Unity clears a source's
+  clip when that clip's asset is destroyed, so a cue or track that points at a destroyed clip is not playable.
+- A destroyed clip still leaves its source reporting playback with no sound. Never trust `isPlaying` alone: a voice is
+  busy only while it holds a clip and reports playback.
+- A held loop whose clip or source is gone is freed by `SfxPlayer`'s frame sweep, and every voice whose clip is gone is
+  stopped when the pool is next read. A music voice whose clip is gone is stopped in `MusicPlayer.Tick`, so its context
+  can play again.
+- Define the outcome, not the timing: a release frees the voice within a frame while the player component is enabled,
+  and the stale loop handle stops nothing after it.
+- Detected by a null clip only. A clip object that survives with its audio data unloaded (`AudioClip.UnloadAudioData`,
+  `Resources.UnloadAsset`) is not detected, and the voice keeps its slot until the game stops it.
 
 ## Allocation budget
 

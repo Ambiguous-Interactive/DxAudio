@@ -163,18 +163,19 @@ while `TargetAttenuation` reports the level the live ducks compose to.
 The players never own a clip. A game that loads and unloads clips itself, with Addressables or `Resources`, decides when
 a clip goes. These are the rules that make a release safe:
 
-| Moment                               | What happens                                                                              |
-| ------------------------------------ | ----------------------------------------------------------------------------------------- |
-| Released before its cue plays        | The cue has nothing to play: `Play` returns false and `CueDropped` reports `NotPlayable`. |
-| Released while an SFX voice plays it | The voice stops and is free within a frame. A loop's handle then stops nothing.           |
-| Released while its music plays       | The music stops, and asking for its context again starts it once a clip is back.          |
+| Moment                               | What happens                                                                                         |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Released before its cue plays        | The cue has nothing to play: `Play` returns false and `CueDropped` reports `NotPlayable`.            |
+| Released while an SFX voice plays it | A loop's hold ends within a frame. Every voice is free for the next cue, which stops the silent one. |
+| Released while its music plays       | The music stops. Asking for its context again returns true and starts it once the track has a clip.  |
 
-Unity keeps a released `AudioClip` on the `AudioSource` and reports playback while it makes no sound. The players check
-for a released clip instead of trusting that report, so a voice never stays stranded and a music context never sticks as
-silent.
+Unity clears a source's clip when that clip's asset is destroyed, and still reports playback with no sound. The players
+check for a missing clip instead of trusting that report, so a voice never stays stranded and a music context never
+sticks as silent. A clip object that survives with its audio data unloaded behaves the same way on the device, and the
+players do not detect it.
 
-Unload a clip only after the sound it makes has ended: stop a loop through its handle, and stop music with
-`MusicPlayer.Stop`. A cue or track that still points at a released clip stays unplayable until it is given a clip again.
+Releasing early is safe but cuts the sound short. `Stop` and `StopLoop` end a sound on purpose, so let a music fade
+finish before unloading its clip if you want to hear it.
 
 ## Authoring
 
