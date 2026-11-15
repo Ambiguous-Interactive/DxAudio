@@ -185,6 +185,28 @@ dotnet test .net-tests
 The same tests, plus tests of the assets and players, run in Unity's Test Runner when the package is
 listed under `testables` in your project manifest.
 
+## Development
+
+The package repo lives under a Unity project's `Packages/` folder. Open this folder in VS Code and choose **Reopen in
+Container** for the full toolchain. Copy `.env.local.example` to `.env.local` and fill the keys you need.
+
+On the host, keep the Unity editor open and start the MCP bridge:
+
+```bash
+npm run unity:mcp:host
+```
+
+Then, in the container or the host:
+
+```bash
+npm run check:gate      # format, lints, harness self-tests, npm payload
+npm run unity:tests     # EditMode suite through the local editor
+dotnet test .net-tests  # engine-free core on plain .NET
+```
+
+See [.devcontainer/README.md](.devcontainer/README.md) for the container lifecycle and
+[.llm/context.md](.llm/context.md) for agent rules.
+
 ## License
 
 [MIT No Attribution](LICENSE.md).

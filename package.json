@@ -65,7 +65,7 @@
     "unity:tests": "uv run --no-project scripts/uv_environment.py --repair && uv run scripts/unity_tests.py",
     "tools:install": "uv run --no-project scripts/uv_environment.py --repair && uv run .devcontainer/install_npm_tools.py",
     "ai:backends:install": "uv run --no-project scripts/uv_environment.py --repair && uv run .devcontainer/ai_backends.py install",
-    "package:check": "python3 .github/scripts/package_check.py"
+    "package:check": "python .github/scripts/package_check.py"
   },
   "devDependencies": {
     "prettier": "3.9.9"
