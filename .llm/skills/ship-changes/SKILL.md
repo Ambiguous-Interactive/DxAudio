@@ -56,20 +56,22 @@ Fixes #N
 ```
 
 Title at most 50 characters, naming the user-visible effect. No validation transcripts, file tours, or review narration in the body. Never request a review from a person, team,
-bot, or automation.
+bot, or automation that has not reviewed the pull request. Asking an existing reviewer to re-review after its threads are
+resolved is allowed, and is the way out of a stale blocking review.
 
 ## Landing
 
 An agent with write access lands its own pull requests; it does not wait for a human to merge.
 
-1. Wait until every check on the head commit passes, including both Unity versions.
+1. Wait until every check on the head commit passes, including `Unity CI Success`. That aggregate treats a skipped
+   Unity matrix job as passing, so fork pull requests pass without waiting on jobs that never run.
 2. Merge the older pull request first. If a newer branch conflicts, update it from `main`, resolve, and let CI rerun.
 3. Use a merge commit, not a squash or a rebase: the review threads and the session commits stay readable.
 4. Delete the branch after the merge, and close the issue the body names when the merged code meets its acceptance.
 5. Never force-push a branch under review, and never merge over a failing or queued check.
 
-A stale review that blocks merge after every thread is resolved is a state to fix, not to wait on: ask the reviewer to
-re-review, and when it stays stale, record who merged and why in the pull request.
+A stale review that blocks merge after every thread is resolved is a state to fix, not to wait on: ask the reviewer that
+already reviewed to re-review, and when it stays stale, record who merged and why in the pull request.
 
 ## Close the planning record
 
