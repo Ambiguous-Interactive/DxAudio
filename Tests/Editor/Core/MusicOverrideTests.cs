@@ -51,6 +51,20 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void ATrackThePlayableCheckRejectsIsNeverTaken()
+        {
+            List<string> heard = new();
+            MusicOverride<string> selection = new(heard.Add, isPlayable: track => track.Length > 0);
+            _ = selection.SetContextTrack("town");
+
+            Assert.That(selection.Take("").IsValid, Is.False, "a silent track is refused, not held");
+            Assert.That(selection.IsOverridden, Is.False);
+            Assert.That(selection.Current, Is.EqualTo("town"));
+            Assert.That(selection.Take("boss").IsValid, Is.True);
+            Assert.That(heard, Is.EqualTo(new[] { "town", "boss" }));
+        }
+
+        [Test]
         public void TheSameMusicIsNotAChange()
         {
             int changes = 0;

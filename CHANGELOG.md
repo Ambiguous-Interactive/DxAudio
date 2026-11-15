@@ -4,6 +4,18 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the package uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-11-15
+
+### Added
+
+- `MusicDuckReasonTable<TKey>` hands one `IMusicDuckReason` per key, the same object on every call, for
+  reasons that only code raises. `MusicDuckStack` keys a hold by reference, so a reason made anew per
+  call could not be released
+  ([#18](https://github.com/Ambiguous-Interactive/DxAudio/issues/18)).
+- `MusicOverride<TTrack>` takes an optional `isPlayable` check, and `Take` refuses a track that the check
+  rejects. `MusicPlayer` passes `MusicTrack.IsPlayable`
+  ([#19](https://github.com/Ambiguous-Interactive/DxAudio/issues/19)).
+
 ## [0.2.1] - 2026-11-15
 
 ### Fixed

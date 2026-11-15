@@ -37,7 +37,7 @@ lists new versions under **My Registries**:
     }
   ],
   "dependencies": {
-    "com.wallstop-studios.dxaudio": "0.2.1"
+    "com.wallstop-studios.dxaudio": "0.3.0"
   }
 }
 ```
@@ -53,7 +53,7 @@ scope to it instead.
 **From git.** Open **Window > Package Manager**, choose **+ > Add package from git URL**, and enter:
 
 ```text
-https://github.com/Ambiguous-Interactive/DxAudio.git#v0.2.1
+https://github.com/Ambiguous-Interactive/DxAudio.git#v0.3.0
 ```
 
 **From a tarball.** Download `com.wallstop-studios.dxaudio-<version>.tgz` from a
@@ -150,6 +150,9 @@ MusicDuckLease lease = _music.Duck(_dialogueDuck, holder: this);
 // ...
 _music.Release(lease);
 ```
+
+A reason that only code raises can be a plain object. `MusicDuckReasonTable<TKey>` hands one per key,
+an enum value or a string, because the stack keys a hold by the reason's reference.
 
 A `Many` duck whose holder is destroyed without releasing is released on the next frame.
 `MusicPlayer.DescribeDucks()` lists every live duck and its holder.

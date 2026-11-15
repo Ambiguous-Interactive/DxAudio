@@ -20,6 +20,7 @@ namespace WallstopStudios.DxAudio
     {
         private readonly IEqualityComparer<TTrack> _sameMusic;
         private readonly Action<TTrack> _onSelectionChanged;
+        private readonly Func<TTrack, bool> _isPlayable;
 
         private TTrack _contextTrack;
         private TTrack _overrideTrack;
@@ -32,10 +33,19 @@ namespace WallstopStudios.DxAudio
         /// Whether two selections are the same music. A change between two that are equal is not a change.
         /// Defaults to <see cref="EqualityComparer{T}.Default"/>.
         /// </param>
-        public MusicOverride(Action<TTrack> onSelectionChanged = null, IEqualityComparer<TTrack> sameMusic = null)
+        /// <param name="isPlayable">
+        /// Whether a track has something to play. <see cref="Take"/> refuses one it rejects, rather than hold an
+        /// override that plays silence while it reports that it holds the music. Defaults to every track.
+        /// </param>
+        public MusicOverride(
+            Action<TTrack> onSelectionChanged = null,
+            IEqualityComparer<TTrack> sameMusic = null,
+            Func<TTrack, bool> isPlayable = null
+        )
         {
             _onSelectionChanged = onSelectionChanged;
             _sameMusic = sameMusic ?? EqualityComparer<TTrack>.Default;
+            _isPlayable = isPlayable;
         }
 
         /// <summary>The music wanted now: the override when there is one, otherwise the context's.</summary>
@@ -57,10 +67,10 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>Plays <paramref name="track"/> over the context until the lease is released.</summary>
-        /// <returns>The lease, or an invalid one when <paramref name="track"/> is null or destroyed.</returns>
+        /// <returns>The lease, or an invalid one when <paramref name="track"/> is null, destroyed or not playable.</returns>
         public MusicOverrideLease Take(TTrack track)
         {
-            if (UnityObjects.IsGone(track))
+            if (UnityObjects.IsGone(track) || (_isPlayable != null && !_isPlayable(track)))
             {
                 return MusicOverrideLease.None;
             }
