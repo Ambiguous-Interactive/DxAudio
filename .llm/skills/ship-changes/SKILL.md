@@ -58,6 +58,19 @@ Fixes #N
 Title at most 50 characters, naming the user-visible effect. No validation transcripts, file tours, or review narration in the body. Never request a review from a person, team,
 bot, or automation.
 
+## Landing
+
+An agent with write access lands its own pull requests; it does not wait for a human to merge.
+
+1. Wait until every check on the head commit passes, including both Unity versions.
+2. Merge the older pull request first. If a newer branch conflicts, update it from `main`, resolve, and let CI rerun.
+3. Use a merge commit, not a squash or a rebase: the review threads and the session commits stay readable.
+4. Delete the branch after the merge, and close the issue the body names when the merged code meets its acceptance.
+5. Never force-push a branch under review, and never merge over a failing or queued check.
+
+A stale review that blocks merge after every thread is resolved is a state to fix, not to wait on: ask the reviewer to
+re-review, and when it stays stale, record who merged and why in the pull request.
+
 ## Close the planning record
 
 Move completed work and evidence to `progress/`. Remove landed plan entries; leave `No task selected.` when the task ends. See [plan-hygiene](./plan-hygiene/SKILL.md).
