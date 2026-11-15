@@ -93,7 +93,7 @@ $unityArgs = @(
     '-testResults'
     $resultsPath
     '-logFile'
-    $logPath
+    '-'
     '-serial'
     $env:UNITY_SERIAL
     '-username'
@@ -101,17 +101,20 @@ $unityArgs = @(
     '-password'
     $env:UNITY_PASSWORD
 )
+# Unity writes its log to stdout, so this captures the cause even when the
+# editor fails before it opens a log file. Nothing is printed on success.
+$output = ''
 $exitCode = 1
 try {
-    & $UnityEditorPath @unityArgs
+    $output = (& $UnityEditorPath @unityArgs 2>&1 | Out-String)
     if (Test-Path -LiteralPath variable:\LASTEXITCODE) {
         $exitCode = $LASTEXITCODE
     }
 } catch {
     Write-Host "Unity invocation failed: $_"
-    Write-RedactedLogTail -Path $logPath
     throw
 }
+Set-Content -LiteralPath $logPath -Value $output -Encoding utf8
 
 if (-not (Test-Path -LiteralPath $resultsPath -PathType Leaf)) {
     Write-Host "Unity did not write an EditMode result file (exit code $exitCode). Redacted log tail:"
