@@ -1,0 +1,304 @@
+#!/usr/bin/env python3
+"""Offline contracts for project selection, bridge RPC and diagnostic exits."""
+from __future__ import annotations
+
+import contextlib
+import io
+import json
+import sys
+import tempfile
+import time
+import unittest
+from email.message import Message
+from http.client import HTTPMessage
+from pathlib import Path
+from unittest.mock import patch
+from typing import Dict, List, Optional
+from urllib.error import HTTPError
+from urllib.request import HTTPRedirectHandler
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from unity_mcp_doctor import Doctor, JsonObject, enclosing_project, read_env_local, request_json
+
+
+class DoctorTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve()
+        self.project = self.root / 'Project'
+        (self.project / 'ProjectSettings').mkdir(parents=True)
+        (self.project / 'ProjectSettings' / 'ProjectVersion.txt').write_text('6000.5', encoding='utf-8')
+        (self.project / 'Packages').mkdir()
+        self.manifest = self.project / 'Packages' / 'manifest.json'
+        self.manifest.write_text('{"dependencies":{"com.unity.pipeline":"1"}}', encoding='utf-8')
+        self.calls: List[JsonObject] = []
+        self.headers: List[Dict[str, str]] = []
+        self.urls: List[str] = []
+        self.responses: Dict[str, JsonObject] = {
+            'health': {'ok': True, 'cli': ['unity', 'mcp', '--project-path', str(self.project)]},
+            'initialize': {'result': {'serverInfo': {'name': 'Unity'}}},
+            'tools/list': {'result': {'tools': [{'name': 'editor_status'}]}},
+            'tools/call': {'result': {'content': [{'text': json.dumps({'projectPath': str(self.project)})}]}},
+        }
+        self.error_method = ''
+
+    def command(self, arguments: List[str]) -> str:
+        return '1.0' if arguments == ['--version'] else json.dumps({'data': {'instances': [{'project': str(self.project)}]}})
+
+    def request(self, url: str, headers: Dict[str, str], payload: Optional[JsonObject]) -> JsonObject:
+        self.urls.append(url)
+        self.headers.append(dict(headers))
+        method = str(payload['method']) if payload else 'health'
+        if payload:
+            self.calls.append(payload)
+        if method == self.error_method:
+            raise OSError('offline fixture')
+        return self.responses.get(method, {})
+
+    def run_doctor(self, environment: Optional[Dict[str, str]] = None) -> tuple[Doctor, int, str]:
+        env = {'UNITY_MCP_PROJECT': str(self.project)} if environment is None else dict(environment)
+        env.setdefault('DXAUDIO_IN_CONTAINER', '0')
+        doctor = Doctor(self.root, self.root / 'home', env, self.command, self.request)
+        stream = io.StringIO()
+        with contextlib.redirect_stdout(stream):
+            result = doctor.run()
+        return doctor, result, stream.getvalue()
+
+    def test_host_discovery_is_pinned_and_keeps_modern_failure_codes(self) -> None:
+        commands = []
+        def command(arguments: List[str]) -> str:
+            commands.append(arguments)
+            if arguments == ['--version']:
+                return 'fixture'
+            return json.dumps({'success': False, 'errors': [{'code': 'STATUS_PIPELINE_LOAD_PENDING', 'message': 'Pipeline cannot start on 6000.5.2f1; update to 6000.5.3f1. fixture-secret'}],
+                               'data': {'items': [{'projectPath': str(self.project), 'token': 'never-print-this'}]}})
+        doctor = Doctor(self.root, self.root, {'UNITY_MCP_PROJECT': str(self.project), 'DXAUDIO_IN_CONTAINER': '0', 'UNITY_MCP_TOKEN': 'fixture-secret'}, command, self.request)
+        with contextlib.redirect_stdout(io.StringIO()) as stream:
+            doctor.run()
+        self.assertIn(['status', '--format', 'json', '--project-path', str(self.project)], commands)
+        self.assertIn('STATUS_PIPELINE_LOAD_PENDING', stream.getvalue())
+        self.assertIn('update to 6000.5.3f1', stream.getvalue())
+        self.assertNotIn('fixture-secret', stream.getvalue())
+        self.assertNotIn('never-print-this', stream.getvalue())
+        self.assertNotIn('No Unity Editor is running', stream.getvalue())
+
+    def test_canary_errors_never_print_inherited_credentials(self) -> None:
+        self.responses['tools/call'] = {'result': {'isError': True, 'content': [{'text': 'Denied for canary-secret'}]}}
+        doctor, code, output = self.run_doctor({'UNITY_MCP_PROJECT': str(self.project), 'UNITY_MCP_TOKEN': 'canary-secret'})
+        self.assertEqual((code, doctor.failures), (1, 1))
+        self.assertIn('Denied for', output)
+        self.assertNotIn('canary-secret', output)
+
+    def test_container_can_obtain_the_host_compatibility_remedy_without_editor_tools(self) -> None:
+        self.responses['tools/list'] = {'result': {'tools': [{'name': 'unity-cli-status'}, {'name': 'bridge_diagnostics'}]}}
+        self.responses['tools/call'] = {'result': {'isError': True, 'content': [{'text': 'No Pipeline instance'}]}}
+        original = self.request
+        def request(url: str, headers: Dict[str, str], payload: Optional[JsonObject]) -> JsonObject:
+            if payload and payload.get('params') == {'name': 'bridge_diagnostics', 'arguments': {}}:
+                details = {'discoveryErrors': [{'code': 'STATUS_PIPELINE_LOAD_PENDING', 'message': 'Update to 6000.5.3f1'}]}
+                return {'result': {'content': [{'text': json.dumps(details)}]}}
+            return original(url, headers, payload)
+        doctor = Doctor(self.root, self.root, {'DXAUDIO_IN_CONTAINER': '1'}, self.command, request)
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(doctor.run(), 1)
+        self.assertIn('Pinned host diagnosis', output.getvalue())
+        self.assertIn('Update to 6000.5.3f1', output.getvalue())
+
+    def test_every_failed_readiness_check_requests_pinned_diagnostics(self) -> None:
+        self.responses['tools/list'] = {'result': {'tools': [{'name': 'editor_status'}, {'name': 'bridge_diagnostics'}]}}
+        original = self.request
+        def request(url: str, headers: Dict[str, str], payload: Optional[JsonObject]) -> JsonObject:
+            if payload and payload.get('params') == {'name': 'bridge_diagnostics', 'arguments': {}}:
+                details = {'discoveryErrors': [{'code': 'STATUS_PIPELINE_LOAD_PENDING', 'message': 'Update to 6000.5.3f1'}]}
+                return {'result': {'content': [{'text': json.dumps(details)}]}}
+            return original(url, headers, payload)
+        for label, status in {'missing project path': {'ready': False}, 'wrong editor': {'projectPath': str(self.root)}}.items():
+            with self.subTest(label=label):
+                self.responses['tools/call'] = {'result': {'content': [{'text': json.dumps(status)}]}}
+                doctor = Doctor(self.root, self.root, {'UNITY_MCP_PROJECT': str(self.project), 'DXAUDIO_IN_CONTAINER': '0'}, self.command, request)
+                with contextlib.redirect_stdout(io.StringIO()) as output:
+                    self.assertEqual(doctor.run(), 1)
+                self.assertIn('Pinned host diagnosis', output.getvalue())
+                self.assertIn('Update to 6000.5.3f1', output.getvalue())
+
+    def test_unavailable_cli_catalog_uses_its_diagnostic_tool_and_preserves_reason(self) -> None:
+        self.responses['tools/list'] = {'result': {'tools': [{'name': 'unity-cli-status'}]}}
+        self.responses['tools/call'] = {'result': {'isError': True, 'content': [{'type': 'text', 'text': 'Pipeline discovery denied for this account'}]}}
+        doctor, code, output = self.run_doctor({'DXAUDIO_IN_CONTAINER': '1'})
+        self.assertEqual(code, 1)
+        self.assertEqual(self.calls[-1]['params'], {'name': 'unity-cli-status', 'arguments': {}})
+        self.assertIn('Pipeline discovery denied for this account', output)
+        self.assertNotIn('likely not running', output)
+
+    def test_healthy_roundtrip_and_token_precedence(self) -> None:
+        (self.root / '.env.local').write_text('UNITY_MCP_TOKEN=local-secret\nUNITY_MCP_HTTP_PORT=9001', encoding='utf-8')
+        doctor, code, output = self.run_doctor({'UNITY_MCP_PROJECT': str(self.project), 'UNITY_MCP_TOKEN': 'process-secret', 'UNITY_MCP_HTTP_PORT': '9002'})
+        self.assertEqual((doctor.failures, doctor.warnings, code), (0, 0, 0))
+        self.assertEqual([call['method'] for call in self.calls], ['initialize', 'notifications/initialized', 'tools/list', 'tools/call'])
+        self.assertEqual([call['id'] for call in self.calls if 'id' in call], [1, 2, 3])
+        self.assertEqual(self.calls[0]['params'], {'protocolVersion': '2025-03-26', 'capabilities': {}, 'clientInfo': {'name': 'unity-mcp-doctor', 'version': '0.1.0'}})
+        self.assertEqual(self.calls[3]['params'], {'name': 'editor_status', 'arguments': {}})
+        self.assertEqual(self.headers[0], {})
+        self.assertTrue(all(headers['authorization'] == 'Bearer process-secret' for headers in self.headers[1:]))
+        self.assertTrue(all(url.startswith('http://127.0.0.1:9002/') for url in self.urls))
+        self.assertNotIn('secret', output)
+        self.assertIn('0 failure(s), 0 warning(s)', output)
+
+    def test_project_and_environment_precedence(self) -> None:
+        home = self.root / 'home' / '.unity-mcp'
+        home.mkdir(parents=True)
+        (self.root / '.env.local').write_text(f'UNITY_MCP_PROJECT="{self.project}"\nUNITY_MCP_HTTP_PORT=9001', encoding='utf-8')
+        (home / '.env.local').write_text('UNITY_MCP_PROJECT=missing\nUNITY_MCP_HTTP_PORT=9003\nUNITY_MCP_TOKEN=stale-home-token', encoding='utf-8')
+        self.assertEqual(self.run_doctor({})[0].project, self.project)
+        self.assertTrue(self.urls[0].startswith('http://127.0.0.1:9001/'))
+        self.assertTrue(all('authorization' not in headers for headers in self.headers))
+        self.assertEqual(self.run_doctor({'UNITY_PROJECT_PATH': str(self.project / 'Packages')})[0].project, self.project)
+        doctor, code, output = self.run_doctor({'UNITY_MCP_PROJECT': str(self.root / 'missing'), 'UNITY_PROJECT_PATH': str(self.project)})
+        self.assertEqual(code, 1)
+        self.assertIsNone(doctor.project)
+        self.assertIn('UNPINNED', output)
+
+    def test_nested_pin_and_enclosing_fallback_warn(self) -> None:
+        doctor, code, output = self.run_doctor({'UNITY_MCP_PROJECT': str(self.project / 'Packages')})
+        self.assertEqual((doctor.project, doctor.warnings, code), (self.project, 1, 0))
+        self.assertIn('self-heals', output)
+        doctor.root = self.project / 'Packages'
+        doctor.environment = {}
+        with contextlib.redirect_stdout(io.StringIO()):
+            doctor.check_project()
+        self.assertEqual(doctor.project, self.project)
+        self.assertIsNone(enclosing_project(self.root))
+
+    def test_offline_and_rpc_failure_severity(self) -> None:
+        for method, code, failures, warnings in [('health', 1, 1, 0), ('initialize', 1, 1, 0), ('tools/list', 1, 1, 0), ('tools/call', 1, 1, 0)]:
+            with self.subTest(method=method):
+                self.error_method = method
+                doctor, result, output = self.run_doctor()
+                self.assertEqual((result, doctor.failures, doctor.warnings), (code, failures, warnings))
+                if method == 'health':
+                    self.assertIn('stop forwarding the bridge port in VS Code Ports', output)
+
+    def test_empty_tools_wrong_editor_and_unpinned_bridge(self) -> None:
+        self.responses['tools/list'] = {'result': {'tools': []}}
+        self.responses['tools/call'] = {'result': {'content': [{'text': json.dumps({'projectPath': str(self.root)})}]}}
+        self.responses['health'] = {'ok': True, 'cli': ['unity', 'mcp']}
+        doctor, code, output = self.run_doctor()
+        self.assertEqual((code, doctor.failures, doctor.warnings), (1, 2, 1))
+        self.assertIn('WRONG EDITOR', output)
+
+    def test_missing_manifest_and_editor_canary_warn(self) -> None:
+        self.manifest.unlink()
+        self.responses['tools/call'] = {'error': {'message': 'not running'}}
+        doctor, code, _ = self.run_doctor()
+        self.assertEqual((code, doctor.failures, doctor.warnings), (1, 1, 1))
+        self.manifest.write_text('{"dependencies":{}}', encoding='utf-8')
+        self.assertEqual(self.run_doctor()[1], 1)
+
+    def test_cli_failure_is_reported_without_stopping_bridge_checks(self) -> None:
+        doctor = Doctor(self.root, self.root, {'UNITY_MCP_PROJECT': str(self.project), 'DXAUDIO_IN_CONTAINER': '0'}, self.raise_command_error, self.request)
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = doctor.run()
+        self.assertEqual((code, doctor.failures, doctor.warnings), (1, 1, 2))
+        self.assertEqual(len(self.calls), 4)
+
+    def raise_command_error(self, arguments: List[str]) -> str:
+        raise OSError('missing')
+
+    def test_http_transport_encodes_authenticated_json(self) -> None:
+        with patch('unity_mcp_doctor.urlopen') as opener:
+            opener.return_value.__enter__.return_value = io.BytesIO(b'{"result":{"tools":[]}}')
+            result = request_json('http://127.0.0.1:9020/mcp', {'authorization': 'Bearer private'}, {'id': 1})
+            request = opener.call_args.args[0]
+            self.assertEqual(json.loads(request.data), {'id': 1})
+            self.assertEqual(request.get_header('Authorization'), 'Bearer private')
+            self.assertEqual(request.get_method(), 'POST')
+            self.assertEqual(opener.call_args.kwargs['timeout'], 30)
+            self.assertEqual(result, {'result': {'tools': []}})
+
+    def test_http_transport_reports_error_status_and_body(self) -> None:
+        # urllib raises HTTPError before the body is read; the doctor must
+        # surface the bridge's error JSON, not just "HTTP Error 401".
+        error = HTTPError('http://127.0.0.1:9020/healthz', 401, 'Unauthorized', Message(), io.BytesIO(b'{"error":"token mismatch"}'))
+        with patch('unity_mcp_doctor.urlopen', side_effect=error):
+            with self.assertRaises(ValueError) as raised:
+                request_json('http://127.0.0.1:9020/healthz', {}, None)
+        message = str(raised.exception)
+        self.assertIn('HTTP 401', message)
+        self.assertIn('token mismatch', message)
+
+    def test_environment_parser_preserves_literal_values(self) -> None:
+        path = self.root / '.env.local'
+        self.assertEqual(read_env_local(path), {})
+        path.write_text('\ufeff# comment\n bad\n=invalid\n export A = "x=y"\nB=\'quoted\'\nC=literal # text', encoding='utf-8')
+        self.assertEqual(read_env_local(path), {'A': 'x=y', 'B': 'quoted', 'C': 'literal # text'})
+
+    def test_container_uses_host_bridge_and_windows_project_paths(self) -> None:
+        self.responses['tools/call'] = {'result': {'content': [{'text': json.dumps({'projectPath': 'C:/Code/Project'})}]}}
+        for pin in [r'c:\code\project', 'C:/Code/Project/', r'C:\Code\.\Project', r'C:\Code\other\..\Project']:
+            with self.subTest(pin=pin):
+                doctor, code, output = self.run_doctor({'DXAUDIO_IN_CONTAINER': '1', 'UNITY_MCP_PROJECT': pin})
+                self.assertEqual((code, doctor.failures), (0, 0), output)
+                self.assertTrue(self.urls[0].startswith('http://host.docker.internal:9020/'))
+                self.assertNotIn('Unity CLI on PATH', output)
+
+    def test_mcp_doctor_normalizes_endpoint_before_health_probe(self) -> None:
+        from mcp_doctor import Doctor as McpDoctor
+        for endpoint in ['http://bridge:9021/mcp', 'http://bridge:9021/mcp///']:
+            with self.subTest(endpoint=endpoint), contextlib.redirect_stdout(io.StringIO()):
+                doctor = McpDoctor(self.root, {'UNITY_MCP_HTTP_URL': endpoint})
+                with patch('mcp_doctor.request_json', return_value={'result': {'serverInfo': {'name': 'fixture'}}}) as request:
+                    doctor.check_bridge()
+                self.assertEqual([call.args[0] for call in request.call_args_list], ['http://bridge:9021/healthz', 'http://bridge:9021/mcp'])
+                self.assertEqual(doctor.failures, 0)
+
+    def test_http_transport_does_not_forward_bearer_on_redirect(self) -> None:
+        with patch('unity_mcp_doctor.urlopen') as transport:
+            transport.return_value.__enter__.return_value.read.return_value = b'{}'
+            request_json('https://bridge/mcp', {'Authorization': 'synthetic-bearer'}, None)
+        request = transport.call_args.args[0]
+        redirected = HTTPRedirectHandler().redirect_request(request, io.BytesIO(), 302, 'Found', HTTPMessage(), 'https://other/mcp')
+        self.assertEqual(request.get_header('Authorization'), 'synthetic-bearer')
+        self.assertIsNotNone(redirected)
+        assert redirected is not None
+        self.assertIsNone(redirected.get_header('Authorization'))
+
+    def test_mcp_doctor_counts_stdio_outcomes_and_redacts_secrets(self) -> None:
+        from mcp_doctor import Doctor as McpDoctor
+        for script, expected in [
+            ('import json,sys;sys.stdin.readline();print(json.dumps({"result":{"serverInfo":{"name":"fixture"}}}))', 0),
+            ('import json,sys;sys.stdin.readline();print(json.dumps({"error":{"message":"synthetic-secret"}}))', 1),
+            ('import subprocess,sys,time;sys.stdin.readline();subprocess.Popen([sys.executable,"-c","import time;time.sleep(10)"]);print(\'{"result":{"serverInfo":{"name":"fixture"}}}\',flush=True);time.sleep(10)', 0),
+            ('import sys;sys.stdin.readline()', 1),
+            ('import time;time.sleep(10)', 1),
+        ]:
+            with self.subTest(script=script), contextlib.redirect_stdout(io.StringIO()) as output:
+                doctor = McpDoctor(self.root, {'ZAI_API_KEY': 'synthetic-secret'})
+                started = time.monotonic()
+                doctor.spawn_probe('fixture', [sys.executable, '-u', '-c', script], {}, timeout=0.3 if script.startswith('import time;') else 5)
+                self.assertLess(time.monotonic() - started, 5)
+                self.assertEqual(doctor.failures, expected)
+                self.assertNotIn('synthetic-secret', output.getvalue())
+
+    def test_custom_endpoint_and_rpc_errors_fail(self) -> None:
+        for method in ['initialize', 'tools/list', 'tools/call']:
+            with self.subTest(method=method):
+                original = self.responses[method]
+                self.responses[method] = {'error': {'code': -32000, 'message': 'CLI unavailable'}}
+                doctor, code, output = self.run_doctor({'DXAUDIO_IN_CONTAINER': '1', 'UNITY_MCP_HTTP_URL': 'http://bridge:9999/custom'})
+                self.assertEqual(code, 1)
+                self.assertTrue(doctor.failures)
+                self.assertIn('CLI unavailable', output)
+                self.assertEqual(self.urls[0], 'http://bridge:9999/healthz')
+                self.responses[method] = original
+
+    def test_editor_tool_error_and_missing_server_info_fail(self) -> None:
+        self.responses['tools/call'] = {'result': {'isError': True, 'content': [{'text': 'not running'}]}}
+        self.assertEqual(self.run_doctor()[1], 1)
+        self.responses['initialize'] = {'result': {}}
+        self.assertEqual(self.run_doctor()[1], 1)
+
+
+if __name__ == '__main__':
+    unittest.main()

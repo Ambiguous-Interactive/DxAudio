@@ -1,0 +1,109 @@
+name: LLM Instructions Lint
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".llm/**"
+      - ".github/workflows/llm-lint.yml"
+      - "scripts/**"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - ".cursorrules"
+      - ".windsurfrules"
+      - ".github/copilot-instructions.md"
+      - ".pre-commit-config.yaml"
+      - ".editorconfig"
+      - ".gitattributes"
+      - ".prettierrc.json"
+      - ".prettierignore"
+      - ".csharpierrc"
+      - "**/*.md"
+      - ".devcontainer/**"
+      - ".env.local.example"
+      - "Runtime/**/*.cs"
+      - "Tests/**/*.cs"
+      - "package.json"
+      - "pyproject.toml"
+      - "uv.lock"
+  pull_request:
+    paths:
+      - ".llm/**"
+      - ".github/workflows/llm-lint.yml"
+      - "scripts/**"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - ".cursorrules"
+      - ".windsurfrules"
+      - ".github/copilot-instructions.md"
+      - ".pre-commit-config.yaml"
+      - ".editorconfig"
+      - ".gitattributes"
+      - ".prettierrc.json"
+      - ".prettierignore"
+      - ".csharpierrc"
+      - "**/*.md"
+      - ".devcontainer/**"
+      - ".env.local.example"
+      - "Runtime/**/*.cs"
+      - "Tests/**/*.cs"
+      - "package.json"
+      - "pyproject.toml"
+      - "uv.lock"
+  workflow_dispatch:
+
+concurrency:
+  group: llm-lint-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint .llm harness (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.12.10"
+          enable-cache: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.18.0"
+
+      - name: Resolve the check scope
+        id: check-scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: uv run scripts/should_run_self_tests.py --github-actions
+
+      - name: Install npm dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Check Markdown formatting
+        run: uv run scripts/markdown_check.py ${{ github.event_name == 'push' && 'all' || steps.check-scope.outputs.markdown-files }}
+
+      - name: Run the repository lints
+        run: uv run scripts/run_ci_lints.py
+
+      - name: Run harness self-tests
+        env:
+          TMPDIR: ${{ runner.temp }}
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
+        run: uv run scripts/tests/run_all.py --names "${{ steps.check-scope.outputs.selection }}"
