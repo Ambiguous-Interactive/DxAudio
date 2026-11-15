@@ -15,7 +15,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             for (int index = 0; index < _made.Count; ++index)
             {
-                Object.DestroyImmediate(_made[index]);
+                if (_made[index] != null)
+                {
+                    Object.DestroyImmediate(_made[index]);
+                }
             }
 
             _made.Clear();

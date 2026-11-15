@@ -9,6 +9,7 @@ namespace WallstopStudios.DxAudio.Editor
     /// Ducks never overwrite one another, so the music hears the most restrictive volume and filters of every
     /// live duck. Add the ducks a scene can raise at once to see that result without entering play mode.
     /// </remarks>
+    [CanEditMultipleObjects]
     [CustomEditor(typeof(MusicDuck))]
     public sealed class MusicDuckEditor : UnityEditor.Editor
     {
@@ -18,6 +19,12 @@ namespace WallstopStudios.DxAudio.Editor
         public override void OnInspectorGUI()
         {
             DrawDefaultInspector();
+
+            // The preview composes one duck with a chosen set, so a mixed selection only edits fields.
+            if (targets.Length != 1)
+            {
+                return;
+            }
 
             MusicDuck duck = (MusicDuck)target;
             EditorGUILayout.Space();

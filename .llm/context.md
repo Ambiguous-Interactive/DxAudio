@@ -109,8 +109,8 @@ or `Feature`. Bodies stay under 300 lines; bulk material moves to `.llm/referenc
     `UnityObjects.cs` shim.
 11. Every visible file or folder carries a committed `.meta`. Dot paths (`.llm/`, `.github/`, `.config/`, `.git/`) never
     get one. See [create-unity-meta](./skills/create-unity-meta/SKILL.md).
-12. Never ship development files in the npm tarball. `package.json` `files` lists `Runtime`, `Tests`, and package
-    metadata only; `tooling~`-style paths are not used here.
+12. Never ship development files in the npm tarball. `package.json` `files` lists `Runtime`, `Editor`, `Tests`, and
+    package metadata only; `tooling~`-style paths are not used here.
 13. Keep the public API additive where possible. Removing or renaming a public member is a breaking change and needs a
     major version plus a migration note.
 14. Audio callbacks and per-frame code must not allocate, box, or log in the steady state. Measure with the allocation

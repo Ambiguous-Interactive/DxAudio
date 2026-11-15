@@ -10,6 +10,7 @@ namespace WallstopStudios.DxAudio.Editor
     /// is any take playable, and where does playback actually start after the clip's lead-in is skipped.
     /// Audition uses a hidden, unsaved source, so it adds nothing to the open scene.
     /// </remarks>
+    [CanEditMultipleObjects]
     [CustomEditor(typeof(SfxCue))]
     public sealed class SfxCueEditor : UnityEditor.Editor
     {
@@ -26,6 +27,12 @@ namespace WallstopStudios.DxAudio.Editor
         public override void OnInspectorGUI()
         {
             DrawDefaultInspector();
+
+            // The take preview answers a question about one cue, so a mixed selection only edits fields.
+            if (targets.Length != 1)
+            {
+                return;
+            }
 
             SfxCue cue = (SfxCue)target;
             EditorGUILayout.Space();

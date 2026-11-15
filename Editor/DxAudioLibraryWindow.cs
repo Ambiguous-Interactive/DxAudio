@@ -99,14 +99,15 @@ namespace WallstopStudios.DxAudio.Editor
             paths.Sort(StringComparer.Ordinal);
             for (int index = 0; index < paths.Count; ++index)
             {
-                T library = AssetDatabase.LoadAssetAtPath<T>(paths[index]);
-                if (library == null)
+                UnityEngine.Object[] assets = AssetDatabase.LoadAllAssetsAtPath(paths[index]);
+                for (int asset = 0; asset < assets.Length; ++asset)
                 {
-                    continue;
+                    if (assets[asset] is T library && library != null)
+                    {
+                        _libraries.Add(library);
+                        _findings.Add(validate(library));
+                    }
                 }
-
-                _libraries.Add(library);
-                _findings.Add(validate(library));
             }
         }
     }
