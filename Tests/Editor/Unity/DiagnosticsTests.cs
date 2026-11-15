@@ -1,6 +1,5 @@
 namespace WallstopStudios.DxAudio.Tests.Editor
 {
-    using System;
     using System.Collections.Generic;
     using NUnit.Framework;
     using UnityEngine;
@@ -83,7 +82,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void ASwitchedOffOverlayAllocatesNothingWhenSampled()
+        public void SamplingAllocatesOnlyWhileTheOverlayIsEnabled()
         {
             SfxCue hum = Cue(loop: true, priority: SfxPriority.High);
             SfxPlayer sfx = SfxPlayer(SfxLibrary.Create(new[] { hum }, voiceCount: 2));
@@ -97,21 +96,19 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 overlay.Sample();
             }
 
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int index = 0; index < 1_000; index++)
+            Assert.That(() => overlay.Sample(), Is.Not.AllocatingGCMemory(), "a switched-off sample allocates nothing");
+
+            overlay.Enabled = true;
+            for (int index = 0; index < 8; index++)
             {
                 overlay.Sample();
             }
 
-            long disabled = GC.GetAllocatedBytesForCurrentThread() - before;
-            Assert.That(disabled, Is.Zero, $"A switched-off overlay allocated {disabled} bytes over 1,000 samples.");
-
-            overlay.Enabled = true;
-            overlay.Sample();
-            long enabledBefore = GC.GetAllocatedBytesForCurrentThread();
-            overlay.Sample();
-            long enabled = GC.GetAllocatedBytesForCurrentThread() - enabledBefore;
-            Assert.That(enabled, Is.GreaterThan(0L), "the probe must see the enabled path allocate");
+            Assert.That(
+                () => overlay.Sample(),
+                Is.AllocatingGCMemory(),
+                "the probe must see the enabled path allocate"
+            );
 
             overlay.Enabled = false;
             Assert.That(overlay.Text, Is.Empty);
