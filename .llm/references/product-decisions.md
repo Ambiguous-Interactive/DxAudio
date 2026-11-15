@@ -41,38 +41,42 @@ gain goes to each music voice. Mixer routing stays optional and already works: `
 available without a snapshot.
 
 **Reason:** zero dependencies, testable on plain .NET, and composition is order-independent. Milestone 3 (issue #13)
-measured the snapshot alternative on the development host.
+measured what a mixer would buy before deciding.
 
-Measured on Windows 11, Snapdragon X Elite, Unity 6000.6.7f1, three music voices, one duck from 0 dB to -6 dB with a 1.2
-kHz low-pass, applied over 0.4 s and released over 0.8 s. Each sample is one duck cycle of 102 frames; n = 900 cycles
-per row (91,800 frames), three interleaved rounds. Figures are time per frame, median across cycles:
+Measured in the Unity Editor 6000.6.7f1 through the MCP bridge, on Windows 11 and a Snapdragon X Elite: three music
+voices, each with a low-pass and a high-pass, and one duck from 0 dB to -6 dB (low-pass 1.2 kHz, high-pass 10 Hz)
+applied over 0.4 s, held 0.5 s, and released over 0.8 s, which is 102 frames at 60 Hz. Each sample is one duck cycle;
+three rounds with the variant order alternated, 30 warm-up cycles before the first round, and `GC.Collect` before every
+round; n = 900 cycles (91,800 frames) per row. Times are per frame, median across cycles, and each composed row includes
+the ramp math shared by all three voices:
 
 | Per frame, three music voices                          | Median |     p95 | Allocated |
 | ------------------------------------------------------ | -----: | ------: | --------: |
-| Composed per voice: gain, low-pass, high-pass          | 926 ns | 1186 ns |       0 B |
+| Composed per voice: gain, both cutoffs, both `enabled` | 926 ns | 1186 ns |       0 B |
 | Composed per voice: gain only                          | 485 ns |  567 ns |       0 B |
-| Composed, duck held steady (shipped writes each frame) | 591 ns |  680 ns |       0 B |
-| Mixer exposed parameter write, computed decibels       | 265 ns |  273 ns |       0 B |
-| Mixer snapshot transition, nothing per frame           |  78 ns |   91 ns |       0 B |
-| Mixer, duck held steady                                |  90 ns |   92 ns |       0 B |
+| Composed, duck held steady (the player writes anyway)  | 591 ns |  680 ns |       0 B |
+| Mixer exposed parameter write, decibels computed in C# | 265 ns |  273 ns |       0 B |
 
-The last three rows issue no native call per frame; 78 ns and 90 ns are the remaining ramp math and the probe loop. The
-widest gap, 926 ns against 78 ns, is 0.005% of a 16.7 ms frame at 60 Hz. Performance does not decide this.
+A snapshot transition is one call per duck change and nothing per frame; the call measured 206 ns once warm. The widest
+gap above, 926 ns against 265 ns, is about 0.005% of a 16.7 ms frame at 60 Hz, so cost does not decide this.
 
-Three measured properties do:
+Three differences do:
 
-- **Composition.** A mixer parameter holds one number. Two live ducks still need `min` in package code before one write,
-  so a mixer removes the per-voice write and nothing else.
-- **Read-back.** Every `AudioMixer.GetFloat` during and after a 0.4 s transition into the -6 dB snapshot returned the
-  value last passed to `SetFloat` (0 dB), so package code cannot observe the applied gain. A diagnostics view of the
-  real level would break (issue #14).
-- **Granularity.** The per-voice ramp steps once per frame: at most 0.36 dB per step at 60 Hz and 1.08 dB at 20 Hz for
-  this duck, because the end of an `OutQuad` ramp is steepest. A snapshot blends on the audio thread. This is the one
-  measured advantage of the mixer, and only below about 30 Hz.
+- **Composition, from the stack design.** A mixer parameter holds one number per group. Composed ducking takes the
+  lowest gain and the lowest low-pass of every live duck, and the highest high-pass. That arithmetic still belongs in
+  package code before any mixer write, so a mixer replaces the per-voice write and nothing else.
+- **Read-back, measured.** Every `AudioMixer.GetFloat` during a 0.4 s transition into the -6 dB snapshot, and 1 s after
+  it, returned the value last passed to `SetFloat` (0 dB) rather than the snapshot's value. A snapshot-driven duck would
+  leave `MusicPlayer.Attenuation` holding whatever was last written, not the applied level, and the diagnostics overlay
+  (issue #14) without a number.
+- **Granularity, computed from the shipped ramp.** The per-voice ramp steps once per frame: at most 0.36 dB per step at
+  60 fps and 1.08 dB at 20 fps for this duck, because the end of an `OutQuad` ramp is steepest. Unity runs a snapshot
+  transition on its own timeline rather than the frame loop. This session did not measure the applied curve, and the
+  group-level probe that would have shown it returned no usable level.
 
-**Reopen if:** a game ducking below 30 Hz needs smoother steps than a per-frame ramp gives, or a measured play pattern
-needs the mixer's audio-thread blend for a reason the table does not capture. The measured alternative is one snapshot
-per composed duck level, not one mixer per duck.
+**Reopen if:** a game that renders below 30 fps hears those steps, and a step near 0.5 dB is audible in that game, or a
+project wants snapshot authoring strongly enough to accept an editor-side asset dependency. Any adopted design must keep
+the composed level readable for diagnostics.
 
 ## Mute preserves state
 

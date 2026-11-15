@@ -154,8 +154,9 @@ lists every live duck and its holder.
 ### Mixer groups
 
 A music library, an SFX library, and a single cue can each name an `AudioMixerGroup`, so a game keeps its own Master,
-Music, and SFX groups and their volume sliders. Ducking does not need snapshots: the composed duck level goes to each
-music voice, so several reasons can hold the music down at once and a game can read the level it applies.
+Music, and SFX groups and their volume sliders. Ducking does not need snapshots, and several reasons hold the music down
+at once. The composed level goes to each music voice, and `MusicPlayer.Attenuation` reports the level applied this frame
+while `TargetAttenuation` reports the level the live ducks compose to.
 
 ## Authoring
 
