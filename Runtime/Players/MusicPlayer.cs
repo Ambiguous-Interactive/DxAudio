@@ -103,6 +103,7 @@ namespace WallstopStudios.DxAudio
         public void Play(MusicTrack track)
         {
             _ = Selection.SetContextTrack(track != null && track.IsPlayable ? track : null);
+            Resume();
         }
 
         /// <summary>Fades the music out and clears any override.</summary>
@@ -114,7 +115,9 @@ namespace WallstopStudios.DxAudio
         /// <summary>Plays <paramref name="track"/> over the context's music until the lease is released or disposed.</summary>
         public MusicOverrideLease Override(MusicTrack track)
         {
-            return Selection.Take(track);
+            MusicOverrideLease lease = Selection.Take(track);
+            Resume();
+            return lease;
         }
 
         public bool ReleaseOverride(in MusicOverrideLease lease)
@@ -266,6 +269,22 @@ namespace WallstopStudios.DxAudio
                     _current = StartVoice(next, fadeIn, fadeInEase);
                     return;
             }
+        }
+
+        /// <summary>Starts the wanted music again when no voice is playing it, even though the selection did not change.</summary>
+        /// <remarks>
+        /// A released clip stops the voice and clears what it played, but the announced selection still names that
+        /// music. Asking for it again is then not a change, so without this second look the request would play nothing.
+        /// </remarks>
+        private void Resume()
+        {
+            MusicTrack track = Selection.Current;
+            if (track == null || (_current != null && MusicTrack.SameMusic(_current.track, track)))
+            {
+                return;
+            }
+
+            OnSelectionChanged(track);
         }
 
         private Voice StartVoice(MusicTrack track, float fadeIn, MusicEase fadeInEase)
