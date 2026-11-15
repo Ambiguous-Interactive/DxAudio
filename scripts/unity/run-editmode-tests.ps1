@@ -82,15 +82,36 @@ New-Item -ItemType Directory -Force -Path $artifactsPath | Out-Null
 $resultsPath = Join-Path $artifactsPath 'editmode-results.xml'
 $logPath = Join-Path $artifactsPath 'editmode.log'
 
-& $UnityEditorPath -batchmode -nographics `
-    -projectPath $projectPath `
-    -runTests -testPlatform EditMode `
-    -testResults $resultsPath `
-    -logFile $logPath `
-    -serial $env:UNITY_SERIAL `
-    -username $env:UNITY_EMAIL `
-    -password $env:UNITY_PASSWORD
-$exitCode = $LASTEXITCODE
+$unityArgs = @(
+    '-batchmode'
+    '-nographics'
+    '-projectPath'
+    $projectPath
+    '-runTests'
+    '-testPlatform'
+    'EditMode'
+    '-testResults'
+    $resultsPath
+    '-logFile'
+    $logPath
+    '-serial'
+    $env:UNITY_SERIAL
+    '-username'
+    $env:UNITY_EMAIL
+    '-password'
+    $env:UNITY_PASSWORD
+)
+$exitCode = 1
+try {
+    & $UnityEditorPath @unityArgs
+    if (Test-Path -LiteralPath variable:\LASTEXITCODE) {
+        $exitCode = $LASTEXITCODE
+    }
+} catch {
+    Write-Host "Unity invocation failed: $_"
+    Write-RedactedLogTail -Path $logPath
+    throw
+}
 
 if (-not (Test-Path -LiteralPath $resultsPath -PathType Leaf)) {
     Write-Host "Unity did not write an EditMode result file (exit code $exitCode). Redacted log tail:"
