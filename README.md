@@ -48,8 +48,7 @@ scope to it instead.
 
 **From OpenUPM.** With the [OpenUPM CLI](https://openupm.com/docs/getting-started-cli.html), run
 `openupm add com.wallstop-studios.dxaudio`. Without it, add a scoped registry for
-`https://package.openupm.com` with the scope `com.wallstop-studios.dxaudio`, as the
-[package page](https://openupm.com/packages/com.wallstop-studios.dxaudio/) shows.
+`https://package.openupm.com` with the scope `com.wallstop-studios.dxaudio`.
 
 **From git.** Open **Window > Package Manager**, choose **+ > Add package from git URL**, and enter:
 

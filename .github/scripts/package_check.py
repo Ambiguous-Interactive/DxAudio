@@ -100,8 +100,12 @@ def dependency_problems(manifest: dict) -> list[str]:
         constraints = set(asmdef.get("defineConstraints", []))
         is_test = "UNITY_INCLUDE_TESTS" in constraints
         # An optional integration compiles only when its package is present, so that package is not listed.
-        # Only a package whose own versionDefines entry sets one of the constraints is guarded that way.
-        guarded = {entry["name"] for entry in asmdef.get("versionDefines", []) if entry["define"] in constraints}
+        # A package guards the assembly when a constraint is a define that only that package's entries set.
+        producers: dict[str, set[str]] = {}
+        for entry in asmdef.get("versionDefines", []):
+            producers.setdefault(entry["define"], set()).add(entry["name"])
+        sole = {define: next(iter(names)) for define, names in producers.items() if len(names) == 1}
+        guarded = {package for define, package in sole.items() if define in constraints}
         for reference in asmdef.get("references", []):
             if reference.startswith("GUID:"):
                 problems.append(f"{where} references {reference}: name the assembly, so this check can read it")

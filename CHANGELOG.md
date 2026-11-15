@@ -20,8 +20,7 @@ All notable changes to this package are documented here. The format follows
   list, or when a listed version is not exact
   ([#7](https://github.com/Ambiguous-Interactive/DxAudio/issues/7)).
 - The README's scoped registry covers `com.wallstop-studios`, so other Wallstop Studios packages on npm
-  resolve from the same entry. The package is on [OpenUPM](https://openupm.com/packages/com.wallstop-studios.dxaudio/)
-  too, from 0.1.2.
+  resolve from the same entry. The package is on OpenUPM too, from 0.1.2.
 - `SfxSelection<TKey>.TryFollow` documents that it compares keys for equality only.
 
 ## [0.2.0] - 2026-11-14
