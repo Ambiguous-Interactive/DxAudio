@@ -8,6 +8,10 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
+- An **Audio Diagnostics** overlay component lists busy voices with priorities and loop leases, active ducks and their
+  holders, and dropped-cue counts by reason. `SfxPlayer.DropCounts` and `SfxPlayer.TryGetVoiceState` expose the same
+  data. Sampling allocates only while the overlay is enabled
+  ([#14](https://github.com/Ambiguous-Interactive/DxAudio/issues/14)).
 - Cue inspector with take start offsets and audition, duck inspector with a composed preview, and a library validation
   window (**Tools > DxAudio > Validate Libraries**) that reports missing clips, duplicate keys or contexts, and
   unreachable tracks ([#12](https://github.com/Ambiguous-Interactive/DxAudio/issues/12)).

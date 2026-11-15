@@ -179,6 +179,15 @@ namespace WallstopStudios.DxAudio
             return _ducks.DescribeHolds();
         }
 
+        /// <summary>
+        /// Copies every live duck hold into the given arrays, one entry per holder, for an overlay.
+        /// </summary>
+        /// <returns>The number of live holds, which can exceed the entries written when an array is shorter.</returns>
+        public int CopyDuckHolds(IMusicDuckReason[] reasons, object[] holders, long[] ids)
+        {
+            return _ducks.CopyHolds(reasons, holders, ids);
+        }
+
         /// <summary>Moves every fade and duck on by <paramref name="deltaSeconds"/>. Called each frame.</summary>
         internal void Tick(float deltaSeconds)
         {
