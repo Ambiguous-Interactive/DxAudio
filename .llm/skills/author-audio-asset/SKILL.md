@@ -36,6 +36,7 @@ behavior. Keep new editor code there, not in `Runtime/`.
 ## Tests
 
 - Asset behavior: `Tests/Editor/Unity/LibraryTests.cs` (`AnSfxLibraryFindsPlayableCuesByKey`, `AnSfxLibraryWarnsAboutADuplicateKey`, ...).
+- Editor validation and duck composition: `Tests/Editor/Unity/AuthoringTests.cs`.
 - Cue start-clamp behavior: `ACueClampsItsStartAndIgnoresItForAnEngineLoop`.
 
 ## Related
