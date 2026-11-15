@@ -17,26 +17,7 @@ $ErrorActionPreference = 'Stop'
 # a terminating error before the exit code is read.
 $PSNativeCommandUseErrorActionPreference = $false
 
-function Write-RedactedLogTail {
-    param([string]$Path, [int]$MaxLines = 40)
-    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-        Write-Host "  | (no log file at $Path)"
-        return
-    }
-    $text = (Get-Content -LiteralPath $Path -Tail $MaxLines -ErrorAction Stop) -join "`n"
-    # Redact every credential shape this script knows before anything reaches
-    # the shared job log.
-    foreach ($secret in @($env:UNITY_SERIAL, $env:UNITY_EMAIL, $env:UNITY_PASSWORD)) {
-        if (-not [string]::IsNullOrEmpty($secret)) {
-            $text = $text.Replace($secret, '[REDACTED]')
-        }
-    }
-    $text = [regex]::Replace($text, 'SC-[A-Za-z0-9-]{8,}', '[REDACTED]')
-    $text = [regex]::Replace($text, '[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '?')
-    foreach ($line in ($text -split "`n")) {
-        Write-Host "  | $line"
-    }
-}
+. (Join-Path $PSScriptRoot 'unity-log.ps1')
 
 if ($UnityVersion -notmatch '^\d+\.\d+\.\d+f\d+$') {
     throw "UnityVersion must be an exact editor release, for example 6000.6.7f1."
@@ -101,12 +82,11 @@ $unityArgs = @(
     '-password'
     $env:UNITY_PASSWORD
 )
-# Unity writes its log to stdout, so this captures the cause even when the
-# editor fails before it opens a log file. Nothing is printed on success.
-$output = ''
+# Unity writes its log to stdout. Redirect it straight to the log file so a
+# timed-out run leaves the evidence the follow-up tail step reads.
 $exitCode = 1
 try {
-    $output = (& $UnityEditorPath @unityArgs 2>&1 | Out-String)
+    & $UnityEditorPath @unityArgs *> $logPath
     if (Test-Path -LiteralPath variable:\LASTEXITCODE) {
         $exitCode = $LASTEXITCODE
     }
@@ -114,7 +94,6 @@ try {
     Write-Host "Unity invocation failed: $_"
     throw
 }
-Set-Content -LiteralPath $logPath -Value $output -Encoding utf8
 
 if (-not (Test-Path -LiteralPath $resultsPath -PathType Leaf)) {
     Write-Host "Unity did not write an EditMode result file (exit code $exitCode). Redacted log tail:"
