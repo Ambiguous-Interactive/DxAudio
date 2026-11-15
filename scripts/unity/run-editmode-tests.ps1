@@ -82,11 +82,12 @@ $unityArgs = @(
     '-password'
     $env:UNITY_PASSWORD
 )
-# Unity writes its log to stdout. Redirect it straight to the log file so a
-# timed-out run leaves the evidence the follow-up tail step reads.
+# Unity writes its log to stdout. Tee it to the log file as it arrives so a
+# timed-out run leaves the evidence the follow-up tail step reads. The final
+# Out-Null keeps the log out of the shared job log.
 $exitCode = 1
 try {
-    & $UnityEditorPath @unityArgs *> $logPath
+    & $UnityEditorPath @unityArgs 2>&1 | Tee-Object -FilePath $logPath | Out-Null
     if (Test-Path -LiteralPath variable:\LASTEXITCODE) {
         $exitCode = $LASTEXITCODE
     }
