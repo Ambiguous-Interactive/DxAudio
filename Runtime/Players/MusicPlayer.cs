@@ -83,7 +83,7 @@ namespace WallstopStudios.DxAudio
         public bool IsPlaying => _current != null && _current.source != null && _current.source.isPlaying;
 
         private MusicOverride<MusicTrack> Selection =>
-            _selection ??= new MusicOverride<MusicTrack>(OnSelectionChanged, SameMusicComparer.Instance);
+            _selection ??= new MusicOverride<MusicTrack>(OnSelectionChanged, SameMusicComparer.Instance, IsPlayable);
 
         /// <summary>Plays the track the library lists for <paramref name="context"/>.</summary>
         /// <returns><see langword="false"/>, changing nothing, when the library lists none.</returns>
@@ -113,7 +113,7 @@ namespace WallstopStudios.DxAudio
         /// <summary>Plays <paramref name="track"/> over the context's music until the lease is released or disposed.</summary>
         public MusicOverrideLease Override(MusicTrack track)
         {
-            return track != null && track.IsPlayable ? Selection.Take(track) : MusicOverrideLease.None;
+            return Selection.Take(track);
         }
 
         public bool ReleaseOverride(in MusicOverrideLease lease)
@@ -415,6 +415,11 @@ namespace WallstopStudios.DxAudio
                 lowPass.enabled = false;
                 highPass.enabled = false;
             }
+        }
+
+        private static bool IsPlayable(MusicTrack track)
+        {
+            return track.IsPlayable;
         }
 
         private sealed class SameMusicComparer : System.Collections.Generic.IEqualityComparer<MusicTrack>
