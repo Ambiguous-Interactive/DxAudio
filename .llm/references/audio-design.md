@@ -62,12 +62,13 @@ Stop() -> fade out
 
 ## Allocation budget
 
-| Path                    | Budget                                |
-| ----------------------- | ------------------------------------- |
-| `SfxPlayer.Play`        | 0 bytes per call                      |
-| Per-frame player update | 0 bytes                               |
-| Duck compose per frame  | 0 bytes                               |
-| `DescribeDucks()`       | allowed to allocate; diagnostics only |
+| Path                    | Budget                                    |
+| ----------------------- | ----------------------------------------- |
+| `SfxPlayer.Play`        | 0 bytes per call                          |
+| Per-frame player update | 0 bytes                                   |
+| Duck compose per frame  | 0 bytes                                   |
+| Music duck application  | under 2 µs per frame at 3 voices, 0 bytes |
+| `DescribeDucks()`       | allowed to allocate; diagnostics only     |
 
 Measure with [measure-audio-behaviour](../skills/measure-audio-behaviour/SKILL.md). A budget is only real when a probe
 pins it.
@@ -81,6 +82,8 @@ pins it.
 
 ## Open questions
 
-- Mixer-group routing versus per-source volume: benchmark both before adding an `AudioMixer` dependency.
 - Addressables and clip lifetime: unload policy for a cue whose clips are released while a voice holds one.
 - Streaming versus decompressed clips for long music tracks.
+
+Mixer-group routing was measured against per-source writes for ducks; see
+[product-decisions](./product-decisions.md#ducks-compose-in-package-code).
