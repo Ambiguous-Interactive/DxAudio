@@ -3,6 +3,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     using System;
     using System.Collections.Generic;
     using NUnit.Framework;
+    using UnityEditor;
     using UnityEngine;
     using Object = UnityEngine.Object;
 
@@ -88,7 +89,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void SamplingAllocatesOnlyWhileTheOverlayIsEnabled()
+        public void SamplingRebuildsTheReportOnlyWhileTheOverlayIsEnabled()
         {
             SfxCue hum = Cue(loop: true, priority: SfxPriority.High);
             SfxPlayer sfx = SfxPlayer(SfxLibrary.Create(new[] { hum }, voiceCount: 2));
@@ -100,23 +101,16 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             for (int index = 0; index < 32; index++)
             {
                 overlay.Sample();
+                Assert.That(overlay.Text, Is.SameAs(string.Empty), "a switched-off overlay rebuilds no report");
             }
 
-            long disabledGrowth = HeapGrowth(overlay, samples: SampleCount);
-
             overlay.Enabled = true;
-            for (int index = 0; index < 8; index++)
+            for (int index = 0; index < 32; index++)
             {
                 overlay.Sample();
             }
 
             long enabledGrowth = HeapGrowth(overlay, samples: SampleCount);
-
-            Assert.That(
-                disabledGrowth,
-                Is.LessThan(1_048_576L),
-                $"a switched-off overlay grew the heap by {disabledGrowth} bytes over {SampleCount} samples"
-            );
             Assert.That(
                 enabledGrowth,
                 Is.GreaterThan(1_048_576L),
@@ -138,13 +132,21 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(overlay.useGUILayout, Is.False, "an overlay that is off must not run a layout pass");
             overlay.Enabled = true;
             Assert.That(overlay.useGUILayout, Is.True, "the open overlay lays out its label and scroll view");
-            overlay.Enabled = false;
-            Assert.That(overlay.useGUILayout, Is.False);
+            overlay.Sample();
+            Assert.That(overlay.Text, Is.Not.Empty);
+
+            using SerializedObject serialized = new(overlay);
+            SerializedProperty enabled = serialized.FindProperty("_enabled");
+            Assert.That(enabled != null, "the overlay keeps an _enabled field for the Inspector");
+            enabled.boolValue = false;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            Assert.That(overlay.useGUILayout, Is.False, "an Inspector edit to Enabled stops the layout pass too");
+            Assert.That(overlay.Text, Is.Empty, "and it clears the report");
         }
 
         /// <summary>
-        /// The heap growth of <paramref name="samples"/> samples after a collection. Unity's Mono reports zero from
-        /// <c>GC.GetAllocatedBytesForCurrentThread</c>, so the heap is the probe that can move here.
+        /// The heap growth of <paramref name="samples"/> samples of an enabled overlay, after a collection. Unity's Mono
+        /// reports zero from <c>GC.GetAllocatedBytesForCurrentThread</c>, so the heap is the probe that can move here.
         /// </summary>
         /// <remarks>
         /// Every sampled report is kept and both ends of the window force a collection, so the probe reads live bytes.

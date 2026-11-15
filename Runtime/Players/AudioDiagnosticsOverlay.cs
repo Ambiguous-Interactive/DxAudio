@@ -96,8 +96,13 @@ namespace WallstopStudios.DxAudio
 
         private void OnValidate()
         {
-            // An Inspector edit bypasses the Enabled setter, and the layout phase must follow it.
+            // An Inspector edit bypasses the Enabled setter, and the layout phase and the report must follow it.
             useGUILayout = _enabled;
+            if (!_enabled)
+            {
+                _text = string.Empty;
+                _scroll = Vector2.zero;
+            }
         }
 
         private void Update()
