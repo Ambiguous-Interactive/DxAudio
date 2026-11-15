@@ -69,8 +69,8 @@ Stop() -> fade out
 | Duck compose per frame  | 0 bytes                               |
 | `DescribeDucks()`       | allowed to allocate; diagnostics only |
 
-Measure with [measure-audio-behaviour](../skills/measure-audio-behaviour/SKILL.md). A budget is only real when a probe
-pins it.
+Per-frame time: music duck application at three voices stays under 1.5 us per frame at p95, with no allocation. Measure
+with [measure-audio-behaviour](../skills/measure-audio-behaviour/SKILL.md). A budget is only real when a probe pins it.
 
 ## Device and format notes
 
@@ -81,6 +81,8 @@ pins it.
 
 ## Open questions
 
-- Mixer-group routing versus per-source volume: benchmark both before adding an `AudioMixer` dependency.
+Mixer-group routing was measured against per-source writes for ducking and does not replace composing in package code;
+see [product-decisions](./product-decisions.md#ducks-compose-in-package-code).
+
 - Addressables and clip lifetime: unload policy for a cue whose clips are released while a voice holds one.
 - Streaming versus decompressed clips for long music tracks.

@@ -151,6 +151,13 @@ string, because the stack keys a hold by the reason's reference.
 A `Many` duck whose holder is destroyed without releasing is released on the next frame. `MusicPlayer.DescribeDucks()`
 lists every live duck and its holder.
 
+### Mixer groups
+
+A music library, an SFX library, and a single cue can each name an `AudioMixerGroup`, so a game keeps its own Master,
+Music, and SFX groups and their volume sliders. Ducking does not need snapshots, and several reasons hold the music down
+at once. The composed level goes to each music voice, and `MusicPlayer.Attenuation` reports the level applied this frame
+while `TargetAttenuation` reports the level the live ducks compose to.
+
 ## Authoring
 
 - **Cue inspector.** Each take shows where playback starts after its clip's lead-in, with an **Audition** button that
