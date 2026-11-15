@@ -36,6 +36,10 @@ long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
   `Tests/Editor/Unity/DiagnosticsTests.cs` (`HeapGrowth`) is the worked example.
 - To prove a path does nothing at all, assert the observable state it must not change, such as an empty report or an idle
   voice. That check fails deterministically; a byte ceiling only fails once its slack is spent.
+- For a path that must allocate nothing per call, run 100,000 calls and read `GC.GetTotalMemory(forceFullCollection:
+  false)` at both ends, taking the smallest of three windows. Measured on 6000.6.7f1: `SfxPlayer.Play` grew the heap by
+  0 to 29 KB, a planted 16-byte allocation per call grew it by 3.4 MB, and one window in a full-suite run committed a
+  segment of about 300 KB. A 256 KB ceiling sits between them. `Tests/Editor/Unity/AllocationTests.cs` is the example.
 - Unity's NUnit (3.5) has no `Is.AllocatingGCMemory` constraint; it does not compile. Do not use it in `Tests/Editor`.
 - In Unity EditMode, warm the subject and the probe path first. Unwarmed probes false-positive on first-call JIT for
   string comparisons, dictionary adds, and other BCL paths.
@@ -54,7 +58,7 @@ long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
 | Claim                          | Probe                                                       |
 | ------------------------------ | ----------------------------------------------------------- |
-| Play allocates nothing         | `Play` 1000 times on a full pool, one cue                   |
+| Play allocates nothing         | 100,000 plays on a full pool, heap growth, smallest of 3    |
 | Stealing allocates nothing     | Same, with priority inversion on every play                 |
 | Duck compose allocates nothing | Hold 1 and 8 ducks, compose per frame for 1000 frames       |
 | Music crossfade cost           | 100 context changes, measure the per-change allocation and time |
