@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
 # Run DxAudio's EditMode tests in a disposable Unity project.
 #
 # The package has no Unity project of its own, so this script creates a minimal
@@ -13,6 +13,30 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# A host profile can set this true, which would turn Unity's normal stderr into
+# a terminating error before the exit code is read.
+$PSNativeCommandUseErrorActionPreference = $false
+
+function Write-RedactedLogTail {
+    param([string]$Path, [int]$MaxLines = 40)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        Write-Host "  | (no log file at $Path)"
+        return
+    }
+    $text = (Get-Content -LiteralPath $Path -Tail $MaxLines -ErrorAction Stop) -join "`n"
+    # Redact every credential shape this script knows before anything reaches
+    # the shared job log.
+    foreach ($secret in @($env:UNITY_SERIAL, $env:UNITY_EMAIL, $env:UNITY_PASSWORD)) {
+        if (-not [string]::IsNullOrEmpty($secret)) {
+            $text = $text.Replace($secret, '[REDACTED]')
+        }
+    }
+    $text = [regex]::Replace($text, 'SC-[A-Za-z0-9-]{8,}', '[REDACTED]')
+    $text = [regex]::Replace($text, '[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '?')
+    foreach ($line in ($text -split "`n")) {
+        Write-Host "  | $line"
+    }
+}
 
 if ($UnityVersion -notmatch '^\d+\.\d+\.\d+f\d+$') {
     throw "UnityVersion must be an exact editor release, for example 6000.6.7f1."
@@ -29,6 +53,9 @@ foreach ($name in @('UNITY_SERIAL', 'UNITY_EMAIL', 'UNITY_PASSWORD')) {
 }
 
 $projectPath = Join-Path $env:RUNNER_TEMP "dxaudio-unity-$UnityVersion"
+if (Test-Path -LiteralPath $projectPath) {
+    Remove-Item -LiteralPath $projectPath -Recurse -Force
+}
 $packagesPath = Join-Path $projectPath 'Packages'
 $settingsPath = Join-Path $projectPath 'ProjectSettings'
 New-Item -ItemType Directory -Force -Path `
@@ -66,8 +93,12 @@ $logPath = Join-Path $artifactsPath 'editmode.log'
 $exitCode = $LASTEXITCODE
 
 if (-not (Test-Path -LiteralPath $resultsPath -PathType Leaf)) {
-    throw "Unity did not write an EditMode result file (exit code $exitCode)."
+    Write-Host "Unity did not write an EditMode result file (exit code $exitCode). Redacted log tail:"
+    Write-RedactedLogTail -Path $logPath
+    throw "Unity did not write an EditMode result file (exit code $exitCode). Log: $logPath"
 }
 if ($exitCode -ne 0) {
-    throw "Unity EditMode tests failed with exit code $exitCode."
+    Write-Host "Unity EditMode tests failed with exit code $exitCode. Redacted log tail:"
+    Write-RedactedLogTail -Path $logPath
+    throw "Unity EditMode tests failed with exit code $exitCode. Log: $logPath"
 }
