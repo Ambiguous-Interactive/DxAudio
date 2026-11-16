@@ -13,7 +13,8 @@
 ## Clip load type
 
 Unity holds a clip's audio data in one of three ways, and the choice lives in the clip's **Load Type** import setting,
-not in playback. Set **Clip Load Type** on the track and the track inspector writes it into the clip:
+not in playback. Set **Clip Load Type** on the track, then press **Apply \<type\> to the clip** in the track inspector
+to write it:
 
 - **Auto** (default) streams a clip longer than 30 seconds and decompresses a clip of 30 seconds or less.
 - **Decompress On Load** keeps the whole decoded clip in memory, so playback never touches storage.

@@ -123,8 +123,10 @@ with [measure-audio-behaviour](../skills/measure-audio-behaviour/SKILL.md). A bu
 ## Clip load type
 
 Unity stores a clip's load type in its import settings, so a build cannot change it at play time. A `MusicTrack` records
-the choice, `MusicLoadPolicy` resolves `Auto` from the clip's length, and the track inspector writes the result into the
-clip's importer. Nothing in the runtime reads it.
+the choice, `MusicLoadPolicy` resolves `Auto` from the clip's length, and the track inspector applies the result to the
+clip's importer on request. Nothing in the runtime reads it. A per-platform override wins over the default settings, so
+the inspector reports a write that cannot change the effective type rather than rewriting a platform choice the author
+made.
 
 Measured in the host editor on 6000.6.7f1 with 44.1 kHz stereo clips, median of five unload and reload cycles:
 
