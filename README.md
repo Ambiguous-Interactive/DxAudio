@@ -302,8 +302,9 @@ pause.EmitUntargeted();
 | `MusicStoppedMessage`      | Broadcast  | Reports that the music stopped                |
 | `MusicDuckStartedMessage`  | Broadcast  | Reports a held duck and its id                |
 
-A duck named with a holder is released when that holder is destroyed, as with `MusicPlayer.Duck`. Destroying the adapter
-releases every duck it took.
+A duck with `MusicDuckHolders.Many` and a holder is released when that holder is destroyed, as with `MusicPlayer.Duck`.
+A `MusicDuckHolders.One` duck is one state for every holder, so it ignores the holder and waits for its id. Destroying
+the adapter releases every duck it took.
 
 ## Diagnostics
 
