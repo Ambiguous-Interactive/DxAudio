@@ -37,6 +37,7 @@ namespace WallstopStudios.DxAudio
         private bool _playsWhilePaused = true;
 
         private readonly MusicDuckStack _ducks = new();
+        private bool _paused;
         private readonly Voice[] _voices = new Voice[VoiceCount];
         private MusicOverride<MusicTrack> _selection;
         private Voice _current;
@@ -51,6 +52,16 @@ namespace WallstopStudios.DxAudio
             set => _library = value;
         }
 
+        /// <summary>Raised when the music that should sound changes to <c>track</c>. Additive.</summary>
+        /// <remarks>
+        /// The track is the selection the player now plays, which can be the context's music or an override. A
+        /// selection that names the same music as the one already sounding is not a change and raises nothing.
+        /// </remarks>
+        public event Action<MusicTrack> TrackChanged;
+
+        /// <summary>Raised when the music is stopped or silenced. Additive.</summary>
+        public event Action Stopped;
+
         /// <summary>The game's music on/off setting.</summary>
         public bool Muted
         {
@@ -63,6 +74,37 @@ namespace WallstopStudios.DxAudio
                     if (voice != null && voice.source != null)
                     {
                         voice.source.mute = value;
+                    }
+                }
+            }
+        }
+
+        /// <summary>Whether every voice is held at its playhead. State, fades and ducks are kept while paused.</summary>
+        public bool Paused
+        {
+            get => _paused;
+            set
+            {
+                if (_paused == value)
+                {
+                    return;
+                }
+
+                _paused = value;
+                foreach (Voice voice in _voices)
+                {
+                    if (voice == null || voice.source == null)
+                    {
+                        continue;
+                    }
+
+                    if (value)
+                    {
+                        voice.source.Pause();
+                    }
+                    else
+                    {
+                        voice.source.UnPause();
                     }
                 }
             }
@@ -180,6 +222,12 @@ namespace WallstopStudios.DxAudio
             return _ducks.IsActive(duck);
         }
 
+        /// <summary>Whether <paramref name="lease"/> is still a live hold, rather than released or swept.</summary>
+        public bool IsHeld(in MusicDuckLease lease)
+        {
+            return _ducks.IsHeld(lease);
+        }
+
         /// <summary>Every live duck and who holds it, for a diagnostic.</summary>
         public string DescribeDucks()
         {
@@ -260,6 +308,7 @@ namespace WallstopStudios.DxAudio
             {
                 FadeOut(_current);
                 _current = null;
+                Stopped?.Invoke();
                 return;
             }
 
@@ -276,10 +325,12 @@ namespace WallstopStudios.DxAudio
                     reclaimable.fadingOut = false;
                     reclaimable.fade = reclaimable.fade.Retarget(1f, fadeIn, fadeInEase);
                     _current = reclaimable;
+                    TrackChanged?.Invoke(reclaimable.track);
                     return;
                 default:
                     FadeOut(_current);
                     _current = StartVoice(next, fadeIn, fadeInEase);
+                    TrackChanged?.Invoke(next);
                     return;
             }
         }
@@ -328,6 +379,11 @@ namespace WallstopStudios.DxAudio
             voice.fade = new MusicRamp(0f, 1f, fadeIn, fadeInEase);
             Apply(voice, voice.fade.Value);
             source.Play();
+            if (_paused)
+            {
+                source.Pause();
+            }
+
             return voice;
         }
 
@@ -364,6 +420,7 @@ namespace WallstopStudios.DxAudio
             if (voice == _current)
             {
                 _current = null;
+                Stopped?.Invoke();
             }
         }
 

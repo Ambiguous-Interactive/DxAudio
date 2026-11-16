@@ -60,6 +60,8 @@ namespace WallstopStudios.DxAudio
         [Tooltip("The listener a centred cue is placed in front of. Empty uses the main camera's.")]
         private AudioListener _listener;
 
+        private bool _paused;
+
         private readonly SfxThrottle<SfxCue> _throttle = new();
         private readonly SfxSelection<SfxCue> _selection = new();
 
@@ -114,6 +116,37 @@ namespace WallstopStudios.DxAudio
         {
             get => _listener;
             set => _listener = value;
+        }
+
+        /// <summary>Whether every voice is held at its playhead. Voices, loops and leases are kept while paused.</summary>
+        public bool Paused
+        {
+            get => _paused;
+            set
+            {
+                if (_paused == value)
+                {
+                    return;
+                }
+
+                _paused = value;
+                foreach (AudioSource voice in _voices)
+                {
+                    if (voice == null)
+                    {
+                        continue;
+                    }
+
+                    if (value)
+                    {
+                        voice.Pause();
+                    }
+                    else
+                    {
+                        voice.UnPause();
+                    }
+                }
+            }
         }
 
         public int VoiceCount => _voices.Length;
@@ -371,6 +404,11 @@ namespace WallstopStudios.DxAudio
             }
 
             voice.Play();
+            if (_paused)
+            {
+                voice.Pause();
+            }
+
             return true;
         }
 

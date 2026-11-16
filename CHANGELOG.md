@@ -8,6 +8,9 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
+- `MusicPlayer` raises `TrackChanged` and `Stopped`, and both players take `Paused`, which holds every voice at its
+  playhead so resuming continues rather than restarts. The DxMessaging integration adds music requests, duck ids and
+  `AudioPauseRequest` ([#36](https://github.com/Ambiguous-Interactive/DxAudio/issues/36)).
 - An **Audio Diagnostics** overlay component lists busy voices with priorities and loop leases, active ducks and their
   holders, and dropped-cue counts by reason. `SfxPlayer.DropCounts` and `SfxPlayer.TryGetVoiceState` expose the same
   data. Sampling allocates only while the overlay is enabled

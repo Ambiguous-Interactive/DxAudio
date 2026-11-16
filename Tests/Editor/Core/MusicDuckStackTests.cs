@@ -70,7 +70,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(stack.Release(default), Is.False);
             Assert.That(stack.Release(foreign), Is.False, "another stack's lease, though its id matches");
             Assert.That(stack.IsActive(menu), Is.True);
+            Assert.That(stack.IsHeld(lease), Is.True);
+            Assert.That(stack.IsHeld(foreign), Is.False, "another stack's lease is not a hold here");
+            Assert.That(stack.IsHeld(default), Is.False);
             Assert.That(stack.Release(lease), Is.True);
+            Assert.That(stack.IsHeld(lease), Is.False, "a released lease is no longer held");
             _ = stack.Take(menu, Quiet);
             Assert.That(stack.Release(lease), Is.False, "a released lease never releases a later hold");
             Assert.That(stack.Take(null, Half).IsValid, Is.False);

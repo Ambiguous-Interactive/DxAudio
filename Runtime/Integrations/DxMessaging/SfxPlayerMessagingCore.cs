@@ -92,6 +92,7 @@ namespace WallstopStudios.DxAudio.Integration
             _ = token.RegisterGameObjectTargeted<SfxLoopStopRequest>(_source, HandleStopLoop);
             _ = token.RegisterGameObjectTargeted<SfxStopAllRequest>(_source, HandleStopAll);
             _ = token.RegisterUntargeted<SfxMuteRequest>(HandleMute);
+            _ = token.RegisterUntargeted<AudioPauseRequest>(HandlePause);
         }
 
         /// <summary>Starts relaying the player's own drop reports.</summary>
@@ -208,6 +209,16 @@ namespace WallstopStudios.DxAudio.Integration
             }
 
             _player.Muted = request.muted;
+        }
+
+        private void HandlePause(AudioPauseRequest request)
+        {
+            if (_player == null)
+            {
+                return;
+            }
+
+            _player.Paused = request.paused;
         }
 
         private void HandleCueDropped(SfxCue cue, SfxDropReason reason)
