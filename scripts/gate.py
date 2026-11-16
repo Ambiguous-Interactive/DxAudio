@@ -92,7 +92,7 @@ LANES: Tuple[Tuple[str, Tuple[Step, ...]], ...] = (
             Step(
                 "csharp.format",
                 "CSharpier format",
-                ("dotnet", "tool", "run", "csharpier", "--", "format", ".net-tests", "Runtime", "Editor", "Tests"),
+                ("dotnet", "tool", "run", "csharpier", "--", "format", "."),
                 ("csharp.tool-restore",),
             ),
             Step(

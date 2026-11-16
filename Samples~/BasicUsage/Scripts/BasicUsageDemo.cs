@@ -50,21 +50,12 @@ namespace WallstopStudios.DxAudio.Samples
             _musicClip = MakeTone("Music", 330f, 4f);
 
             _blipCue = SfxCue.Create(new SfxVariant[] { new SfxVariant(_blipClip) }, key: "blip", volume: 0.6f);
-            _humCue = SfxCue.Create(
-                new SfxVariant[] { new SfxVariant(_humClip) },
-                key: "hum",
-                volume: 0.25f,
-                loop: true
-            );
+            _humCue = SfxCue.Create(new SfxVariant[] { new SfxVariant(_humClip) }, key: "hum", volume: 0.25f, loop: true);
             _sfxLibrary = SfxLibrary.Create(new SfxCue[] { _blipCue, _humCue }, voiceCount: 8, loopingVoiceLimit: 2);
             _sfx.Library = _sfxLibrary;
 
             _musicTrack = MusicTrack.Create(_musicClip, context: "demo", loop: true, volumeScale: 0.4f);
-            _musicLibrary = MusicLibrary.Create(
-                new MusicTrack[] { _musicTrack },
-                fadeInSeconds: 1.5f,
-                fadeOutSeconds: 0.8f
-            );
+            _musicLibrary = MusicLibrary.Create(new MusicTrack[] { _musicTrack }, fadeInSeconds: 1.5f, fadeOutSeconds: 0.8f);
             _music.Library = _musicLibrary;
 
             // Ducks lower the music while held. One holder is enough for a single dialogue or menu.
