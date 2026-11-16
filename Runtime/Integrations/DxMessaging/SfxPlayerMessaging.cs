@@ -209,7 +209,7 @@ namespace WallstopStudios.DxAudio.Integration
         /// would otherwise answer a request it heard on that bus with a fact nobody there can hear.
         /// </remarks>
         private void Broadcast<T>(T message)
-            where T : DxMessaging.Core.Messages.IBroadcastMessage
+            where T : struct, DxMessaging.Core.Messages.IBroadcastMessage
         {
             message.EmitGameObjectBroadcast(gameObject, _configuredMessageBus, _configuredMessageBusProvider);
         }
