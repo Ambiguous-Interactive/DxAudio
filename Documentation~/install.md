@@ -57,7 +57,8 @@ Download `com.wallstop-studios.dxaudio-<version>.tgz` from a
 | `Documentation~/` | No    | These pages                                                        |
 | `Samples~/`       | No    | The `BasicUsage` sample                                            |
 
-Unity ignores folders whose name ends in `~` and npm does not pack them, so neither adds to a build or a download.
+Unity ignores folders whose name ends in `~` and npm does not pack them, so neither adds to a build or a download. A
+registry or tarball install has no sample; install from git, or copy `Samples~/BasicUsage` from the repository.
 
 ## Next
 

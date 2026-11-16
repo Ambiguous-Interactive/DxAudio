@@ -21,8 +21,8 @@ Unity 2021.3 or newer.
 
 ## Sample
 
-`Samples~/BasicUsage` holds one scene that plays a cue, holds a loop, starts music and ducks it. Import it from the
-Package Manager **Samples** tab, or copy the folder into `Assets/` when you work from a checkout.
+`Samples~/BasicUsage` holds one scene that plays a cue, holds a loop, starts music and ducks it. Install from git to
+list it in the Package Manager **Samples** tab, or copy the folder into `Assets/` when you work from a checkout.
 
 ## Concepts
 

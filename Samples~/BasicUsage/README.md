@@ -9,10 +9,12 @@ One scene that shows the four things a game does with DxAudio:
 
 ## Open it
 
-1. In **Window > Package Manager**, select **DxAudio** and open the **Samples** tab.
-2. Import **Basic usage**. Unity copies it to `Assets/Samples/DxAudio/<version>/BasicUsage`.
-3. Open `BasicUsage.unity` and press Play.
-4. Use the buttons in the top-left corner:
+1. Install the package from git. A registry or tarball install carries no sample, so copy this folder from the
+   repository instead.
+2. In **Window > Package Manager**, select **DxAudio** and open the **Samples** tab.
+3. Import **Basic usage**. Unity copies it to `Assets/Samples/DxAudio/<version>/BasicUsage`.
+4. Open `BasicUsage.unity` and press Play.
+5. Use the buttons in the top-left corner:
 
 | Button       | Calls                                       |
 | ------------ | ------------------------------------------- |

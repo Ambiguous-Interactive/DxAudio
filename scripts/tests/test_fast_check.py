@@ -153,19 +153,21 @@ def case_plan_covers_documentation_and_sample_changes(python: str) -> None:
         assert_true(plan["docs"], "a sample scene change must plan the docs lint")
         assert_true(len(plan["markdown"]) == 0, "a scene change is not a Markdown format target")
 
+        # Deleting a script or its companion orphans the GUID a scene stores,
+        # which is the same lint's other half.
         write_fixture_file(repo, "Runtime/Thing.cs", "class Thing { }\n")
         plan = invoke_fast_check_plan(repo, python)
-        assert_true(plan["docs"], "a manual or sample path keeps the docs lint planned")
+        assert_true(plan["docs"], "a script change must plan the docs lint")
     finally:
         remove_temp_root(repo)
 
 
-def case_plan_skips_the_docs_group_for_csharp_only_changes(python: str) -> None:
+def case_plan_skips_the_docs_group_for_unrelated_changes(python: str) -> None:
     repo = new_plan_repo()
     try:
-        write_fixture_file(repo, "Runtime/Thing.cs", "class Thing { }\n")
+        write_fixture_file(repo, "docs/notes.txt", "notes\n")
         plan = invoke_fast_check_plan(repo, python)
-        assert_true(not plan["docs"], "a C#-only change cannot affect the docs lint")
+        assert_true(not plan["docs"], "a change outside docs, scenes and scripts cannot affect the docs lint")
     finally:
         remove_temp_root(repo)
 
@@ -319,8 +321,8 @@ def main() -> int:
         lambda: case_plan_covers_documentation_and_sample_changes(python),
     )
     run_case(
-        "Plan_SkipsTheDocsGroupForCSharpOnlyChanges",
-        lambda: case_plan_skips_the_docs_group_for_csharp_only_changes(python),
+        "Plan_SkipsTheDocsGroupForUnrelatedChanges",
+        lambda: case_plan_skips_the_docs_group_for_unrelated_changes(python),
     )
 
     failures = failure_count()
