@@ -8,6 +8,9 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
+- Add the user manual in `Documentation~/` (install, quickstart, cues, music, ducks and troubleshooting) and a
+  `BasicUsage` sample scene that plays a cue, holds a loop, starts music and ducks it
+  ([#16](https://github.com/Ambiguous-Interactive/DxAudio/issues/16)).
 - `MusicPlayer` raises `TrackChanged` and `Stopped`, and both players take `Paused`, which holds every voice at its
   playhead so resuming continues rather than restarts. The DxMessaging integration adds music requests, duck ids and
   `AudioPauseRequest` ([#36](https://github.com/Ambiguous-Interactive/DxAudio/issues/36)).

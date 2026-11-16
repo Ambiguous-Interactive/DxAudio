@@ -43,6 +43,13 @@
     "README.md.meta",
     "package.json.meta"
   ],
+  "samples": [
+    {
+      "displayName": "Basic usage",
+      "description": "Plays a cue, holds a loop, starts music and ducks it.",
+      "path": "Samples~/BasicUsage"
+    }
+  ],
   "scripts": {
     "test": "dotnet test .net-tests --configuration Release",
     "env:check": "uv run --no-project scripts/uv_environment.py --check",

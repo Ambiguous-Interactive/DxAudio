@@ -19,6 +19,11 @@ Data-driven sound effects and music for Unity, with no dependencies.
 
 Extracted from [Isho Boy](https://github.com/Ambiguous-Interactive)'s audio system.
 
+## Documentation
+
+The manual lives in [Documentation~/index.md](Documentation~/index.md): install, quickstart, cues, music, ducks and
+troubleshooting. `Samples~/BasicUsage` holds one scene that plays a cue, holds a loop, starts music and ducks it.
+
 ## Install
 
 Unity 2021.3 or newer.
