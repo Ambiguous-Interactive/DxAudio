@@ -12,10 +12,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     /// <remarks>
     /// <c>GC.GetAllocatedBytesForCurrentThread</c> reports 0 for every call under Unity's Mono, so a test built on it
     /// passes for any implementation. This suite reads the heap instead: measured on the host editor, 100,000 unmodified
-    /// plays moved it by 0 to 24 KB, and a planted 16-byte allocation per call moved it by 3.4 MB. The ceiling sits
-    /// between those. When an editor's heap counts more coarsely, the ceiling follows the control measurement, so an
-    /// older Mono cannot fail the honest path, and <see cref="TheHeapProbeSeesAPlantedAllocation"/> proves the probe can
-    /// still fail.
+    /// plays moved it by 0 to 29 KB, while a planted 16-byte allocation per call moved it by 3.4 MB. The ceiling sits
+    /// between those, and <see cref="TheHeapProbeSeesAPlantedAllocation"/> proves the probe can still fail. That control
+    /// keeps its planted strings, because a heap counter that is handed only garbage may commit no segment and report
+    /// 8 KB for 1.6 MB of churn, which is exactly what a CI run showed.
     /// </remarks>
     public sealed class AllocationTests
     {
@@ -23,17 +23,22 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private const int WarmupPlays = 1_024;
 
         /// <summary>Bytes the heap may grow over <see cref="PlayCount"/> plays of a path that allocates nothing.</summary>
-        private const long Ceiling = 262_144;
+        private const long Ceiling = 524_288;
+
+        /// <summary>Char count per planted string. 100,000 of them retain about 45 MB, which no heap counter misses.</summary>
+        private const int PlantedChars = 200;
 
         /// <summary>Measured windows per probe. The smallest is taken, because heap segments commit in coarse steps.</summary>
         private const int Windows = 3;
 
+        private static readonly List<string> _plants = new();
         private long _planted;
 
         [OneTimeSetUp]
         public void MeasureThePlantedControl()
         {
-            _planted = HeapGrowth(PlantSixteenBytes, PlayCount);
+            _planted = RetainedPlantGrowth(PlayCount);
+            _plants.Clear();
         }
 
         [Test]
@@ -51,7 +56,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(
                 growth,
-                Is.LessThan(CeilingForTheEditor()),
+                Is.LessThan(Ceiling),
                 $"Play grew the heap by {growth} bytes over {PlayCount:N0} plays."
             );
         }
@@ -71,7 +76,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(
                 growth,
-                Is.LessThan(CeilingForTheEditor()),
+                Is.LessThan(Ceiling),
                 $"Keyed Play grew the heap by {growth} bytes over {PlayCount:N0} plays."
             );
         }
@@ -82,22 +87,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(
                 _planted,
                 Is.GreaterThan(Ceiling),
-                $"a probe that cannot fail is not evidence; {PlayCount:N0} planted 16-byte arrays grew it by {_planted} bytes"
+                $"a probe that cannot fail is not evidence; {PlayCount:N0} retained planted strings grew it by {_planted} bytes"
             );
-        }
-
-        /// <summary>
-        /// The fixed ceiling, or a sixteenth of what a planted allocation grows the heap by, whichever is larger.
-        /// </summary>
-        /// <remarks>
-        /// A coarse heap counter reports a small fraction of the bytes it saw, so a version that under-reports would fail
-        /// the honest path on an absolute number. Scaling to the control keeps the claim honest: the play path must stay
-        /// far below a per-play allocation the same probe can see.
-        /// </remarks>
-        private long CeilingForTheEditor()
-        {
-            long scaled = _planted / 16;
-            return Ceiling < scaled ? scaled : Ceiling;
         }
 
         /// <summary>The smallest heap growth of <paramref name="Windows"/> runs of <paramref name="count"/> calls.</summary>
@@ -131,9 +122,23 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             return smallest;
         }
 
-        private static void PlantSixteenBytes()
+        /// <summary>The heap growth of <paramref name="count"/> strings that stay reachable while it measures.</summary>
+        /// <remarks>
+        /// One window is enough here: a collector cannot reclaim retained strings, so the reading cannot fall back to
+        /// zero the way a garbage-only window did on a CI runner (8 KB for 1.6 MB of churn).
+        /// </remarks>
+        private static long RetainedPlantGrowth(int count)
         {
-            GC.KeepAlive(new byte[16]);
+            _plants.Clear();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            long before = GC.GetTotalMemory(forceFullCollection: true);
+            for (int index = 0; index < count; index++)
+            {
+                _plants.Add(new string('x', PlantedChars));
+            }
+
+            return GC.GetTotalMemory(forceFullCollection: true) - before;
         }
 
         private static SfxPlayer SfxPlayer(MadeObjects made, SfxLibrary library)
