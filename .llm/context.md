@@ -46,10 +46,13 @@ Runtime/                              # The shipped assembly (WallstopStudios.Dx
   Assets/                             # ScriptableObject data: SfxCue, SfxVariant, SfxLibrary,
                                       # MusicTrack, MusicLibrary, MusicDuck
   Players/                            # MonoBehaviours SfxPlayer and MusicPlayer, plus the VoiceClip helper
+  Integrations/DxMessaging/           # Optional assembly: message-driven control for SfxPlayer. Guarded by a
+                                      # version define, compiled only when com.wallstop-studios.dxmessaging is present
 Editor/                               # Editor-only assembly: cue and duck inspectors, library validation
 Tests/Editor/                          # EditMode tests, mirroring Core/ and Unity/
   Core/                               # Engine-free tests, shared with .net-tests
   Unity/                              # Tests that need Unity objects
+  Integrations/DxMessaging/           # Tests that also need the optional package
 .net-tests/                            # Plain .NET NUnit run of Runtime/Core + Tests/Editor/Core
 scripts/                               # Typed Python harness: gates, lints, MCP sync, Unity bridge
 .llm/                                  # This harness (context, skills, references, MCP config)
@@ -71,6 +74,9 @@ scripts/                               # Typed Python harness: gates, lints, MCP
 5. **Muted players keep state.** Muting detaches output, not voice or timer state, so loops and music resume in time.
 6. **Serialized asset fields are a public contract.** Renaming one needs `[FormerlySerializedAs]` and a changelog entry.
    Published `0.2.x` assets must keep loading.
+7. **Optional integrations are guarded, not declared.** An assembly under `Runtime/Integrations/` pairs a
+   `versionDefines` entry for the other package with a `defineConstraints` entry naming that symbol, and `package.json`
+   does not list the package. Anything else fails `package_check.py`.
 
 ## Skills Reference
 

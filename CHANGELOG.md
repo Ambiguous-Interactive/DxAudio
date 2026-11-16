@@ -12,6 +12,10 @@ All notable changes to this package are documented here. The format follows
   holders, and dropped-cue counts by reason. `SfxPlayer.DropCounts` and `SfxPlayer.TryGetVoiceState` expose the same
   data. Sampling allocates only while the overlay is enabled
   ([#14](https://github.com/Ambiguous-Interactive/DxAudio/issues/14)).
+- An optional **DxMessaging integration** assembly drives `SfxPlayer` from `SfxPlayRequest`, `SfxLoopRequest`,
+  `SfxLoopStopRequest`, `SfxStopAllRequest` and `SfxMuteRequest`, and broadcasts `SfxLoopStartedMessage` and
+  `SfxCueDroppedMessage`. It compiles only with DxMessaging installed, so the package keeps no dependency
+  ([#26](https://github.com/Ambiguous-Interactive/DxAudio/issues/26)).
 - Cue inspector with take start offsets and audition, duck inspector with a composed preview, and a library validation
   window (**Tools > DxAudio > Validate Libraries**) that reports missing clips, duplicate keys or contexts, and
   unreachable tracks ([#12](https://github.com/Ambiguous-Interactive/DxAudio/issues/12)).
