@@ -59,6 +59,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             yield return new TestCaseData(new[] { Held(SfxPriority.Low), Free }, SfxPriority.Low, 0, 1, false).SetName(
                 "A held voice is never free"
             );
+            yield return new TestCaseData(new[] { Paused(SfxPriority.High) }, SfxPriority.Low, 0, -1, false).SetName(
+                "A lower cue never takes a paused voice"
+            );
+            yield return new TestCaseData(new[] { Paused(SfxPriority.Medium) }, SfxPriority.Medium, 0, 0, true).SetName(
+                "An equal cue may reuse a paused voice"
+            );
+            yield return new TestCaseData(new[] { Paused(SfxPriority.Low) }, SfxPriority.High, 0, 0, true).SetName(
+                "A higher cue may take a paused voice"
+            );
             yield return new TestCaseData(
                 new[] { default(SfxVoiceState), Busy(SfxPriority.Low, 0f) },
                 SfxPriority.High,
@@ -100,6 +109,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 isHeld: true,
                 priority,
                 startedAtUnscaledTime: 0f
+            );
+        }
+
+        private static SfxVoiceState Paused(SfxPriority priority)
+        {
+            return new SfxVoiceState(
+                isUsable: true,
+                isPlaying: false,
+                isHeld: false,
+                priority,
+                startedAtUnscaledTime: 0f,
+                isPaused: true
             );
         }
     }

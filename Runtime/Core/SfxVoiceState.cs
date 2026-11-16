@@ -35,6 +35,13 @@ namespace WallstopStudios.DxAudio
         /// </remarks>
         public readonly bool isHeld;
 
+        /// <summary>Whether the player is holding this voice at its playhead.</summary>
+        /// <remarks>
+        /// A paused voice reports no playback, but it is not idle: it will resume, so a lower-priority cue must not
+        /// take it. An equal or higher cue may, because nothing is audible while the pause lasts.
+        /// </remarks>
+        public readonly bool isPaused;
+
         public readonly SfxPriority priority;
 
         public readonly float startedAtUnscaledTime;
@@ -44,7 +51,8 @@ namespace WallstopStudios.DxAudio
             bool isPlaying,
             bool isHeld,
             SfxPriority priority,
-            float startedAtUnscaledTime
+            float startedAtUnscaledTime,
+            bool isPaused = false
         )
         {
             this.isUsable = isUsable;
@@ -52,9 +60,10 @@ namespace WallstopStudios.DxAudio
             this.isHeld = isHeld;
             this.priority = priority;
             this.startedAtUnscaledTime = startedAtUnscaledTime;
+            this.isPaused = isPaused;
         }
 
-        public bool IsFree => isUsable && !isPlaying && !isHeld;
+        public bool IsFree => isUsable && !isPlaying && !isHeld && !isPaused;
 
         /// <summary>Whether this voice may be taken from at all, before priority is considered.</summary>
         public bool CanBeTakenFrom => isUsable && !isHeld;

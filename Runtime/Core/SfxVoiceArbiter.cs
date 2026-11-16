@@ -10,7 +10,8 @@ namespace WallstopStudios.DxAudio
     ///
     /// So an idle voice always wins, and priority decides only when there is none. Among the voices that may
     /// be taken, the least important goes first, and among equals the oldest, which is closest to finishing.
-    /// A held voice (a loop) is never taken.
+    /// A held voice (a loop) is never taken. A paused voice is not idle, but an equal or higher cue may still take
+    /// it, because nothing is audible while it is held.
     /// </remarks>
     public static class SfxVoiceArbiter
     {
@@ -52,7 +53,11 @@ namespace WallstopStudios.DxAudio
             for (int i = 0; i < voiceCount; i++)
             {
                 SfxVoiceState state = voices[i];
-                if (!state.CanBeTakenFrom || incoming <= state.priority)
+                if (
+                    !state.CanBeTakenFrom
+                    || incoming < state.priority
+                    || (incoming == state.priority && !state.isPaused)
+                )
                 {
                     continue;
                 }

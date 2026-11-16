@@ -214,8 +214,8 @@ _registration.RegisterUntargeted<DialogueEnded>(m => _music.Unduck(_dialogueDuck
 ```
 
 Pause holds every sounding voice at its playhead and keeps loops, leases and mute state, so resume continues rather than
-restarts. A cue or track started during the pause waits at its start. It is separate from `AudioListener.pause`: set it
-when the game wants audio held.
+restarts. A cue or track started during the pause waits at its start. A lower-priority cue cannot replace a paused
+one-shot; an equal or higher one may. It is separate from `AudioListener.pause`: set it when the game wants audio held.
 
 ```csharp
 _sfx.Paused = paused;

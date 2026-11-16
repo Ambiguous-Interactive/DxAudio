@@ -218,37 +218,44 @@
             SfxCue hum = Cue(loop: true);
             SfxPlayer sfx = SfxPlayer(Made(SfxLibrary.Create(new[] { hum }, voiceCount: 2, loopingVoiceLimit: 1)));
             Assert.That(music.PlayContext("town"), Is.True);
-            Assert.That(sfx.TryPlayLooping(hum, out _), Is.True);
-            sfx.Muted = true;
+            Assert.That(sfx.TryPlayLooping(hum, out SfxLoopHandle loop), Is.True);
+            try
+            {
+                sfx.Muted = true;
 
-            AudioSource musicSource = PlayingSource(music);
-            AudioSource sfxSource = PlayingSource(sfx);
-            Assert.That(musicSource != null && sfxSource != null, "both players sound before the pause");
-            musicSource.timeSamples = 2_000;
-            sfxSource.timeSamples = 1_000;
+                AudioSource musicSource = PlayingSource(music);
+                AudioSource sfxSource = PlayingSource(sfx);
+                Assert.That(musicSource != null && sfxSource != null, "both players sound before the pause");
+                musicSource.timeSamples = 2_000;
+                sfxSource.timeSamples = 1_000;
 
-            music.Paused = true;
-            sfx.Paused = true;
+                music.Paused = true;
+                sfx.Paused = true;
 
-            Assert.That(musicSource.isPlaying, Is.False, "a paused voice stops sounding");
-            Assert.That(sfxSource.isPlaying, Is.False);
-            Assert.That(musicSource.timeSamples, Is.EqualTo(2_000), "the music is held at its playhead");
-            Assert.That(sfxSource.timeSamples, Is.EqualTo(1_000), "the loop is held at its playhead");
-            Assert.That(sfx.HeldVoiceCount, Is.EqualTo(1), "a pause is not a stop");
+                Assert.That(musicSource.isPlaying, Is.False, "a paused voice stops sounding");
+                Assert.That(sfxSource.isPlaying, Is.False);
+                Assert.That(musicSource.timeSamples, Is.EqualTo(2_000), "the music is held at its playhead");
+                Assert.That(sfxSource.timeSamples, Is.EqualTo(1_000), "the loop is held at its playhead");
+                Assert.That(sfx.HeldVoiceCount, Is.EqualTo(1), "a pause is not a stop");
 
-            music.Paused = false;
-            sfx.Paused = false;
+                music.Paused = false;
+                sfx.Paused = false;
 
-            Assert.That(musicSource.isPlaying, Is.True);
-            Assert.That(sfxSource.isPlaying, Is.True);
-            Assert.That(
-                musicSource.timeSamples,
-                Is.EqualTo(2_000).Within(64),
-                "resuming continues rather than restarts"
-            );
-            Assert.That(sfxSource.timeSamples, Is.EqualTo(1_000).Within(64));
-            Assert.That(sfx.HeldVoiceCount, Is.EqualTo(1), "the loop keeps its lease");
-            Assert.That(sfx.Muted, Is.True, "the sound setting survives a pause");
+                Assert.That(musicSource.isPlaying, Is.True);
+                Assert.That(sfxSource.isPlaying, Is.True);
+                Assert.That(
+                    musicSource.timeSamples,
+                    Is.EqualTo(2_000).Within(64),
+                    "resuming continues rather than restarts"
+                );
+                Assert.That(sfxSource.timeSamples, Is.EqualTo(1_000).Within(64));
+                Assert.That(sfx.HeldVoiceCount, Is.EqualTo(1), "the loop keeps its lease");
+                Assert.That(sfx.Muted, Is.True, "the sound setting survives a pause");
+            }
+            finally
+            {
+                _ = sfx.StopLoop(loop);
+            }
         }
 
         [Test]
@@ -292,6 +299,19 @@
             Assert.That(player.DropCounts.Total, Is.Zero);
             Assert.That(player.VoiceCount, Is.EqualTo(1));
             Assert.That(PlayingSource(player) == null, "the reused voice waits at its start");
+        }
+
+        [Test]
+        public void ALowerPriorityCueDoesNotReplaceAPausedOneShot()
+        {
+            SfxCue high = Cue(loop: false, key: "high", priority: SfxPriority.High);
+            SfxCue low = Cue(loop: false, key: "low", priority: SfxPriority.Low);
+            SfxPlayer player = SfxPlayer(Made(SfxLibrary.Create(new[] { high, low }, voiceCount: 1)));
+            Assert.That(player.Play(high), Is.True);
+            player.Paused = true;
+
+            Assert.That(player.Play(low), Is.False, "the paused High cue will resume, so Low cannot take its voice");
+            Assert.That(player.DropCounts.Total, Is.EqualTo(1));
         }
 
         [Test]
@@ -404,12 +424,18 @@
             return Made(new GameObject("music")).AddComponent<MusicPlayer>();
         }
 
-        private SfxCue Cue(bool loop, string key = null, float minimumIntervalSeconds = 0f)
+        private SfxCue Cue(
+            bool loop,
+            string key = null,
+            float minimumIntervalSeconds = 0f,
+            SfxPriority priority = SfxPriority.Medium
+        )
         {
             return Made(
                 SfxCue.Create(
                     new[] { new SfxVariant(Clip()) },
                     key: key,
+                    priority: priority,
                     loop: loop,
                     minimumIntervalSeconds: minimumIntervalSeconds
                 )

@@ -269,41 +269,48 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             MusicPlayContextRequest play = new("town");
             play.EmitUntargeted(_bus);
-            Assert.That(sfx.TryPlayLooping(hum, out _), Is.True);
-            sfx.Muted = true;
+            Assert.That(sfx.TryPlayLooping(hum, out SfxLoopHandle loop), Is.True);
+            try
+            {
+                sfx.Muted = true;
 
-            AudioSource musicSource = PlayingSource(music);
-            AudioSource sfxSource = PlayingSource(sfx);
-            Assert.That(musicSource != null && sfxSource != null, "both players are sounding before the pause");
-            musicSource.timeSamples = 2_000;
-            sfxSource.timeSamples = 1_000;
+                AudioSource musicSource = PlayingSource(music);
+                AudioSource sfxSource = PlayingSource(sfx);
+                Assert.That(musicSource != null && sfxSource != null, "both players are sounding before the pause");
+                musicSource.timeSamples = 2_000;
+                sfxSource.timeSamples = 1_000;
 
-            AudioPauseRequest pause = new(true);
-            pause.EmitUntargeted(_bus);
+                AudioPauseRequest pause = new(true);
+                pause.EmitUntargeted(_bus);
 
-            Assert.That(music.Paused, Is.True);
-            Assert.That(sfx.Paused, Is.True);
-            Assert.That(musicSource.isPlaying, Is.False, "a paused voice stops sounding");
-            Assert.That(sfxSource.isPlaying, Is.False);
-            Assert.That(musicSource.timeSamples, Is.EqualTo(2_000), "the music is held at its playhead");
-            Assert.That(sfxSource.timeSamples, Is.EqualTo(1_000), "the loop is held at its playhead");
+                Assert.That(music.Paused, Is.True);
+                Assert.That(sfx.Paused, Is.True);
+                Assert.That(musicSource.isPlaying, Is.False, "a paused voice stops sounding");
+                Assert.That(sfxSource.isPlaying, Is.False);
+                Assert.That(musicSource.timeSamples, Is.EqualTo(2_000), "the music is held at its playhead");
+                Assert.That(sfxSource.timeSamples, Is.EqualTo(1_000), "the loop is held at its playhead");
 
-            AudioPauseRequest resume = new(false);
-            resume.EmitUntargeted(_bus);
+                AudioPauseRequest resume = new(false);
+                resume.EmitUntargeted(_bus);
 
-            Assert.That(music.Paused, Is.False);
-            Assert.That(sfx.Paused, Is.False);
-            Assert.That(musicSource.isPlaying, Is.True);
-            Assert.That(sfxSource.isPlaying, Is.True);
-            Assert.That(
-                musicSource.timeSamples,
-                Is.EqualTo(2_000).Within(64),
-                "resuming continues rather than restarts"
-            );
-            Assert.That(sfxSource.timeSamples, Is.EqualTo(1_000).Within(64));
-            Assert.That(sfx.HeldVoiceCount, Is.EqualTo(1), "the loop keeps its lease");
-            Assert.That(sfx.Muted, Is.True, "the sound setting survives a pause");
-            Assert.That(music.Current, Is.SameAs(town));
+                Assert.That(music.Paused, Is.False);
+                Assert.That(sfx.Paused, Is.False);
+                Assert.That(musicSource.isPlaying, Is.True);
+                Assert.That(sfxSource.isPlaying, Is.True);
+                Assert.That(
+                    musicSource.timeSamples,
+                    Is.EqualTo(2_000).Within(64),
+                    "resuming continues rather than restarts"
+                );
+                Assert.That(sfxSource.timeSamples, Is.EqualTo(1_000).Within(64));
+                Assert.That(sfx.HeldVoiceCount, Is.EqualTo(1), "the loop keeps its lease");
+                Assert.That(sfx.Muted, Is.True, "the sound setting survives a pause");
+                Assert.That(music.Current, Is.SameAs(town));
+            }
+            finally
+            {
+                _ = sfx.StopLoop(loop);
+            }
         }
 
         private void Unduck(MusicPlayerMessagingCore relay, long duckId)
