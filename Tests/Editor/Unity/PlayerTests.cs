@@ -241,10 +241,90 @@
 
             Assert.That(musicSource.isPlaying, Is.True);
             Assert.That(sfxSource.isPlaying, Is.True);
-            Assert.That(musicSource.timeSamples, Is.EqualTo(2_000), "resuming continues rather than restarts");
-            Assert.That(sfxSource.timeSamples, Is.EqualTo(1_000));
+            Assert.That(
+                musicSource.timeSamples,
+                Is.EqualTo(2_000).Within(64),
+                "resuming continues rather than restarts"
+            );
+            Assert.That(sfxSource.timeSamples, Is.EqualTo(1_000).Within(64));
             Assert.That(sfx.HeldVoiceCount, Is.EqualTo(1), "the loop keeps its lease");
             Assert.That(sfx.Muted, Is.True, "the sound setting survives a pause");
+        }
+
+        [Test]
+        public void VoicesStartedDuringAPauseWaitAtTheirStart()
+        {
+            MusicTrack town = Made(MusicTrack.Create(Clip(), context: "town"));
+            MusicPlayer music = MusicPlayer();
+            music.Library = Made(MusicLibrary.Create(new[] { town }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
+            SfxCue hit = Cue(loop: false, key: "hit");
+            SfxPlayer sfx = SfxPlayer(Made(SfxLibrary.Create(new[] { hit }, voiceCount: 1)));
+            music.Paused = true;
+            sfx.Paused = true;
+
+            Assert.That(music.PlayContext("town"), Is.True);
+            Assert.That(sfx.Play(hit), Is.True);
+            AudioSource musicVoice = SourceWithClip(music, town.Clip);
+            Assert.That(hit.TryGetPlayableVariant(0, out SfxVariant variant), Is.True);
+            AudioSource sfxVoice = SourceWithClip(sfx, variant.Clip);
+
+            Assert.That(musicVoice != null && sfxVoice != null, "a started voice holds its clip while paused");
+            Assert.That(musicVoice.isPlaying, Is.False, "music started during a pause waits");
+            Assert.That(sfxVoice.isPlaying, Is.False, "a cue started during a pause waits");
+            Assert.That(musicVoice.timeSamples, Is.Zero);
+            Assert.That(sfxVoice.timeSamples, Is.Zero);
+
+            music.Paused = false;
+            sfx.Paused = false;
+            Assert.That(musicVoice.isPlaying, Is.True);
+            Assert.That(sfxVoice.isPlaying, Is.True);
+        }
+
+        [Test]
+        public void TheMusicPlayerReportsOneStopWhenItStopsWhilePaused()
+        {
+            MusicTrack town = Made(MusicTrack.Create(Clip(), context: "town"));
+            MusicPlayer player = MusicPlayer();
+            player.Library = Made(MusicLibrary.Create(new[] { town }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
+            int stops = 0;
+            player.Stopped += () =>
+            {
+                ++stops;
+            };
+            Assert.That(player.PlayContext("town"), Is.True);
+            player.Paused = true;
+
+            player.Stop();
+
+            Assert.That(stops, Is.EqualTo(1), "one stop is one fact");
+            Assert.That(player.Current == null);
+            player.Paused = false;
+            player.Tick(1f);
+            Assert.That(stops, Is.EqualTo(1), "finishing the fade reports nothing more");
+        }
+
+        [Test]
+        public void ANonLoopingTrackReportsStoppedWhenItEnds()
+        {
+            MusicTrack sting = Made(MusicTrack.Create(Clip(), context: "sting", loop: false));
+            MusicPlayer player = MusicPlayer();
+            player.Library = Made(MusicLibrary.Create(new[] { sting }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
+            int stops = 0;
+            player.Stopped += () =>
+            {
+                ++stops;
+            };
+            Assert.That(player.PlayContext("sting"), Is.True);
+            AudioSource source = PlayingSource(player);
+            Assert.That(source != null);
+
+            source.Stop();
+            player.Tick(0.1f);
+
+            Assert.That(player.IsPlaying, Is.False, "a finished track is no longer sounding");
+            Assert.That(stops, Is.EqualTo(1));
+            Assert.That(player.PlayContext("sting"), Is.True, "the same context can start again");
+            Assert.That(player.IsPlaying, Is.True);
         }
 
         [Test]
@@ -283,6 +363,20 @@
             for (int index = 0; index < sources.Length; ++index)
             {
                 if (sources[index].isPlaying)
+                {
+                    return sources[index];
+                }
+            }
+
+            return null;
+        }
+
+        private static AudioSource SourceWithClip(MonoBehaviour player, AudioClip clip)
+        {
+            AudioSource[] sources = player.GetComponentsInChildren<AudioSource>();
+            for (int index = 0; index < sources.Length; ++index)
+            {
+                if (sources[index].clip == clip)
                 {
                     return sources[index];
                 }

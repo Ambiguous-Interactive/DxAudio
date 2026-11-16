@@ -4,8 +4,9 @@ namespace WallstopStudios.DxAudio.Integration
 
     /// <summary>A duck a <see cref="MusicPlayerMessaging"/> now holds, and the id that releases it.</summary>
     /// <remarks>
-    /// Broadcast from the player's GameObject. Keep the id: it is the only way to release this hold, and releasing
-    /// another hold's id releases nothing. A duck the player refused answers with no fact.
+    /// Broadcast from the player's GameObject. Keep the id: it releases this hold, and an id the player did not issue
+    /// releases nothing. A <see cref="MusicDuckHolders.One"/> duck is one hold for every holder, so any holder's id
+    /// ends it. A duck the player refused answers with no fact.
     /// </remarks>
     public readonly struct MusicDuckStartedMessage : IBroadcastMessage<MusicDuckStartedMessage>
     {

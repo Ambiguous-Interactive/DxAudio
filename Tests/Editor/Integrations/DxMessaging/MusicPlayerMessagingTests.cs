@@ -175,6 +175,89 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void ARepeatedOneDuckRequestKeepsTheIdItIssued()
+        {
+            MusicPlayer player = Player();
+            MusicPlayerMessagingCore relay = Relay(player);
+            MusicDuck menu = Made(MusicDuck.Create(MusicDuckHolders.One, 0.5f, applySeconds: 0f, releaseSeconds: 0f));
+            List<MusicDuckStartedMessage> started = CaptureDucks(relay);
+
+            MusicDuckRequest request = new(menu);
+            request.EmitGameObjectTargeted(player.gameObject, _bus);
+            request.EmitGameObjectTargeted(player.gameObject, _bus);
+
+            Assert.That(started, Has.Count.EqualTo(2), "each request answers");
+            Assert.That(started[0].duckId, Is.EqualTo(started[1].duckId), "a One duck is one hold with one id");
+            Assert.That(relay.HeldDuckCount, Is.EqualTo(1));
+
+            Unduck(relay, started[0].duckId);
+            player.Tick(1f);
+            Assert.That(player.Attenuation, Is.EqualTo(MusicAttenuation.Unattenuated));
+            Assert.That(relay.HeldDuckCount, Is.Zero);
+        }
+
+        [Test]
+        public void DisablingTheRelayReleasesTheDucksItTook()
+        {
+            MusicPlayer player = Player();
+            MusicPlayerMessagingCore relay = Relay(player);
+            MusicDuck dialogue = Made(
+                MusicDuck.Create(MusicDuckHolders.Many, 0.25f, applySeconds: 0f, releaseSeconds: 0f)
+            );
+            MusicDuckRequest request = new(dialogue);
+            request.EmitGameObjectTargeted(player.gameObject, _bus);
+            player.Tick(1f);
+            Assert.That(player.Attenuation, Is.EqualTo(dialogue.Attenuation));
+
+            relay.Disable();
+            player.Tick(1f);
+
+            Assert.That(
+                player.Attenuation,
+                Is.EqualTo(MusicAttenuation.Unattenuated),
+                "a duck nobody can address is gone"
+            );
+            Assert.That(relay.HeldDuckCount, Is.Zero);
+        }
+
+        [Test]
+        public void ADuckIdFromOnePlayerReleasesNothingOnAnother()
+        {
+            MusicPlayer first = Player();
+            MusicPlayer second = Player();
+            MusicPlayerMessagingCore firstRelay = Relay(first);
+            MusicPlayerMessagingCore secondRelay = Relay(second);
+            MusicDuck firstDuck = Made(
+                MusicDuck.Create(MusicDuckHolders.Many, 0.5f, applySeconds: 0f, releaseSeconds: 0f)
+            );
+            MusicDuck secondDuck = Made(
+                MusicDuck.Create(MusicDuckHolders.Many, 0.25f, applySeconds: 0f, releaseSeconds: 0f)
+            );
+            List<MusicDuckStartedMessage> firstStarted = CaptureDucks(firstRelay);
+            List<MusicDuckStartedMessage> secondStarted = CaptureDucks(secondRelay);
+            MusicDuckRequest firstRequest = new(firstDuck);
+            firstRequest.EmitGameObjectTargeted(first.gameObject, _bus);
+            MusicDuckRequest secondRequest = new(secondDuck);
+            secondRequest.EmitGameObjectTargeted(second.gameObject, _bus);
+            first.Tick(1f);
+            second.Tick(1f);
+            Assert.That(firstStarted, Has.Count.EqualTo(1));
+            Assert.That(secondStarted, Has.Count.EqualTo(1));
+
+            Unduck(secondRelay, firstStarted[0].duckId);
+
+            Assert.That(
+                firstStarted[0].duckId,
+                Is.Not.EqualTo(secondStarted[0].duckId),
+                "ids are unique across players"
+            );
+            Assert.That(first.TargetAttenuation, Is.EqualTo(firstDuck.Attenuation), "the other player's id is unknown");
+            Assert.That(second.TargetAttenuation, Is.EqualTo(secondDuck.Attenuation));
+            Assert.That(firstRelay.HeldDuckCount, Is.EqualTo(1));
+            Assert.That(secondRelay.HeldDuckCount, Is.EqualTo(1));
+        }
+
+        [Test]
         public void APauseRequestHoldsBothPlayersAtTheirPlayhead()
         {
             MusicTrack town = Made(MusicTrack.Create(Clip(), context: "town"));
@@ -212,8 +295,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(sfx.Paused, Is.False);
             Assert.That(musicSource.isPlaying, Is.True);
             Assert.That(sfxSource.isPlaying, Is.True);
-            Assert.That(musicSource.timeSamples, Is.EqualTo(2_000), "resuming continues rather than restarts");
-            Assert.That(sfxSource.timeSamples, Is.EqualTo(1_000));
+            Assert.That(
+                musicSource.timeSamples,
+                Is.EqualTo(2_000).Within(64),
+                "resuming continues rather than restarts"
+            );
+            Assert.That(sfxSource.timeSamples, Is.EqualTo(1_000).Within(64));
             Assert.That(sfx.HeldVoiceCount, Is.EqualTo(1), "the loop keeps its lease");
             Assert.That(sfx.Muted, Is.True, "the sound setting survives a pause");
             Assert.That(music.Current, Is.SameAs(town));

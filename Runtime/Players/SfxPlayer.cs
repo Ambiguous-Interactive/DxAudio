@@ -118,7 +118,11 @@ namespace WallstopStudios.DxAudio
             set => _listener = value;
         }
 
-        /// <summary>Whether every voice is held at its playhead. Voices, loops and leases are kept while paused.</summary>
+        /// <summary>Whether every sounding voice is held at its playhead. Loops and leases are kept while paused.</summary>
+        /// <remarks>
+        /// A voice started during the pause waits at its start. A one-shot voice that is paused may be reused by a cue
+        /// that starts during the pause, because neither is audible.
+        /// </remarks>
         public bool Paused
         {
             get => _paused;

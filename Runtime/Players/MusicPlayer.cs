@@ -79,7 +79,11 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        /// <summary>Whether every voice is held at its playhead. State, fades and ducks are kept while paused.</summary>
+        /// <summary>Whether every sounding voice is held at its playhead. State, fades and ducks are kept while paused.</summary>
+        /// <remarks>
+        /// A track started during the pause waits at its start. A voice that is paused may be reused by a track that
+        /// starts during the pause, because neither is audible.
+        /// </remarks>
         public bool Paused
         {
             get => _paused;
@@ -270,6 +274,20 @@ namespace WallstopStudios.DxAudio
                     continue;
                 }
 
+                if (
+                    voice == _current
+                    && !_paused
+                    && voice.track != null
+                    && !voice.source.loop
+                    && !voice.source.isPlaying
+                )
+                {
+                    // A one-shot track ended on its own. Clear it, so a listener hears the stop and the same context
+                    // can start again.
+                    Silence(voice);
+                    continue;
+                }
+
                 float fade = voice.fade.Advance(step);
                 if (voice.stop.TryFinish(_clock))
                 {
@@ -306,9 +324,16 @@ namespace WallstopStudios.DxAudio
             MusicEase fadeInEase = _library != null ? _library.FadeInEase : MusicEase.Linear;
             if (next == null)
             {
-                FadeOut(_current);
-                _current = null;
-                Stopped?.Invoke();
+                if (_current != null)
+                {
+                    FadeOut(_current);
+                    if (_current != null)
+                    {
+                        _current = null;
+                        Stopped?.Invoke();
+                    }
+                }
+
                 return;
             }
 
@@ -325,7 +350,7 @@ namespace WallstopStudios.DxAudio
                     reclaimable.fadingOut = false;
                     reclaimable.fade = reclaimable.fade.Retarget(1f, fadeIn, fadeInEase);
                     _current = reclaimable;
-                    TrackChanged?.Invoke(reclaimable.track);
+                    TrackChanged?.Invoke(next);
                     return;
                 default:
                     FadeOut(_current);
@@ -394,9 +419,10 @@ namespace WallstopStudios.DxAudio
                 return;
             }
 
-            // A voice not reporting playback (a clip still loading, a paused listener) is stopped outright,
-            // so it cannot resume later under the music that replaced it.
-            if (!voice.source.isPlaying)
+            // A voice not reporting playback (a clip still loading, a paused listener, a paused player) is stopped
+            // outright, so it cannot resume later under the music that replaced it. A paused voice is kept: the
+            // player is holding it on purpose, and its own stop schedule silences it while the pause lasts.
+            if (!voice.source.isPlaying && !_paused)
             {
                 Silence(voice);
                 return;

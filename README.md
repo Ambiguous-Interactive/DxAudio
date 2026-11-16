@@ -213,8 +213,9 @@ _registration.RegisterUntargeted<DialogueStarted>(m => _lease = _music.Duck(_dia
 _registration.RegisterUntargeted<DialogueEnded>(m => _music.Unduck(_dialogueDuck, m.speaker));
 ```
 
-Pause holds every voice at its playhead and keeps loops, leases and mute state, so resume continues rather than
-restarts. It is separate from `AudioListener.pause`: set it when the game wants audio held.
+Pause holds every sounding voice at its playhead and keeps loops, leases and mute state, so resume continues rather than
+restarts. A cue or track started during the pause waits at its start. It is separate from `AudioListener.pause`: set it
+when the game wants audio held.
 
 ```csharp
 _sfx.Paused = paused;
@@ -279,9 +280,12 @@ music.EmitUntargeted();
 MusicDuckRequest duck = new(_dialogueDuck, speaker);
 duck.EmitGameObjectTargeted(musicPlayerObject);
 
-// Later, or from any handler: release the hold the answer named.
-MusicUnduckRequest unduck = new(message.duckId);
-unduck.EmitGameObjectTargeted(musicPlayerObject);
+// The answer carries the id that releases this hold.
+private void HandleDuck(MusicDuckStartedMessage message)
+{
+    MusicUnduckRequest unduck = new(message.duckId);
+    unduck.EmitGameObjectTargeted(musicPlayerObject);
+}
 
 AudioPauseRequest pause = new(true);
 pause.EmitUntargeted();

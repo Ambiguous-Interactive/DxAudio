@@ -5,7 +5,8 @@ namespace WallstopStudios.DxAudio.Integration
     /// <summary>Releases the duck a <see cref="MusicDuckStartedMessage"/> named.</summary>
     /// <remarks>
     /// Targeted to the same GameObject that took the duck. An id this player did not issue releases nothing, and an
-    /// id whose holder was destroyed releases nothing a second time.
+    /// id whose holder was destroyed releases nothing a second time. A <see cref="MusicDuckHolders.One"/> duck is one
+    /// hold for every holder, so its id ends the duck rather than one share of it.
     /// </remarks>
     public readonly struct MusicUnduckRequest : ITargetedMessage<MusicUnduckRequest>
     {

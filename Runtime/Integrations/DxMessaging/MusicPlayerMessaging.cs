@@ -10,7 +10,7 @@ namespace WallstopStudios.DxAudio.Integration
     /// <see cref="MusicStoppedMessage"/>, which it broadcasts. Ducking is the stateful part: send a targeted
     /// <see cref="MusicDuckRequest"/>, keep the id from <see cref="MusicDuckStartedMessage"/>, and release it with
     /// <see cref="MusicUnduckRequest"/>. Destroying the request's holder releases the duck on the next frame.
-    /// <see cref="AudioPauseRequest"/> pauses or resumes this player and every sound-effect player.
+    /// The component also answers the shared <see cref="AudioPauseRequest"/> for its own player.
     /// <see cref="Core"/> holds everything that decides, so a game can drive the same relay without this component,
     /// and an EditMode test can build it with its own bus.
     /// </remarks>
@@ -68,15 +68,6 @@ namespace WallstopStudios.DxAudio.Integration
             if (_core != null)
             {
                 _core.Enable();
-            }
-        }
-
-        private void Update()
-        {
-            if (_core != null)
-            {
-                // A duck whose holder was destroyed is released by the player; this forgets its id.
-                _core.PruneEndedDucks();
             }
         }
 

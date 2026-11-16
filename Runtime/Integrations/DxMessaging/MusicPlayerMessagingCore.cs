@@ -73,6 +73,10 @@ namespace WallstopStudios.DxAudio.Integration
         }
 
         /// <summary>How many ducks this relay took and has not released.</summary>
+        /// <remarks>
+        /// A duck whose holder was destroyed is released by the player, and its id is forgotten on the next duck or
+        /// unduck request.
+        /// </remarks>
         public int HeldDuckCount
         {
             get { return _ducks.Count; }
@@ -189,14 +193,20 @@ namespace WallstopStudios.DxAudio.Integration
                 return;
             }
 
-            long duckId = ++_nextDuckId;
-            _ducks.Add(duckId, lease);
+            // A One duck asserted again is the same hold, so it keeps the id a caller already has.
+            long duckId = FindDuckId(lease);
+            if (duckId == 0)
+            {
+                duckId = ++_nextDuckId;
+                _ducks.Add(duckId, lease);
+            }
 
             Broadcast(new MusicDuckStartedMessage(duckId, request.duck));
         }
 
         private void HandleUnduck(MusicUnduckRequest request)
         {
+            PruneEndedDucks();
             if (!_ducks.TryGetValue(request.duckId, out MusicDuckLease lease))
             {
                 return;
@@ -259,6 +269,20 @@ namespace WallstopStudios.DxAudio.Integration
             }
 
             _ducks.Clear();
+        }
+
+        /// <summary>The id already issued for <paramref name="lease"/>, or zero when it has none.</summary>
+        private long FindDuckId(in MusicDuckLease lease)
+        {
+            foreach (KeyValuePair<long, MusicDuckLease> held in _ducks)
+            {
+                if (held.Value.Equals(lease))
+                {
+                    return held.Key;
+                }
+            }
+
+            return 0;
         }
     }
 }
