@@ -36,6 +36,25 @@ namespace WallstopStudios.DxAudio
             return reason != null && _active.TryGetValue(reason, out ReasonHold hold) ? hold.holders.Count : 0;
         }
 
+        /// <summary>Whether <paramref name="lease"/> is one of the live holds this stack issued.</summary>
+        public bool IsHeld(in MusicDuckLease lease)
+        {
+            if (!lease.IsValid || !lease.IssuedBy(this) || !_active.TryGetValue(lease.reason, out ReasonHold held))
+            {
+                return false;
+            }
+
+            for (int index = 0; index < held.holders.Count; ++index)
+            {
+                if (held.holders[index].id == lease.Id)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         /// <summary>Holds the music at <paramref name="attenuation"/> for <paramref name="reason"/>.</summary>
         /// <param name="reason">Why. Its <see cref="IMusicDuckReason.Holders"/> decides what a repeat means.</param>
         /// <param name="attenuation">How far down. A repeat of a held reason replaces it.</param>

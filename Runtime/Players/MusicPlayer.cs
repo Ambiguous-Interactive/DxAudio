@@ -37,6 +37,7 @@ namespace WallstopStudios.DxAudio
         private bool _playsWhilePaused = true;
 
         private readonly MusicDuckStack _ducks = new();
+        private bool _paused;
         private readonly Voice[] _voices = new Voice[VoiceCount];
         private MusicOverride<MusicTrack> _selection;
         private Voice _current;
@@ -51,6 +52,16 @@ namespace WallstopStudios.DxAudio
             set => _library = value;
         }
 
+        /// <summary>Raised when the music that should sound changes to <c>track</c>. Additive.</summary>
+        /// <remarks>
+        /// The track is the selection the player now plays, which can be the context's music or an override. A
+        /// selection that names the same music as the one already sounding is not a change and raises nothing.
+        /// </remarks>
+        public event Action<MusicTrack> TrackChanged;
+
+        /// <summary>Raised when the music is stopped, finishes, or is silenced. Additive.</summary>
+        public event Action Stopped;
+
         /// <summary>The game's music on/off setting.</summary>
         public bool Muted
         {
@@ -63,6 +74,41 @@ namespace WallstopStudios.DxAudio
                     if (voice != null && voice.source != null)
                     {
                         voice.source.mute = value;
+                    }
+                }
+            }
+        }
+
+        /// <summary>Whether every sounding voice is held at its playhead. State, fades and ducks are kept while paused.</summary>
+        /// <remarks>
+        /// A track started during the pause waits at its start. A voice that is paused may be reused by a track that
+        /// starts during the pause, because neither is audible.
+        /// </remarks>
+        public bool Paused
+        {
+            get => _paused;
+            set
+            {
+                if (_paused == value)
+                {
+                    return;
+                }
+
+                _paused = value;
+                foreach (Voice voice in _voices)
+                {
+                    if (voice == null || voice.source == null)
+                    {
+                        continue;
+                    }
+
+                    if (value)
+                    {
+                        voice.source.Pause();
+                    }
+                    else
+                    {
+                        voice.source.UnPause();
                     }
                 }
             }
@@ -180,6 +226,12 @@ namespace WallstopStudios.DxAudio
             return _ducks.IsActive(duck);
         }
 
+        /// <summary>Whether <paramref name="lease"/> is still a live hold, rather than released or swept.</summary>
+        public bool IsHeld(in MusicDuckLease lease)
+        {
+            return _ducks.IsHeld(lease);
+        }
+
         /// <summary>Every live duck and who holds it, for a diagnostic.</summary>
         public string DescribeDucks()
         {
@@ -222,6 +274,20 @@ namespace WallstopStudios.DxAudio
                     continue;
                 }
 
+                if (
+                    voice == _current
+                    && !_paused
+                    && voice.track != null
+                    && !voice.source.loop
+                    && !voice.source.isPlaying
+                )
+                {
+                    // A one-shot track ended on its own. Clear it, so a listener hears the stop and the same context
+                    // can start again.
+                    Silence(voice);
+                    continue;
+                }
+
                 float fade = voice.fade.Advance(step);
                 if (voice.stop.TryFinish(_clock))
                 {
@@ -258,8 +324,16 @@ namespace WallstopStudios.DxAudio
             MusicEase fadeInEase = _library != null ? _library.FadeInEase : MusicEase.Linear;
             if (next == null)
             {
-                FadeOut(_current);
-                _current = null;
+                if (_current != null)
+                {
+                    FadeOut(_current);
+                    if (_current != null)
+                    {
+                        _current = null;
+                        Stopped?.Invoke();
+                    }
+                }
+
                 return;
             }
 
@@ -276,10 +350,12 @@ namespace WallstopStudios.DxAudio
                     reclaimable.fadingOut = false;
                     reclaimable.fade = reclaimable.fade.Retarget(1f, fadeIn, fadeInEase);
                     _current = reclaimable;
+                    TrackChanged?.Invoke(next);
                     return;
                 default:
                     FadeOut(_current);
                     _current = StartVoice(next, fadeIn, fadeInEase);
+                    TrackChanged?.Invoke(next);
                     return;
             }
         }
@@ -328,6 +404,11 @@ namespace WallstopStudios.DxAudio
             voice.fade = new MusicRamp(0f, 1f, fadeIn, fadeInEase);
             Apply(voice, voice.fade.Value);
             source.Play();
+            if (_paused)
+            {
+                source.Pause();
+            }
+
             return voice;
         }
 
@@ -338,9 +419,10 @@ namespace WallstopStudios.DxAudio
                 return;
             }
 
-            // A voice not reporting playback (a clip still loading, a paused listener) is stopped outright,
-            // so it cannot resume later under the music that replaced it.
-            if (!voice.source.isPlaying)
+            // A voice not reporting playback (a clip still loading, a paused listener, a paused player) is stopped
+            // outright, so it cannot resume later under the music that replaced it. A paused voice is kept: the
+            // player is holding it on purpose, and its own stop schedule silences it while the pause lasts.
+            if (!voice.source.isPlaying && !_paused)
             {
                 Silence(voice);
                 return;
@@ -364,6 +446,7 @@ namespace WallstopStudios.DxAudio
             if (voice == _current)
             {
                 _current = null;
+                Stopped?.Invoke();
             }
         }
 

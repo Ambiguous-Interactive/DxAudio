@@ -48,10 +48,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Reason dialogue = new("dialogue", MusicDuckHolders.Many);
 
             MusicDuckLease first = stack.Take(dialogue, Half, holder: "a");
-            _ = stack.Take(dialogue, Half, holder: "b");
+            MusicDuckLease second = stack.Take(dialogue, Half, holder: "b");
 
             Assert.That(stack.HolderCount(dialogue), Is.EqualTo(2));
+            Assert.That(stack.IsHeld(first), Is.True);
+            Assert.That(stack.IsHeld(second), Is.True, "one holder's lease does not report the other's release");
             Assert.That(stack.Release(first), Is.False, "the target does not move while b still holds");
+            Assert.That(stack.IsHeld(first), Is.False);
+            Assert.That(stack.IsHeld(second), Is.True);
             Assert.That(stack.IsActive(dialogue), Is.True);
             Assert.That(stack.Release(dialogue, holder: "b"), Is.True);
             Assert.That(stack.IsActive(dialogue), Is.False);
@@ -70,7 +74,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(stack.Release(default), Is.False);
             Assert.That(stack.Release(foreign), Is.False, "another stack's lease, though its id matches");
             Assert.That(stack.IsActive(menu), Is.True);
+            Assert.That(stack.IsHeld(lease), Is.True);
+            Assert.That(stack.IsHeld(foreign), Is.False, "another stack's lease is not a hold here");
+            Assert.That(stack.IsHeld(default), Is.False);
             Assert.That(stack.Release(lease), Is.True);
+            Assert.That(stack.IsHeld(lease), Is.False, "a released lease is no longer held");
             _ = stack.Take(menu, Quiet);
             Assert.That(stack.Release(lease), Is.False, "a released lease never releases a later hold");
             Assert.That(stack.Take(null, Half).IsValid, Is.False);

@@ -60,6 +60,8 @@ namespace WallstopStudios.DxAudio
         [Tooltip("The listener a centred cue is placed in front of. Empty uses the main camera's.")]
         private AudioListener _listener;
 
+        private bool _paused;
+
         private readonly SfxThrottle<SfxCue> _throttle = new();
         private readonly SfxSelection<SfxCue> _selection = new();
 
@@ -68,6 +70,7 @@ namespace WallstopStudios.DxAudio
         private SfxPriority[] _priorities = Array.Empty<SfxPriority>();
         private float[] _startedAt = Array.Empty<float>();
         private bool[] _held = Array.Empty<bool>();
+        private bool[] _voicePaused = Array.Empty<bool>();
         private int[] _leases = Array.Empty<int>();
         private int _heldCount;
         private int _nextLease;
@@ -116,6 +119,49 @@ namespace WallstopStudios.DxAudio
             set => _listener = value;
         }
 
+        /// <summary>Whether every sounding voice is held at its playhead. Loops and leases are kept while paused.</summary>
+        /// <remarks>
+        /// A voice started during the pause waits at its start. A paused one-shot is not idle: a cue of equal or higher
+        /// priority may reuse it, but a lower-priority cue is dropped instead, because the paused cue will resume.
+        /// </remarks>
+        public bool Paused
+        {
+            get => _paused;
+            set
+            {
+                if (_paused == value)
+                {
+                    return;
+                }
+
+                _paused = value;
+                for (int index = 0; index < _voices.Length; index++)
+                {
+                    AudioSource voice = _voices[index];
+                    if (voice == null)
+                    {
+                        continue;
+                    }
+
+                    if (value)
+                    {
+                        if (!voice.isPlaying)
+                        {
+                            continue;
+                        }
+
+                        voice.Pause();
+                        _voicePaused[index] = true;
+                    }
+                    else
+                    {
+                        voice.UnPause();
+                        _voicePaused[index] = false;
+                    }
+                }
+            }
+        }
+
         public int VoiceCount => _voices.Length;
 
         public int HeldVoiceCount => _heldCount;
@@ -144,6 +190,7 @@ namespace WallstopStudios.DxAudio
                 // while it makes no sound. It is not busy, and it is silent, so stop it while the pool is being read
                 // anyway.
                 source.Stop();
+                _voicePaused[voice] = false;
             }
 
             state = new SfxVoiceState(
@@ -151,7 +198,8 @@ namespace WallstopStudios.DxAudio
                 VoiceClip.IsSounding(source),
                 _held[voice],
                 _priorities[voice],
-                _startedAt[voice]
+                _startedAt[voice],
+                isPaused: usable && _voicePaused[voice]
             );
             lease = _held[voice] ? _leases[voice] : 0;
             return true;
@@ -229,6 +277,7 @@ namespace WallstopStudios.DxAudio
                 {
                     voice.Stop();
                     voice.loop = false;
+                    _voicePaused[index] = false;
                 }
             }
 
@@ -282,6 +331,7 @@ namespace WallstopStudios.DxAudio
                 {
                     voice.Stop();
                     voice.loop = false;
+                    _voicePaused[index] = false;
                 }
             }
         }
@@ -371,6 +421,12 @@ namespace WallstopStudios.DxAudio
             }
 
             voice.Play();
+            if (_paused)
+            {
+                voice.Pause();
+                _voicePaused[index] = true;
+            }
+
             return true;
         }
 
@@ -448,6 +504,7 @@ namespace WallstopStudios.DxAudio
         private void Release(int index)
         {
             _held[index] = false;
+            _voicePaused[index] = false;
             _heldCount--;
             _leases[index] = ++_nextLease;
         }
@@ -514,6 +571,7 @@ namespace WallstopStudios.DxAudio
             _priorities = new SfxPriority[count];
             _startedAt = new float[count];
             _held = new bool[count];
+            _voicePaused = new bool[count];
             _leases = new int[count];
             _heldCount = 0;
             _roundRobin = 0;

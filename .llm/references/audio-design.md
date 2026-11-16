@@ -60,6 +60,15 @@ Stop() -> fade out
 - Leases are copy-safe values with a generation. Stale, foreign, and default leases release nothing.
 - A destroyed holder is released on the next frame.
 
+## Pause and mute
+
+- Mute detaches output; pause holds every sounding voice at its playhead. Both keep voice, loop, duck and timer state,
+  so resume continues rather than restarts.
+- A voice started while paused is paused at its start. A pause is not a stop: a held loop keeps its lease and its
+  looping-limit slot. A paused one-shot is not idle: an equal or higher cue may reuse its voice, while a lower cue is
+  dropped, because the paused cue will resume.
+- `AudioPauseRequest` is untargeted, so every relay sets `Paused` on its own player.
+
 ## Clip lifetime
 
 - A player never owns a clip, and reads it only through a voice's `AudioSource` at the moment of use. Unity clears a

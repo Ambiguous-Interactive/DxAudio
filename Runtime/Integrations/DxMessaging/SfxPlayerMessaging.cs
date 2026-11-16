@@ -8,6 +8,7 @@ namespace WallstopStudios.DxAudio.Integration
     /// Put this beside a player and send <see cref="SfxPlayRequest"/>, <see cref="SfxLoopRequest"/>,
     /// <see cref="SfxLoopStopRequest"/> and <see cref="SfxStopAllRequest"/> to that GameObject; listen for
     /// <see cref="SfxLoopStartedMessage"/> and <see cref="SfxCueDroppedMessage"/>, which it broadcasts.
+    /// It also answers the shared <see cref="AudioPauseRequest"/> for its own player.
     /// <see cref="Core"/> holds everything that decides, so a game can drive the same relay without this component,
     /// and an EditMode test can build it with its own bus.
     /// <para>
