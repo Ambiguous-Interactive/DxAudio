@@ -153,6 +153,12 @@ All human-readable text uses Simplified Technical English: short, direct, active
 PR bodies carry `**Why:**`, up to five `**What:**` bullets, and `Fixes #N`. CHANGELOG entries are verb-first, one or two
 sentences, at most 300 rendered characters. See [simple-writing](./skills/simple-writing/SKILL.md).
 
+### Merging
+
+An agent with write access merges its own pull requests once every check passes; it does not leave green work for a
+human to merge. Merge the older pull request first, update a conflicting branch from `main` rather than stacking a new
+one, and close the issue the work completes. See [ship-changes](./skills/ship-changes/SKILL.md#landing).
+
 ### LLM Attribution
 
 Agent-written issues, PR bodies, reviews, and comments start with `DISCLOSURE: LLM-GENERATED TEXT` as the first line.

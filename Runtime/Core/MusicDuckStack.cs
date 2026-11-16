@@ -1,5 +1,6 @@
 namespace WallstopStudios.DxAudio
 {
+    using System;
     using System.Collections.Generic;
     using System.Text;
 
@@ -180,6 +181,46 @@ namespace WallstopStudios.DxAudio
         {
             _active.Clear();
             return Recompose();
+        }
+
+        /// <summary>
+        /// Copies every live hold into the given arrays, one entry per holder, so an overlay can draw them
+        /// without building a string of its own.
+        /// </summary>
+        /// <param name="reasons">The reason of each hold. A hold repeats once per holder of a <see cref="MusicDuckHolders.Many"/> reason.</param>
+        /// <param name="holders">Who holds it, or null for a state or an unheld <see cref="MusicDuckHolders.One"/>.</param>
+        /// <param name="ids">The hold's id, the same id its lease carries.</param>
+        /// <returns>
+        /// The number of live holds, which can exceed the entries written when an array is shorter than that.
+        /// </returns>
+        public int CopyHolds(IMusicDuckReason[] reasons, object[] holders, long[] ids)
+        {
+            if (reasons == null || holders == null || ids == null)
+            {
+                return 0;
+            }
+
+            int capacity = Math.Min(reasons.Length, Math.Min(holders.Length, ids.Length));
+            int written = 0;
+            int total = 0;
+            foreach (KeyValuePair<IMusicDuckReason, ReasonHold> entry in _active)
+            {
+                foreach (Hold hold in entry.Value.holders)
+                {
+                    ++total;
+                    if (capacity <= written)
+                    {
+                        continue;
+                    }
+
+                    reasons[written] = entry.Key;
+                    holders[written] = hold.holder;
+                    ids[written] = hold.id;
+                    ++written;
+                }
+            }
+
+            return total;
         }
 
         /// <summary>Every live hold, for a diagnostic.</summary>

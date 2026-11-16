@@ -4,83 +4,156 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     using System.Collections.Generic;
     using NUnit.Framework;
     using UnityEngine;
+    using Object = UnityEngine.Object;
 
     /// <summary>
     /// Keeps the play path honest: the package claims no managed allocation per play.
     /// </summary>
+    /// <remarks>
+    /// <c>GC.GetAllocatedBytesForCurrentThread</c> reports 0 for every call under Unity's Mono, so a test built on it
+    /// passes for any implementation. This suite reads the heap instead: measured on the host editor, 100,000 unmodified
+    /// plays moved it by 0 to 29 KB, while a planted 16-byte allocation per call moved it by 3.4 MB. The ceiling sits
+    /// between those, and <see cref="TheHeapProbeSeesAPlantedAllocation"/> proves the probe can still fail. That control
+    /// keeps its planted strings, because a heap counter that is handed only garbage may commit no segment and report
+    /// 8 KB for 1.6 MB of churn, which is exactly what a CI run showed.
+    /// </remarks>
     public sealed class AllocationTests
     {
-        private readonly List<UnityEngine.Object> _made = new();
+        private const int PlayCount = 100_000;
+        private const int WarmupPlays = 1_024;
 
-        [TearDown]
-        public void TearDown()
+        /// <summary>Bytes the heap may grow over <see cref="PlayCount"/> plays of a path that allocates nothing.</summary>
+        private const long Ceiling = 524_288;
+
+        /// <summary>Char count per planted string. 100,000 of them retain about 45 MB, which no heap counter misses.</summary>
+        private const int PlantedChars = 200;
+
+        /// <summary>Measured windows per probe. The smallest is taken, because heap segments commit in coarse steps.</summary>
+        private const int Windows = 3;
+
+        private static readonly List<string> _plants = new();
+        private long _planted;
+
+        [OneTimeSetUp]
+        public void MeasureThePlantedControl()
         {
-            foreach (UnityEngine.Object made in _made)
-            {
-                if (made != null)
-                {
-                    UnityEngine.Object.DestroyImmediate(made);
-                }
-            }
-
-            _made.Clear();
+            _planted = RetainedPlantGrowth(PlayCount);
+            _plants.Clear();
         }
 
         [Test]
         public void PlayingACueOnAFullPoolDoesNotAllocate()
         {
-            SfxCue cue = Cue();
-            SfxPlayer player = SfxPlayer(SfxLibrary.Create(new[] { cue }, voiceCount: 4));
-
-            for (int i = 0; i < 64; i++)
+            using MadeObjects made = new();
+            SfxCue cue = Cue(made);
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
+            for (int index = 0; index < WarmupPlays; index++)
             {
                 player.Play(cue);
             }
 
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 0; i < 1_000; i++)
-            {
-                player.Play(cue);
-            }
+            long growth = HeapGrowth(() => player.Play(cue), PlayCount);
 
-            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-            Assert.That(allocated, Is.EqualTo(0L), $"Play allocated {allocated} bytes over 1,000 warmed plays.");
+            Assert.That(
+                growth,
+                Is.LessThan(Ceiling),
+                $"Play grew the heap by {growth} bytes over {PlayCount:N0} plays."
+            );
         }
 
         [Test]
         public void PlayingByKeyDoesNotAllocate()
         {
-            SfxCue cue = Cue(key: "hit");
-            SfxPlayer player = SfxPlayer(SfxLibrary.Create(new[] { cue }, voiceCount: 4));
-
-            for (int i = 0; i < 64; i++)
+            using MadeObjects made = new();
+            SfxCue cue = Cue(made, key: "hit");
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
+            for (int index = 0; index < WarmupPlays; index++)
             {
                 player.Play("hit");
             }
 
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 0; i < 1_000; i++)
-            {
-                player.Play("hit");
-            }
+            long growth = HeapGrowth(() => player.Play("hit"), PlayCount);
 
-            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-            Assert.That(allocated, Is.EqualTo(0L), $"Keyed Play allocated {allocated} bytes over 1,000 warmed plays.");
+            Assert.That(
+                growth,
+                Is.LessThan(Ceiling),
+                $"Keyed Play grew the heap by {growth} bytes over {PlayCount:N0} plays."
+            );
         }
 
-        private SfxPlayer SfxPlayer(SfxLibrary library)
+        [Test]
+        public void TheHeapProbeSeesAPlantedAllocation()
         {
-            Made(library);
-            SfxPlayer player = Made(new GameObject("sfx")).AddComponent<SfxPlayer>();
+            Assert.That(
+                _planted,
+                Is.GreaterThan(Ceiling),
+                $"a probe that cannot fail is not evidence; {PlayCount:N0} retained planted strings grew it by {_planted} bytes"
+            );
+        }
+
+        /// <summary>The smallest heap growth of <paramref name="Windows"/> runs of <paramref name="count"/> calls.</summary>
+        /// <remarks>
+        /// A collection at the end would reclaim exactly the churn the test looks for, so the second reading is the raw
+        /// heap. Unity's Mono counts in coarse segments and occasionally commits one inside a window, which made a
+        /// single window fail in a full-suite run; a real regression grows every window, so the smallest one is taken.
+        /// </remarks>
+        private static long HeapGrowth(Action play, int count)
+        {
+            // The first call through the delegate compiles its invoke stub, so it runs outside the measured windows.
+            play();
+            long smallest = long.MaxValue;
+            for (int window = 0; window < Windows; window++)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                long before = GC.GetTotalMemory(forceFullCollection: false);
+                for (int index = 0; index < count; index++)
+                {
+                    play();
+                }
+
+                long growth = GC.GetTotalMemory(forceFullCollection: false) - before;
+                if (growth < smallest)
+                {
+                    smallest = growth;
+                }
+            }
+
+            return smallest;
+        }
+
+        /// <summary>The heap growth of <paramref name="count"/> strings that stay reachable while it measures.</summary>
+        /// <remarks>
+        /// One window is enough here: a collector cannot reclaim retained strings, so the reading cannot fall back to
+        /// zero the way a garbage-only window did on a CI runner (8 KB for 1.6 MB of churn).
+        /// </remarks>
+        private static long RetainedPlantGrowth(int count)
+        {
+            _plants.Clear();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            long before = GC.GetTotalMemory(forceFullCollection: true);
+            for (int index = 0; index < count; index++)
+            {
+                _plants.Add(new string('x', PlantedChars));
+            }
+
+            return GC.GetTotalMemory(forceFullCollection: true) - before;
+        }
+
+        private static SfxPlayer SfxPlayer(MadeObjects made, SfxLibrary library)
+        {
+            made.Track(library);
+            SfxPlayer player = made.Track(new GameObject("sfx")).AddComponent<SfxPlayer>();
             player.Library = library;
             return player;
         }
 
-        private SfxCue Cue(string key = null)
+        private static SfxCue Cue(MadeObjects made, string key = null)
         {
-            return Made(
+            return made.Track(
                 SfxCue.Create(
-                    new[] { new SfxVariant(Clip()), new SfxVariant(Clip()), new SfxVariant(Clip()) },
+                    new[] { new SfxVariant(Clip(made)), new SfxVariant(Clip(made)) },
                     key: key,
                     loop: false,
                     minimumIntervalSeconds: 0f
@@ -88,16 +161,34 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             );
         }
 
-        private AudioClip Clip()
+        private static AudioClip Clip(MadeObjects made)
         {
-            return Made(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
+            return made.Track(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
         }
 
-        private T Made<T>(T made)
-            where T : UnityEngine.Object
+        private sealed class MadeObjects : IDisposable
         {
-            _made.Add(made);
-            return made;
+            private readonly List<Object> _made = new();
+
+            public T Track<T>(T made)
+                where T : Object
+            {
+                _made.Add(made);
+                return made;
+            }
+
+            public void Dispose()
+            {
+                for (int index = 0; index < _made.Count; ++index)
+                {
+                    if (_made[index] != null)
+                    {
+                        Object.DestroyImmediate(_made[index]);
+                    }
+                }
+
+                _made.Clear();
+            }
         }
     }
 }

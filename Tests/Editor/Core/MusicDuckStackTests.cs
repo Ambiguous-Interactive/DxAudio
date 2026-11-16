@@ -77,6 +77,49 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void CopyHoldsReportsEveryLiveHoldAndWhatHoldsIt()
+        {
+            MusicDuckStack stack = new();
+            Reason menu = new("menu", MusicDuckHolders.One);
+            Reason dialogue = new("dialogue", MusicDuckHolders.Many);
+            _ = stack.Take(menu, Half);
+            _ = stack.Take(dialogue, Half, holder: "a");
+            _ = stack.Take(dialogue, Half, holder: "b");
+
+            IMusicDuckReason[] reasons = new IMusicDuckReason[8];
+            object[] holders = new object[8];
+            long[] ids = new long[8];
+            int total = stack.CopyHolds(reasons, holders, ids);
+            int menuCount = 0;
+            int dialogueCount = 0;
+            bool sawA = false;
+            bool sawB = false;
+            for (int index = 0; index < total; index++)
+            {
+                if (ReferenceEquals(reasons[index], menu))
+                {
+                    ++menuCount;
+                }
+                else if (ReferenceEquals(reasons[index], dialogue))
+                {
+                    ++dialogueCount;
+                    sawA |= ReferenceEquals(holders[index], "a");
+                    sawB |= ReferenceEquals(holders[index], "b");
+                }
+            }
+
+            Assert.That(total, Is.EqualTo(3), "one entry per holder");
+            Assert.That(menuCount, Is.EqualTo(1));
+            Assert.That(dialogueCount, Is.EqualTo(2));
+            Assert.That(sawA && sawB, Is.True, "each Many hold names its own holder");
+            Assert.That(ids[0], Is.Not.Zero);
+
+            int shortTotal = stack.CopyHolds(new IMusicDuckReason[1], new object[1], new long[1]);
+            Assert.That(shortTotal, Is.EqualTo(3), "a short array must not hide the holds it cannot fit");
+            Assert.That(stack.CopyHolds(null, holders, ids), Is.Zero);
+        }
+
+        [Test]
         public void DescribeAndClear()
         {
             MusicDuckStack stack = new();

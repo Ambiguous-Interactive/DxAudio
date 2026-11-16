@@ -62,12 +62,14 @@ Stop() -> fade out
 
 ## Allocation budget
 
-| Path                    | Budget                                |
-| ----------------------- | ------------------------------------- |
-| `SfxPlayer.Play`        | 0 bytes per call                      |
-| Per-frame player update | 0 bytes                               |
-| Duck compose per frame  | 0 bytes                               |
-| `DescribeDucks()`       | allowed to allocate; diagnostics only |
+| Path                                           | Budget                                |
+| ---------------------------------------------- | ------------------------------------- |
+| `SfxPlayer.Play`                               | 0 bytes per call                      |
+| Per-frame player update                        | 0 bytes                               |
+| Duck compose per frame                         | 0 bytes                               |
+| `DescribeDucks()`                              | allowed to allocate; diagnostics only |
+| `AudioDiagnosticsOverlay.Sample`, switched off | 0 bytes                               |
+| `AudioDiagnosticsOverlay.Sample`, switched on  | allowed to allocate; diagnostics only |
 
 Per-frame time: music duck application at three voices stays under 1.5 us per frame at p95, with no allocation. Measure
 with [measure-audio-behaviour](../skills/measure-audio-behaviour/SKILL.md). A budget is only real when a probe pins it.
