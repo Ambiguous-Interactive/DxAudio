@@ -1,6 +1,6 @@
 ---
 name: measure-audio-behaviour
-description: Measure DxAudio behavior with warmed allocation probes and timing windows - GC.GetAllocatedBytesForCurrentThread, NUnit AllocatingGCMemory, sample counts, statistics, and noise control. Use when writing or debugging an allocation test, a benchmark, or a performance claim in an issue or PR.
+description: Measure DxAudio behavior with warmed allocation probes, timing windows and applied output gain - GC.GetAllocatedBytesForCurrentThread, NUnit AllocatingGCMemory, heap growth, sample counts, statistics, noise control, and the editor probe for voice and mixer group gain. Use when writing or debugging an allocation test, a benchmark, an output-gain or duck measurement, or a performance claim in an issue or PR.
 metadata:
   category: Feature
 ---
@@ -46,6 +46,72 @@ long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 - Warm at least 8 iterations. 32 is safer for paths that touch more BCL code.
 - Run the same probe on a deliberate allocation to prove the probe can see one: 20 MB of arrays moved the heap by 21 MB
   on this host, while 500 small strings moved it by 4 KB. A probe that cannot fail is not evidence.
+
+## Output gain probe
+
+Edit mode produces no audio samples: `AudioSource.time` stays `0.000`, `AudioSource.GetOutputData` and
+`AudioListener.GetOutputData` return zeros, and `AudioRenderer` captures 0 frames, while `AudioSettings.dspTime` still
+advances. Only play mode or a player build measures samples, and play mode over the bridge stops the editor answering
+([capture-unity-state](./capture-unity-state/SKILL.md#play-mode)). Everywhere else, measure the gain the editor has
+scheduled the audio thread to apply, read from the objects the package writes. Paste this into `script_eval` with
+`internals: true`; the editor mixer types are internal:
+
+```csharp
+float ToDb(float linear) { return 0f < linear ? 20f * Mathf.Log10(linear) : float.NegativeInfinity; }
+
+float GroupChainDb(UnityEngine.Audio.AudioMixerGroup group) {
+    UnityEditor.Audio.AudioMixerGroupController target = group as UnityEditor.Audio.AudioMixerGroupController;
+    if (target == null) { return group == null ? 0f : float.NaN; }
+    UnityEditor.Audio.AudioMixerController mixer = target.controller;
+    UnityEditor.Audio.AudioMixerSnapshotController snapshot =
+        mixer.TargetSnapshot as UnityEditor.Audio.AudioMixerSnapshotController;
+    if (mixer.masterGroup == null || snapshot == null) { return float.NaN; }
+    var pending = new System.Collections.Generic.Queue<(UnityEditor.Audio.AudioMixerGroupController group, float db)>();
+    pending.Enqueue((mixer.masterGroup, 0f));
+    while (0 < pending.Count) {
+        (UnityEditor.Audio.AudioMixerGroupController current, float db) = pending.Dequeue();
+        float fader;
+        if (snapshot.GetValue(current.GetGUIDForVolume(), out fader)) { db += fader; }
+        if (current == target) { return db; }
+        UnityEditor.Audio.AudioMixerGroupController[] children = current.children;
+        if (children != null) { for (int i = 0; i < children.Length; i++) { pending.Enqueue((children[i], db)); } }
+    }
+    return float.NaN;
+}
+
+float VoiceGainDb(AudioSource voice) {
+    if (voice == null) { return float.NaN; }
+    if (voice.mute) { return float.NegativeInfinity; }
+    float listenerDb = voice.ignoreListenerVolume ? 0f : ToDb(AudioListener.volume);
+    return ToDb(voice.volume) + listenerDb + GroupChainDb(voice.outputAudioMixerGroup);
+}
+```
+
+- The voice term is `AudioSource.volume`. `SfxPlayer` writes the cue's volume once at play time and never rewrites it.
+  `MusicPlayer.Tick` rewrites it every frame as `trim * fade * duck`, so a music voice carries all three and an SFX voice
+  carries the cue volume only. `mute` reports silence as `-inf`, never as a gain.
+- The group term adds the selected (`TargetSnapshot`) snapshot's fader dB for the source's group and every ancestor. That
+  is a stored value: it is not the Start Snapshot the mixer begins with when those differ, and it does not show a
+  transition's intermediate state. Read the snapshot, not `AudioMixerGroupController.GetValueForVolume`, which read
+  `0.000` for a `-6 dB` write on a fresh mixer.
+- Drive a player's frames by invoking its internal `Tick` with reflection (`1f / 60f`) when the editor is not in play mode;
+  `Update` never runs there.
+- Measured on 6000.6.7f1 on this Windows 11 host: an `SfxPlayer` cue authored at `volume: 0.5`, routed to a `Music` group
+  at `0 dB`, read `-6.0206`; writing `-6` to that group's snapshot fader read `-12.0206`; `SfxPlayer.Muted = true` read
+  `-inf`. With the fader back at `0` and a `MusicPlayer` voice left unrouted, a duck authored with `applySeconds: 0.25`
+  and `volumeScale 0.5011872` (`-6.00 dB`) read `0`, `-2.82`, `-5.09` and `-6.00` dB after 0, 5, 10 and 15 simulated
+  frames, then held `-6.00`.
+- Pair every read with one change that must move it: an unwritten group fader reads `0.000 dB`, the same number a broken
+  probe returns for everything. A probe that shows the same value before and after a known `-6 dB` write has proven
+  nothing.
+- Limits: the probe cannot see filter response, spatial attenuation, mixer effects, a mixer group's mute or solo state, or
+  clipping, and it reads the editor's selected snapshot rather than a value observed from the audio thread. A muted group
+  still reads its fader dB. The group term needs the editor controller type, so outside the editor it reads `NaN`. It
+  stops at the source mixer's master, so a mixer routed into another mixer's group hides that downstream fader. An exposed
+  parameter written with `AudioMixer.SetFloat` takes over from the snapshot for the rest of the session, so read
+  `AudioMixer.GetFloat` for that parameter too when a game drives one.
+- `AudioMixerController.GetGroupVUInfo` is not a substitute for this probe: on the same host it read `-80 dB` for a group
+  at `0 dB`, still `-80 dB` after a `-12 dB` write, and `-3.6e25` on another call.
 
 ## Timing
 
