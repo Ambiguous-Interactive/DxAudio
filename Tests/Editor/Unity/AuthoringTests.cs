@@ -168,7 +168,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 );
 
                 Assert.That(
-                    MusicClipImport.TryApply(clip, MusicClipLoadType.Auto),
+                    MusicClipImport.TryApply(streamed, MusicClipLoadType.Auto),
                     Is.False,
                     "Auto names no concrete type"
                 );
