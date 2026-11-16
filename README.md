@@ -158,6 +158,26 @@ Music, and SFX groups and their volume sliders. Ducking does not need snapshots,
 at once. The composed level goes to each music voice, and `MusicPlayer.Attenuation` reports the level applied this frame
 while `TargetAttenuation` reports the level the live ducks compose to.
 
+## Clip lifetime
+
+The players never own a clip. A game that loads and unloads clips itself, with Addressables or `Resources`, decides when
+a clip goes. These are the rules that make a release safe:
+
+| Moment                               | What happens                                                                                        |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| Released before its cue plays        | The cue has nothing to play: `Play` returns false and `CueDropped` reports `NotPlayable`.           |
+| Released while an SFX loop plays it  | The hold ends within a frame and the handle then stops nothing.                                     |
+| Released while an SFX one-shot plays | The voice makes no sound and is not busy, so the next `Play` stops it while it reads the pool.      |
+| Released while its music plays       | The music stops. Asking for its context again returns true and starts it once the track has a clip. |
+
+Unity clears a source's clip when that clip's asset is destroyed, and still reports playback with no sound. The players
+check for a missing clip instead of trusting that report, so a voice never stays stranded and a music context never
+sticks as silent. A clip object that survives with its audio data unloaded behaves the same way on the device, and the
+players do not detect it.
+
+Releasing early is safe but cuts the sound short. `Stop` and `StopLoop` end a sound on purpose, so let a music fade
+finish before unloading its clip if you want to hear it.
+
 ## Authoring
 
 - **Cue inspector.** Each take shows where playback starts after its clip's lead-in, with an **Audition** button that

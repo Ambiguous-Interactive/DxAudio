@@ -166,6 +166,14 @@ See [llm-attribution](./skills/llm-attribution/SKILL.md).
 
 ## Dev Container, MCP, and Agent Tooling
 
+- Prefer the MCP servers over shell commands. Use the **GitHub MCP server** for every GitHub read or write: pull request
+  state and files, checks and job logs, review threads, comments, issues, reviews, and merging. Use the **git MCP
+  server** for local repository work: status, diffs, log, show, branches, staging, and commits. Reach for `gh`, `git`,
+  or `curl` only for what a server does not expose, such as `git push`, `git fetch`, worktrees, or a merge that
+  conflicts.
+- Both servers return structured data, paginate predictably, and keep credentials out of the transcript. A shell
+  pipeline over `gh api --jq` is the fallback, not the default.
+
 - The devcontainer installs `nanocoder`, OpenCode v2, Codex, and Claude Code as the non-root user. Never use `sudo npm`;
   rerun `uv run .devcontainer/install_npm_tools.py` or rebuild.
 - Secrets live in gitignored `.env.local` (template `.env.local.example`). Generated agent and MCP configs are

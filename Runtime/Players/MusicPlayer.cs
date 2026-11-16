@@ -80,7 +80,8 @@ namespace WallstopStudios.DxAudio
         public MusicAttenuation TargetAttenuation => _ducks.Current;
 
         /// <summary>Whether the current music is audible, rather than stopped or on its way out.</summary>
-        public bool IsPlaying => _current != null && _current.source != null && _current.source.isPlaying;
+        public bool IsPlaying =>
+            _current != null && _current.source != null && _current.source.clip != null && _current.source.isPlaying;
 
         private MusicOverride<MusicTrack> Selection =>
             _selection ??= new MusicOverride<MusicTrack>(OnSelectionChanged, SameMusicComparer.Instance, IsPlayable);
@@ -102,6 +103,7 @@ namespace WallstopStudios.DxAudio
         public void Play(MusicTrack track)
         {
             _ = Selection.SetContextTrack(track != null && track.IsPlayable ? track : null);
+            Resume();
         }
 
         /// <summary>Fades the music out and clears any override.</summary>
@@ -113,7 +115,13 @@ namespace WallstopStudios.DxAudio
         /// <summary>Plays <paramref name="track"/> over the context's music until the lease is released or disposed.</summary>
         public MusicOverrideLease Override(MusicTrack track)
         {
-            return Selection.Take(track);
+            MusicOverrideLease lease = Selection.Take(track);
+            if (lease.IsValid)
+            {
+                Resume();
+            }
+
+            return lease;
         }
 
         public bool ReleaseOverride(in MusicOverrideLease lease)
@@ -206,12 +214,18 @@ namespace WallstopStudios.DxAudio
                     continue;
                 }
 
+                if (voice.track != null && voice.source.clip == null)
+                {
+                    // Unity clears the source's clip when the track's clip asset is destroyed, and keeps the source
+                    // reporting playback with no sound. Music asked for again starts once a clip is back.
+                    Silence(voice);
+                    continue;
+                }
+
                 float fade = voice.fade.Advance(step);
                 if (voice.stop.TryFinish(_clock))
                 {
-                    voice.source.Stop();
-                    voice.track = null;
-                    voice.fadingOut = false;
+                    Silence(voice);
                     continue;
                 }
 
@@ -270,6 +284,34 @@ namespace WallstopStudios.DxAudio
             }
         }
 
+        /// <summary>Starts the wanted music again when no voice is playing it, even though the selection did not change.</summary>
+        /// <remarks>
+        /// A released clip stops the voice and clears what it played, but the announced selection still names that
+        /// music. Asking for it again is then not a change, so without this second look the request would play nothing.
+        /// The voice counts only while its source still has a clip, so a request in the same frame as a clip comes back
+        /// is not mistaken for music that is already sounding.
+        /// </remarks>
+        private void Resume()
+        {
+            MusicTrack track = Selection.Current;
+            if (track == null || !track.IsPlayable)
+            {
+                return;
+            }
+
+            if (
+                _current != null
+                && _current.source != null
+                && _current.source.clip != null
+                && MusicTrack.SameMusic(_current.track, track)
+            )
+            {
+                return;
+            }
+
+            OnSelectionChanged(track);
+        }
+
         private Voice StartVoice(MusicTrack track, float fadeIn, MusicEase fadeInEase)
         {
             Voice voice = FreeVoice();
@@ -301,9 +343,7 @@ namespace WallstopStudios.DxAudio
             // so it cannot resume later under the music that replaced it.
             if (!voice.source.isPlaying)
             {
-                voice.source.Stop();
-                voice.track = null;
-                voice.fade = MusicRamp.At(0f);
+                Silence(voice);
                 return;
             }
 
@@ -312,6 +352,20 @@ namespace WallstopStudios.DxAudio
             voice.fadingOut = true;
             voice.fade = voice.fade.Retarget(0f, fadeOut, fadeOutEase);
             voice.stop.Arm(_clock, fadeOut);
+        }
+
+        /// <summary>Stops <paramref name="voice"/> and forgets what it played, so it is free for the next track.</summary>
+        private void Silence(Voice voice)
+        {
+            voice.source.Stop();
+            voice.track = null;
+            voice.fadingOut = false;
+            voice.stop.Cancel();
+            voice.fade = MusicRamp.At(0f);
+            if (voice == _current)
+            {
+                _current = null;
+            }
         }
 
         private Voice FindFadingOut(MusicTrack track)

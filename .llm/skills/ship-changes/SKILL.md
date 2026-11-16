@@ -59,14 +59,29 @@ Title at most 50 characters, naming the user-visible effect. No validation trans
 bot, or automation that has not reviewed the pull request. Asking an existing reviewer to re-review after its threads are
 resolved is allowed, and is the way out of a stale blocking review.
 
+## Tooling
+
+Use the MCP servers first, and the shell only for what they cannot do.
+
+| Task                                    | Use                                       | Shell fallback            |
+| --------------------------------------- | ----------------------------------------- | ------------------------- |
+| PR state, files, reviews, review threads | GitHub MCP `pull_request_read`            | `gh pr view --json`       |
+| Check and job status, job logs           | GitHub MCP `actions_list`, `get_job_logs` | `gh pr checks`, `gh run`  |
+| Open, update, or merge a PR              | GitHub MCP `create_pull_request`, `merge_pull_request` | `gh pr merge` |
+| Issues and comments                      | GitHub MCP issue and comment tools        | `gh issue`, `gh api`      |
+| Status, diff, log, show, branch, stage, commit | git MCP `git_status`, `git_diff`, `git_log`, `git_show`, `git_checkout`, `git_add`, `git_commit` | `git ...` |
+| Fetch, push, worktree, conflicting merge | shell                                     | —                         |
+
 ## Landing
 
 An agent with write access lands its own pull requests; it does not wait for a human to merge.
 
 1. Wait until every check on the head commit passes, including `Unity CI Success`. That aggregate treats a skipped
-   Unity matrix job as passing, so fork pull requests pass without waiting on jobs that never run.
+   Unity matrix job as passing, so fork pull requests pass without waiting on jobs that never run. Read the result with
+   the GitHub MCP server (`actions_list` for the run and its jobs, `get_job_logs` for a failure).
 2. Merge the older pull request first. If a newer branch conflicts, update it from `main`, resolve, and let CI rerun.
-3. Use a merge commit, not a squash or a rebase: the review threads and the session commits stay readable.
+3. Merge with the method the repository allows. This repository permits squash merges only, so a session's commits land
+   as one; the pull request body and the review threads are the record of how they were built.
 4. Delete the branch after the merge, and close the issue the body names when the merged code meets its acceptance.
 5. Never force-push a branch under review, and never merge over a failing or queued check.
 

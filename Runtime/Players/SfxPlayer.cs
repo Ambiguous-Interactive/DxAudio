@@ -138,9 +138,16 @@ namespace WallstopStudios.DxAudio
 
             AudioSource source = _voices[voice];
             bool usable = source != null;
+            if (usable && source.clip == null)
+            {
+                // A source whose clip was released reports playback while it makes no sound. It is not busy,
+                // and it is silent, so stop it while the pool is being read anyway.
+                source.Stop();
+            }
+
             state = new SfxVoiceState(
                 usable,
-                usable && source.isPlaying,
+                usable && source.clip != null && source.isPlaying,
                 _held[voice],
                 _priorities[voice],
                 _startedAt[voice]
@@ -242,16 +249,44 @@ namespace WallstopStudios.DxAudio
             DestroyVoices();
         }
 
-        /// <summary>Frees the hold of every loop whose voice was destroyed, so it stops counting against the limit.</summary>
-        private void ReclaimDestroyedLoops()
+        /// <summary>Releases every hold whose voice or clip is gone, so it stops counting against the limit.</summary>
+        /// <remarks>
+        /// Unity clears a source's clip when that clip's asset is destroyed, and leaves the source reporting playback
+        /// with no sound. Without this sweep that voice stays held, and silent, for the rest of the session. It runs
+        /// from <c>Update</c> and again before every play, so a released loop is freed within a frame.
+        /// </remarks>
+        internal void ReclaimLostHolds()
         {
+            if (_heldCount == 0)
+            {
+                return;
+            }
+
             for (int index = 0; index < _voices.Length; index++)
             {
-                if (_held[index] && _voices[index] == null)
+                if (!_held[index])
                 {
-                    Release(index);
+                    continue;
+                }
+
+                AudioSource voice = _voices[index];
+                if (voice != null && voice.clip != null)
+                {
+                    continue;
+                }
+
+                Release(index);
+                if (voice != null)
+                {
+                    voice.Stop();
+                    voice.loop = false;
                 }
             }
+        }
+
+        private void Update()
+        {
+            ReclaimLostHolds();
         }
 
         private bool TryResolve(string key, out SfxCue cue)
@@ -295,7 +330,7 @@ namespace WallstopStudios.DxAudio
                 return Drop(cue, SfxDropReason.Throttled);
             }
 
-            ReclaimDestroyedLoops();
+            ReclaimLostHolds();
 
             int loopingLimit = _library != null ? _library.LoopingVoiceLimit : _voices.Length;
             if (looping && loopingLimit <= _heldCount)

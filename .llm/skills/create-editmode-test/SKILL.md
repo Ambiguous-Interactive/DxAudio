@@ -47,6 +47,12 @@ Data-driven cases use `[TestCase(...)]` plus `TestName` so failures read as scen
 - Create temporary `GameObject`, `AudioSource`, and `ScriptableObject` instances inside a scope that destroys them; Unity objects survive a test otherwise.
 - Stop every loop handle a test starts. A leaked loop keeps its voice and fails later tests for the wrong reason.
 - Restore `AudioListener.volume`, `Time.timeScale`, and player mute state when a test changes them.
+- Never drive a Unity message from a test. `SendMessage("Update")` on an EditMode component raises Unity's internal
+  `ShouldRunBehaviour()` assertion and fails the test. Call the method `Update` calls instead (for example
+  `SfxPlayer.ReclaimLostHolds`, `MusicPlayer.Tick`), which the runtime assembly exposes through
+  `InternalsVisibleTo`.
+- Wait for the domain reload before trusting a run: the editor keeps the previous assembly until it recompiles, so a
+  test edit followed at once by `test run` silently runs the old code. Poll `script recompile_status` first.
 
 ## Running
 

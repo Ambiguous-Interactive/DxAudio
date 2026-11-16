@@ -27,7 +27,10 @@ One line per artifact. Keep it when editing LLM-generated content. Remove it onl
 
 ## Reading review feedback
 
-Fetch every surface before triage: paginated reviews, inline comments and replies, issue comments, and GraphQL review threads.
+Fetch every surface before triage: paginated reviews, inline comments and replies, issue comments, and GraphQL review
+threads. The GitHub MCP server returns review threads and their comments directly (`pull_request_read` with
+`get_review_comments` and `get_reviews`); reach for the API below only for a field the server omits, such as
+`original_commit_id`.
 
 A review comment names the line at the commit the reviewer saw, not the head. Check `original_commit_id` and the review's `commit_id` before calling a finding current or stale:
 

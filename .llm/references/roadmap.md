@@ -61,10 +61,13 @@ dropped-cue counters.
 
 **Problem:** long tracks and large cue sets need async loading and unloading.
 
-**Scope:** document clip lifetime rules; add a load handle or a release-safe play path. Define what happens when a clip
-is released while a voice holds it.
+**Scope:** clip lifetime is delivered (PR #31, unreleased): a destroyed clip frees its voice within a frame while the
+player is enabled, a released cue is refused as `NotPlayable`, and music whose clip is gone stops and can start again.
+What remains is streaming versus decompressed clips for long tracks, and detection of a clip object whose audio data was
+unloaded but not destroyed.
 
-**Acceptance:** a test that releases a clip during playback and observes a defined outcome.
+**Acceptance:** a measurement that decides streaming versus decompressed for a long track, recorded in
+[audio-design](./audio-design.md).
 
 ## 6. Documentation site and sample scene
 

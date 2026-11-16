@@ -20,6 +20,14 @@ All notable changes to this package are documented here. The format follows
 
 - Local development harness, gates, and MCP tooling for this repository. No package behavior changes.
 
+### Fixed
+
+- Free a voice whose clip was destroyed. Unity keeps the source reporting playback with no clip, so a released loop held
+  its voice and its looping slot for the session. A stranded voice hid idle ones, and music reported playback it did not
+  make ([#15](https://github.com/Ambiguous-Interactive/DxAudio/issues/15)).
+- Start music again when a request names the track that a released clip stopped. The selection had not changed, so the
+  request started nothing ([#15](https://github.com/Ambiguous-Interactive/DxAudio/issues/15)).
+
 ## [0.3.0] - 2026-11-15
 
 ### Added
