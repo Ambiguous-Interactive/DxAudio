@@ -175,8 +175,9 @@ a clip goes. These are the rules that make a release safe:
 Unity clears a source's clip when that clip's asset is destroyed, and keeps the clip assigned when its audio data is
 unloaded, by `AudioClip.UnloadAudioData`, `Resources.UnloadAsset`, or an Addressables release. In both cases the source
 still reports playback with no sound. The players check the clip and its load state instead of trusting that report, so
-a voice never stays stranded and a music context never sticks as silent. Only `Unloaded` counts as gone: a streaming
-clip reports `Loading` or `Partially` while it is fine.
+a voice never stays stranded and a music context never sticks as silent. `Unloaded` and `Failed` count as gone, and the
+check reads a voice that reports playback, so a streaming clip that reports `Loading` or `Partially` as it starts is not
+mistaken for a released one.
 
 Releasing early is safe but cuts the sound short. `Stop` and `StopLoop` end a sound on purpose, so let a music fade
 finish before unloading its clip if you want to hear it. Load a clip again with `AudioClip.LoadAudioData`, or start it

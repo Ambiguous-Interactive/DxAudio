@@ -213,7 +213,7 @@ namespace WallstopStudios.DxAudio
                     continue;
                 }
 
-                if (voice.track != null && !VoiceClip.HoldsSound(voice.source))
+                if (voice.track != null && VoiceClip.HasLostSound(voice.source))
                 {
                     // Unity clears the source's clip when the track's clip asset is destroyed, and keeps the source
                     // reporting playback with no sound when its audio data is unloaded. Music asked for again starts

@@ -53,6 +53,10 @@ The project pin must be the ENCLOSING Unity project, not `Packages/`. Pointing i
 - **Port already in use:** the bridge moves to the next free port and persists `UNITY_MCP_HTTP_PORT`. Delete a VS Code forwarded port that shadows the host listener.
 - **Empty tool list:** the Pipeline package has not loaded, or the wrong editor answered. Run `npm run unity:mcp:doctor`.
 - **Editor not ready:** editor-dependent tools fail until an editor is open for the pinned project. `unity open <project>`.
+- **`WARNING: Parameter 'NoTypeInformation' is obsolete`:** host shell noise, not the bridge. `npm run unity:mcp:host`
+  spawns `uv run` then `scripts/unity_mcp_host.py`, and neither one calls PowerShell: the same command under `cmd /c` and
+  under `pwsh` with the interactive profile prints no warning. The line comes from a PowerShell 7 terminal hook that runs
+  after each command, so fix that hook instead of the repository.
 
 ## When no bridge runs
 

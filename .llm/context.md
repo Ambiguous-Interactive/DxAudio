@@ -45,7 +45,7 @@ Runtime/                              # The shipped assembly (WallstopStudios.Dx
     UnityObjects.cs                   # The only Unity-aware shim in Core
   Assets/                             # ScriptableObject data: SfxCue, SfxVariant, SfxLibrary,
                                       # MusicTrack, MusicLibrary, MusicDuck
-  Players/                            # MonoBehaviours: SfxPlayer, MusicPlayer
+  Players/                            # MonoBehaviours SfxPlayer and MusicPlayer, plus the VoiceClip helper
 Editor/                               # Editor-only assembly: cue and duck inspectors, library validation
 Tests/Editor/                          # EditMode tests, mirroring Core/ and Unity/
   Core/                               # Engine-free tests, shared with .net-tests

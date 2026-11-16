@@ -157,11 +157,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 player.ReclaimLostHolds();
                 int heldAfterUnload = player.HeldVoiceCount;
                 bool staleStops = player.StopLoop(held);
-                _ = player.TryGetVoiceState(held.voice, out SfxVoiceState read, out _);
+                _ = player.TryGetVoiceState(held.voice, out SfxVoiceState read, out int lease);
 
                 Assert.That(heldAfterUnload, Is.Zero, "a clip with no audio data cannot hold a voice");
                 Assert.That(staleStops, Is.False, "the hold is gone, so its handle stops nothing");
-                Assert.That(read.isPlaying, Is.False, "a voice over a clip with no data is not busy");
+                Assert.That(read.isUsable, Is.True, "the voice itself is still there for the next cue");
+                Assert.That(lease, Is.Zero, "a freed voice holds no lease");
                 Assert.That(
                     player.TryPlayLooping(other, out SfxLoopHandle restarted),
                     Is.True,
@@ -171,7 +172,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
             finally
             {
-                Assert.That(unloaded.LoadAudioData(), Is.True, "the fixture leaves its clip playable");
+                unloaded.LoadAudioData();
             }
         }
 
@@ -195,39 +196,45 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
                 Assert.That(player.IsPlaying, Is.False, "music over a clip with no data makes no sound");
                 player.Tick(0.016f);
-                Assert.That(player.IsPlaying, Is.False, "the voice stops instead of reporting playback");
+
+                int stranded = 0;
+                for (int index = 0; index < player.transform.childCount; ++index)
+                {
+                    AudioSource voice = player.transform.GetChild(index).GetComponent<AudioSource>();
+                    if (voice != null && voice.clip == unloaded)
+                    {
+                        ++stranded;
+                        Assert.That(voice.isPlaying, Is.False, "the frame sweep stops the voice it stranded");
+                    }
+                }
+
+                Assert.That(stranded, Is.EqualTo(1), "one music voice played the clip with no data");
                 Assert.That(player.PlayContext("cave"), Is.True);
                 Assert.That(player.IsPlaying, Is.True, "a voice the unloaded clip gave up plays the next track");
             }
             finally
             {
-                Assert.That(unloaded.LoadAudioData(), Is.True, "the fixture leaves its clip playable");
+                unloaded.LoadAudioData();
             }
         }
 
         /// <summary>The committed sound file, with its audio data loaded: only an imported clip can unload data.</summary>
         private static AudioClip ImportedClip()
         {
-            string[] candidates = AssetDatabase.FindAssets("t:AudioClip");
-            for (int index = 0; index < candidates.Length; index++)
-            {
-                string path = AssetDatabase.GUIDToAssetPath(candidates[index]);
-                AudioClip found = path.EndsWith("/Data/TestTone.wav", StringComparison.Ordinal)
-                    ? AssetDatabase.LoadAssetAtPath<AudioClip>(path)
-                    : null;
-                if (found == null)
-                {
-                    continue;
-                }
+            // Pinned by GUID: the host project may carry a file of the same name, and unloading that one would be both
+            // wrong and destructive.
+            string path = AssetDatabase.GUIDToAssetPath("5081b21fa3e1420dbfaac900a77b4b24");
+            AudioClip found = path.Length == 0 ? null : AssetDatabase.LoadAssetAtPath<AudioClip>(path);
+            Assert.That(
+                found != null,
+                Is.True,
+                "Tests/Editor/Unity/Data/TestTone.wav is missing or was not imported as an AudioClip."
+            );
 
-                // A freshly imported clip reports its data as unloaded until something loads it.
-                Assert.That(found.LoadAudioData(), Is.True, "the fixture clip loads its audio data");
-                Assert.That(found.loadState, Is.EqualTo(AudioDataLoadState.Loaded));
-                return found;
-            }
-
-            Assert.Fail("Tests/Editor/Unity/Data/TestTone.wav is missing or was not imported as an AudioClip.");
-            return null;
+            // A freshly imported clip reports its data as unloaded until something loads it.
+            Assert.That(found.LoadAudioData(), Is.True, "the fixture clip loads its audio data");
+            Assert.That(found.loadState, Is.EqualTo(AudioDataLoadState.Loaded));
+            return found;
         }
 
         private static SfxPlayer SfxPlayer(MadeObjects made, SfxLibrary library)

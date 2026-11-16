@@ -138,10 +138,11 @@ namespace WallstopStudios.DxAudio
 
             AudioSource source = _voices[voice];
             bool usable = source != null;
-            if (usable && !VoiceClip.HoldsSound(source))
+            if (usable && VoiceClip.HasLostSound(source))
             {
-                // A source whose clip was released, or whose data was unloaded, reports playback while it makes no
-                // sound. It is not busy, and it is silent, so stop it while the pool is being read anyway.
+                // A source whose clip was released, or whose data was unloaded while it played, reports playback
+                // while it makes no sound. It is not busy, and it is silent, so stop it while the pool is being read
+                // anyway.
                 source.Stop();
             }
 
@@ -271,7 +272,7 @@ namespace WallstopStudios.DxAudio
                 }
 
                 AudioSource voice = _voices[index];
-                if (VoiceClip.HoldsSound(voice))
+                if (!VoiceClip.HasLostSound(voice))
                 {
                     continue;
                 }
