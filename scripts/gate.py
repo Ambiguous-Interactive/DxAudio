@@ -262,11 +262,15 @@ def _packaged_globs() -> Tuple[str, ...]:
 def documentation_paths_changed(paths: Sequence[str]) -> bool:
     """Return whether any changed path can affect the docs and sample lint.
 
-    The lint reads Markdown links and sample scene GUID references, so an
-    edit to either kind of file can change its verdict. A deletion counts:
-    the link that pointed at the deleted file now dangles.
+    The lint reads Markdown links and sample scene GUID references. A script
+    or its companion can change that verdict too: deleting or renaming one
+    orphans the GUID a sample scene stores, which no compiler notices. A
+    deletion counts for the same reason: the link that pointed at the
+    deleted file now dangles.
     """
-    return any(path.replace("\\", "/").endswith((".md", ".unity")) for path in paths)
+    return any(
+        path.replace("\\", "/").endswith((".md", ".unity", ".meta", ".cs")) for path in paths
+    )
 
 
 def package_paths_changed(paths: Sequence[str], packaged_globs: Sequence[str]) -> bool:

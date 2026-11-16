@@ -65,9 +65,9 @@ retest.
 
 ## The sample scene will not open
 
-Import the sample from the Package Manager **Samples** tab. A copy under `Assets/Samples` keeps its script references.
-When you work from a checkout, copy `Samples~/BasicUsage` into the project's `Assets/` folder first; Unity does not show
-folders whose name ends in `~`.
+The npm payload carries no sample. Install the package from git or a checkout to list it in the Package Manager
+**Samples** tab, or copy `Samples~/BasicUsage` into the project's `Assets/` folder; Unity does not show folders whose
+name ends in `~`. A copy under `Assets/` keeps its script references.
 
 ## More
 

@@ -11,6 +11,7 @@ real lint as a subprocess against its own throwaway tree.
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -43,6 +44,23 @@ class LintSandbox:
 
     def write(self, relative: str, content: str) -> None:
         write_fixture_file(self.root, relative, content)
+
+    def commit_all(self) -> None:
+        """Make the tree a git repository whose current content is committed."""
+        for arguments in (
+            ("init", "-q"),
+            ("config", "user.email", "agent@example.com"),
+            ("config", "user.name", "Agent"),
+            ("add", "-A"),
+            ("commit", "-q", "-m", "base"),
+        ):
+            completed = subprocess.run(
+                ["git", "-C", str(self.root), *arguments],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            assert_exit_code(0, f"git {' '.join(arguments)} failed: {completed.stderr}", completed.returncode)
 
     def run(self) -> None:
         self.output, self.last_exit = run_tool_output(
@@ -144,6 +162,32 @@ def case_sample_scene_reference_must_resolve() -> None:
         sandbox.destroy()
 
 
+def case_untracked_targets_are_not_committed() -> None:
+    sandbox = LintSandbox()
+    try:
+        seed_manual(sandbox)
+        sandbox.commit_all()
+
+        # A link to a scratch file resolves on this machine but not on a
+        # fresh checkout, so it must fail even though the file exists.
+        sandbox.write("Documentation~/scratch.md", "# Scratch\n")
+        sandbox.write("Documentation~/index.md", "# Manual\n\nSee [scratch](scratch.md).\n")
+        sandbox.run()
+        assert_exit_code(1, "a link to an untracked file must fail", sandbox.last_exit)
+        assert_true("scratch.md" in sandbox.output, "the failure names the untracked target")
+
+        # The same rule guards GUIDs: a .meta the commit does not carry will
+        # not exist for the reader who imports the sample.
+        sandbox.write("Samples~/Demo/Demo.unity", f"--- !u!114\n  m_Script: {{guid: {GUID}, type: 3}}\n")
+        sandbox.write("Runtime/Players.cs.meta", f"fileFormatVersion: 2\nguid: {GUID}\n")
+        sandbox.write("README.md", "# Package\n")
+        sandbox.run()
+        assert_exit_code(1, "a GUID owned by an untracked .meta must fail", sandbox.last_exit)
+        assert_true(GUID in sandbox.output, "the failure names the uncommitted GUID")
+    finally:
+        sandbox.destroy()
+
+
 def case_built_in_scene_guids_are_allowed() -> None:
     sandbox = LintSandbox()
     try:
@@ -164,6 +208,7 @@ CASES = (
     case_duplicate_heading_anchors_are_numbered,
     case_external_and_code_links_are_skipped,
     case_sample_scene_reference_must_resolve,
+    case_untracked_targets_are_not_committed,
     case_built_in_scene_guids_are_allowed,
 )
 

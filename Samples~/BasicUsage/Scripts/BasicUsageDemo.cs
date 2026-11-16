@@ -42,7 +42,6 @@ namespace WallstopStudios.DxAudio.Samples
             {
                 _message = "Assign the Sfx Player and the Music Player in the inspector.";
                 Debug.LogWarning(_message, this);
-                enabled = false;
                 return;
             }
 
@@ -97,6 +96,14 @@ namespace WallstopStudios.DxAudio.Samples
         {
             GUILayout.BeginArea(new Rect(20f, 20f, 360f, 260f), GUI.skin.box);
             GUILayout.Label("DxAudio Basic Usage");
+
+            if (_sfx == null || _music == null)
+            {
+                // Start explains the missing reference; drawing here keeps the hint visible.
+                GUILayout.Label(_message);
+                GUILayout.EndArea();
+                return;
+            }
 
             if (GUILayout.Button("Play cue"))
             {

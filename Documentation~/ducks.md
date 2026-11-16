@@ -52,9 +52,9 @@ attenuation a chosen set of ducks composes to.
 ## Reasons for code
 
 A duck asset is a reason a designer can see. Code that holds the music for its own reason can use a plain object:
-`MusicDuckReasonTable<TKey>` hands one reason per key, and its constructor takes how many holders that reason allows. An
-enum value or a string works as a key. The stack keys a hold by the reason's reference, so use the table instead of
-creating a new reason on every call.
+`MusicDuckReasonTable<TKey>` hands one reason per key, and its constructor takes a `Func<TKey, MusicDuckHolders>` that
+says which holders each key allows. An enum value or a string works as a key. The stack keys a hold by the reason's
+reference, so use the table instead of creating a new reason on every call.
 
 ## Trouble
 

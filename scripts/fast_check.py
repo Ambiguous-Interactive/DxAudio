@@ -129,10 +129,11 @@ def build_plan(repo_root: Path, base_sha: str) -> FastCheckPlan:
         base_sha=base_sha,
         csharp=tuple(path for path in existing if path.endswith(".cs")),
         markdown=tuple(path for path in existing if path.endswith(".md")),
-        # The docs lint resolves relative links and sample scene GUIDs, so a
-        # Markdown edit or a sample scene edit can break it; neither shows up
-        # in a compiler.
-        docs=any(path.endswith((".md", ".unity")) for path in changed),
+        # The docs lint resolves relative links and sample scene GUIDs. A
+        # Markdown or scene edit can break a link or a reference, and a script
+        # or companion edit can orphan the GUID a scene stores; neither shows
+        # up in a compiler.
+        docs=any(path.endswith((".md", ".unity", ".meta", ".cs")) for path in changed),
         harness=any(is_surface_path(path) for path in changed),
         packaging=any(path.startswith(("Runtime/", "Editor/", "Tests/", ".net-tests/")) or path == "package.json" for path in changed),
         # The warning policy covers the shipped sources and the engine-free
