@@ -24,7 +24,7 @@ metadata:
 2. Serialized fields are a public contract. Renaming one needs `[FormerlySerializedAs]` and a `CHANGELOG.md` entry.
 3. New fields need a sane default for assets already on disk. A `null` clip is empty data, not a crash.
 4. Libraries validate keys on `OnValidate` and warn once per duplicate. Do not log every frame.
-5. Sample content belongs in `Samples~` only if it does not ship in the npm payload; otherwise keep tests self-contained with generated clips.
+5. Sample content belongs in `Samples~` only if it does not ship in the npm payload; otherwise keep tests self-contained with generated clips. One exception: `AudioClip.Create` clips cannot unload their audio data, so a clip-lifetime test that needs an unloaded clip uses the committed `Tests/Editor/Unity/Data/TestTone.wav` instead.
 6. Visible asset, folder, and script files need `.meta` companions. See [create-unity-meta](./create-unity-meta/SKILL.md).
 
 ## Inspector work

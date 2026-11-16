@@ -20,6 +20,7 @@ A dirty or playing editor means **refuse and name the scenes**. A modal dialog b
 ## Safe reads
 
 - `tools.unity.eval` compiles C# statements. End with `return (...);`. Keep return values simple strings or numbers; heavier reflective results are unreliable.
+- Bound every host file scan. A recursive `Directory.GetFiles` over `%USERPROFILE%\AppData` blocks the editor main thread for minutes, and every bridge call times out until it returns. Name exact paths, cap the file count, and skip broad trees; nothing else in the session can run meanwhile.
 - `tools.unity.run_tests` with a fixture-name `filter` returns per-test results in seconds.
 - `EditorUtility.CreateGameObjectWithHideFlags(name, HideFlags.HideAndDontSave)` creates an object that belongs to no scene and does not dirty it. Plain `new GameObject` lands in the
   active scene and dirties it.

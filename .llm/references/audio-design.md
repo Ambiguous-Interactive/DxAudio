@@ -62,18 +62,33 @@ Stop() -> fade out
 
 ## Clip lifetime
 
-- A player never owns a clip, and reads it only through a Unity null check at the moment of use. Unity clears a source's
-  clip when that clip's asset is destroyed, so a cue or track that points at a destroyed clip is not playable.
-- A destroyed clip still leaves its source reporting playback with no sound. Never trust `isPlaying` alone: a voice is
-  busy only while it holds a clip and reports playback.
+- A player never owns a clip, and reads it only through a voice's `AudioSource` at the moment of use. Unity clears a
+  source's clip when that clip's asset is destroyed, and leaves the clip assigned when its audio data is unloaded, so a
+  cue or track that points at one is not playable.
+- A dead clip still leaves its source reporting playback with no sound. Never trust `isPlaying` alone: a voice is busy
+  only while it holds a clip whose data can play and it reports playback. `VoiceClip` is the one place both players ask,
+  so the loop and music paths agree.
+- Gone means `AudioDataLoadState.Unloaded` or `Failed`: unloaded data was released on purpose, and a failed load never
+  completes. `Loading` and `Partially` play, so they are fine, and a streaming clip reports them while it is healthy.
+- The loss is read from a source that reports playback, not from the asset. A fresh import reports `Unloaded` until
+  something loads it, and a source that starts a clip loads its data as it starts, so requiring `isPlaying` keeps a clip
+  that loads on play from being mistaken for a released one in the frame it starts. A destroyed clip clears the source's
+  clip outright and is reclaimed whether or not the source reports playback. Data unloaded while the listener is paused
+  is detected when playback resumes.
 - A held loop whose clip or source is gone is freed by `SfxPlayer`'s frame sweep, and every voice whose clip is gone is
-  stopped when the pool is next read. A music voice whose clip is gone is stopped in `MusicPlayer.Tick`, so its context
-  can play again.
+  stopped when the pool is next read. A music voice whose clip or data is gone is stopped in `MusicPlayer.Tick`, so its
+  context can play again.
 - Define the outcome, not the timing: a released clip frees a held loop within a frame while the player component is
   enabled, and the stale loop handle stops nothing after it. A one-shot voice is not stopped by that sweep; it makes no
   sound and is not busy, and the next `Play` stops it while it reads the pool.
-- Detected by a null clip only. A clip object that survives with its audio data unloaded (`AudioClip.UnloadAudioData`,
-  `Resources.UnloadAsset`) is not detected, and the voice keeps its slot until the game stops it.
+- Asset-level checks (`SfxVariant.IsPlayable`, `MusicTrack.IsPlayable`) stay null-only. They answer whether an asset is
+  authored; data that Unity unloaded under a live asset is a playback question, not an authoring one.
+- Measured on 6000.6.7f1, host Editor, against a committed imported clip: `UnloadAudioData` returns true and leaves
+  `loadState` at `Unloaded` while the source keeps `isPlaying` true. `Play` on a clip whose data is unloaded reloads it
+  (`loadState` reads `Loaded` right after), so a source that starts again recovers by itself, and only a source already
+  playing when the data went away is stranded. A freshly imported clip reads `Unloaded` until something loads it.
+- The test fixture `Tests/Editor/Unity/Data/TestTone.wav` is an exception to the generated-clip rule: `AudioClip.Create`
+  cannot unload its data, so only an imported asset can exercise this state.
 
 ## Allocation budget
 
