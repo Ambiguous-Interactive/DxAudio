@@ -35,6 +35,9 @@ namespace WallstopStudios.DxAudio.Integration
 
         private readonly Dictionary<long, SfxLoopHandle> _loops = new(InitialLoopCapacity);
 
+        /* Keys are collected before any removal: a dictionary throws when it is changed while enumerated. */
+        private readonly List<long> _endedLoops = new(InitialLoopCapacity);
+
         /*
             Shared by every adapter in the process, so an id minted by one player is never a key in another's map.
             A per-instance counter restarts at 1 and two players would mint the same id, which makes a request aimed
@@ -129,11 +132,14 @@ namespace WallstopStudios.DxAudio.Integration
                 return;
             }
 
+            PruneEndedLoops();
+
             SfxLibrary library = _player.Library;
             if (library == null || !library.TryGetCue(request.key, out SfxCue cue))
             {
-                // Answered by the player's own drop report, which names NotPlayable. Saying it twice would make a
-                // listener count one failure as two.
+                // The player's own drop report never sees this one: the key was resolved here, before the pool. Report
+                // the same fact it would, once, rather than leaving a request that started nothing unexplained.
+                Broadcast(new SfxCueDroppedMessage(null, SfxDropReason.NotPlayable));
                 return;
             }
 
@@ -149,8 +155,7 @@ namespace WallstopStudios.DxAudio.Integration
             long loopId = ++_nextLoopId;
             _loops.Add(loopId, handle);
 
-            SfxLoopStartedMessage startedMessage = new(loopId, request.key);
-            startedMessage.EmitGameObjectBroadcast(gameObject);
+            Broadcast(new SfxLoopStartedMessage(loopId, request.key));
         }
 
         private void HandleStopLoop(SfxLoopStopRequest request)
@@ -193,8 +198,53 @@ namespace WallstopStudios.DxAudio.Integration
 
         private void HandleCueDropped(SfxCue cue, SfxDropReason reason)
         {
-            SfxCueDroppedMessage message = new(cue, reason);
-            message.EmitGameObjectBroadcast(gameObject);
+            Broadcast(new SfxCueDroppedMessage(cue, reason));
+        }
+
+        /// <summary>
+        /// Announces a fact from this player on the bus its registrations use.
+        /// </summary>
+        /// <remarks>
+        /// The bus is named explicitly rather than left to the global default: a component configured with its own bus
+        /// would otherwise answer a request it heard on that bus with a fact nobody there can hear.
+        /// </remarks>
+        private void Broadcast<T>(T message)
+            where T : DxMessaging.Core.Messages.IBroadcastMessage
+        {
+            message.EmitGameObjectBroadcast(gameObject, _configuredMessageBus, _configuredMessageBusProvider);
+        }
+
+        /// <summary>
+        /// Forgets the ids of loops whose lease this player no longer holds.
+        /// </summary>
+        /// <remarks>
+        /// A voice is given up behind the adapter's back when its clip is destroyed or unloaded. A stale id stops
+        /// nothing, so it is harmless, but it would keep <see cref="HeldLoopCount"/> above the truth for the rest of
+        /// the session. The lease is the player's own answer to "is this hold still mine".
+        /// </remarks>
+        private void PruneEndedLoops()
+        {
+            if (_loops.Count == 0 || _player == null)
+            {
+                return;
+            }
+
+            foreach (KeyValuePair<long, SfxLoopHandle> held in _loops)
+            {
+                bool live =
+                    _player.TryGetVoiceState(held.Value.voice, out _, out int lease) && lease == held.Value.lease;
+                if (!live)
+                {
+                    _endedLoops.Add(held.Key);
+                }
+            }
+
+            for (int index = 0; index < _endedLoops.Count; ++index)
+            {
+                _ = _loops.Remove(_endedLoops[index]);
+            }
+
+            _endedLoops.Clear();
         }
 
         private void StopEveryHeldLoop()

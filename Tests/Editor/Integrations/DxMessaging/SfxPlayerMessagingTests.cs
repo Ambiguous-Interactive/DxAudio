@@ -141,6 +141,42 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void ALoopRequestForAnUnknownKeyBroadcastsItsDrop()
+        {
+            SfxPlayer player = Player(Cue(loop: true, key: "hum"), voiceCount: 2, loopingVoiceLimit: 1);
+            SfxPlayerMessaging messaging = Messaging(player);
+            List<SfxCueDroppedMessage> dropped = CaptureDrops(messaging.gameObject);
+            List<SfxLoopStartedMessage> started = CaptureLoops(messaging.gameObject);
+
+            EmitLoop(messaging.gameObject, "missing");
+
+            Assert.That(started, Is.Empty, "a loop that did not start answers with nothing");
+            Assert.That(dropped, Has.Count.EqualTo(1), "the key was resolved before the pool, so say so once");
+            Assert.That(dropped[0].reason, Is.EqualTo(SfxDropReason.NotPlayable));
+            Assert.That(messaging.HeldLoopCount, Is.Zero);
+        }
+
+        [Test]
+        public void LoopsThePlayerEndedElsewhereAreForgotten()
+        {
+            SfxPlayer player = Player(Cue(loop: true, key: "hum"), voiceCount: 4, loopingVoiceLimit: 2);
+            SfxPlayerMessaging messaging = Messaging(player);
+
+            EmitLoop(messaging.gameObject, "hum");
+            EmitLoop(messaging.gameObject, "hum");
+            Assert.That(messaging.HeldLoopCount, Is.EqualTo(2));
+
+            // A stop that never passed through the adapter: the holds are gone, the ids are not.
+            player.StopAll();
+            Assert.That(messaging.HeldLoopCount, Is.EqualTo(2), "nothing has asked the adapter to reconcile yet");
+
+            EmitLoop(messaging.gameObject, "hum");
+
+            Assert.That(messaging.HeldLoopCount, Is.EqualTo(1), "the ids of ended holds are forgotten");
+            Assert.That(player.HeldVoiceCount, Is.EqualTo(1));
+        }
+
+        [Test]
         public void AStopAllRequestEndsTheLoopsItStarted()
         {
             SfxPlayer player = Player(Cue(loop: true, key: "hum"), voiceCount: 4, loopingVoiceLimit: 2);

@@ -66,7 +66,8 @@ method calls (see [Settings and events](#settings-and-events)).
 One integration is optional. `Runtime/Integrations/DxMessaging` compiles only when the project also has
 com.wallstop-studios.dxmessaging installed, through a version define and a define constraint on its assembly. Without
 the package that assembly is skipped entirely, so a DxMessaging-free project sees no missing reference and compiles
-exactly as before. Pull-request and main CI run Unity 6 in both states, and a nightly matrix adds Unity 2021.3 in both
+exactly as before. Pull-request and main CI run Unity 6 in both states, for same-repository pull requests that are not
+from Dependabot; fork and Dependabot pull requests skip the Unity lanes. A nightly matrix adds Unity 2021.3 in both
 states.
 
 If a later version needs another package, `package.json` lists it at an exact version. Unity then resolves it from the
@@ -215,10 +216,17 @@ _registration.RegisterUntargeted<DialogueEnded>(m => _music.Unduck(_dialogueDuck
 ## DxMessaging integration
 
 With com.wallstop-studios.dxmessaging installed, add **SfxPlayerMessaging** beside an **SfxPlayer**. The adapter turns
-messages into player calls and the player's drops into facts, so a game sends a request instead of keeping a reference:
+messages into player calls and the player's drops into facts, so a game sends a request instead of keeping a reference
+to the player.
+
+A loop is a held state, so the player answers with the id that ends it. Register for that answer before sending the
+request, because a broadcast nobody is listening for is gone:
 
 ```csharp
 using DxMessaging.Core.Extensions;
+
+_registration.RegisterGameObjectBroadcast<SfxLoopStartedMessage>(sfxPlayerObject, HandleLoopStarted);
+_registration.RegisterGameObjectBroadcast<SfxCueDroppedMessage>(sfxPlayerObject, HandleDropped);
 
 // Targeted to the GameObject that carries the player and its adapter.
 SfxPlayRequest play = new("hit");
@@ -229,15 +237,8 @@ placed.EmitGameObjectTargeted(sfxPlayerObject);
 
 SfxLoopRequest loop = new("hum");
 loop.EmitGameObjectTargeted(sfxPlayerObject);
-```
 
-A loop is a held state, so the player answers with the id that ends it:
-
-```csharp
-_registration.RegisterGameObjectBroadcast<SfxLoopStartedMessage>(sfxPlayerObject, HandleLoopStarted);
-_registration.RegisterGameObjectBroadcast<SfxCueDroppedMessage>(sfxPlayerObject, HandleDropped);
-
-private void HandleLoopStarted(in SfxLoopStartedMessage message)
+private void HandleLoopStarted(SfxLoopStartedMessage message)
 {
     SfxLoopStopRequest stop = new(message.loopId);
     stop.EmitGameObjectTargeted(sfxPlayerObject);
