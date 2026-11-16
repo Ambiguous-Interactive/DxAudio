@@ -244,7 +244,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         /// <summary>Stages a registration on this test's bus and commits it, as a running component would.</summary>
-        private MessageRegistrationToken Token(long instanceId)
+        private MessageRegistrationToken Token(int instanceId)
         {
             MessageHandler handler = new(new InstanceId(instanceId), _bus) { active = true };
             MessageRegistrationToken token = MessageRegistrationToken.Create(handler, _bus);
