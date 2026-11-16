@@ -5,7 +5,8 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "WallstopStudios.DxAudio",
-        "WallstopStudios.DxAudio.Integration.DxMessaging"
+        "WallstopStudios.DxAudio.Integration.DxMessaging",
+        "WallstopStudios.DxMessaging"
     ],
     "includePlatforms": [
         "Editor"
