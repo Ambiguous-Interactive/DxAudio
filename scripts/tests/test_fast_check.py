@@ -94,7 +94,7 @@ def case_plan_splits_groups_by_changed_path(python: str) -> None:
         )
         assert_true(plan["harness"], "a scripts change must plan the harness group")
         assert_true(plan["packaging"], "a Runtime change must plan the packaging group")
-        assert_true(not plan["assembly_config"], "an unrelated tree must not plan the assembly group")
+        assert_true(plan["assembly_warnings"], "a shipped C# change must plan the assembly warning group")
         # An unmapped scripts path and the shared manifest fail safe to the
         # full suite.
         assert_true(plan["self_tests"]["all"], "an unmapped surface change must select the full suite")
@@ -111,6 +111,19 @@ def case_plan_ignores_docs_only_trees(python: str) -> None:
         assert_true(not plan["harness"], "a docs-only tree must skip the harness group")
         assert_true(not plan["packaging"], "a docs-only tree must skip the packaging group")
         assert_true(len(plan["csharp"]) == 0, "a docs-only tree must list no C# files")
+        assert_true(not plan["assembly_warnings"], "a docs-only tree must not plan the assembly warning group")
+    finally:
+        remove_temp_root(repo)
+
+
+def case_plan_covers_the_engine_free_warning_setting(python: str) -> None:
+    repo = new_plan_repo()
+    try:
+        # The assembly warning policy also reads the engine-free project, so a
+        # csproj edit must plan the step in the per-edit loop.
+        write_fixture_file(repo, ".net-tests/DxAudio.Tests.csproj", "<Project />\n")
+        plan = invoke_fast_check_plan(repo, python)
+        assert_true(plan["assembly_warnings"], "an engine-free project change must plan the assembly warning group")
     finally:
         remove_temp_root(repo)
 
@@ -250,6 +263,10 @@ def main() -> int:
 
     run_case("Plan_SplitsGroupsByChangedPath", lambda: case_plan_splits_groups_by_changed_path(python))
     run_case("Plan_IgnoresDocsOnlyTrees", lambda: case_plan_ignores_docs_only_trees(python))
+    run_case(
+        "Plan_CoversTheEngineFreeWarningSetting",
+        lambda: case_plan_covers_the_engine_free_warning_setting(python),
+    )
     run_case(
         "Plan_CoversUntrackedAndWorkingTreeFiles",
         lambda: case_plan_covers_untracked_and_working_tree_files(python),

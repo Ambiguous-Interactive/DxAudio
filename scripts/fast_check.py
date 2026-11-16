@@ -100,7 +100,7 @@ class FastCheckPlan:
     markdown: Tuple[str, ...]
     harness: bool
     packaging: bool
-    assembly_config: bool
+    assembly_warnings: bool
     release_surface: bool
     line_endings: bool
     self_tests_all: bool
@@ -130,8 +130,15 @@ def build_plan(repo_root: Path, base_sha: str) -> FastCheckPlan:
         markdown=tuple(path for path in existing if path.endswith(".md")),
         harness=any(is_surface_path(path) for path in changed),
         packaging=any(path.startswith(("Runtime/", "Editor/", "Tests/", ".net-tests/")) or path == "package.json" for path in changed),
-        assembly_config=any(
-            path.endswith((".asmdef", ".ruleset", ".rsp")) or path.endswith(".dll.meta") for path in changed
+        # The warning policy covers the shipped sources and the engine-free
+        # project, not only the assembly configuration: a suppression planted
+        # in Runtime or Editor, or a dropped warnings-as-errors setting, must
+        # fail in the per-edit loop where the author can still see it.
+        assembly_warnings=any(
+            path.endswith((".asmdef", ".ruleset", ".rsp", ".dll.meta"))
+            or path.startswith(".net-tests/")
+            or (path.endswith(".cs") and path.startswith(("Runtime/", "Editor/")))
+            for path in changed
         ),
         release_surface=any(
             path == ".github/workflows/release.yml" or path == ".llm/references/RELEASING.md" for path in changed
@@ -188,7 +195,7 @@ def plan_document(plan: FastCheckPlan) -> Dict[str, object]:
         "markdown": list(plan.markdown),
         "harness": plan.harness,
         "packaging": plan.packaging,
-        "assembly_config": plan.assembly_config,
+        "assembly_warnings": plan.assembly_warnings,
         "release_surface": plan.release_surface,
         "line_endings": plan.line_endings,
         "self_tests": {"all": plan.self_tests_all, "names": list(plan.self_test_names)},
@@ -292,7 +299,7 @@ def build_steps(plan: FastCheckPlan) -> Tuple[Tuple[CheckStep, ...], Tuple[Check
     if plan.packaging:
         quick.append(CheckStep("pack.npm-pack", "npm pack dry run", ("npm", "pack", "--dry-run", "--no-audit", "--no-fund")))
 
-    if plan.assembly_config:
+    if plan.assembly_warnings:
         quick.append(
             CheckStep(
                 "assembly.warnings",

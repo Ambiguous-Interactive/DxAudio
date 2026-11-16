@@ -121,6 +121,9 @@ or `Feature`. Bodies stay under 300 lines; bulk material moves to `.llm/referenc
     major version plus a migration note.
 14. Audio callbacks and per-frame code must not allocate, box, or log in the steady state. Measure with the allocation
     probe before claiming a fix.
+15. Never hide a compiler warning. `Runtime/` and `Editor/` carry no `#pragma warning disable`, the package ships no
+    `.rsp` or `.ruleset`, and `.net-tests` keeps `TreatWarningsAsErrors`. Fix the warning or version-guard the API;
+    `scripts/lint_assembly_warnings.py` enforces this in the fast check, the gate, and CI.
 
 ### Testing
 
