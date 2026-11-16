@@ -4,17 +4,22 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     using System.Collections.Generic;
     using DxMessaging.Core;
     using DxMessaging.Core.Extensions;
-    using DxMessaging.Unity;
+    using DxMessaging.Core.MessageBus;
     using NUnit.Framework;
     using UnityEngine;
     using WallstopStudios.DxAudio.Integration;
     using Object = UnityEngine.Object;
 
     /// <summary>
-    /// The optional DxMessaging adapter: a message drives one <see cref="SfxPlayer"/>, and what it drops comes back
-    /// as a fact. These tests run only in a project that has DxMessaging installed, which the guarded assemblies
-    /// arrange on their own.
+    /// The optional DxMessaging relay: a message drives one <see cref="SfxPlayer"/>, and what it drops comes back as a
+    /// fact. These tests run only in a project that has DxMessaging installed, which the guarded assemblies arrange on
+    /// their own.
     /// </summary>
+    /// <remarks>
+    /// Every test builds its own <see cref="MessageBus"/> instead of using the static global one, so a registration
+    /// cannot leak into the next test and nothing else in the editor hears these messages. The relay is a plain
+    /// object for exactly this reason: an EditMode test never gets a component's enable pass.
+    /// </remarks>
     public sealed class SfxPlayerMessagingTests
     {
         private const int PlayCount = 100_000;
@@ -28,11 +33,25 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         private readonly List<Object> _made = new();
         private readonly List<MessageRegistrationToken> _tokens = new();
+        private readonly List<SfxPlayerMessagingCore> _relays = new();
+
+        private MessageBus _bus;
+
+        [SetUp]
+        public void SetUp()
+        {
+            _bus = new MessageBus();
+        }
 
         [TearDown]
         public void TearDown()
         {
-            // The bus is static and shared, so a token that outlives its test hears the next one's messages.
+            for (int index = 0; index < _relays.Count; ++index)
+            {
+                _relays[index].Dispose();
+            }
+
+            _relays.Clear();
             for (int index = 0; index < _tokens.Count; ++index)
             {
                 _tokens[index].Dispose();
@@ -54,9 +73,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void APlayRequestPlaysTheCueTheLibraryLists()
         {
             SfxPlayer player = Player(Cue(loop: false, key: "hit"), voiceCount: 4);
-            SfxPlayerMessaging messaging = Messaging(player);
+            SfxPlayerMessagingCore relay = Relay(player);
 
-            EmitPlay(messaging.gameObject, "hit");
+            EmitPlay(relay, "hit");
 
             Assert.That(player.DropCounts.Total, Is.Zero);
             Assert.That(PlayingVoices(player), Is.EqualTo(1), "one request plays one voice");
@@ -67,9 +86,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             SfxCue cue = Cue(loop: false, key: "hit", spatialBlend: 1f);
             SfxPlayer player = Player(cue, voiceCount: 4);
-            SfxPlayerMessaging messaging = Messaging(player);
+            SfxPlayerMessagingCore relay = Relay(player);
 
-            EmitPlay(messaging.gameObject, "hit");
+            EmitPlay(relay, "hit");
 
             Assert.That(player.DropCounts.Total, Is.Zero);
             Assert.That(PlayingVoices(player), Is.EqualTo(1), "a positional cue with no position is played flat");
@@ -81,10 +100,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void APlayRequestForAnUnknownKeyBroadcastsItsDrop()
         {
             SfxPlayer player = Player(Cue(loop: false, key: "hit"), voiceCount: 4);
-            SfxPlayerMessaging messaging = Messaging(player);
-            List<SfxCueDroppedMessage> dropped = CaptureDrops(messaging.gameObject);
+            SfxPlayerMessagingCore relay = Relay(player);
+            List<SfxCueDroppedMessage> dropped = CaptureDrops(relay);
 
-            EmitPlay(messaging.gameObject, "missing");
+            EmitPlay(relay, "missing");
 
             Assert.That(dropped, Has.Count.EqualTo(1), "one failed request is one fact");
             Assert.That(dropped[0].reason, Is.EqualTo(SfxDropReason.NotPlayable));
@@ -95,26 +114,26 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void ALoopRequestAnswersWithAnIdThatStopsOnlyItsOwnLoop()
         {
             SfxPlayer player = Player(Cue(loop: true, key: "hum"), voiceCount: 4, loopingVoiceLimit: 2);
-            SfxPlayerMessaging messaging = Messaging(player);
-            List<SfxLoopStartedMessage> started = CaptureLoops(messaging.gameObject);
+            SfxPlayerMessagingCore relay = Relay(player);
+            List<SfxLoopStartedMessage> started = CaptureLoops(relay);
 
-            EmitLoop(messaging.gameObject, "hum");
-            EmitLoop(messaging.gameObject, "hum");
+            EmitLoop(relay, "hum");
+            EmitLoop(relay, "hum");
 
             Assert.That(started, Has.Count.EqualTo(2), "each request answers once");
             Assert.That(player.HeldVoiceCount, Is.EqualTo(2));
             Assert.That(started[0].loopId, Is.Not.EqualTo(started[1].loopId));
             Assert.That(started[0].key, Is.EqualTo("hum"));
 
-            StopLoop(messaging.gameObject, started[0].loopId);
+            StopLoop(relay, started[0].loopId);
             Assert.That(player.HeldVoiceCount, Is.EqualTo(1), "an id stops its own loop and no other");
 
-            StopLoop(messaging.gameObject, started[0].loopId);
+            StopLoop(relay, started[0].loopId);
             Assert.That(player.HeldVoiceCount, Is.EqualTo(1), "an id stops once");
 
-            StopLoop(messaging.gameObject, started[1].loopId);
+            StopLoop(relay, started[1].loopId);
             Assert.That(player.HeldVoiceCount, Is.Zero);
-            Assert.That(messaging.HeldLoopCount, Is.Zero);
+            Assert.That(relay.HeldLoopCount, Is.Zero);
         }
 
         [Test]
@@ -122,15 +141,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             SfxPlayer first = Player(Cue(loop: true, key: "hum"), voiceCount: 2, loopingVoiceLimit: 1);
             SfxPlayer second = Player(Cue(loop: true, key: "hum"), voiceCount: 2, loopingVoiceLimit: 1);
-            SfxPlayerMessaging firstMessaging = Messaging(first);
-            SfxPlayerMessaging secondMessaging = Messaging(second);
-            List<SfxLoopStartedMessage> firstStarted = CaptureLoops(firstMessaging.gameObject);
-            List<SfxLoopStartedMessage> secondStarted = CaptureLoops(secondMessaging.gameObject);
+            SfxPlayerMessagingCore firstRelay = Relay(first);
+            SfxPlayerMessagingCore secondRelay = Relay(second);
+            List<SfxLoopStartedMessage> firstStarted = CaptureLoops(firstRelay);
+            List<SfxLoopStartedMessage> secondStarted = CaptureLoops(secondRelay);
 
-            EmitLoop(firstMessaging.gameObject, "hum");
-            EmitLoop(secondMessaging.gameObject, "hum");
+            EmitLoop(firstRelay, "hum");
+            EmitLoop(secondRelay, "hum");
 
-            StopLoop(secondMessaging.gameObject, firstStarted[0].loopId);
+            StopLoop(secondRelay, firstStarted[0].loopId);
 
             Assert.That(
                 firstStarted[0].loopId,
@@ -145,35 +164,35 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void ALoopRequestForAnUnknownKeyBroadcastsItsDrop()
         {
             SfxPlayer player = Player(Cue(loop: true, key: "hum"), voiceCount: 2, loopingVoiceLimit: 1);
-            SfxPlayerMessaging messaging = Messaging(player);
-            List<SfxCueDroppedMessage> dropped = CaptureDrops(messaging.gameObject);
-            List<SfxLoopStartedMessage> started = CaptureLoops(messaging.gameObject);
+            SfxPlayerMessagingCore relay = Relay(player);
+            List<SfxCueDroppedMessage> dropped = CaptureDrops(relay);
+            List<SfxLoopStartedMessage> started = CaptureLoops(relay);
 
-            EmitLoop(messaging.gameObject, "missing");
+            EmitLoop(relay, "missing");
 
             Assert.That(started, Is.Empty, "a loop that did not start answers with nothing");
             Assert.That(dropped, Has.Count.EqualTo(1), "the key was resolved before the pool, so say so once");
             Assert.That(dropped[0].reason, Is.EqualTo(SfxDropReason.NotPlayable));
-            Assert.That(messaging.HeldLoopCount, Is.Zero);
+            Assert.That(relay.HeldLoopCount, Is.Zero);
         }
 
         [Test]
         public void LoopsThePlayerEndedElsewhereAreForgotten()
         {
             SfxPlayer player = Player(Cue(loop: true, key: "hum"), voiceCount: 4, loopingVoiceLimit: 2);
-            SfxPlayerMessaging messaging = Messaging(player);
+            SfxPlayerMessagingCore relay = Relay(player);
 
-            EmitLoop(messaging.gameObject, "hum");
-            EmitLoop(messaging.gameObject, "hum");
-            Assert.That(messaging.HeldLoopCount, Is.EqualTo(2));
+            EmitLoop(relay, "hum");
+            EmitLoop(relay, "hum");
+            Assert.That(relay.HeldLoopCount, Is.EqualTo(2));
 
-            // A stop that never passed through the adapter: the holds are gone, the ids are not.
+            // A stop that never passed through the relay: the holds are gone, the ids are not.
             player.StopAll();
-            Assert.That(messaging.HeldLoopCount, Is.EqualTo(2), "nothing has asked the adapter to reconcile yet");
+            Assert.That(relay.HeldLoopCount, Is.EqualTo(2), "nothing has asked the relay to reconcile yet");
 
-            EmitLoop(messaging.gameObject, "hum");
+            EmitLoop(relay, "hum");
 
-            Assert.That(messaging.HeldLoopCount, Is.EqualTo(1), "the ids of ended holds are forgotten");
+            Assert.That(relay.HeldLoopCount, Is.EqualTo(1), "the ids of ended holds are forgotten");
             Assert.That(player.HeldVoiceCount, Is.EqualTo(1));
         }
 
@@ -181,73 +200,62 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void AStopAllRequestEndsTheLoopsItStarted()
         {
             SfxPlayer player = Player(Cue(loop: true, key: "hum"), voiceCount: 4, loopingVoiceLimit: 2);
-            SfxPlayerMessaging messaging = Messaging(player);
+            SfxPlayerMessagingCore relay = Relay(player);
 
-            EmitLoop(messaging.gameObject, "hum");
-            EmitLoop(messaging.gameObject, "hum");
+            EmitLoop(relay, "hum");
+            EmitLoop(relay, "hum");
             Assert.That(player.HeldVoiceCount, Is.EqualTo(2));
 
             SfxStopAllRequest stop = default;
-            stop.EmitGameObjectTargeted(messaging.gameObject);
+            stop.EmitGameObjectTargeted(relay.Player.gameObject, _bus);
 
             Assert.That(player.HeldVoiceCount, Is.Zero);
-            Assert.That(messaging.HeldLoopCount, Is.Zero, "the ids a stop consumed stop nothing afterwards");
+            Assert.That(relay.HeldLoopCount, Is.Zero, "the ids a stop consumed stop nothing afterwards");
         }
 
         [Test]
         public void AMuteRequestMutesWithoutStopping()
         {
             SfxPlayer player = Player(Cue(loop: true, key: "hum"), voiceCount: 2, loopingVoiceLimit: 1);
-            SfxPlayerMessaging messaging = Messaging(player);
-            EmitLoop(messaging.gameObject, "hum");
+            SfxPlayerMessagingCore relay = Relay(player);
+            EmitLoop(relay, "hum");
 
             SfxMuteRequest mute = new(true);
-            mute.EmitUntargeted();
+            mute.EmitUntargeted(_bus);
 
             Assert.That(player.Muted, Is.True);
             Assert.That(player.HeldVoiceCount, Is.EqualTo(1), "a settings toggle is not a stop");
 
             SfxMuteRequest unmute = new(false);
-            unmute.EmitUntargeted();
+            unmute.EmitUntargeted(_bus);
             Assert.That(player.Muted, Is.False);
         }
 
         [Test]
-        public void DestroyingTheAdapterStopsTheLoopsItStarted()
+        public void DisablingTheRelayStopsTheLoopsItStarted()
         {
             SfxPlayer player = Player(Cue(loop: true, key: "hum"), voiceCount: 2, loopingVoiceLimit: 1);
-            SfxPlayerMessaging messaging = Messaging(player);
-            EmitLoop(messaging.gameObject, "hum");
+            SfxPlayerMessagingCore relay = Relay(player);
+            EmitLoop(relay, "hum");
             Assert.That(player.HeldVoiceCount, Is.EqualTo(1));
 
-            Object.DestroyImmediate(messaging);
+            relay.Disable();
 
             Assert.That(player.HeldVoiceCount, Is.Zero, "a loop nobody can address must not hold a voice");
-        }
-
-        [Test]
-        public void ADestroyedAdapterLeavesNoRegistrationBehind()
-        {
-            SfxPlayer player = Player(Cue(loop: false, key: "hit"), voiceCount: 4);
-            SfxPlayerMessaging messaging = Messaging(player);
-
-            Object.DestroyImmediate(messaging);
-            EmitPlay(player.gameObject, "hit");
-
-            Assert.That(PlayingVoices(player), Is.Zero, "the destroyed adapter's registrations are gone");
+            Assert.That(relay.HeldLoopCount, Is.Zero);
         }
 
         [Test]
         public void APlayRequestThroughTheBusDoesNotGrowTheHeap()
         {
             SfxPlayer player = Player(Cue(loop: false, key: "hit"), voiceCount: 4);
-            SfxPlayerMessaging messaging = Messaging(player);
+            SfxPlayerMessagingCore relay = Relay(player);
             for (int index = 0; index < WarmupPlays; ++index)
             {
-                EmitPlay(messaging.gameObject, "hit");
+                EmitPlay(relay, "hit");
             }
 
-            long growth = HeapGrowth(() => EmitPlay(messaging.gameObject, "hit"), PlayCount);
+            long growth = HeapGrowth(() => EmitPlay(relay, "hit"), PlayCount);
 
             Assert.That(
                 growth,
@@ -256,22 +264,78 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             );
         }
 
-        private static void EmitPlay(GameObject target, string key)
+        private void EmitPlay(SfxPlayerMessagingCore relay, string key)
         {
             SfxPlayRequest request = new(key);
-            request.EmitGameObjectTargeted(target);
+            request.EmitGameObjectTargeted(relay.Player.gameObject, _bus);
         }
 
-        private static void EmitLoop(GameObject target, string key)
+        private void EmitLoop(SfxPlayerMessagingCore relay, string key)
         {
             SfxLoopRequest request = new(key);
-            request.EmitGameObjectTargeted(target);
+            request.EmitGameObjectTargeted(relay.Player.gameObject, _bus);
         }
 
-        private static void StopLoop(GameObject target, long loopId)
+        private void StopLoop(SfxPlayerMessagingCore relay, long loopId)
         {
             SfxLoopStopRequest request = new(loopId);
-            request.EmitGameObjectTargeted(target);
+            request.EmitGameObjectTargeted(relay.Player.gameObject, _bus);
+        }
+
+        private SfxPlayerMessagingCore Relay(SfxPlayer player)
+        {
+            MessageHandler handler = new(new InstanceId(1), _bus) { active = true };
+            MessageRegistrationToken token = MessageRegistrationToken.Create(handler, _bus);
+            _tokens.Add(token);
+
+            SfxPlayerMessagingCore relay = new(player, player.gameObject, _bus);
+            _relays.Add(relay);
+            relay.Register(token);
+            relay.Enable();
+            token.Enable();
+            return relay;
+        }
+
+        private List<SfxLoopStartedMessage> CaptureLoops(SfxPlayerMessagingCore relay)
+        {
+            List<SfxLoopStartedMessage> heard = new();
+            _ = Capture<SfxLoopStartedMessage>(
+                relay.Player.gameObject,
+                (SfxLoopStartedMessage message) =>
+                {
+                    heard.Add(message);
+                }
+            );
+            return heard;
+        }
+
+        private List<SfxCueDroppedMessage> CaptureDrops(SfxPlayerMessagingCore relay)
+        {
+            List<SfxCueDroppedMessage> heard = new();
+            _ = Capture<SfxCueDroppedMessage>(
+                relay.Player.gameObject,
+                (SfxCueDroppedMessage message) =>
+                {
+                    heard.Add(message);
+                }
+            );
+            return heard;
+        }
+
+        /// <summary>Listens for broadcasts from <paramref name="source"/> without a component, on this test's bus.</summary>
+        /// <remarks>
+        /// <c>active</c> and <c>Enable</c> are both required: the flag arms the handler, and enabling commits the
+        /// staged registration.
+        /// </remarks>
+        private MessageRegistrationHandle Capture<T>(GameObject source, Action<T> handler)
+            where T : DxMessaging.Core.Messages.IBroadcastMessage
+        {
+            MessageHandler messageHandler = new(new InstanceId(2), _bus) { active = true };
+            MessageRegistrationToken token = MessageRegistrationToken.Create(messageHandler, _bus);
+            _tokens.Add(token);
+            MessageRegistrationHandle registration = token.RegisterGameObjectBroadcast<T>(source, handler);
+            token.Enable();
+            return registration;
         }
 
         private static int PlayingVoices(SfxPlayer player)
@@ -331,50 +395,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             return smallest;
         }
 
-        private List<SfxLoopStartedMessage> CaptureLoops(GameObject source)
-        {
-            List<SfxLoopStartedMessage> heard = new();
-            _ = Capture<SfxLoopStartedMessage>(
-                source,
-                (SfxLoopStartedMessage message) =>
-                {
-                    heard.Add(message);
-                }
-            );
-            return heard;
-        }
-
-        private List<SfxCueDroppedMessage> CaptureDrops(GameObject source)
-        {
-            List<SfxCueDroppedMessage> heard = new();
-            _ = Capture<SfxCueDroppedMessage>(
-                source,
-                (SfxCueDroppedMessage message) =>
-                {
-                    heard.Add(message);
-                }
-            );
-            return heard;
-        }
-
-        /// <summary>
-        /// Listens for broadcasts from <paramref name="source"/> without a component, so the fixture stays EditMode.
-        /// </summary>
-        /// <remarks>
-        /// <c>active</c> and <c>Enable</c> are both required: the flag arms the handler, and enabling commits the
-        /// staged registration. The token is disposed in teardown because the bus that holds it is static.
-        /// </remarks>
-        private MessageRegistrationHandle Capture<T>(GameObject source, Action<T> handler)
-            where T : DxMessaging.Core.Messages.IBroadcastMessage
-        {
-            MessageHandler messageHandler = new(source) { active = true };
-            MessageRegistrationToken token = MessageRegistrationToken.Create(messageHandler);
-            _tokens.Add(token);
-            MessageRegistrationHandle registration = token.RegisterGameObjectBroadcast<T>(source, handler);
-            token.Enable();
-            return registration;
-        }
-
         private SfxPlayer Player(SfxCue cue, int voiceCount, int loopingVoiceLimit = 4)
         {
             SfxLibrary library = Made(
@@ -383,24 +403,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             SfxPlayer player = Made(new GameObject("sfx")).AddComponent<SfxPlayer>();
             player.Library = library;
             return player;
-        }
-
-        private SfxPlayerMessaging Messaging(SfxPlayer player)
-        {
-            SfxPlayerMessaging messaging = Made(player.gameObject.AddComponent<SfxPlayerMessaging>());
-            /*
-                An EditMode test adds a component without the enable pass a running game gets, so the two halves that
-                pass performs are done here: the companion arms its handler, and the adapter commits the registrations
-                it staged in Awake. Without both, every assertion below would measure silence.
-            */
-            Assert.That(messaging.Token != null, "the adapter stages its registrations in Awake");
-            player.GetComponent<MessagingComponent>().ToggleMessageHandler(true);
-            if (!messaging.Token.Enabled)
-            {
-                messaging.Token.Enable();
-            }
-
-            return messaging;
         }
 
         private SfxCue Cue(bool loop, string key = null, float minimumIntervalSeconds = 0f, float spatialBlend = 0f)
