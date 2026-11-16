@@ -3,28 +3,6 @@ namespace WallstopStudios.DxAudio
     using System;
     using UnityEngine;
 
-    /// <summary>Why a cue did not play. Reported through <see cref="SfxPlayer.CueDropped"/>.</summary>
-    public enum SfxDropReason
-    {
-        [Obsolete("Use a specific SfxDropReason value instead of Unknown.")]
-        Unknown = 0,
-
-        /// <summary>No cue, a key the library does not list, or a cue with no clip.</summary>
-        NotPlayable = 1,
-
-        /// <summary>The cue played inside its minimum interval. Expected during a burst; not a fault.</summary>
-        Throttled = 2,
-
-        /// <summary>Every voice was busy with a cue of equal or higher priority, or held by a loop.</summary>
-        NoVoice = 3,
-
-        /// <summary>A looping cue asked for a voice with the looping voice limit already reached.</summary>
-        LoopLimit = 4,
-
-        /// <summary>A looping cue sent to a one-shot method, or a one-shot cue sent to a looping one.</summary>
-        WrongPlayMethod = 5,
-    }
-
     /// <summary>A claim on one held voice, returned by <see cref="SfxPlayer.TryPlayLooping(SfxCue, out SfxLoopHandle)"/>.</summary>
     /// <remarks>
     /// The lease number makes stopping safe. A bare voice index would let an owner that stops twice, or stops
@@ -95,6 +73,11 @@ namespace WallstopStudios.DxAudio
         private int _nextLease;
         private int _roundRobin;
         private System.Random _random;
+        private int _droppedNotPlayable;
+        private int _droppedThrottled;
+        private int _droppedNoVoice;
+        private int _droppedLoopLimit;
+        private int _droppedWrongPlayMethod;
 
         /// <summary>Raised for every cue that did not play, and why.</summary>
         public event Action<SfxCue, SfxDropReason> CueDropped;
@@ -136,6 +119,42 @@ namespace WallstopStudios.DxAudio
         public int VoiceCount => _voices.Length;
 
         public int HeldVoiceCount => _heldCount;
+
+        /// <summary>Every cue this player dropped, counted by reason. Reading it allocates nothing.</summary>
+        public SfxDropCounts DropCounts =>
+            new(_droppedNotPlayable, _droppedThrottled, _droppedNoVoice, _droppedLoopLimit, _droppedWrongPlayMethod);
+
+        /// <summary>What voice <paramref name="voice"/> is doing, for a diagnostic.</summary>
+        /// <param name="lease">The loop lease when a looping cue holds the voice, otherwise zero.</param>
+        /// <returns><see langword="false"/> when the pool has no such voice.</returns>
+        public bool TryGetVoiceState(int voice, out SfxVoiceState state, out int lease)
+        {
+            if (voice < 0 || _voices.Length <= voice)
+            {
+                state = default;
+                lease = 0;
+                return false;
+            }
+
+            AudioSource source = _voices[voice];
+            bool usable = source != null;
+            if (usable && source.clip == null)
+            {
+                // A source whose clip was released reports playback while it makes no sound. It is not busy,
+                // and it is silent, so stop it while the pool is being read anyway.
+                source.Stop();
+            }
+
+            state = new SfxVoiceState(
+                usable,
+                usable && source.clip != null && source.isPlaying,
+                _held[voice],
+                _priorities[voice],
+                _startedAt[voice]
+            );
+            lease = _held[voice] ? _leases[voice] : 0;
+            return true;
+        }
 
         /// <summary>Plays the cue the library lists under <paramref name="key"/>, flat.</summary>
         public bool Play(string key)
@@ -278,8 +297,7 @@ namespace WallstopStudios.DxAudio
             }
 
             cue = null;
-            CueDropped?.Invoke(null, SfxDropReason.NotPlayable);
-            return false;
+            return Drop(null, SfxDropReason.NotPlayable);
         }
 
         private bool TryStart(SfxCue cue, bool looping, Vector3? position, out SfxLoopHandle handle)
@@ -320,7 +338,7 @@ namespace WallstopStudios.DxAudio
                 return Drop(cue, SfxDropReason.LoopLimit);
             }
 
-            ReadStates(now);
+            ReadStates();
             if (!SfxVoiceArbiter.TryChoose(_states, cue.Priority, _roundRobin, out int index, out _))
             {
                 return Drop(cue, SfxDropReason.NoVoice);
@@ -417,26 +435,11 @@ namespace WallstopStudios.DxAudio
             return heardFrom.position + (heardFrom.forward * distance);
         }
 
-        private void ReadStates(float now)
+        private void ReadStates()
         {
             for (int index = 0; index < _voices.Length; index++)
             {
-                AudioSource voice = _voices[index];
-                bool usable = voice != null;
-                if (usable && voice.clip == null)
-                {
-                    // A source whose clip was released reports playback while it makes no sound. It is not busy,
-                    // and it is silent, so stop it while the pool is being read anyway.
-                    voice.Stop();
-                }
-
-                _states[index] = new SfxVoiceState(
-                    usable,
-                    usable && voice.clip != null && voice.isPlaying,
-                    _held[index],
-                    _priorities[index],
-                    _startedAt[index]
-                );
+                _ = TryGetVoiceState(index, out _states[index], out _);
             }
         }
 
@@ -449,8 +452,33 @@ namespace WallstopStudios.DxAudio
 
         private bool Drop(SfxCue cue, SfxDropReason reason)
         {
+            CountDrop(reason);
             CueDropped?.Invoke(cue, reason);
             return false;
+        }
+
+        private void CountDrop(SfxDropReason reason)
+        {
+            switch (reason)
+            {
+                case SfxDropReason.NotPlayable:
+                    _droppedNotPlayable++;
+                    break;
+                case SfxDropReason.Throttled:
+                    _droppedThrottled++;
+                    break;
+                case SfxDropReason.NoVoice:
+                    _droppedNoVoice++;
+                    break;
+                case SfxDropReason.LoopLimit:
+                    _droppedLoopLimit++;
+                    break;
+                case SfxDropReason.WrongPlayMethod:
+                    _droppedWrongPlayMethod++;
+                    break;
+                default:
+                    break;
+            }
         }
 
         private double NextRandom()

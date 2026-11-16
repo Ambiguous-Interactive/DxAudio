@@ -201,6 +201,16 @@ _registration.RegisterUntargeted<DialogueStarted>(m => _lease = _music.Duck(_dia
 _registration.RegisterUntargeted<DialogueEnded>(m => _music.Unduck(_dialogueDuck, m.speaker));
 ```
 
+## Diagnostics
+
+Add an **Audio Diagnostics** component (**Add Component > DxAudio > Audio Diagnostics**) and assign the players. Tick
+**Enabled** in Play mode, or set `diagnostics.Enabled = true`. The overlay lists every busy voice with its priority and
+loop lease, every duck and who holds it, and how many cues were dropped by reason.
+
+Sampling runs only while **Enabled** is set. With it off, the component allocates nothing per frame; drawing costs apply
+only while the overlay is open. `SfxPlayer.DropCounts` and `SfxPlayer.TryGetVoiceState` expose the same data for a
+game's own debug UI.
+
 ## The core is engine-free
 
 `Runtime/Core` (the arbiter, rate limit, take selection, duck stack, attenuation, ramps, hand-off and override) uses no

@@ -26,10 +26,26 @@ for (int i = 0; i < 1000; i++)
 long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 ```
 
-- In Unity EditMode, `Assert.That(() => subject.Play(cue), Is.Not.AllocatingGCMemory())` works, but **warm the subject and the probe path first**. Unwarmed probes false-positive on
-  first-call JIT for string comparisons, dictionary adds, and other BCL paths.
+- `GC.GetAllocatedBytesForCurrentThread` is exact on plain .NET but reports 0 for every call under Unity's Mono, so in
+  Unity it can only ever prove nothing.
+- `GC.GetTotalMemory` reads current heap use, not cumulative allocation: a collection during the loop reclaims what the
+  loop made. Unity's Mono also reports nothing for a few hundred KB of new strings - 500 new 225-character strings moved
+  it by 4 KB, 40,000 moved it by 9 MB. A flat heap delta therefore never proves that a path allocates nothing.
+- To measure an allocating path with the heap, keep every sample alive, read `GC.GetTotalMemory(forceFullCollection:
+  true)` at both ends, and run enough samples that the live growth is over about a MB.
+  `Tests/Editor/Unity/DiagnosticsTests.cs` (`HeapGrowth`) is the worked example.
+- To prove a path does nothing at all, assert the observable state it must not change, such as an empty report or an idle
+  voice. That check fails deterministically; a byte ceiling only fails once its slack is spent.
+- For a path that must allocate nothing per call, run 100,000 calls and read `GC.GetTotalMemory(forceFullCollection:
+  false)` at both ends, taking the smallest of three windows. Measured on 6000.6.7f1: `SfxPlayer.Play` grew the heap by
+  0 to 29 KB, a planted 16-byte allocation per call grew it by 3.4 MB, and one window in a full-suite run committed a
+  segment of about 300 KB. A 256 KB ceiling sits between them. `Tests/Editor/Unity/AllocationTests.cs` is the example.
+- Unity's NUnit (3.5) has no `Is.AllocatingGCMemory` constraint; it does not compile. Do not use it in `Tests/Editor`.
+- In Unity EditMode, warm the subject and the probe path first. Unwarmed probes false-positive on first-call JIT for
+  string comparisons, dictionary adds, and other BCL paths.
 - Warm at least 8 iterations. 32 is safer for paths that touch more BCL code.
-- Run the same probe on a deliberate allocation (for example `new byte[16]`) to prove the probe can see an allocation. A probe that cannot fail is not evidence.
+- Run the same probe on a deliberate allocation to prove the probe can see one: 20 MB of arrays moved the heap by 21 MB
+  on this host, while 500 small strings moved it by 4 KB. A probe that cannot fail is not evidence.
 
 ## Timing
 
@@ -42,7 +58,7 @@ long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
 | Claim                          | Probe                                                       |
 | ------------------------------ | ----------------------------------------------------------- |
-| Play allocates nothing         | `Play` 1000 times on a full pool, one cue                   |
+| Play allocates nothing         | 100,000 plays on a full pool, heap growth, smallest of 3    |
 | Stealing allocates nothing     | Same, with priority inversion on every play                 |
 | Duck compose allocates nothing | Hold 1 and 8 ducks, compose per frame for 1000 frames       |
 | Music crossfade cost           | 100 context changes, measure the per-change allocation and time |
