@@ -59,7 +59,7 @@ namespace WallstopStudios.DxAudio
         /// </remarks>
         public event Action<MusicTrack> TrackChanged;
 
-        /// <summary>Raised when the music is stopped or silenced. Additive.</summary>
+        /// <summary>Raised when the music is stopped, finishes, or is silenced. Additive.</summary>
         public event Action Stopped;
 
         /// <summary>The game's music on/off setting.</summary>
