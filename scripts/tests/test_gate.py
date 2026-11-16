@@ -72,7 +72,7 @@ def case_plan_prints_the_full_lane_table(python: str) -> None:
         f"the plan must list the five lanes in order, got: {','.join(names)}",
     )
     steps = step_names(plan)
-    assert_true(len(steps) == 16, f"the plan must list 16 steps, got {len(steps)}")
+    assert_true(len(steps) == 17, f"the plan must list 17 steps, got {len(steps)}")
     assert_true(len(steps) == len(set(steps)), "step names must be unique")
     for name in steps:
         assert_true(
@@ -363,7 +363,7 @@ def case_scoped_lane_table_drops_the_unaffected_steps_and_remaps_dependencies(py
     output, exit_code = run_gate_driver(
         python,
         [
-            "scoped = gate.scoped_lanes(gate.DiffScope(markdown_changed=False, package_changed=False, self_tests_run=False))",
+            "scoped = gate.scoped_lanes(gate.DiffScope(markdown_changed=False, documentation_changed=False, package_changed=False, self_tests_run=False))",
             "steps = [step.name for _, lane in scoped for step in lane]",
             "after = {step.name: list(step.after) for _, lane in scoped for step in lane}",
             'print(json.dumps({"steps": steps, "after": after, "lanes": [name for name, _ in scoped]}))',
@@ -612,7 +612,7 @@ def case_fast_check_steps_run_the_gate_ladder(python: str) -> None:
             "import fast_check",
             "plan = fast_check.FastCheckPlan(",
             "    repo_root=gate.REPO_ROOT, base_sha='0' * 40, csharp=('Runtime/A.cs',), markdown=('README.md',),",
-            "    harness=True, packaging=True, assembly_warnings=True, release_surface=True, line_endings=True,",
+            "    docs=True, harness=True, packaging=True, assembly_warnings=True, release_surface=True, line_endings=True,",
             "    self_tests_all=True, self_test_names=())",
             "quick, tests = fast_check.build_steps(plan)",
             "fast_steps = [*quick, *tests]",

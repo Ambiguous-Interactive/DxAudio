@@ -98,6 +98,7 @@ class FastCheckPlan:
     base_sha: str
     csharp: Tuple[str, ...]
     markdown: Tuple[str, ...]
+    docs: bool
     harness: bool
     packaging: bool
     assembly_warnings: bool
@@ -128,6 +129,10 @@ def build_plan(repo_root: Path, base_sha: str) -> FastCheckPlan:
         base_sha=base_sha,
         csharp=tuple(path for path in existing if path.endswith(".cs")),
         markdown=tuple(path for path in existing if path.endswith(".md")),
+        # The docs lint resolves relative links and sample scene GUIDs, so a
+        # Markdown edit or a sample scene edit can break it; neither shows up
+        # in a compiler.
+        docs=any(path.endswith((".md", ".unity")) for path in changed),
         harness=any(is_surface_path(path) for path in changed),
         packaging=any(path.startswith(("Runtime/", "Editor/", "Tests/", ".net-tests/")) or path == "package.json" for path in changed),
         # The warning policy covers the shipped sources and the engine-free
@@ -193,6 +198,7 @@ def plan_document(plan: FastCheckPlan) -> Dict[str, object]:
         "base_sha": plan.base_sha,
         "csharp": list(plan.csharp),
         "markdown": list(plan.markdown),
+        "docs": plan.docs,
         "harness": plan.harness,
         "packaging": plan.packaging,
         "assembly_warnings": plan.assembly_warnings,
@@ -257,6 +263,16 @@ def build_steps(plan: FastCheckPlan) -> Tuple[Tuple[CheckStep, ...], Tuple[Check
                     ("markdown.format",),
                 )
             )
+
+    if plan.docs:
+        quick.append(
+            CheckStep(
+                "docs.links",
+                "docs and sample reference lint",
+                (*_PYTHON_LAUNCHER, "scripts/lint_docs_links.py"),
+                ("markdown.format",) if plan.markdown else (),
+            )
+        )
 
     if plan.harness:
         # Prettier rewrites .llm Markdown, so the harness lints wait for the

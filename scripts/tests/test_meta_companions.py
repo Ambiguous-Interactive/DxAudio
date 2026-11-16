@@ -128,6 +128,29 @@ def case_dot_folder_paths_are_exempt() -> None:
         sandbox.destroy()
 
 
+def case_tilde_folders_are_exempt() -> None:
+    sandbox = LintSandbox()
+    try:
+        seed_baseline(sandbox)
+        # Unity's ignore marker: documentation and samples ship outside the
+        # asset database, so neither the files nor their folders get a meta.
+        sandbox.write("Documentation~/index.md", "# Manual\n")
+        sandbox.write("Samples~/BasicUsage/BasicUsage.unity", "%YAML 1.1\n")
+        sandbox.commit_all()
+        sandbox.run()
+        assert_exit_code(0, "paths under a folder ending in ~ never need companions", sandbox.last_exit)
+
+        # The exemption is the folder marker, not the character: a plain file
+        # whose name happens to contain ~ still needs its companion.
+        sandbox.write("Scripts/Loose~.cs")
+        sandbox.commit_all()
+        sandbox.run()
+        assert_exit_code(1, "a file outside an ignored folder still needs a companion", sandbox.last_exit)
+        assert_contains("the failure names the file", "Scripts/Loose~.cs", sandbox.output)
+    finally:
+        sandbox.destroy()
+
+
 def case_untracked_non_ignored_file_fails() -> None:
     sandbox = LintSandbox()
     try:
@@ -303,6 +326,7 @@ CASES = (
     case_committed_tree_with_companions_passes,
     case_committed_file_without_companion_fails,
     case_dot_folder_paths_are_exempt,
+    case_tilde_folders_are_exempt,
     case_untracked_non_ignored_file_fails,
     case_ignored_file_is_exempt,
     case_new_folder_without_folder_companion_fails,

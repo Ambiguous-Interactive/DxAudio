@@ -8,10 +8,12 @@ and an orphan companion (committed without its asset, PR #274 review) makes
 Unity treat the asset as missing and delete or regenerate it. Either way the
 result is a dirty checkout and GUID drift across machines (host churn in
 the agent instructions and #193). Companions must also contain exactly one
-nonzero 32-digit hexadecimal asset GUID. Dot folders
-and dot files are never imported, so they never need companions;
-``__pycache__`` content is likewise skipped, and an orphan companion whose
-asset is ignored or still exists on disk is tolerated.
+nonzero 32-digit hexadecimal asset GUID. Dot folders and dot files are never
+imported, so they never need companions; a path under a folder ending in
+``~`` is never imported either, which is Unity's marker for documentation and
+sample trees shipped outside the asset database. ``__pycache__`` content is
+likewise skipped, and an orphan companion whose asset is ignored or still
+exists on disk is tolerated.
 
 The scan is the repository's own tracked paths plus untracked non-ignored
 paths, so the per-edit loop catches the mistake before the commit that CI
@@ -72,6 +74,8 @@ def is_meta_relevant(path: str) -> bool:
         return False  # dot files and dot folders are never imported
     if path.endswith(".meta"):
         return False  # companions themselves carry none
+    if any(part.endswith("~") for part in path.split("/")):
+        return False  # Unity skips every path under a folder ending in ~
     if any(part == "__pycache__" for part in path.split("/")):
         return False  # bytecode caches are regenerated, never imported assets
     return True
