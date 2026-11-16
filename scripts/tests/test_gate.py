@@ -72,7 +72,7 @@ def case_plan_prints_the_full_lane_table(python: str) -> None:
         f"the plan must list the five lanes in order, got: {','.join(names)}",
     )
     steps = step_names(plan)
-    assert_true(len(steps) == 15, f"the plan must list 15 steps, got {len(steps)}")
+    assert_true(len(steps) == 16, f"the plan must list 16 steps, got {len(steps)}")
     assert_true(len(steps) == len(set(steps)), "step names must be unique")
     for name in steps:
         assert_true(
@@ -600,6 +600,40 @@ def case_execution_scopes_the_suite_to_the_selected_files(python: str) -> None:
         remove_temp_root(temp_root)
 
 
+# The fast check runs a subset of the gate's ladder, so a step it plans must
+# be a gate step running the same script (issue #37: the fast check launched
+# scripts/lint_assembly_warnings.py, which the repository did not carry and
+# the gate never ran). The same case proves no step of either driver launches
+# a script that is absent from the checkout.
+def case_fast_check_steps_run_the_gate_ladder(python: str) -> None:
+    output, exit_code = run_gate_driver(
+        python,
+        [
+            "import fast_check",
+            "plan = fast_check.FastCheckPlan(",
+            "    repo_root=gate.REPO_ROOT, base_sha='0' * 40, csharp=('Runtime/A.cs',), markdown=('README.md',),",
+            "    harness=True, packaging=True, assembly_warnings=True, release_surface=True, line_endings=True,",
+            "    self_tests_all=True, self_test_names=())",
+            "quick, tests = fast_check.build_steps(plan)",
+            "fast_steps = [*quick, *tests]",
+            "gate_steps = [step for _, lane in gate.LANES for step in lane]",
+            "scripts = lambda steps: sorted({a for step in steps for a in step.args if a.startswith('scripts/') and a.endswith('.py')})",
+            "missing = sorted(set(scripts(fast_steps)) - set(scripts(gate_steps)))",
+            "absent = sorted(name for name in set(scripts(fast_steps)) | set(scripts(gate_steps)) if not (gate.REPO_ROOT / name).is_file())",
+            'print(json.dumps({"missing": missing, "absent": absent, "fast": [step.name for step in fast_steps], "gate": scripts(gate_steps)}))',
+        ],
+    )
+    assert_exit_code(0, f"the driver must succeed (got {exit_code}): {output}", exit_code)
+    result = json.loads(output)
+    assert_true(result["missing"] == [], f"every fast-check step must run on the gate ladder, missing: {result['missing']}")
+    assert_true(result["absent"] == [], f"no step may launch a script absent from the checkout: {result['absent']}")
+    assert_true("assembly.warnings" in result["fast"], "the assembly warning policy must run in the fast check")
+    assert_true(
+        "scripts/lint_assembly_warnings.py" in result["gate"],
+        "the assembly warning policy must run in the gate",
+    )
+
+
 def main() -> int:
     print("== Gate plan self-tests ==")
 
@@ -612,6 +646,7 @@ def main() -> int:
         ("Plan_CarriesCommandsAndDependencies", lambda: case_plan_carries_commands_and_dependencies(python)),
         ("Plan_MarksTheDriftCheckAsAnEmptyOutputCheck", lambda: case_plan_marks_the_drift_check_as_an_empty_output_check(python)),
         ("Plan_ResolvesEveryProgram", lambda: case_plan_resolves_every_program(python)),
+        ("Plan_RunsTheFastCheckSteps", lambda: case_fast_check_steps_run_the_gate_ladder(python)),
         ("Only_SelectsTheRequestedStepsWithDependencies", lambda: case_only_selects_the_requested_steps_with_dependencies(python)),
         ("Only_FailsOnUnknownStepNames", lambda: case_only_fails_on_unknown_step_names(python)),
         ("Plan_ExcludesTheUnitySuites", lambda: case_plan_excludes_the_unity_suites(python)),

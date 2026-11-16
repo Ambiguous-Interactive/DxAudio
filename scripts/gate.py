@@ -166,6 +166,11 @@ LANES: Tuple[Tuple[str, Tuple[Step, ...]], ...] = (
                 "Meta companion lint",
                 (*_PYTHON_LAUNCHER, "scripts/lint_meta_companions.py"),
             ),
+            Step(
+                "assembly.warnings",
+                "Assembly warning policy",
+                (*_PYTHON_LAUNCHER, "scripts/lint_assembly_warnings.py"),
+            ),
         ),
     ),
     (
