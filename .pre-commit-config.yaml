@@ -35,6 +35,13 @@ repos:
         language: system
         files: ^(Editor|Runtime|Tests|Generator~)/.*\.cs$
         description: Runs the null-assertion and using-placement lints in one interpreter over the staged C# files.
+      - id: lint-assembly-warnings
+        name: Enforce the assembly warning policy
+        entry: uv run scripts/lint_assembly_warnings.py
+        language: system
+        pass_filenames: false
+        files: ^(Runtime|Editor)/.*\.cs$|.*\.(rsp|ruleset)$|^\.net-tests/
+        description: Fails when shipped code hides a compiler warning, the package ships compiler configuration, or the engine-free build stops treating warnings as errors.
       - id: lint-release-secrets
         name: Enforce the release credential contract
         entry: uv run scripts/lint_release_secrets.py

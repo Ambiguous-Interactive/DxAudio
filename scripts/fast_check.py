@@ -130,11 +130,13 @@ def build_plan(repo_root: Path, base_sha: str) -> FastCheckPlan:
         markdown=tuple(path for path in existing if path.endswith(".md")),
         harness=any(is_surface_path(path) for path in changed),
         packaging=any(path.startswith(("Runtime/", "Editor/", "Tests/", ".net-tests/")) or path == "package.json" for path in changed),
-        # The warning policy covers the shipped sources, not only the assembly
-        # configuration: a suppression planted in Runtime or Editor must fail
-        # in the per-edit loop, where the author can still see it.
+        # The warning policy covers the shipped sources and the engine-free
+        # project, not only the assembly configuration: a suppression planted
+        # in Runtime or Editor, or a dropped warnings-as-errors setting, must
+        # fail in the per-edit loop where the author can still see it.
         assembly_warnings=any(
             path.endswith((".asmdef", ".ruleset", ".rsp", ".dll.meta"))
+            or path.startswith(".net-tests/")
             or (path.endswith(".cs") and path.startswith(("Runtime/", "Editor/")))
             for path in changed
         ),

@@ -4,8 +4,8 @@
 The policy exists so a hidden compiler warning fails a check instead of
 reaching a player, and it runs in the fast check, the gate, and CI. Each case
 plants one way a warning can be hidden in a throwaway tree and asserts the
-lint fails on it, plus the two shapes that must stay out of scope: the
-``Tests/`` fixtures and a pristine tree.
+lint fails on it, plus the shapes that must stay clean: prose that mentions a
+suppression, a ``Tests/`` fixture, and a pristine package.
 """
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ class LintSandbox:
     def write(self, relative: str, content: str = "x") -> None:
         path = self.root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
+        path.write_text(content, encoding="utf-8", newline="")
 
     def run(self, *extra: str) -> None:
         """Run the real lint against the sandbox and capture its verdict."""
@@ -72,7 +72,7 @@ class LintSandbox:
         remove_temp_root(self.root)
 
 
-def case_a_clean_package_passes() -> None:
+def case_clean_package_passes() -> None:
     sandbox = LintSandbox()
     try:
         sandbox.run()
@@ -86,7 +86,7 @@ def case_a_clean_package_passes() -> None:
         sandbox.destroy()
 
 
-def case_a_planted_warning_suppression_fails() -> None:
+def case_planted_suppression_fails() -> None:
     sandbox = LintSandbox()
     try:
         sandbox.write(
@@ -104,10 +104,26 @@ def case_a_planted_warning_suppression_fails() -> None:
 def case_suppression_spelling_and_location_do_not_matter() -> None:
     sandbox = LintSandbox()
     try:
-        sandbox.write("Editor/Tool.cs", "#   PRAGMA   warning    DISABLE   0618\n// body\n")
+        sandbox.write("Editor/Tool.cs", "#\tPRAGMA   warning    DISABLE   0618\r\n// body\r\n")
         sandbox.run()
-        assert_exit_code(1, "a mixed-case, spaced suppression must fail", sandbox.last_exit)
+        assert_exit_code(1, "a mixed-case, tabbed, CRLF suppression must fail", sandbox.last_exit)
         assert_contains("the failure names the editor file", "Editor/Tool.cs:1", sandbox.output)
+    finally:
+        sandbox.destroy()
+
+
+def case_prose_mentioning_a_suppression_passes() -> None:
+    sandbox = LintSandbox()
+    try:
+        # A directive must start its line, so a comment or a string that
+        # mentions the form cannot fail the scan.
+        sandbox.write(
+            "Runtime/Documented.cs",
+            '// Example: "#pragma warning disable CS0618" is forbidden here.\n'
+            "public sealed class Documented\n{\n}\n",
+        )
+        sandbox.run()
+        assert_exit_code(0, f"prose must not fail the scan: {sandbox.output}", sandbox.last_exit)
     finally:
         sandbox.destroy()
 
@@ -117,16 +133,33 @@ def case_compiler_configuration_files_fail() -> None:
     try:
         sandbox.write("Runtime/csc.rsp", "-warn:5\n")
         sandbox.write("Editor/strict.ruleset", "<RuleSet Name=\"x\" />\n")
+        sandbox.write(".net-tests/Directory.Build.rsp", "-nowarn:0618\n")
+        sandbox.write("Tests/Editor/UPPER.RSP", "-nowarn:0169\n")
         sandbox.run()
         assert_exit_code(1, "a response file or ruleset can hide a warning and must fail", sandbox.last_exit)
-        assert_contains("the failure names the response file", "Runtime/csc.rsp", sandbox.output)
-        assert_contains("the failure names the ruleset", "Editor/strict.ruleset", sandbox.output)
+        for path in ("Runtime/csc.rsp", "Editor/strict.ruleset", ".net-tests/Directory.Build.rsp", "Tests/Editor/UPPER.RSP"):
+            assert_contains(f"the failure names {path}", path, sandbox.output)
         assert_contains("the failure names the class", "configures the package compiler", sandbox.output)
     finally:
         sandbox.destroy()
 
 
-def case_a_missing_warnings_as_errors_project_fails() -> None:
+def case_build_output_and_git_metadata_are_skipped() -> None:
+    sandbox = LintSandbox()
+    try:
+        # Tool caches and Unity's tilde folders never compile, so a stale
+        # response file inside one must not fail the live tree.
+        sandbox.write(".git/csc.rsp", "-nowarn:0618\n")
+        sandbox.write(".net-tests/obj/Generated.rsp", "-nowarn:0618\n")
+        sandbox.write(".net-tests/bin/stale.ruleset", "<RuleSet />\n")
+        sandbox.write("Generator~/csc.rsp", "-nowarn:0618\n")
+        sandbox.run()
+        assert_exit_code(0, f"skipped trees must not fail the scan: {sandbox.output}", sandbox.last_exit)
+    finally:
+        sandbox.destroy()
+
+
+def case_missing_warnings_as_errors_fails() -> None:
     sandbox = LintSandbox()
     try:
         sandbox.write(
@@ -136,6 +169,29 @@ def case_a_missing_warnings_as_errors_project_fails() -> None:
         sandbox.run()
         assert_exit_code(1, "the engine-free build must keep warnings as errors", sandbox.last_exit)
         assert_contains("the failure names the project", ".net-tests/DxAudio.Tests.csproj", sandbox.output)
+        assert_contains("the failure names the setting", "TreatWarningsAsErrors", sandbox.output)
+    finally:
+        sandbox.destroy()
+
+
+def case_last_warnings_as_errors_setting_wins() -> None:
+    sandbox = LintSandbox()
+    try:
+        # MSBuild is last-wins: a later false must fail even though a true
+        # appears earlier in the file.
+        sandbox.write(
+            ".net-tests/DxAudio.Tests.csproj",
+            "<Project Sdk=\"Microsoft.NET.Sdk\">\n"
+            "  <PropertyGroup>\n"
+            "    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>\n"
+            "  </PropertyGroup>\n"
+            "  <PropertyGroup>\n"
+            "    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>\n"
+            "  </PropertyGroup>\n"
+            "</Project>\n",
+        )
+        sandbox.run()
+        assert_exit_code(1, "a later false must not pass the policy", sandbox.last_exit)
         assert_contains("the failure names the setting", "TreatWarningsAsErrors", sandbox.output)
     finally:
         sandbox.destroy()
@@ -153,15 +209,38 @@ def case_test_fixture_suppression_is_out_of_scope() -> None:
         sandbox.destroy()
 
 
+def case_missing_root_fails() -> None:
+    missing = new_temp_root(prefix="assembly-warnings-missing-") / "absent"
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(LINT), "--repo-root", str(missing)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
+            check=False,
+        )
+        output = (completed.stdout or "") + (completed.stderr or "")
+        assert_exit_code(1, f"an absent root must fail: {output}", completed.returncode)
+        assert_contains("the failure names the missing root", "repository root does not exist", output)
+    finally:
+        remove_temp_root(missing.parent)
+
+
 def main() -> int:
     print("== Assembly warning policy self-tests ==")
     cases: List[Tuple[str, Callable[[], None]]] = [
-        ("Clean_PackagePasses", case_a_clean_package_passes),
-        ("Planted_SuppressionFails", case_a_planted_warning_suppression_fails),
+        ("Clean_PackagePasses", case_clean_package_passes),
+        ("Planted_SuppressionFails", case_planted_suppression_fails),
         ("Suppression_SpellingAndLocationDoNotMatter", case_suppression_spelling_and_location_do_not_matter),
+        ("Prose_MentioningASuppressionPasses", case_prose_mentioning_a_suppression_passes),
         ("Compiler_ConfigurationFilesFail", case_compiler_configuration_files_fail),
-        ("Project_MissingWarningsAsErrorsFails", case_a_missing_warnings_as_errors_project_fails),
+        ("Build_OutputAndGitMetadataAreSkipped", case_build_output_and_git_metadata_are_skipped),
+        ("Project_MissingWarningsAsErrorsFails", case_missing_warnings_as_errors_fails),
+        ("Project_LastWarningsAsErrorsSettingWins", case_last_warnings_as_errors_setting_wins),
         ("Tests_FixtureSuppressionIsOutOfScope", case_test_fixture_suppression_is_out_of_scope),
+        ("Root_MissingRootFails", case_missing_root_fails),
     ]
     failed = run_cases(cases)
     if failed:

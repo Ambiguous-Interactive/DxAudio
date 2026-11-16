@@ -116,6 +116,18 @@ def case_plan_ignores_docs_only_trees(python: str) -> None:
         remove_temp_root(repo)
 
 
+def case_plan_covers_the_engine_free_warning_setting(python: str) -> None:
+    repo = new_plan_repo()
+    try:
+        # The assembly warning policy also reads the engine-free project, so a
+        # csproj edit must plan the step in the per-edit loop.
+        write_fixture_file(repo, ".net-tests/DxAudio.Tests.csproj", "<Project />\n")
+        plan = invoke_fast_check_plan(repo, python)
+        assert_true(plan["assembly_warnings"], "an engine-free project change must plan the assembly warning group")
+    finally:
+        remove_temp_root(repo)
+
+
 def case_plan_covers_untracked_and_working_tree_files(python: str) -> None:
     repo = new_plan_repo()
     try:
@@ -251,6 +263,10 @@ def main() -> int:
 
     run_case("Plan_SplitsGroupsByChangedPath", lambda: case_plan_splits_groups_by_changed_path(python))
     run_case("Plan_IgnoresDocsOnlyTrees", lambda: case_plan_ignores_docs_only_trees(python))
+    run_case(
+        "Plan_CoversTheEngineFreeWarningSetting",
+        lambda: case_plan_covers_the_engine_free_warning_setting(python),
+    )
     run_case(
         "Plan_CoversUntrackedAndWorkingTreeFiles",
         lambda: case_plan_covers_untracked_and_working_tree_files(python),

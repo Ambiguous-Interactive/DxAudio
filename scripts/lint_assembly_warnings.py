@@ -11,17 +11,18 @@ controls the compiler:
    silence a warning for every consumer without a reviewable C# change.
 2. No ``#pragma warning disable`` in the shipped ``Runtime/`` and ``Editor/``
    sources. Fix the warning or version-guard the API that raises it, per the
-   unity-version-guards skill.
-3. The engine-free ``.net-tests`` project keeps ``TreatWarningsAsErrors``, so
-   the Core assembly fails on a warning on plain .NET before Unity sees it.
+   unity-version-guards skill. C# requires a directive to start its line, so
+   the scan anchors there and prose that mentions the form stays clean.
+3. The engine-free ``.net-tests`` project keeps ``TreatWarningsAsErrors`` set
+   to true as its last word, so the Core assembly fails on a warning on plain
+   .NET before Unity sees it.
 
 The ``Tests/`` tree stays out of rule 2: a Unity test fixture may pin one
 editor's obsolete API and suppress the warning the other editor raises.
-Unity itself compiles at the editor's warning level, so the warnings for the
-assemblies this repository does not build stay in the CI job log.
 
-The step runs in the fast check on assembly-configuration changes, in the
-gate, and in CI's lint ladder, so all three drivers apply one policy.
+The step runs in the fast check (on a changed assembly definition, response
+file, ruleset, or shipped source), in the gate, and in CI's lint ladder, so
+all three drivers apply one policy.
 
 Launch with ``uv run scripts/lint_assembly_warnings.py``; any Python 3.9+
 interpreter works. ``--verbose`` prints the scanned counts when the policy
@@ -40,12 +41,13 @@ from typing import List, Optional, Sequence, Tuple
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SHIPPED_SOURCE_ROOTS: Tuple[str, ...] = ("Runtime", "Editor")
 FORBIDDEN_CONFIGURATION_SUFFIXES: Tuple[str, ...] = (".rsp", ".ruleset")
+# Tool caches and build output hold no package source, and Unity ignores a
+# folder whose name ends in ``~``. Everything else is scanned, including the
+# dot folders, so a response file cannot hide in ``.net-tests``.
+SKIPPED_DIRECTORY_NAMES = frozenset((".git", ".venv", "bin", "obj", "node_modules", "__pycache__"))
 ENGINE_FREE_PROJECT = Path(".net-tests") / "DxAudio.Tests.csproj"
-WARNING_DISABLE_PATTERN = re.compile(r"#\s*pragma\s+warning\s+disable\b", re.IGNORECASE)
-WARNINGS_AS_ERRORS_PATTERN = re.compile(
-    r"<TreatWarningsAsErrors>\s*true\s*</TreatWarningsAsErrors>",
-    re.IGNORECASE,
-)
+WARNING_DISABLE_PATTERN = re.compile(r"^\s*#\s*pragma\s+warning\s+disable\b", re.IGNORECASE)
+WARNINGS_AS_ERRORS_PATTERN = re.compile(r"<TreatWarningsAsErrors>\s*(\w+)\s*</TreatWarningsAsErrors>", re.IGNORECASE)
 
 
 def parse_arguments(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -69,24 +71,22 @@ def display_path(path: Path, repo_root: Path) -> str:
 
 
 def _visible_walk(repo_root: Path) -> Tuple[List[Path], List[Path]]:
-    """Return (compiler configuration files, shipped C# sources) in one walk.
-
-    Dot directories hold the tool configuration, the git metadata and the
-    engine-free project, none of which Unity compiles, so the walk prunes
-    them the way Unity ignores them.
-    """
+    """Return (compiler configuration files, shipped C# sources) in one walk."""
     configuration: List[Path] = []
     sources: List[Path] = []
     for directory, subdirectories, names in os.walk(repo_root):
-        subdirectories[:] = sorted(name for name in subdirectories if not name.startswith("."))
+        subdirectories[:] = sorted(
+            name for name in subdirectories if name not in SKIPPED_DIRECTORY_NAMES and not name.endswith("~")
+        )
         current = Path(directory)
         relative = display_path(current, repo_root)
-        shipped = relative.split("/")[0] in SHIPPED_SOURCE_ROOTS if relative else False
+        shipped = bool(relative) and relative.split("/")[0] in SHIPPED_SOURCE_ROOTS
         for name in names:
             path = current / name
-            if name.endswith(FORBIDDEN_CONFIGURATION_SUFFIXES):
+            lowered = name.lower()
+            if lowered.endswith(FORBIDDEN_CONFIGURATION_SUFFIXES):
                 configuration.append(path)
-            elif shipped and name.endswith(".cs"):
+            elif shipped and lowered.endswith(".cs"):
                 sources.append(path)
     return sorted(configuration, key=str), sorted(sources, key=str)
 
@@ -121,7 +121,10 @@ def find_policy_violations(repo_root: Path) -> Tuple[List[str], int, int]:
     except OSError:
         violations.append(f"{ENGINE_FREE_PROJECT.as_posix()} is missing; the engine-free build must fail on a warning")
     else:
-        if not WARNINGS_AS_ERRORS_PATTERN.search(project_text):
+        # MSBuild is last-wins, so a later false must fail the policy even
+        # though an earlier true is present.
+        settings = [value.lower() for value in WARNINGS_AS_ERRORS_PATTERN.findall(project_text)]
+        if not settings or settings[-1] != "true":
             violations.append(
                 f"{ENGINE_FREE_PROJECT.as_posix()} must set "
                 "<TreatWarningsAsErrors>true</TreatWarningsAsErrors>"
