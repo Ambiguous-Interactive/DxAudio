@@ -25,7 +25,7 @@ dependency-free while a consumer who installs the package gets the integration w
 
 **Evidence:** `Runtime/Integrations/DxMessaging` (issue #26) ships this way. Deleting its `defineConstraints` entry
 makes `package_check.py` fail with "package.json does not list com.wallstop-studios.dxmessaging"; the Unity 2021.3 lane
-installs no DxMessaging and still compiles and passes its suite.
+of the nightly matrix installs no DxMessaging and still compiles and passes its suite.
 
 **Reopen if:** Unity changes how guarded assemblies resolve references, or a package's API needs an editor-side asset
 that cannot be guarded this way.

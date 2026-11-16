@@ -66,7 +66,8 @@ method calls (see [Settings and events](#settings-and-events)).
 One integration is optional. `Runtime/Integrations/DxMessaging` compiles only when the project also has
 com.wallstop-studios.dxmessaging installed, through a version define and a define constraint on its assembly. Without
 the package that assembly is skipped entirely, so a DxMessaging-free project sees no missing reference and compiles
-exactly as before. CI runs both states on every pull request.
+exactly as before. Pull-request and main CI run Unity 6 in both states, and a nightly matrix adds Unity 2021.3 in both
+states.
 
 If a later version needs another package, `package.json` lists it at an exact version. Unity then resolves it from the
 registries in your manifest for every install path. CI fails when an assembly references a package that `package.json`

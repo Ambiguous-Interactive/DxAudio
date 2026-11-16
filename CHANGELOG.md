@@ -23,6 +23,9 @@ All notable changes to this package are documented here. The format follows
 ### Changed
 
 - Local development harness, gates, and MCP tooling for this repository. No package behavior changes.
+- Unity CI runs 6000.5 on pull requests and main. The 2021.3 lane moved to a nightly matrix, which runs every supported
+  editor in both states of the optional DxMessaging integration
+  ([#25](https://github.com/Ambiguous-Interactive/DxAudio/issues/25)).
 
 ### Fixed
 
