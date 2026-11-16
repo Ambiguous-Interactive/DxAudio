@@ -138,16 +138,16 @@ namespace WallstopStudios.DxAudio
 
             AudioSource source = _voices[voice];
             bool usable = source != null;
-            if (usable && source.clip == null)
+            if (usable && !VoiceClip.HoldsSound(source))
             {
-                // A source whose clip was released reports playback while it makes no sound. It is not busy,
-                // and it is silent, so stop it while the pool is being read anyway.
+                // A source whose clip was released, or whose data was unloaded, reports playback while it makes no
+                // sound. It is not busy, and it is silent, so stop it while the pool is being read anyway.
                 source.Stop();
             }
 
             state = new SfxVoiceState(
                 usable,
-                usable && source.clip != null && source.isPlaying,
+                VoiceClip.IsSounding(source),
                 _held[voice],
                 _priorities[voice],
                 _startedAt[voice]
@@ -251,9 +251,10 @@ namespace WallstopStudios.DxAudio
 
         /// <summary>Releases every hold whose voice or clip is gone, so it stops counting against the limit.</summary>
         /// <remarks>
-        /// Unity clears a source's clip when that clip's asset is destroyed, and leaves the source reporting playback
-        /// with no sound. Without this sweep that voice stays held, and silent, for the rest of the session. It runs
-        /// from <c>Update</c> and again before every play, so a released loop is freed within a frame.
+        /// Unity clears a source's clip when that clip's asset is destroyed, and leaves the clip assigned when its audio
+        /// data is unloaded. Both leave the source reporting playback with no sound. Without this sweep that voice stays
+        /// held, and silent, for the rest of the session. It runs from <c>Update</c> and again before every play, so a
+        /// released loop is freed within a frame.
         /// </remarks>
         internal void ReclaimLostHolds()
         {
@@ -270,7 +271,7 @@ namespace WallstopStudios.DxAudio
                 }
 
                 AudioSource voice = _voices[index];
-                if (voice != null && voice.clip != null)
+                if (VoiceClip.HoldsSound(voice))
                 {
                     continue;
                 }

@@ -80,8 +80,7 @@ namespace WallstopStudios.DxAudio
         public MusicAttenuation TargetAttenuation => _ducks.Current;
 
         /// <summary>Whether the current music is audible, rather than stopped or on its way out.</summary>
-        public bool IsPlaying =>
-            _current != null && _current.source != null && _current.source.clip != null && _current.source.isPlaying;
+        public bool IsPlaying => _current != null && VoiceClip.IsSounding(_current.source);
 
         private MusicOverride<MusicTrack> Selection =>
             _selection ??= new MusicOverride<MusicTrack>(OnSelectionChanged, SameMusicComparer.Instance, IsPlayable);
@@ -214,10 +213,11 @@ namespace WallstopStudios.DxAudio
                     continue;
                 }
 
-                if (voice.track != null && voice.source.clip == null)
+                if (voice.track != null && !VoiceClip.HoldsSound(voice.source))
                 {
                     // Unity clears the source's clip when the track's clip asset is destroyed, and keeps the source
-                    // reporting playback with no sound. Music asked for again starts once a clip is back.
+                    // reporting playback with no sound when its audio data is unloaded. Music asked for again starts
+                    // once a clip with data is back.
                     Silence(voice);
                     continue;
                 }
@@ -288,8 +288,8 @@ namespace WallstopStudios.DxAudio
         /// <remarks>
         /// A released clip stops the voice and clears what it played, but the announced selection still names that
         /// music. Asking for it again is then not a change, so without this second look the request would play nothing.
-        /// The voice counts only while its source still has a clip, so a request in the same frame as a clip comes back
-        /// is not mistaken for music that is already sounding.
+        /// The voice counts only while its source still has a clip with its audio data, so a request in the same frame as
+        /// a clip comes back is not mistaken for music that is already sounding.
         /// </remarks>
         private void Resume()
         {
@@ -301,8 +301,7 @@ namespace WallstopStudios.DxAudio
 
             if (
                 _current != null
-                && _current.source != null
-                && _current.source.clip != null
+                && VoiceClip.HoldsSound(_current.source)
                 && MusicTrack.SameMusic(_current.track, track)
             )
             {
