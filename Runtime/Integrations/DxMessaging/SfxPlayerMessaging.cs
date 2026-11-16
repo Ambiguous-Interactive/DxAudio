@@ -98,15 +98,18 @@ namespace WallstopStudios.DxAudio.Integration
 
         protected override void OnDisable()
         {
-            if (_player != null)
-            {
-                _player.CueDropped -= HandleCueDropped;
-            }
+            ReleaseOwnedState();
 
-            // Before the token goes quiet, so a stop keeps working while it runs. A loop nobody can address any
-            // more must not hold a voice for the rest of the session.
-            StopEveryHeldLoop();
+            // After the loops, so a stop keeps working while the token still runs.
             base.OnDisable();
+        }
+
+        protected override void OnDestroy()
+        {
+            // A destroy that arrives without a disable must not leave a loop holding a voice, and a destroyed
+            // player's event must not keep a handler here alive.
+            ReleaseOwnedState();
+            base.OnDestroy();
         }
 
         private void HandlePlay(SfxPlayRequest request)
@@ -245,6 +248,16 @@ namespace WallstopStudios.DxAudio.Integration
             }
 
             _endedLoops.Clear();
+        }
+
+        private void ReleaseOwnedState()
+        {
+            if (_player != null)
+            {
+                _player.CueDropped -= HandleCueDropped;
+            }
+
+            StopEveryHeldLoop();
         }
 
         private void StopEveryHeldLoop()

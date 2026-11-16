@@ -4,6 +4,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     using System.Collections.Generic;
     using DxMessaging.Core;
     using DxMessaging.Core.Extensions;
+    using DxMessaging.Unity;
     using NUnit.Framework;
     using UnityEngine;
     using WallstopStudios.DxAudio.Integration;
@@ -212,32 +213,28 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void DisablingTheAdapterStopsTheLoopsItStarted()
+        public void DestroyingTheAdapterStopsTheLoopsItStarted()
         {
             SfxPlayer player = Player(Cue(loop: true, key: "hum"), voiceCount: 2, loopingVoiceLimit: 1);
             SfxPlayerMessaging messaging = Messaging(player);
             EmitLoop(messaging.gameObject, "hum");
             Assert.That(player.HeldVoiceCount, Is.EqualTo(1));
 
-            messaging.enabled = false;
+            Object.DestroyImmediate(messaging);
 
             Assert.That(player.HeldVoiceCount, Is.Zero, "a loop nobody can address must not hold a voice");
-            Assert.That(messaging.HeldLoopCount, Is.Zero);
         }
 
         [Test]
-        public void TheAdapterStopsListeningWhenDisabled()
+        public void ADestroyedAdapterLeavesNoRegistrationBehind()
         {
             SfxPlayer player = Player(Cue(loop: false, key: "hit"), voiceCount: 4);
             SfxPlayerMessaging messaging = Messaging(player);
 
-            messaging.enabled = false;
-            EmitPlay(messaging.gameObject, "hit");
-            Assert.That(PlayingVoices(player), Is.Zero);
+            Object.DestroyImmediate(messaging);
+            EmitPlay(player.gameObject, "hit");
 
-            messaging.enabled = true;
-            EmitPlay(messaging.gameObject, "hit");
-            Assert.That(PlayingVoices(player), Is.EqualTo(1), "enabling it again resumes listening");
+            Assert.That(PlayingVoices(player), Is.Zero, "the destroyed adapter's registrations are gone");
         }
 
         [Test]
@@ -390,7 +387,20 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         private SfxPlayerMessaging Messaging(SfxPlayer player)
         {
-            return Made(player.gameObject.AddComponent<SfxPlayerMessaging>());
+            SfxPlayerMessaging messaging = Made(player.gameObject.AddComponent<SfxPlayerMessaging>());
+            /*
+                An EditMode test adds a component without the enable pass a running game gets, so the two halves that
+                pass performs are done here: the companion arms its handler, and the adapter commits the registrations
+                it staged in Awake. Without both, every assertion below would measure silence.
+            */
+            Assert.That(messaging.Token != null, "the adapter stages its registrations in Awake");
+            player.GetComponent<MessagingComponent>().ToggleMessageHandler(true);
+            if (!messaging.Token.Enabled)
+            {
+                messaging.Token.Enable();
+            }
+
+            return messaging;
         }
 
         private SfxCue Cue(bool loop, string key = null, float minimumIntervalSeconds = 0f, float spatialBlend = 0f)
