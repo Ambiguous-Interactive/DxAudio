@@ -114,6 +114,12 @@ LANES: Tuple[Tuple[str, Tuple[Step, ...]], ...] = (
         (
             Step("markdown.format", "Prettier Markdown format", ("npm", "run", "format:md")),
             Step(
+                "docs.links",
+                "Docs and sample reference lint",
+                (*_PYTHON_LAUNCHER, "scripts/lint_docs_links.py"),
+                ("markdown.format",),
+            ),
+            Step(
                 "markdown.changelog",
                 "Changelog length lint",
                 (*_PYTHON_LAUNCHER, "scripts/lint_changelog_length.py"),
@@ -223,6 +229,7 @@ class DiffScope:
 
     changed_csharp: Optional[Tuple[str, ...]] = None
     markdown_changed: Optional[bool] = None
+    documentation_changed: Optional[bool] = None
     package_changed: Optional[bool] = None
     self_tests_run: bool = True
     self_test_selection: Optional[Tuple[str, ...]] = None  # None = the full suite
@@ -250,6 +257,16 @@ def _packaged_globs() -> Tuple[str, ...]:
     # unknown to the checker, so the filter is declared explicitly.
     known_entries = cast(List[Any], entries)
     return tuple(entry for entry in known_entries if isinstance(entry, str))
+
+
+def documentation_paths_changed(paths: Sequence[str]) -> bool:
+    """Return whether any changed path can affect the docs and sample lint.
+
+    The lint reads Markdown links and sample scene GUID references, so an
+    edit to either kind of file can change its verdict. A deletion counts:
+    the link that pointed at the deleted file now dangles.
+    """
+    return any(path.replace("\\", "/").endswith((".md", ".unity")) for path in paths)
 
 
 def package_paths_changed(paths: Sequence[str], packaged_globs: Sequence[str]) -> bool:
@@ -293,6 +310,7 @@ def scan_diff_scope(base_sha: str) -> DiffScope:
     return DiffScope(
         changed_csharp=tuple(sorted(existing_csharp)),
         markdown_changed=markdown_paths_changed(paths),
+        documentation_changed=documentation_paths_changed(paths),
         package_changed=package_paths_changed(paths, _packaged_globs()),
         self_tests_run=any(is_surface_path(path) for path in paths),
         self_test_selection=None if selection.all else selection.names,
@@ -302,7 +320,15 @@ def scan_diff_scope(base_sha: str) -> DiffScope:
 # Every step the diff scope can drop or rewrite. An ``--only`` run that
 # selects none of them skips the scan's git cost entirely.
 SCOPED_STEP_NAMES: frozenset[str] = frozenset(
-    {"csharp.tool-restore", "csharp.format", *CSHARP_LINT_STEPS, "markdown.format", "tests.self-tests", "pack.npm-pack"}
+    {
+        "csharp.tool-restore",
+        "csharp.format",
+        *CSHARP_LINT_STEPS,
+        "markdown.format",
+        "docs.links",
+        "tests.self-tests",
+        "pack.npm-pack",
+    }
 )
 
 
@@ -343,6 +369,10 @@ def scoped_lanes(scope: DiffScope) -> Tuple[Tuple[str, Tuple[Step, ...]], ...]:
             "--names",
             ",".join(scope.self_test_selection),
         )
+    if scope.documentation_changed is False:
+        # The docs lint resolves Markdown links and sample scene GUIDs, so a
+        # diff that touches neither cannot change its verdict.
+        drops.add("docs.links")
     if scope.package_changed is False:
         drops.add("pack.npm-pack")
 

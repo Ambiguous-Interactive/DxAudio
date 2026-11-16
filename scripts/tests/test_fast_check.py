@@ -142,6 +142,34 @@ def case_plan_covers_untracked_and_working_tree_files(python: str) -> None:
         remove_temp_root(repo)
 
 
+def case_plan_covers_documentation_and_sample_changes(python: str) -> None:
+    repo = new_plan_repo()
+    try:
+        # A sample scene edit can break a script reference without touching a
+        # compiler, so the docs lint must be planned for it as well as for
+        # Markdown.
+        write_fixture_file(repo, "Samples~/Demo/Demo.unity", "%YAML 1.1\n")
+        plan = invoke_fast_check_plan(repo, python)
+        assert_true(plan["docs"], "a sample scene change must plan the docs lint")
+        assert_true(len(plan["markdown"]) == 0, "a scene change is not a Markdown format target")
+
+        write_fixture_file(repo, "Runtime/Thing.cs", "class Thing { }\n")
+        plan = invoke_fast_check_plan(repo, python)
+        assert_true(plan["docs"], "a manual or sample path keeps the docs lint planned")
+    finally:
+        remove_temp_root(repo)
+
+
+def case_plan_skips_the_docs_group_for_csharp_only_changes(python: str) -> None:
+    repo = new_plan_repo()
+    try:
+        write_fixture_file(repo, "Runtime/Thing.cs", "class Thing { }\n")
+        plan = invoke_fast_check_plan(repo, python)
+        assert_true(not plan["docs"], "a C#-only change cannot affect the docs lint")
+    finally:
+        remove_temp_root(repo)
+
+
 def case_plan_falls_back_to_head_when_no_base_exists(python: str) -> None:
     repo = new_plan_repo()
     try:
@@ -286,6 +314,14 @@ def main() -> int:
     )
     run_case("Plan_SelectsTheMappedSelfTestSubject", lambda: case_plan_selects_the_mapped_self_test_subject(python))
     run_case("Plan_PinsTheBaseShaInTheContract", lambda: case_plan_pins_the_base_sha_in_the_contract(python))
+    run_case(
+        "Plan_CoversDocumentationAndSampleChanges",
+        lambda: case_plan_covers_documentation_and_sample_changes(python),
+    )
+    run_case(
+        "Plan_SkipsTheDocsGroupForCSharpOnlyChanges",
+        lambda: case_plan_skips_the_docs_group_for_csharp_only_changes(python),
+    )
 
     failures = failure_count()
     if failures > 0:
