@@ -118,19 +118,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             AudioClip fortySeconds = Clip(made, 40f);
             MusicTrack longTrack = made.Track(MusicTrack.Create(fortySeconds));
             MusicTrack shortTrack = made.Track(MusicTrack.Create(Clip(made, 20f)));
-            MusicTrack forced = made.Track(
-                MusicTrack.Create(fortySeconds, clipLoadType: MusicClipLoadType.DecompressOnLoad)
-            );
+            MusicTrack forced = made.Track(MusicTrack.Create(fortySeconds, clipLoadType: MusicClipLoadType.DecompressOnLoad));
 
             Assert.That(longTrack.ResolvedClipLoadType, Is.EqualTo(MusicClipLoadType.Streaming));
             Assert.That(shortTrack.ResolvedClipLoadType, Is.EqualTo(MusicClipLoadType.DecompressOnLoad));
             Assert.That(forced.ResolvedClipLoadType, Is.EqualTo(MusicClipLoadType.DecompressOnLoad), "explicit wins");
             Assert.That(MusicClipImport.Matches(forced), Is.True, "the clip holds the asked-for type");
-            Assert.That(
-                MusicClipImport.Matches(longTrack),
-                Is.False,
-                "a decompressed clip does not follow a track that wants streaming"
-            );
+            Assert.That(MusicClipImport.Matches(longTrack), Is.False, "a decompressed clip does not follow a track that wants streaming");
         }
 
         [Test]
@@ -148,11 +142,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             {
                 Assert.That(source.Length, Is.Not.Zero, "the fixture clip is missing");
                 // A copy gets its own GUID, so changing its importer cannot touch the committed fixture.
-                System.IO.File.Copy(
-                    System.IO.Path.Combine(projectRoot, source),
-                    System.IO.Path.Combine(projectRoot, destination),
-                    overwrite: true
-                );
+                System.IO.File.Copy(System.IO.Path.Combine(projectRoot, source), System.IO.Path.Combine(projectRoot, destination), overwrite: true);
                 AssetDatabase.ImportAsset(destination, ImportAssetOptions.ForceUpdate);
 
                 AudioClip clip = AssetDatabase.LoadAssetAtPath<AudioClip>(destination);
@@ -160,24 +150,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 AudioClip streamed = AssetDatabase.LoadAssetAtPath<AudioClip>(destination);
                 Assert.That(MusicClipImport.TryGetAppliedLoadType(streamed, out MusicClipLoadType applied), Is.True);
                 Assert.That(applied, Is.EqualTo(MusicClipLoadType.Streaming), "the importer took the write");
-                Assert.That(
-                    MusicClipImport.Matches(
-                        made.Track(MusicTrack.Create(streamed, clipLoadType: MusicClipLoadType.Streaming))
-                    ),
-                    Is.True
-                );
+                Assert.That(MusicClipImport.Matches(made.Track(MusicTrack.Create(streamed, clipLoadType: MusicClipLoadType.Streaming))), Is.True);
 
-                Assert.That(
-                    MusicClipImport.TryApply(streamed, MusicClipLoadType.Auto),
-                    Is.False,
-                    "Auto names no concrete type"
-                );
+                Assert.That(MusicClipImport.TryApply(streamed, MusicClipLoadType.Auto), Is.False, "Auto names no concrete type");
                 AudioClip generated = made.Track(AudioClip.Create("generated", 800, 1, 8_000, false));
-                Assert.That(
-                    MusicClipImport.TryApply(generated, MusicClipLoadType.Streaming),
-                    Is.False,
-                    "a generated clip has no importer"
-                );
+                Assert.That(MusicClipImport.TryApply(generated, MusicClipLoadType.Streaming), Is.False, "a generated clip has no importer");
             }
             finally
             {
@@ -218,20 +195,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             using MadeObjects made = new();
             MusicDuck first = made.Track(MusicDuck.Create(MusicDuckHolders.One, 0.5f));
             MusicDuck permissive = made.Track(MusicDuck.Create(MusicDuckHolders.One, 1f));
-            MusicDuck filtered = made.Track(
-                MusicDuck.Create(
-                    MusicDuckHolders.Many,
-                    volumeScale: 0.8f,
-                    lowPassCutoffHz: 4_000f,
-                    highPassCutoffHz: 300f
-                )
-            );
+            MusicDuck filtered = made.Track(MusicDuck.Create(MusicDuckHolders.Many, volumeScale: 0.8f, lowPassCutoffHz: 4_000f, highPassCutoffHz: 300f));
             MusicDuck quietest = made.Track(MusicDuck.Create(MusicDuckHolders.One, 0.4f));
 
-            MusicAttenuation composed = MusicDuckEditor.Compose(
-                first,
-                new[] { permissive, filtered, quietest, null, first }
-            );
+            MusicAttenuation composed = MusicDuckEditor.Compose(first, new[] { permissive, filtered, quietest, null, first });
 
             Assert.That(composed.volumeScale, Is.EqualTo(0.4f).Within(0.0001f));
             Assert.That(composed.lowPassCutoffHz, Is.EqualTo(4_000f).Within(0.5f));

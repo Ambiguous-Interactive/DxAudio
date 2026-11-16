@@ -120,11 +120,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(step, Is.EqualTo(3));
             Assert.That(selection.TryNext("pickup", 4, 0.99f, out int pickup), Is.True);
             Assert.That(pickup, Is.EqualTo(3), "another key does not inherit the step's history");
-            Assert.That(
-                selection.TryNext("step", 2, 0.99f, out int shrunk),
-                Is.True,
-                "a last pick past the new count is ignored"
-            );
+            Assert.That(selection.TryNext("step", 2, 0.99f, out int shrunk), Is.True, "a last pick past the new count is ignored");
             Assert.That(shrunk, Is.InRange(0, 1));
         }
 
@@ -137,11 +133,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(selection.TryFollow("answer", "question", 3, out int answered), Is.True);
             Assert.That(answered, Is.EqualTo(asked));
-            Assert.That(
-                selection.TryFollow("answer", "question", asked, out _),
-                Is.False,
-                "the follower lacks that take"
-            );
+            Assert.That(selection.TryFollow("answer", "question", asked, out _), Is.False, "the follower lacks that take");
             Assert.That(selection.TryFollow("question", "question", 3, out _), Is.False, "a cue cannot follow itself");
         }
     }

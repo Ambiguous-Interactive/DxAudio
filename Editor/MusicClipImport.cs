@@ -38,8 +38,7 @@ namespace WallstopStudios.DxAudio.Editor
                 return false;
             }
 
-            return TryGetAppliedLoadType(track.Clip, out MusicClipLoadType applied)
-                && applied == track.ResolvedClipLoadType;
+            return TryGetAppliedLoadType(track.Clip, out MusicClipLoadType applied) && applied == track.ResolvedClipLoadType;
         }
 
         /// <summary>Whether the clip has an importer this editor can write.</summary>
@@ -55,7 +54,9 @@ namespace WallstopStudios.DxAudio.Editor
         /// </returns>
         public static bool TryApply(AudioClip clip, MusicClipLoadType loadType)
         {
-            if (loadType == MusicClipLoadType.Auto)
+            // Only a concrete type can be written; Auto follows the length rule and an unset value names nothing.
+            bool concrete = loadType == MusicClipLoadType.DecompressOnLoad || loadType == MusicClipLoadType.CompressedInMemory || loadType == MusicClipLoadType.Streaming;
+            if (!concrete)
             {
                 return false;
             }
@@ -76,8 +77,7 @@ namespace WallstopStudios.DxAudio.Editor
                 importer.SaveAndReimport();
             }
 
-            return TryGetAppliedLoadType(AssetDatabase.LoadAssetAtPath<AudioClip>(path), out MusicClipLoadType applied)
-                && applied == loadType;
+            return TryGetAppliedLoadType(AssetDatabase.LoadAssetAtPath<AudioClip>(path), out MusicClipLoadType applied) && applied == loadType;
         }
 
         private static string EditablePath(AudioClip clip)

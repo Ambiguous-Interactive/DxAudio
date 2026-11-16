@@ -13,6 +13,7 @@ namespace WallstopStudios.DxAudio
         public const float StreamingThresholdSeconds = 30f;
 
         /// <summary>The load type for a clip of <paramref name="lengthSeconds" />, keeping an explicit choice.</summary>
+        /// <remarks>An unset value follows the length rule, so a track serialized before it carried a type still plays.</remarks>
         public static MusicClipLoadType Resolve(float lengthSeconds, MusicClipLoadType requested)
         {
             return requested switch
@@ -20,9 +21,7 @@ namespace WallstopStudios.DxAudio
                 MusicClipLoadType.DecompressOnLoad => MusicClipLoadType.DecompressOnLoad,
                 MusicClipLoadType.CompressedInMemory => MusicClipLoadType.CompressedInMemory,
                 MusicClipLoadType.Streaming => MusicClipLoadType.Streaming,
-                _ => StreamingThresholdSeconds < lengthSeconds
-                    ? MusicClipLoadType.Streaming
-                    : MusicClipLoadType.DecompressOnLoad,
+                _ => StreamingThresholdSeconds < lengthSeconds ? MusicClipLoadType.Streaming : MusicClipLoadType.DecompressOnLoad,
             };
         }
     }

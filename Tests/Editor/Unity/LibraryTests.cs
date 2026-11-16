@@ -73,11 +73,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             SfxCue oneShot = made.Track(SfxCue.Create(new[] { overshoot }));
             SfxCue loop = made.Track(SfxCue.Create(new[] { overshoot }, loop: true));
 
-            Assert.That(
-                oneShot.PlaybackStartSecondsFor(overshoot),
-                Is.LessThan(clip.length),
-                "never at or past the end"
-            );
+            Assert.That(oneShot.PlaybackStartSecondsFor(overshoot), Is.LessThan(clip.length), "never at or past the end");
             Assert.That(loop.PlaybackStartSecondsFor(overshoot), Is.Zero);
             Assert.That(oneShot.PitchFor(0.5f), Is.EqualTo(1f));
         }

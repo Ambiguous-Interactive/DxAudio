@@ -53,11 +53,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             long growth = HeapGrowth(() => player.Play(cue), PlayCount);
 
-            Assert.That(
-                growth,
-                Is.LessThan(Ceiling),
-                $"Play grew the heap by {growth} bytes over {PlayCount:N0} plays."
-            );
+            Assert.That(growth, Is.LessThan(Ceiling), $"Play grew the heap by {growth} bytes over {PlayCount:N0} plays.");
         }
 
         [Test]
@@ -73,21 +69,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             long growth = HeapGrowth(() => player.Play("hit"), PlayCount);
 
-            Assert.That(
-                growth,
-                Is.LessThan(Ceiling),
-                $"Keyed Play grew the heap by {growth} bytes over {PlayCount:N0} plays."
-            );
+            Assert.That(growth, Is.LessThan(Ceiling), $"Keyed Play grew the heap by {growth} bytes over {PlayCount:N0} plays.");
         }
 
         [Test]
         public void TheHeapProbeSeesAPlantedAllocation()
         {
-            Assert.That(
-                _planted,
-                Is.GreaterThan(Ceiling),
-                $"a probe that cannot fail is not evidence; {PlayCount:N0} retained planted strings grew it by {_planted} bytes"
-            );
+            Assert.That(_planted, Is.GreaterThan(Ceiling), $"a probe that cannot fail is not evidence; {PlayCount:N0} retained planted strings grew it by {_planted} bytes");
         }
 
         /// <summary>The smallest heap growth of <paramref name="Windows"/> runs of <paramref name="count"/> calls.</summary>
@@ -150,14 +138,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         private static SfxCue Cue(MadeObjects made, string key = null)
         {
-            return made.Track(
-                SfxCue.Create(
-                    new[] { new SfxVariant(Clip(made)), new SfxVariant(Clip(made)) },
-                    key: key,
-                    loop: false,
-                    minimumIntervalSeconds: 0f
-                )
-            );
+            return made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)), new SfxVariant(Clip(made)) }, key: key, loop: false, minimumIntervalSeconds: 0f));
         }
 
         private static AudioClip Clip(MadeObjects made)

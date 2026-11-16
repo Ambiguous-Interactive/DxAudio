@@ -66,11 +66,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Object.DestroyImmediate(released);
 
-            Assert.That(
-                player.Play(next),
-                Is.True,
-                "a voice whose clip was released makes no sound, so it is free rather than busy"
-            );
+            Assert.That(player.Play(next), Is.True, "a voice whose clip was released makes no sound, so it is free rather than busy");
         }
 
         [Test]
@@ -80,10 +76,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             AudioClip released = Clip(made);
             MusicTrack town = made.Track(MusicTrack.Create(released, context: "town"));
             MusicTrack cave = made.Track(MusicTrack.Create(Clip(made), context: "cave"));
-            MusicPlayer player = MusicPlayer(
-                made,
-                MusicLibrary.Create(new[] { town, cave }, fadeInSeconds: 0f, fadeOutSeconds: 0f)
-            );
+            MusicPlayer player = MusicPlayer(made, MusicLibrary.Create(new[] { town, cave }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
 
             Assert.That(player.PlayContext("town"), Is.True);
             Assert.That(player.IsPlaying, Is.True);
@@ -106,10 +99,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             using MadeObjects made = new();
             AudioClip released = Clip(made);
             MusicTrack town = made.Track(MusicTrack.Create(released, context: "town"));
-            MusicPlayer player = MusicPlayer(
-                made,
-                MusicLibrary.Create(new[] { town }, fadeInSeconds: 0f, fadeOutSeconds: 0f)
-            );
+            MusicPlayer player = MusicPlayer(made, MusicLibrary.Create(new[] { town }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
 
             Assert.That(player.PlayContext("town"), Is.True);
             Assert.That(player.IsPlaying, Is.True);
@@ -143,10 +133,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             {
                 SfxCue hum = Cue(made, unloaded, loop: true);
                 SfxCue other = Cue(made, Clip(made), loop: true);
-                SfxPlayer player = SfxPlayer(
-                    made,
-                    SfxLibrary.Create(new[] { hum }, voiceCount: 2, loopingVoiceLimit: 1)
-                );
+                SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { hum }, voiceCount: 2, loopingVoiceLimit: 1));
 
                 Assert.That(player.TryPlayLooping(hum, out SfxLoopHandle held), Is.True);
                 Assert.That(player.HeldVoiceCount, Is.EqualTo(1));
@@ -162,11 +149,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 Assert.That(staleStops, Is.False, "the hold is gone, so its handle stops nothing");
                 Assert.That(read.isUsable, Is.True, "the voice itself is still there for the next cue");
                 Assert.That(lease, Is.Zero, "a freed voice holds no lease");
-                Assert.That(
-                    player.TryPlayLooping(other, out SfxLoopHandle restarted),
-                    Is.True,
-                    "a clip with no data no longer counts against the looping limit"
-                );
+                Assert.That(player.TryPlayLooping(other, out SfxLoopHandle restarted), Is.True, "a clip with no data no longer counts against the looping limit");
                 Assert.That(player.StopLoop(restarted), Is.True);
             }
             finally
@@ -184,10 +167,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             {
                 MusicTrack town = made.Track(MusicTrack.Create(unloaded, context: "town"));
                 MusicTrack cave = made.Track(MusicTrack.Create(Clip(made), context: "cave"));
-                MusicPlayer player = MusicPlayer(
-                    made,
-                    MusicLibrary.Create(new[] { town, cave }, fadeInSeconds: 0f, fadeOutSeconds: 0f)
-                );
+                MusicPlayer player = MusicPlayer(made, MusicLibrary.Create(new[] { town, cave }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
 
                 Assert.That(player.PlayContext("town"), Is.True);
                 Assert.That(player.IsPlaying, Is.True);
@@ -224,11 +204,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             // wrong and destructive.
             string path = AssetDatabase.GUIDToAssetPath("5081b21fa3e1420dbfaac900a77b4b24");
             AudioClip found = path.Length == 0 ? null : AssetDatabase.LoadAssetAtPath<AudioClip>(path);
-            Assert.That(
-                found != null,
-                Is.True,
-                "Tests/Editor/Unity/Data/TestTone.wav is missing or was not imported as an AudioClip."
-            );
+            Assert.That(found != null, Is.True, "Tests/Editor/Unity/Data/TestTone.wav is missing or was not imported as an AudioClip.");
 
             // A freshly imported clip reports its data as unloaded until something loads it.
             Assert.That(found.LoadAudioData(), Is.True, "the fixture clip loads its audio data");

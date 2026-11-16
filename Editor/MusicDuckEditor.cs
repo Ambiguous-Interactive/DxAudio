@@ -29,10 +29,7 @@ namespace WallstopStudios.DxAudio.Editor
             MusicDuck duck = (MusicDuck)target;
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Composed Preview", EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox(
-                "Add the ducks that can hold the music at the same time to see what they compose to.",
-                MessageType.None
-            );
+            EditorGUILayout.HelpBox("Add the ducks that can hold the music at the same time to see what they compose to.", MessageType.None);
 
             for (int index = 0; index < _preview.Count; ++index)
             {

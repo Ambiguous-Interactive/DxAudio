@@ -53,12 +53,7 @@ namespace WallstopStudios.DxAudio.Integration
 
             // Built here, after the base resolved this component's bus, so a fact is announced on the bus the request
             // arrived on.
-            _core = new MusicPlayerMessagingCore(
-                GetComponent<MusicPlayer>(),
-                gameObject,
-                _configuredMessageBus,
-                _configuredMessageBusProvider
-            );
+            _core = new MusicPlayerMessagingCore(GetComponent<MusicPlayer>(), gameObject, _configuredMessageBus, _configuredMessageBusProvider);
             _core.Register(_messageRegistrationToken);
         }
 

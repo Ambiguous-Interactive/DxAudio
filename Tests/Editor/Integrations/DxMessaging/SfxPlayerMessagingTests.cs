@@ -151,11 +151,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             StopLoop(secondRelay, firstStarted[0].loopId);
 
-            Assert.That(
-                firstStarted[0].loopId,
-                Is.Not.EqualTo(secondStarted[0].loopId),
-                "ids are unique across players"
-            );
+            Assert.That(firstStarted[0].loopId, Is.Not.EqualTo(secondStarted[0].loopId), "ids are unique across players");
             Assert.That(first.HeldVoiceCount, Is.EqualTo(1), "the other player's id names no loop here");
             Assert.That(second.HeldVoiceCount, Is.EqualTo(1), "nor does it end this player's own loop");
         }
@@ -257,11 +253,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             long growth = HeapGrowth(() => EmitPlay(relay, "hit"), PlayCount);
 
-            Assert.That(
-                growth,
-                Is.LessThan(Ceiling),
-                $"a request through the bus grew the heap by {growth} bytes over {PlayCount:N0} plays."
-            );
+            Assert.That(growth, Is.LessThan(Ceiling), $"a request through the bus grew the heap by {growth} bytes over {PlayCount:N0} plays.");
         }
 
         private void EmitPlay(SfxPlayerMessagingCore relay, string key)
@@ -397,9 +389,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         private SfxPlayer Player(SfxCue cue, int voiceCount, int loopingVoiceLimit = 4)
         {
-            SfxLibrary library = Made(
-                SfxLibrary.Create(new[] { cue }, voiceCount: voiceCount, loopingVoiceLimit: loopingVoiceLimit)
-            );
+            SfxLibrary library = Made(SfxLibrary.Create(new[] { cue }, voiceCount: voiceCount, loopingVoiceLimit: loopingVoiceLimit));
             SfxPlayer player = Made(new GameObject("sfx")).AddComponent<SfxPlayer>();
             player.Library = library;
             return player;
@@ -407,15 +397,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         private SfxCue Cue(bool loop, string key = null, float minimumIntervalSeconds = 0f, float spatialBlend = 0f)
         {
-            return Made(
-                SfxCue.Create(
-                    new[] { new SfxVariant(Clip()) },
-                    key: key,
-                    loop: loop,
-                    minimumIntervalSeconds: minimumIntervalSeconds,
-                    spatialBlend: spatialBlend
-                )
-            );
+            return Made(SfxCue.Create(new[] { new SfxVariant(Clip()) }, key: key, loop: loop, minimumIntervalSeconds: minimumIntervalSeconds, spatialBlend: spatialBlend));
         }
 
         private AudioClip Clip()

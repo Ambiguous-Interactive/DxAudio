@@ -8,48 +8,26 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
-- Add a **Clip Load Type** to `MusicTrack`. **Auto** streams a clip longer than 30 seconds and decompresses the rest,
-  the track inspector applies the choice to the clip's import settings, and the library check reports a clip that does
-  not follow it ([#44](https://github.com/Ambiguous-Interactive/DxAudio/issues/44)).
-- Add the user manual in `Documentation~/` (install, quickstart, cues, music, ducks and troubleshooting) and a
-  `BasicUsage` sample scene that plays a cue, holds a loop, starts music and ducks it
-  ([#16](https://github.com/Ambiguous-Interactive/DxAudio/issues/16)).
-- `MusicPlayer` raises `TrackChanged` and `Stopped`, and both players take `Paused`, which holds every voice at its
-  playhead so resuming continues rather than restarts. The DxMessaging integration adds music requests, duck ids and
-  `AudioPauseRequest` ([#36](https://github.com/Ambiguous-Interactive/DxAudio/issues/36)).
-- An **Audio Diagnostics** overlay component lists busy voices with priorities and loop leases, active ducks and their
-  holders, and dropped-cue counts by reason. `SfxPlayer.DropCounts` and `SfxPlayer.TryGetVoiceState` expose the same
-  data. Sampling allocates only while the overlay is enabled
-  ([#14](https://github.com/Ambiguous-Interactive/DxAudio/issues/14)).
-- An optional **DxMessaging integration** assembly drives `SfxPlayer` from `SfxPlayRequest`, `SfxLoopRequest`,
-  `SfxLoopStopRequest`, `SfxStopAllRequest` and `SfxMuteRequest`, and broadcasts `SfxLoopStartedMessage` and
-  `SfxCueDroppedMessage`. It compiles only with DxMessaging installed, so the package keeps no dependency
-  ([#26](https://github.com/Ambiguous-Interactive/DxAudio/issues/26)).
-- Cue inspector with take start offsets and audition, duck inspector with a composed preview, and a library validation
-  window (**Tools > DxAudio > Validate Libraries**) that reports missing clips, duplicate keys or contexts, and
-  unreachable tracks ([#12](https://github.com/Ambiguous-Interactive/DxAudio/issues/12)).
+- Add a **Clip Load Type** to `MusicTrack`. **Auto** streams a clip longer than 30 seconds and decompresses the rest, the track inspector applies the choice to the clip's import settings, and the library check reports a clip that does not follow it ([#44](https://github.com/Ambiguous-Interactive/DxAudio/issues/44)).
+- Add the user manual in `Documentation~/` (install, quickstart, cues, music, ducks and troubleshooting) and a `BasicUsage` sample scene that plays a cue, holds a loop, starts music and ducks it ([#16](https://github.com/Ambiguous-Interactive/DxAudio/issues/16)).
+- `MusicPlayer` raises `TrackChanged` and `Stopped`, and both players take `Paused`, which holds every voice at its playhead so resuming continues rather than restarts. The DxMessaging integration adds music requests, duck ids and `AudioPauseRequest` ([#36](https://github.com/Ambiguous-Interactive/DxAudio/issues/36)).
+- An **Audio Diagnostics** overlay component lists busy voices with priorities and loop leases, active ducks and their holders, and dropped-cue counts by reason. `SfxPlayer.DropCounts` and `SfxPlayer.TryGetVoiceState` expose the same data. Sampling allocates only while the overlay is enabled ([#14](https://github.com/Ambiguous-Interactive/DxAudio/issues/14)).
+- An optional **DxMessaging integration** assembly drives `SfxPlayer` from `SfxPlayRequest`, `SfxLoopRequest`, `SfxLoopStopRequest`, `SfxStopAllRequest` and `SfxMuteRequest`, and broadcasts `SfxLoopStartedMessage` and `SfxCueDroppedMessage`. It compiles only with DxMessaging installed, so the package keeps no dependency ([#26](https://github.com/Ambiguous-Interactive/DxAudio/issues/26)).
+- Cue inspector with take start offsets and audition, duck inspector with a composed preview, and a library validation window (**Tools > DxAudio > Validate Libraries**) that reports missing clips, duplicate keys or contexts, and unreachable tracks ([#12](https://github.com/Ambiguous-Interactive/DxAudio/issues/12)).
 
 ### Changed
 
+- Require every enum to start with an obsolete `Unknown = 0`, so an unset serialized value is distinguishable from a chosen one; `MusicEase` values shift by one and `MusicClipLoadType` gains the sentinel ([#47](https://github.com/Ambiguous-Interactive/DxAudio/pull/47)).
+- Format every source type at the 180-character line length the `.editorconfig` already declares, and keep each changelog entry on one line ([#47](https://github.com/Ambiguous-Interactive/DxAudio/pull/47)).
 - Local development harness, gates, and MCP tooling for this repository. No package behavior changes.
-- Unity CI runs 6000.5 on pull requests and main. The 2021.3 lane moved to a nightly matrix, which runs every supported
-  editor in both states of the optional DxMessaging integration
-  ([#25](https://github.com/Ambiguous-Interactive/DxAudio/issues/25)).
+- Unity CI runs 6000.5 on pull requests and main. The 2021.3 lane moved to a nightly matrix, which runs every supported editor in both states of the optional DxMessaging integration ([#25](https://github.com/Ambiguous-Interactive/DxAudio/issues/25)).
 
 ### Fixed
 
-- Make `npm run check:fast` pass again, and run the assembly warning policy in the fast check, the gate, and CI. The
-  policy fails a hidden warning: a `#pragma warning disable` in shipped code, an assembly response file or ruleset, or a
-  missing warnings-as-errors setting in the engine-free build
-  ([#37](https://github.com/Ambiguous-Interactive/DxAudio/issues/37)).
-- Free a voice whose clip audio data was unloaded or failed to load. `AudioClip.UnloadAudioData` and
-  `Resources.UnloadAsset` leave the clip assigned, so a held loop kept its voice and its looping slot, and music
-  reported playback it did not make ([#32](https://github.com/Ambiguous-Interactive/DxAudio/issues/32)).
-- Free a voice whose clip was destroyed. Unity keeps the source reporting playback with no clip, so a released loop held
-  its voice and its looping slot for the session. A stranded voice hid idle ones, and music reported playback it did not
-  make ([#15](https://github.com/Ambiguous-Interactive/DxAudio/issues/15)).
-- Start music again when a request names the track that a released clip stopped. The selection had not changed, so the
-  request started nothing ([#15](https://github.com/Ambiguous-Interactive/DxAudio/issues/15)).
+- Make `npm run check:fast` pass again, and run the assembly warning policy in the fast check, the gate, and CI. The policy fails a hidden warning: a `#pragma warning disable` in shipped code, an assembly response file or ruleset, or a missing warnings-as-errors setting in the engine-free build ([#37](https://github.com/Ambiguous-Interactive/DxAudio/issues/37)).
+- Free a voice whose clip audio data was unloaded or failed to load. `AudioClip.UnloadAudioData` and `Resources.UnloadAsset` leave the clip assigned, so a held loop kept its voice and its looping slot, and music reported playback it did not make ([#32](https://github.com/Ambiguous-Interactive/DxAudio/issues/32)).
+- Free a voice whose clip was destroyed. Unity keeps the source reporting playback with no clip, so a released loop held its voice and its looping slot for the session. A stranded voice hid idle ones, and music reported playback it did not make ([#15](https://github.com/Ambiguous-Interactive/DxAudio/issues/15)).
+- Start music again when a request names the track that a released clip stopped. The selection had not changed, so the request started nothing ([#15](https://github.com/Ambiguous-Interactive/DxAudio/issues/15)).
 
 ## [0.3.0] - 2026-11-15
 

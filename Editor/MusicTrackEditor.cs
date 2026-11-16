@@ -38,10 +38,7 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             MusicClipLoadType resolved = track.ResolvedClipLoadType;
-            EditorGUILayout.LabelField(
-                $"{clip.length:0.#}s clip",
-                applied == resolved ? applied.ToString() : $"imported as {applied}; the track asks for {resolved}"
-            );
+            EditorGUILayout.LabelField($"{clip.length:0.#}s clip", applied == resolved ? applied.ToString() : $"imported as {applied}; the track asks for {resolved}");
 
             if (applied == resolved)
             {
@@ -50,19 +47,13 @@ namespace WallstopStudios.DxAudio.Editor
 
             if (!MusicClipImport.CanApply(clip))
             {
-                EditorGUILayout.HelpBox(
-                    "The clip has no editable importer, so its import type cannot be applied.",
-                    MessageType.Warning
-                );
+                EditorGUILayout.HelpBox("The clip has no editable importer, so its import type cannot be applied.", MessageType.Warning);
                 return;
             }
 
             if (GUILayout.Button($"Apply {resolved} to the clip") && !MusicClipImport.TryApply(clip, resolved))
             {
-                EditorGUILayout.HelpBox(
-                    "The clip's type did not change; a per-platform override or a read-only file may block it.",
-                    MessageType.Warning
-                );
+                EditorGUILayout.HelpBox("The clip's type did not change; a per-platform override or a read-only file may block it.", MessageType.Warning);
             }
         }
     }

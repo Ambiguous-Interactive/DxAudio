@@ -97,13 +97,7 @@ namespace WallstopStudios.DxAudio
         /// </remarks>
         public bool TryFollow(TKey key, TKey leader, int variantCount, out int index)
         {
-            if (
-                key == null
-                || leader == null
-                || _comparer.Equals(key, leader)
-                || !_lastIndexByKey.TryGetValue(leader, out int last)
-                || variantCount <= last
-            )
+            if (key == null || leader == null || _comparer.Equals(key, leader) || !_lastIndexByKey.TryGetValue(leader, out int last) || variantCount <= last)
             {
                 index = default;
                 return false;

@@ -25,13 +25,7 @@ namespace WallstopStudios.DxAudio
         /// <param name="index">The chosen voice.</param>
         /// <param name="interrupts">Whether the chosen voice is still audible and taking it cuts it short.</param>
         /// <returns><see langword="false"/> when the cue has to be dropped.</returns>
-        public static bool TryChoose(
-            ReadOnlySpan<SfxVoiceState> voices,
-            SfxPriority incoming,
-            int roundRobinStart,
-            out int index,
-            out bool interrupts
-        )
+        public static bool TryChoose(ReadOnlySpan<SfxVoiceState> voices, SfxPriority incoming, int roundRobinStart, out int index, out bool interrupts)
         {
             int voiceCount = voices.Length;
             if (0 < voiceCount)
@@ -53,11 +47,7 @@ namespace WallstopStudios.DxAudio
             for (int i = 0; i < voiceCount; i++)
             {
                 SfxVoiceState state = voices[i];
-                if (
-                    !state.CanBeTakenFrom
-                    || incoming < state.priority
-                    || (incoming == state.priority && !state.isPaused)
-                )
+                if (!state.CanBeTakenFrom || incoming < state.priority || (incoming == state.priority && !state.isPaused))
                 {
                     continue;
                 }
@@ -70,10 +60,7 @@ namespace WallstopStudios.DxAudio
 
                 // Ordering by age alone would let a High cue cut a long Medium while a fresh Low sat untouched.
                 SfxVoiceState best = voices[victim];
-                if (
-                    state.priority < best.priority
-                    || (state.priority == best.priority && state.startedAtUnscaledTime < best.startedAtUnscaledTime)
-                )
+                if (state.priority < best.priority || (state.priority == best.priority && state.startedAtUnscaledTime < best.startedAtUnscaledTime))
                 {
                     victim = i;
                 }

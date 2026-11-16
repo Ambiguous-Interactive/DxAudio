@@ -82,10 +82,7 @@ namespace WallstopStudios.DxAudio.Editor
 
             EditorGUILayout.BeginHorizontal();
             float start = cue.PlaybackStartSecondsFor(variant);
-            EditorGUILayout.LabelField(
-                $"Take {index + 1}: {clip.name}",
-                $"starts {start:0.###}s of {clip.length:0.###}s"
-            );
+            EditorGUILayout.LabelField($"Take {index + 1}: {clip.name}", $"starts {start:0.###}s of {clip.length:0.###}s");
             if (GUILayout.Button("Audition", GUILayout.Width(80f)))
             {
                 Audition(cue, variant);
@@ -127,11 +124,7 @@ namespace WallstopStudios.DxAudio.Editor
         {
             if (_previewSource == null)
             {
-                GameObject host = EditorUtility.CreateGameObjectWithHideFlags(
-                    PreviewName,
-                    HideFlags.HideAndDontSave,
-                    typeof(AudioSource)
-                );
+                GameObject host = EditorUtility.CreateGameObjectWithHideFlags(PreviewName, HideFlags.HideAndDontSave, typeof(AudioSource));
                 _previewSource = host.GetComponent<AudioSource>();
                 if (_previewSource == null)
                 {

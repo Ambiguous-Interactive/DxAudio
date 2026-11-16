@@ -9,16 +9,19 @@ namespace WallstopStudios.DxAudio
     /// </remarks>
     public enum MusicEase
     {
-        Linear = 0,
-        InQuad = 1,
-        OutQuad = 2,
-        InOutQuad = 3,
-        InSine = 4,
-        OutSine = 5,
-        InOutSine = 6,
-        InCubic = 7,
-        OutCubic = 8,
-        InOutCubic = 9,
+        [Obsolete("A fade must declare its ease; Unknown is the value an unset field holds.")]
+        Unknown = 0,
+
+        Linear = 1,
+        InQuad = 2,
+        OutQuad = 3,
+        InOutQuad = 4,
+        InSine = 5,
+        OutSine = 6,
+        InOutSine = 7,
+        InCubic = 8,
+        OutCubic = 9,
+        InOutCubic = 10,
     }
 
     public static class MusicEasing

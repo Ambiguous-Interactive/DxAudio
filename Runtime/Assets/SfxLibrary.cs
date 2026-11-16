@@ -33,9 +33,7 @@ namespace WallstopStudios.DxAudio
         private int _loopingVoiceLimit = 6;
 
         [SerializeField]
-        [Tooltip(
-            "Seeds the variant and pitch draws. A fixed value makes a recorded take repeat exactly; 0 seeds from the clock."
-        )]
+        [Tooltip("Seeds the variant and pitch draws. A fixed value makes a recorded take repeat exactly; 0 seeds from the clock.")]
         private int _drawSeed;
 
         [SerializeField]
@@ -55,13 +53,7 @@ namespace WallstopStudios.DxAudio
         public IReadOnlyList<SfxCue> Cues => _cues;
 
         /// <summary>Builds a library in code, for tests and for games that author audio at runtime.</summary>
-        public static SfxLibrary Create(
-            IEnumerable<SfxCue> cues,
-            int voiceCount = 16,
-            int loopingVoiceLimit = 6,
-            AudioMixerGroup mixerGroup = null,
-            int drawSeed = 0
-        )
+        public static SfxLibrary Create(IEnumerable<SfxCue> cues, int voiceCount = 16, int loopingVoiceLimit = 6, AudioMixerGroup mixerGroup = null, int drawSeed = 0)
         {
             SfxLibrary library = CreateInstance<SfxLibrary>();
             library._cues = cues == null ? new List<SfxCue>() : new List<SfxCue>(cues);
@@ -131,10 +123,7 @@ namespace WallstopStudios.DxAudio
                 // Reported rather than dropped silently: by ear, a cue that never plays is a cue that is wrong.
                 if (!_cuesByKey.TryAdd(cue.Key, cue))
                 {
-                    Debug.LogWarning(
-                        $"Two SFX cues in '{name}' share the key '{cue.Key}'; only the first will play.",
-                        this
-                    );
+                    Debug.LogWarning($"Two SFX cues in '{name}' share the key '{cue.Key}'; only the first will play.", this);
                 }
             }
         }

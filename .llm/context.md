@@ -124,6 +124,11 @@ or `Feature`. Bodies stay under 300 lines; bulk material moves to `.llm/referenc
 15. Never hide a compiler warning. `Runtime/` and `Editor/` carry no `#pragma warning disable`, the package ships no
     `.rsp` or `.ruleset`, and `.net-tests` keeps `TreatWarningsAsErrors`. Fix the warning or version-guard the API;
     `scripts/lint_assembly_warnings.py` enforces this in the fast check, the gate, and CI.
+16. Every enum starts with an `[Obsolete]` `Unknown = 0` member and gives every other member an explicit value. A
+    serializer writes 0 into a field that never carried a value, so a zero that is also a real choice cannot tell
+    "unset" from "chosen". Naming `Unknown` in code is a compile error by design: handle it through the default branch
+    or a positive list of the real values. `scripts/lint_enum_defaults.py` enforces this in the fast check, the gate,
+    and CI.
 
 ### Testing
 
@@ -159,8 +164,11 @@ durable constraints here or in `.llm/references/`.
 ### User-Facing Copy
 
 All human-readable text uses Simplified Technical English: short, direct, active. PR titles are at most 50 characters;
-PR bodies carry `**Why:**`, up to five `**What:**` bullets, and `Fixes #N`. CHANGELOG entries are verb-first, one or two
-sentences, at most 300 rendered characters. See [simple-writing](./skills/simple-writing/SKILL.md).
+PR bodies carry `**Why:**`, up to five `**What:**` bullets, and `Fixes #N`. CHANGELOG entries are verb-first, one
+sentence on one line, at most 300 rendered characters; Prettier preserves the authored line breaks, and
+`scripts/lint_changelog_length.py` fails an entry that wraps. Source files use the 180-character line length in
+`.editorconfig`, which `.prettierrc.json` and `.csharpierrc` carry. See
+[simple-writing](./skills/simple-writing/SKILL.md).
 
 ### Merging
 

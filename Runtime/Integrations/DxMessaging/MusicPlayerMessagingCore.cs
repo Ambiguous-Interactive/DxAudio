@@ -53,12 +53,7 @@ namespace WallstopStudios.DxAudio.Integration
         /// <param name="source">The GameObject a sender addresses; normally the player's own.</param>
         /// <param name="bus">The bus to announce on, or <see langword="null"/> for the global one.</param>
         /// <param name="busProvider">Resolves the bus when <paramref name="bus"/> is null.</param>
-        public MusicPlayerMessagingCore(
-            MusicPlayer player,
-            GameObject source,
-            IMessageBus bus = null,
-            IMessageBusProvider busProvider = null
-        )
+        public MusicPlayerMessagingCore(MusicPlayer player, GameObject source, IMessageBus bus = null, IMessageBusProvider busProvider = null)
         {
             _player = player;
             _source = source;

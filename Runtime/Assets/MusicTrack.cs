@@ -7,10 +7,7 @@ namespace WallstopStudios.DxAudio
     public sealed class MusicTrack : ScriptableObject
     {
         [SerializeField]
-        [Tooltip(
-            "The context this plays for (a screen, a level, an area) when looked up through a MusicLibrary. "
-                + "Optional when the track is only played by reference."
-        )]
+        [Tooltip("The context this plays for (a screen, a level, an area) when looked up through a MusicLibrary. " + "Optional when the track is only played by reference.")]
         private string _context;
 
         [SerializeField]
@@ -28,10 +25,7 @@ namespace WallstopStudios.DxAudio
 
         [Min(0f)]
         [SerializeField]
-        [Tooltip(
-            "Where the track begins on its first play. A looping track still loops back to zero, so this skips "
-                + "an intro rather than setting a loop point."
-        )]
+        [Tooltip("Where the track begins on its first play. A looping track still loops back to zero, so this skips " + "an intro rather than setting a loop point.")]
         private float _startTimeSeconds;
 
         [SerializeField]
@@ -56,8 +50,7 @@ namespace WallstopStudios.DxAudio
         public MusicClipLoadType ClipLoadType => _clipLoadType;
 
         /// <summary>The load type this track's clip should use, from its preference and the clip's length.</summary>
-        public MusicClipLoadType ResolvedClipLoadType =>
-            MusicLoadPolicy.Resolve(_clip == null ? 0f : _clip.length, _clipLoadType);
+        public MusicClipLoadType ResolvedClipLoadType => MusicLoadPolicy.Resolve(_clip == null ? 0f : _clip.length, _clipLoadType);
 
         /// <summary>Where playback begins, clamped so it never starts at or past the clip's end.</summary>
         public float StartTimeSeconds => AudioClipStart.Clamped(_clip, _startTimeSeconds);

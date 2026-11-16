@@ -63,9 +63,7 @@ namespace WallstopStudios.DxAudio.Editor
 
                 if (firstByKey.TryGetValue(cue.Key, out SfxCue first))
                 {
-                    findings.Add(
-                        $"{name} shares the key '{cue.Key}' with '{first.name}'; only the first is reachable."
-                    );
+                    findings.Add($"{name} shares the key '{cue.Key}' with '{first.name}'; only the first is reachable.");
                 }
                 else
                 {
@@ -126,9 +124,7 @@ namespace WallstopStudios.DxAudio.Editor
 
                 if (firstByContext.TryGetValue(track.Context, out MusicTrack first))
                 {
-                    findings.Add(
-                        $"{name} shares the context '{track.Context}' with '{first.name}'; only the first is reachable."
-                    );
+                    findings.Add($"{name} shares the context '{track.Context}' with '{first.name}'; only the first is reachable.");
                 }
                 else
                 {

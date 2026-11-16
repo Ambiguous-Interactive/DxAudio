@@ -54,12 +54,7 @@ namespace WallstopStudios.DxAudio
         public MusicEase FadeOutEase => _fadeOutEase;
 
         /// <summary>Builds a library in code, for tests and for games that author audio at runtime.</summary>
-        public static MusicLibrary Create(
-            IEnumerable<MusicTrack> tracks,
-            float fadeInSeconds = 1.5f,
-            float fadeOutSeconds = 1.2f,
-            AudioMixerGroup mixerGroup = null
-        )
+        public static MusicLibrary Create(IEnumerable<MusicTrack> tracks, float fadeInSeconds = 1.5f, float fadeOutSeconds = 1.2f, AudioMixerGroup mixerGroup = null)
         {
             MusicLibrary library = CreateInstance<MusicLibrary>();
             library._tracks = tracks == null ? new List<MusicTrack>() : new List<MusicTrack>(tracks);
@@ -127,19 +122,13 @@ namespace WallstopStudios.DxAudio
                 // A listed track with no context can never be looked up, which reads as a silent context.
                 if (string.IsNullOrWhiteSpace(track.Context))
                 {
-                    Debug.LogWarning(
-                        $"The music track '{track.name}' in '{name}' names no context, so nothing can look it up.",
-                        this
-                    );
+                    Debug.LogWarning($"The music track '{track.name}' in '{name}' names no context, so nothing can look it up.", this);
                     continue;
                 }
 
                 if (!_tracksByContext.TryAdd(track.Context, track))
                 {
-                    Debug.LogWarning(
-                        $"Two music tracks in '{name}' share the context '{track.Context}'; only the first will play.",
-                        this
-                    );
+                    Debug.LogWarning($"Two music tracks in '{name}' share the context '{track.Context}'; only the first will play.", this);
                 }
             }
         }

@@ -103,9 +103,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             MusicPlayer player = Player();
             MusicPlayerMessagingCore relay = Relay(player);
             MusicDuck menu = Made(MusicDuck.Create(MusicDuckHolders.One, 0.5f, applySeconds: 0f, releaseSeconds: 0f));
-            MusicDuck dialogue = Made(
-                MusicDuck.Create(MusicDuckHolders.Many, 0.25f, applySeconds: 0f, releaseSeconds: 0f)
-            );
+            MusicDuck dialogue = Made(MusicDuck.Create(MusicDuckHolders.Many, 0.25f, applySeconds: 0f, releaseSeconds: 0f));
             MusicDuckLease menuLease = player.Duck(menu);
             player.Tick(1f);
             Assert.That(player.Attenuation, Is.EqualTo(menu.Attenuation));
@@ -122,11 +120,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Unduck(relay, started[0].duckId);
             player.Tick(1f);
-            Assert.That(
-                player.Attenuation,
-                Is.EqualTo(menu.Attenuation),
-                "releasing the message duck returns the music to the hold it found"
-            );
+            Assert.That(player.Attenuation, Is.EqualTo(menu.Attenuation), "releasing the message duck returns the music to the hold it found");
             Assert.That(relay.HeldDuckCount, Is.Zero);
 
             Unduck(relay, started[0].duckId);
@@ -142,9 +136,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             MusicPlayer player = Player();
             MusicPlayerMessagingCore relay = Relay(player);
-            MusicDuck dialogue = Made(
-                MusicDuck.Create(MusicDuckHolders.Many, 0.25f, applySeconds: 0f, releaseSeconds: 0f)
-            );
+            MusicDuck dialogue = Made(MusicDuck.Create(MusicDuckHolders.Many, 0.25f, applySeconds: 0f, releaseSeconds: 0f));
             GameObject speaker = Made(new GameObject("speaker"));
             List<MusicDuckStartedMessage> started = CaptureDucks(relay);
 
@@ -157,21 +149,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Object.DestroyImmediate(speaker);
             player.Tick(1f);
 
-            Assert.That(
-                player.TargetAttenuation,
-                Is.EqualTo(MusicAttenuation.Unattenuated),
-                "the player releases a duck whose holder was destroyed"
-            );
+            Assert.That(player.TargetAttenuation, Is.EqualTo(MusicAttenuation.Unattenuated), "the player releases a duck whose holder was destroyed");
             relay.PruneEndedDucks();
             Assert.That(relay.HeldDuckCount, Is.Zero, "the released id is forgotten");
 
             Unduck(relay, started[0].duckId);
             player.Tick(1f);
-            Assert.That(
-                player.Attenuation,
-                Is.EqualTo(MusicAttenuation.Unattenuated),
-                "a released id releases nothing"
-            );
+            Assert.That(player.Attenuation, Is.EqualTo(MusicAttenuation.Unattenuated), "a released id releases nothing");
         }
 
         [Test]
@@ -201,9 +185,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             MusicPlayer player = Player();
             MusicPlayerMessagingCore relay = Relay(player);
-            MusicDuck dialogue = Made(
-                MusicDuck.Create(MusicDuckHolders.Many, 0.25f, applySeconds: 0f, releaseSeconds: 0f)
-            );
+            MusicDuck dialogue = Made(MusicDuck.Create(MusicDuckHolders.Many, 0.25f, applySeconds: 0f, releaseSeconds: 0f));
             MusicDuckRequest request = new(dialogue);
             request.EmitGameObjectTargeted(player.gameObject, _bus);
             player.Tick(1f);
@@ -212,11 +194,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             relay.Disable();
             player.Tick(1f);
 
-            Assert.That(
-                player.Attenuation,
-                Is.EqualTo(MusicAttenuation.Unattenuated),
-                "a duck nobody can address is gone"
-            );
+            Assert.That(player.Attenuation, Is.EqualTo(MusicAttenuation.Unattenuated), "a duck nobody can address is gone");
             Assert.That(relay.HeldDuckCount, Is.Zero);
         }
 
@@ -227,12 +205,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             MusicPlayer second = Player();
             MusicPlayerMessagingCore firstRelay = Relay(first);
             MusicPlayerMessagingCore secondRelay = Relay(second);
-            MusicDuck firstDuck = Made(
-                MusicDuck.Create(MusicDuckHolders.Many, 0.5f, applySeconds: 0f, releaseSeconds: 0f)
-            );
-            MusicDuck secondDuck = Made(
-                MusicDuck.Create(MusicDuckHolders.Many, 0.25f, applySeconds: 0f, releaseSeconds: 0f)
-            );
+            MusicDuck firstDuck = Made(MusicDuck.Create(MusicDuckHolders.Many, 0.5f, applySeconds: 0f, releaseSeconds: 0f));
+            MusicDuck secondDuck = Made(MusicDuck.Create(MusicDuckHolders.Many, 0.25f, applySeconds: 0f, releaseSeconds: 0f));
             List<MusicDuckStartedMessage> firstStarted = CaptureDucks(firstRelay);
             List<MusicDuckStartedMessage> secondStarted = CaptureDucks(secondRelay);
             MusicDuckRequest firstRequest = new(firstDuck);
@@ -246,11 +220,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Unduck(secondRelay, firstStarted[0].duckId);
 
-            Assert.That(
-                firstStarted[0].duckId,
-                Is.Not.EqualTo(secondStarted[0].duckId),
-                "ids are unique across players"
-            );
+            Assert.That(firstStarted[0].duckId, Is.Not.EqualTo(secondStarted[0].duckId), "ids are unique across players");
             Assert.That(first.TargetAttenuation, Is.EqualTo(firstDuck.Attenuation), "the other player's id is unknown");
             Assert.That(second.TargetAttenuation, Is.EqualTo(secondDuck.Attenuation));
             Assert.That(firstRelay.HeldDuckCount, Is.EqualTo(1));
@@ -297,11 +267,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 Assert.That(sfx.Paused, Is.False);
                 Assert.That(musicSource.isPlaying, Is.True);
                 Assert.That(sfxSource.isPlaying, Is.True);
-                Assert.That(
-                    musicSource.timeSamples,
-                    Is.EqualTo(2_000).Within(64),
-                    "resuming continues rather than restarts"
-                );
+                Assert.That(musicSource.timeSamples, Is.EqualTo(2_000).Within(64), "resuming continues rather than restarts");
                 Assert.That(sfxSource.timeSamples, Is.EqualTo(1_000).Within(64));
                 Assert.That(sfx.HeldVoiceCount, Is.EqualTo(1), "the loop keeps its lease");
                 Assert.That(sfx.Muted, Is.True, "the sound setting survives a pause");

@@ -9,6 +9,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         private enum Reason
         {
+            [Obsolete("Declare a reason; Unknown is what an unset value holds.")]
+            Unknown = 0,
+
             Menu = 1,
             Dialogue = 2,
         }
@@ -16,9 +19,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void EachKeyIsOneReasonThatALaterLookupCanRelease()
         {
-            MusicDuckReasonTable<Reason> table = new(key =>
-                key == Reason.Dialogue ? MusicDuckHolders.Many : MusicDuckHolders.One
-            );
+            MusicDuckReasonTable<Reason> table = new(key => key == Reason.Dialogue ? MusicDuckHolders.Many : MusicDuckHolders.One);
             MusicDuckStack stack = new();
 
             _ = stack.Take(table.Of(Reason.Menu), Half);

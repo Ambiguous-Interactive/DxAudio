@@ -4,13 +4,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
     public sealed class SfxDropCountsTests
     {
-        private static readonly SfxDropCounts Counts = new(
-            notPlayable: 1,
-            throttled: 2,
-            noVoice: 3,
-            loopLimit: 4,
-            wrongPlayMethod: 5
-        );
+        private static readonly SfxDropCounts Counts = new(notPlayable: 1, throttled: 2, noVoice: 3, loopLimit: 4, wrongPlayMethod: 5);
 
         [TestCase(SfxDropReason.NotPlayable, 1)]
         [TestCase(SfxDropReason.Throttled, 2)]

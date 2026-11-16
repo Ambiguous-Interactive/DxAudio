@@ -167,8 +167,7 @@ namespace WallstopStudios.DxAudio
         public int HeldVoiceCount => _heldCount;
 
         /// <summary>Every cue this player dropped, counted by reason. Reading it allocates nothing.</summary>
-        public SfxDropCounts DropCounts =>
-            new(_droppedNotPlayable, _droppedThrottled, _droppedNoVoice, _droppedLoopLimit, _droppedWrongPlayMethod);
+        public SfxDropCounts DropCounts => new(_droppedNotPlayable, _droppedThrottled, _droppedNoVoice, _droppedLoopLimit, _droppedWrongPlayMethod);
 
         /// <summary>What voice <paramref name="voice"/> is doing, for a diagnostic.</summary>
         /// <param name="lease">The loop lease when a looping cue holds the voice, otherwise zero.</param>
@@ -193,14 +192,7 @@ namespace WallstopStudios.DxAudio
                 _voicePaused[voice] = false;
             }
 
-            state = new SfxVoiceState(
-                usable,
-                VoiceClip.IsSounding(source),
-                _held[voice],
-                _priorities[voice],
-                _startedAt[voice],
-                isPaused: usable && _voicePaused[voice]
-            );
+            state = new SfxVoiceState(usable, VoiceClip.IsSounding(source), _held[voice], _priorities[voice], _startedAt[voice], isPaused: usable && _voicePaused[voice]);
             lease = _held[voice] ? _leases[voice] : 0;
             return true;
         }
@@ -580,10 +572,7 @@ namespace WallstopStudios.DxAudio
             {
                 // Never saved with a scene in edit mode. In Play mode the flag would hide the voices from
                 // FindObjectsOfType, so a game's own pause-all could not reach them.
-                GameObject child = new($"Sfx Voice {index}")
-                {
-                    hideFlags = Application.isPlaying ? HideFlags.None : HideFlags.DontSave,
-                };
+                GameObject child = new($"Sfx Voice {index}") { hideFlags = Application.isPlaying ? HideFlags.None : HideFlags.DontSave };
                 child.transform.SetParent(transform, worldPositionStays: false);
                 AudioSource voice = child.AddComponent<AudioSource>();
                 voice.playOnAwake = false;
