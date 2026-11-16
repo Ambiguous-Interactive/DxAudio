@@ -12,6 +12,10 @@ All notable changes to this package are documented here. The format follows
   holders, and dropped-cue counts by reason. `SfxPlayer.DropCounts` and `SfxPlayer.TryGetVoiceState` expose the same
   data. Sampling allocates only while the overlay is enabled
   ([#14](https://github.com/Ambiguous-Interactive/DxAudio/issues/14)).
+- An optional **DxMessaging integration** assembly drives `SfxPlayer` from `SfxPlayRequest`, `SfxLoopRequest`,
+  `SfxLoopStopRequest`, `SfxStopAllRequest` and `SfxMuteRequest`, and broadcasts `SfxLoopStartedMessage` and
+  `SfxCueDroppedMessage`. It compiles only with DxMessaging installed, so the package keeps no dependency
+  ([#26](https://github.com/Ambiguous-Interactive/DxAudio/issues/26)).
 - Cue inspector with take start offsets and audition, duck inspector with a composed preview, and a library validation
   window (**Tools > DxAudio > Validate Libraries**) that reports missing clips, duplicate keys or contexts, and
   unreachable tracks ([#12](https://github.com/Ambiguous-Interactive/DxAudio/issues/12)).
@@ -19,6 +23,9 @@ All notable changes to this package are documented here. The format follows
 ### Changed
 
 - Local development harness, gates, and MCP tooling for this repository. No package behavior changes.
+- Unity CI runs 6000.5 on pull requests and main. The 2021.3 lane moved to a nightly matrix, which runs every supported
+  editor in both states of the optional DxMessaging integration
+  ([#25](https://github.com/Ambiguous-Interactive/DxAudio/issues/25)).
 
 ### Fixed
 

@@ -63,6 +63,13 @@ DxAudio needs no other package. Its assemblies reference only Unity's, so npm, O
 install the same files and fetch nothing else. DxMessaging, UnityEvents or your own code drive the players with plain
 method calls (see [Settings and events](#settings-and-events)).
 
+One integration is optional. `Runtime/Integrations/DxMessaging` compiles only when the project also has
+com.wallstop-studios.dxmessaging installed, through a version define and a define constraint on its assembly. Without
+the package that assembly is skipped entirely, so a DxMessaging-free project sees no missing reference and compiles
+exactly as before. Pull-request and main CI run Unity 6 in both states, for same-repository pull requests that are not
+from Dependabot; fork and Dependabot pull requests skip the Unity lanes. A nightly matrix adds Unity 2021.3 in both
+states.
+
 If a later version needs another package, `package.json` lists it at an exact version. Unity then resolves it from the
 registries in your manifest for every install path. CI fails when an assembly references a package that `package.json`
 does not list.
@@ -205,6 +212,52 @@ register handlers that call them:
 _registration.RegisterUntargeted<DialogueStarted>(m => _lease = _music.Duck(_dialogueDuck, m.speaker));
 _registration.RegisterUntargeted<DialogueEnded>(m => _music.Unduck(_dialogueDuck, m.speaker));
 ```
+
+## DxMessaging integration
+
+With com.wallstop-studios.dxmessaging installed, add **SfxPlayerMessaging** beside an **SfxPlayer**. The adapter turns
+messages into player calls and the player's drops into facts, so a game sends a request instead of keeping a reference
+to the player.
+
+A loop is a held state, so the player answers with the id that ends it. Register for that answer before sending the
+request, because a broadcast nobody is listening for is gone:
+
+```csharp
+using DxMessaging.Core.Extensions;
+
+_registration.RegisterGameObjectBroadcast<SfxLoopStartedMessage>(sfxPlayerObject, HandleLoopStarted);
+_registration.RegisterGameObjectBroadcast<SfxCueDroppedMessage>(sfxPlayerObject, HandleDropped);
+
+// Targeted to the GameObject that carries the player and its adapter.
+SfxPlayRequest play = new("hit");
+play.EmitGameObjectTargeted(sfxPlayerObject);
+
+SfxPlayRequest placed = new("hit", transform.position);
+placed.EmitGameObjectTargeted(sfxPlayerObject);
+
+SfxLoopRequest loop = new("hum");
+loop.EmitGameObjectTargeted(sfxPlayerObject);
+
+private void HandleLoopStarted(SfxLoopStartedMessage message)
+{
+    SfxLoopStopRequest stop = new(message.loopId);
+    stop.EmitGameObjectTargeted(sfxPlayerObject);
+}
+```
+
+| Message                 | Kind       | Does                                        |
+| ----------------------- | ---------- | ------------------------------------------- |
+| `SfxPlayRequest`        | Targeted   | Plays one cue by key, flat or at a position |
+| `SfxLoopRequest`        | Targeted   | Holds a looping cue and answers with its id |
+| `SfxLoopStopRequest`    | Targeted   | Ends the loop an id names                   |
+| `SfxStopAllRequest`     | Targeted   | Stops every voice, loops included           |
+| `SfxMuteRequest`        | Untargeted | Sets every effect player's mute state       |
+| `SfxLoopStartedMessage` | Broadcast  | Reports a held loop and its id              |
+| `SfxCueDroppedMessage`  | Broadcast  | Reports a cue that did not play, and why    |
+
+The adapter mints each loop id and ends every loop it started when it is disabled or destroyed, so a stale id stops
+nothing. A request the player's own library cannot answer is reported once, as `SfxCueDroppedMessage`, rather than
+twice.
 
 ## Diagnostics
 

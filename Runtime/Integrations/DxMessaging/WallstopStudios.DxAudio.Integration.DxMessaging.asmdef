@@ -1,0 +1,25 @@
+{
+    "name": "WallstopStudios.DxAudio.Integration.DxMessaging",
+    "rootNamespace": "WallstopStudios.DxAudio.Integration",
+    "references": [
+        "WallstopStudios.DxAudio",
+        "WallstopStudios.DxMessaging"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "DXMESSAGING_PRESENT"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.wallstop-studios.dxmessaging",
+            "expression": "",
+            "define": "DXMESSAGING_PRESENT"
+        }
+    ],
+    "noEngineReferences": false
+}

@@ -12,6 +12,24 @@ package the manifest does not list.
 **Reopen if:** a measured integration (for example an `AudioMixer` binding) is worth the install and versioning cost.
 That integration must be optional.
 
+## Optional integrations are guarded assemblies
+
+**Decision:** an integration with another package lives in `Runtime/Integrations/<Package>/` as its own assembly, with a
+`versionDefines` entry for that package and a `defineConstraints` entry naming the same symbol. It is not listed in
+`package.json` dependencies.
+
+**Reason:** Unity skips an assembly whose define constraints are unmet, so a project without the package never resolves
+the reference and never sees an error. `package_check.py` accepts a reference to an unlisted package only when the
+assembly is guarded exactly that way, and refuses every other unlisted reference. The package therefore stays
+dependency-free while a consumer who installs the package gets the integration with no extra step.
+
+**Evidence:** `Runtime/Integrations/DxMessaging` (issue #26) ships this way. Deleting its `defineConstraints` entry
+makes `package_check.py` fail with "package.json does not list com.wallstop-studios.dxmessaging"; the Unity 2021.3 lane
+of the nightly matrix installs no DxMessaging and still compiles and passes its suite.
+
+**Reopen if:** Unity changes how guarded assemblies resolve references, or a package's API needs an editor-side asset
+that cannot be guarded this way.
+
 ## ScriptableObject assets over code constants
 
 **Decision:** cues, tracks, libraries, and ducks are assets.
