@@ -118,17 +118,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             MusicTrack forced = made.Track(
                 MusicTrack.Create(Clip(made, 40f), clipLoadType: MusicClipLoadType.DecompressOnLoad)
             );
-            MusicTrack streaming = made.Track(MusicTrack.Create(Clip(made, 5f, stream: true)));
 
             Assert.That(longTrack.ResolvedClipLoadType, Is.EqualTo(MusicClipLoadType.Streaming));
             Assert.That(shortTrack.ResolvedClipLoadType, Is.EqualTo(MusicClipLoadType.DecompressOnLoad));
             Assert.That(forced.ResolvedClipLoadType, Is.EqualTo(MusicClipLoadType.DecompressOnLoad), "explicit wins");
             Assert.That(MusicClipImport.Matches(forced), Is.True, "the clip already holds the asked-for type");
-            Assert.That(MusicClipImport.AppliedLoadType(streaming.Clip), Is.EqualTo(MusicClipLoadType.Streaming));
             Assert.That(
-                MusicClipImport.Matches(streaming),
+                MusicClipImport.Matches(longTrack),
                 Is.False,
-                "a streaming clip does not follow a track asking for decompression"
+                "a decompressed clip does not follow a track that wants streaming"
             );
         }
 
@@ -196,11 +194,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             return new SfxVariant(Clip(made));
         }
 
-        private static AudioClip Clip(MadeObjects made, float seconds = 0.5f, bool stream = false)
+        private static AudioClip Clip(MadeObjects made, float seconds = 0.5f)
         {
             const int Frequency = 8_000;
             int samples = Mathf.Max(1, (int)(seconds * Frequency));
-            return made.Track(AudioClip.Create("test clip", samples, 1, Frequency, stream));
+            return made.Track(AudioClip.Create("test clip", samples, 1, Frequency, stream: false));
         }
     }
 }

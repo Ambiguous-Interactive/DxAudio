@@ -143,7 +143,7 @@ Measured in the host editor on 6000.6.7f1 with 44.1 kHz stereo clips, median of 
 Decision: `MusicLoadPolicy` streams above 30 seconds and decompresses at or below it, and a track may override the
 choice. At the threshold, decompressed holds 5 MiB and stalls the main thread 48 ms; both grow with track length, while
 streaming stays at a 199 KiB front buffer. Edit mode renders no audio, so the audible start and the cost of a
-loop-boundary read are not in this table; issue #58 carries that play-mode probe.
+loop-boundary read are not in this table; issue #46 carries that play-mode probe.
 
 ## Open questions
 
