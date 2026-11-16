@@ -1,12 +1,10 @@
 namespace WallstopStudios.DxAudio.Tests.Editor
 {
-    using System;
     using System.Collections.Generic;
     using NUnit.Framework;
     using UnityEditor;
     using UnityEngine;
     using WallstopStudios.DxAudio.Editor;
-    using Object = UnityEngine.Object;
 
     public sealed class AuthoringTests
     {
@@ -167,31 +165,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             const int Frequency = 8_000;
             int samples = Mathf.Max(1, (int)(seconds * Frequency));
             return made.Track(AudioClip.Create("test clip", samples, 1, Frequency, stream: false));
-        }
-
-        private sealed class MadeObjects : IDisposable
-        {
-            private readonly List<Object> _made = new();
-
-            public T Track<T>(T made)
-                where T : Object
-            {
-                _made.Add(made);
-                return made;
-            }
-
-            public void Dispose()
-            {
-                for (int index = 0; index < _made.Count; ++index)
-                {
-                    if (_made[index] != null)
-                    {
-                        Object.DestroyImmediate(_made[index]);
-                    }
-                }
-
-                _made.Clear();
-            }
         }
     }
 }

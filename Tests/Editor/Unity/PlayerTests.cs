@@ -6,28 +6,13 @@
 
     public sealed class PlayerTests
     {
-        private readonly List<Object> _made = new();
-
-        [TearDown]
-        public void TearDown()
-        {
-            foreach (Object made in _made)
-            {
-                if (made != null)
-                {
-                    Object.DestroyImmediate(made);
-                }
-            }
-
-            _made.Clear();
-        }
-
         [Test]
         public void TheSfxPlayerRefusesWhatItCannotPlayAndSaysWhy()
         {
-            SfxCue oneShot = Cue(loop: false, key: "hit");
-            SfxCue loop = Cue(loop: true);
-            SfxPlayer player = SfxPlayer(SfxLibrary.Create(new[] { oneShot }, voiceCount: 4));
+            using MadeObjects made = new();
+            SfxCue oneShot = Cue(made, loop: false, key: "hit");
+            SfxCue loop = Cue(made, loop: true);
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { oneShot }, voiceCount: 4));
             List<SfxDropReason> drops = new();
             player.CueDropped += (_, reason) => drops.Add(reason);
 
@@ -54,8 +39,9 @@
         [Test]
         public void TheSfxPlayerThrottlesACueInsideItsWindow()
         {
-            SfxCue hit = Cue(loop: false, minimumIntervalSeconds: 1_000f);
-            SfxPlayer player = SfxPlayer(SfxLibrary.Create(new[] { hit }, voiceCount: 4));
+            using MadeObjects made = new();
+            SfxCue hit = Cue(made, loop: false, minimumIntervalSeconds: 1_000f);
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { hit }, voiceCount: 4));
             List<SfxDropReason> drops = new();
             player.CueDropped += (_, reason) => drops.Add(reason);
 
@@ -67,8 +53,9 @@
         [Test]
         public void ALoopHoldsItsVoiceUntilItsOwnHandleStopsIt()
         {
-            SfxCue hum = Cue(loop: true, minimumIntervalSeconds: 0f);
-            SfxPlayer player = SfxPlayer(SfxLibrary.Create(new[] { hum }, voiceCount: 4, loopingVoiceLimit: 2));
+            using MadeObjects made = new();
+            SfxCue hum = Cue(made, loop: true, minimumIntervalSeconds: 0f);
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { hum }, voiceCount: 4, loopingVoiceLimit: 2));
             List<SfxDropReason> drops = new();
             player.CueDropped += (_, reason) => drops.Add(reason);
 
@@ -89,9 +76,10 @@
         [Test]
         public void AStaleHandleNeverStopsANewerLoopOnItsVoice()
         {
+            using MadeObjects made = new();
             // The default interval, so a rate limit on loops would refuse the restart in the same frame.
-            SfxCue hum = Cue(loop: true, minimumIntervalSeconds: 0.05f);
-            SfxPlayer player = SfxPlayer(SfxLibrary.Create(new[] { hum }, voiceCount: 1, loopingVoiceLimit: 1));
+            SfxCue hum = Cue(made, loop: true, minimumIntervalSeconds: 0.05f);
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { hum }, voiceCount: 1, loopingVoiceLimit: 1));
 
             Assert.That(player.TryPlayLooping(hum, out SfxLoopHandle first), Is.True);
             Assert.That(player.StopLoop(first), Is.True);
@@ -100,7 +88,7 @@
             Assert.That(player.StopLoop(first), Is.False, "a stale handle never stops a newer loop on its voice");
             Assert.That(player.HeldVoiceCount, Is.EqualTo(1));
 
-            player.Library = Made(SfxLibrary.Create(new[] { hum }, voiceCount: 1, loopingVoiceLimit: 1));
+            player.Library = made.Track(SfxLibrary.Create(new[] { hum }, voiceCount: 1, loopingVoiceLimit: 1));
             Assert.That(player.TryPlayLooping(hum, out SfxLoopHandle rebuilt), Is.True);
             Assert.That(player.StopLoop(first), Is.False, "the first lease is never handed out again after a rebuild");
             Assert.That(player.StopLoop(reused), Is.False, "a handle from before a rebuild matches nothing after it");
@@ -110,7 +98,8 @@
         [Test]
         public void MutingReachesEveryVoice()
         {
-            SfxPlayer player = SfxPlayer(SfxLibrary.Create(new[] { Cue(loop: false) }, voiceCount: 3));
+            using MadeObjects made = new();
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { Cue(made, loop: false) }, voiceCount: 3));
             player.Muted = true;
 
             foreach (AudioSource voice in player.GetComponentsInChildren<AudioSource>())
@@ -124,11 +113,12 @@
         [Test]
         public void DucksComposeRampAndRelease()
         {
-            MusicPlayer player = MusicPlayer();
-            MusicDuck menu = Made(
+            using MadeObjects made = new();
+            MusicPlayer player = MusicPlayer(made);
+            MusicDuck menu = made.Track(
                 MusicDuck.Create(MusicDuckHolders.One, volumeScale: 0.5f, applySeconds: 1f, releaseSeconds: 2f)
             );
-            MusicDuck dialogue = Made(
+            MusicDuck dialogue = made.Track(
                 MusicDuck.Create(MusicDuckHolders.Many, volumeScale: 0.2f, lowPassCutoffHz: 1_000f, applySeconds: 0f)
             );
 
@@ -141,7 +131,7 @@
             player.Tick(1f);
             Assert.That(player.Attenuation.volumeScale, Is.EqualTo(0.5f).Within(0.001f));
 
-            GameObject speaker = Made(new GameObject("speaker"));
+            GameObject speaker = made.Track(new GameObject("speaker"));
             _ = player.Duck(dialogue, speaker);
             Assert.That(
                 player.Attenuation,
@@ -169,10 +159,11 @@
         [Test]
         public void OverridesAndContextsChooseTheMusic()
         {
-            MusicTrack town = Made(MusicTrack.Create(Clip(), context: "town"));
-            MusicTrack boss = Made(MusicTrack.Create(Clip()));
-            MusicPlayer player = MusicPlayer();
-            player.Library = Made(MusicLibrary.Create(new[] { town }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
+            using MadeObjects made = new();
+            MusicTrack town = made.Track(MusicTrack.Create(Clip(made), context: "town"));
+            MusicTrack boss = made.Track(MusicTrack.Create(Clip(made)));
+            MusicPlayer player = MusicPlayer(made);
+            player.Library = made.Track(MusicLibrary.Create(new[] { town }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
 
             Assert.That(player.PlayContext("cave"), Is.False);
             Assert.That(player.Current == null);
@@ -193,8 +184,9 @@
         [Test]
         public void ADestroyedOverrideTrackHandsTheMusicBack()
         {
-            MusicTrack town = Made(MusicTrack.Create(Clip(), context: "town"));
-            MusicTrack boss = Made(MusicTrack.Create(Clip()));
+            using MadeObjects made = new();
+            MusicTrack town = made.Track(MusicTrack.Create(Clip(made), context: "town"));
+            MusicTrack boss = made.Track(MusicTrack.Create(Clip(made)));
             List<MusicTrack> heard = new();
             MusicOverride<MusicTrack> selection = new(heard.Add);
             _ = selection.SetContextTrack(town);
@@ -212,11 +204,12 @@
         [Test]
         public void PausingHoldsEachPlayerAtItsPlayheadAndResumingContinues()
         {
-            MusicTrack town = Made(MusicTrack.Create(Clip(), context: "town"));
-            MusicPlayer music = MusicPlayer();
-            music.Library = Made(MusicLibrary.Create(new[] { town }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
-            SfxCue hum = Cue(loop: true);
-            SfxPlayer sfx = SfxPlayer(Made(SfxLibrary.Create(new[] { hum }, voiceCount: 2, loopingVoiceLimit: 1)));
+            using MadeObjects made = new();
+            MusicTrack town = made.Track(MusicTrack.Create(Clip(made), context: "town"));
+            MusicPlayer music = MusicPlayer(made);
+            music.Library = made.Track(MusicLibrary.Create(new[] { town }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
+            SfxCue hum = Cue(made, loop: true);
+            SfxPlayer sfx = SfxPlayer(made, SfxLibrary.Create(new[] { hum }, voiceCount: 2, loopingVoiceLimit: 1));
             Assert.That(music.PlayContext("town"), Is.True);
             Assert.That(sfx.TryPlayLooping(hum, out SfxLoopHandle loop), Is.True);
             try
@@ -261,11 +254,12 @@
         [Test]
         public void VoicesStartedDuringAPauseWaitAtTheirStart()
         {
-            MusicTrack town = Made(MusicTrack.Create(Clip(), context: "town"));
-            MusicPlayer music = MusicPlayer();
-            music.Library = Made(MusicLibrary.Create(new[] { town }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
-            SfxCue hit = Cue(loop: false, key: "hit");
-            SfxPlayer sfx = SfxPlayer(Made(SfxLibrary.Create(new[] { hit }, voiceCount: 1)));
+            using MadeObjects made = new();
+            MusicTrack town = made.Track(MusicTrack.Create(Clip(made), context: "town"));
+            MusicPlayer music = MusicPlayer(made);
+            music.Library = made.Track(MusicLibrary.Create(new[] { town }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
+            SfxCue hit = Cue(made, loop: false, key: "hit");
+            SfxPlayer sfx = SfxPlayer(made, SfxLibrary.Create(new[] { hit }, voiceCount: 1));
             music.Paused = true;
             sfx.Paused = true;
 
@@ -290,8 +284,9 @@
         [Test]
         public void ACueStartedDuringAPauseMayReuseAPausedOneShot()
         {
-            SfxCue hit = Cue(loop: false, key: "hit");
-            SfxPlayer player = SfxPlayer(Made(SfxLibrary.Create(new[] { hit }, voiceCount: 1)));
+            using MadeObjects made = new();
+            SfxCue hit = Cue(made, loop: false, key: "hit");
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { hit }, voiceCount: 1));
             Assert.That(player.Play(hit), Is.True);
             player.Paused = true;
 
@@ -304,9 +299,10 @@
         [Test]
         public void ALowerPriorityCueDoesNotReplaceAPausedOneShot()
         {
-            SfxCue high = Cue(loop: false, key: "high", priority: SfxPriority.High);
-            SfxCue low = Cue(loop: false, key: "low", priority: SfxPriority.Low);
-            SfxPlayer player = SfxPlayer(Made(SfxLibrary.Create(new[] { high, low }, voiceCount: 1)));
+            using MadeObjects made = new();
+            SfxCue high = Cue(made, loop: false, key: "high", priority: SfxPriority.High);
+            SfxCue low = Cue(made, loop: false, key: "low", priority: SfxPriority.Low);
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { high, low }, voiceCount: 1));
             Assert.That(player.Play(high), Is.True);
             player.Paused = true;
 
@@ -317,9 +313,10 @@
         [Test]
         public void TheMusicPlayerReportsOneStopWhenItStopsWhilePaused()
         {
-            MusicTrack town = Made(MusicTrack.Create(Clip(), context: "town"));
-            MusicPlayer player = MusicPlayer();
-            player.Library = Made(MusicLibrary.Create(new[] { town }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
+            using MadeObjects made = new();
+            MusicTrack town = made.Track(MusicTrack.Create(Clip(made), context: "town"));
+            MusicPlayer player = MusicPlayer(made);
+            player.Library = made.Track(MusicLibrary.Create(new[] { town }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
             int stops = 0;
             player.Stopped += () =>
             {
@@ -340,9 +337,10 @@
         [Test]
         public void ANonLoopingTrackReportsStoppedWhenItEnds()
         {
-            MusicTrack sting = Made(MusicTrack.Create(Clip(), context: "sting", loop: false));
-            MusicPlayer player = MusicPlayer();
-            player.Library = Made(MusicLibrary.Create(new[] { sting }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
+            using MadeObjects made = new();
+            MusicTrack sting = made.Track(MusicTrack.Create(Clip(made), context: "sting", loop: false));
+            MusicPlayer player = MusicPlayer(made);
+            player.Library = made.Track(MusicLibrary.Create(new[] { sting }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
             int stops = 0;
             player.Stopped += () =>
             {
@@ -364,9 +362,10 @@
         [Test]
         public void TheMusicPlayerReportsTheTrackThatPlaysAndTheStop()
         {
-            MusicTrack town = Made(MusicTrack.Create(Clip(), context: "town"));
-            MusicPlayer player = MusicPlayer();
-            player.Library = Made(MusicLibrary.Create(new[] { town }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
+            using MadeObjects made = new();
+            MusicTrack town = made.Track(MusicTrack.Create(Clip(made), context: "town"));
+            MusicPlayer player = MusicPlayer(made);
+            player.Library = made.Track(MusicLibrary.Create(new[] { town }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
             List<MusicTrack> changed = new();
             int stops = 0;
             player.TrackChanged += changed.Add;
@@ -383,10 +382,10 @@
             Assert.That(player.Current == null);
         }
 
-        private SfxPlayer SfxPlayer(SfxLibrary library)
+        private static SfxPlayer SfxPlayer(MadeObjects made, SfxLibrary library)
         {
-            Made(library);
-            SfxPlayer player = Made(new GameObject("sfx")).AddComponent<SfxPlayer>();
+            made.Track(library);
+            SfxPlayer player = made.Track(new GameObject("sfx")).AddComponent<SfxPlayer>();
             player.Library = library;
             return player;
         }
@@ -419,21 +418,22 @@
             return null;
         }
 
-        private MusicPlayer MusicPlayer()
+        private static MusicPlayer MusicPlayer(MadeObjects made)
         {
-            return Made(new GameObject("music")).AddComponent<MusicPlayer>();
+            return made.Track(new GameObject("music")).AddComponent<MusicPlayer>();
         }
 
-        private SfxCue Cue(
+        private static SfxCue Cue(
+            MadeObjects made,
             bool loop,
             string key = null,
             float minimumIntervalSeconds = 0f,
             SfxPriority priority = SfxPriority.Medium
         )
         {
-            return Made(
+            return made.Track(
                 SfxCue.Create(
-                    new[] { new SfxVariant(Clip()) },
+                    new[] { new SfxVariant(Clip(made)) },
                     key: key,
                     priority: priority,
                     loop: loop,
@@ -442,16 +442,9 @@
             );
         }
 
-        private AudioClip Clip()
+        private static AudioClip Clip(MadeObjects made)
         {
-            return Made(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
-        }
-
-        private T Made<T>(T made)
-            where T : Object
-        {
-            _made.Add(made);
-            return made;
+            return made.Track(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
         }
     }
 }
