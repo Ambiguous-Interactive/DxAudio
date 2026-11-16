@@ -281,6 +281,20 @@
         }
 
         [Test]
+        public void ACueStartedDuringAPauseMayReuseAPausedOneShot()
+        {
+            SfxCue hit = Cue(loop: false, key: "hit");
+            SfxPlayer player = SfxPlayer(Made(SfxLibrary.Create(new[] { hit }, voiceCount: 1)));
+            Assert.That(player.Play(hit), Is.True);
+            player.Paused = true;
+
+            Assert.That(player.Play(hit), Is.True, "a paused one-shot is not audible, so its voice can be reused");
+            Assert.That(player.DropCounts.Total, Is.Zero);
+            Assert.That(player.VoiceCount, Is.EqualTo(1));
+            Assert.That(PlayingSource(player) == null, "the reused voice waits at its start");
+        }
+
+        [Test]
         public void TheMusicPlayerReportsOneStopWhenItStopsWhilePaused()
         {
             MusicTrack town = Made(MusicTrack.Create(Clip(), context: "town"));
