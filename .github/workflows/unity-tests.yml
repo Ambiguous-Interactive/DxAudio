@@ -5,10 +5,6 @@ on:
   push:
     branches:
       - main
-  # The oldest supported editor left pull-request CI (#25): this nightly matrix is
-  # where that lane still runs, in both states of the optional integration.
-  schedule:
-    - cron: "0 5 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -17,8 +13,8 @@ concurrency:
   # self-hosted seat. Cancellation is safe for licensed work because the
   # acquire action releases before activation, the cleanup chain runs under
   # `if: always()`, and the scheduled reaper recovers a dead holder.
-  # The event name is part of the group so a push to main cannot cancel the
-  # nightly legacy matrix.
+  # The event name is part of the group so a push to main cannot cancel a
+  # manual run for another event.
   group: unity-tests-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
@@ -49,35 +45,9 @@ jobs:
           reader-app-private-key: ${{ secrets.BUILD_LOCK_READER_APP_PRIVATE_KEY }}
           required-label-sets: '[["self-hosted","Windows","RAM-64GB"]]'
 
-  plan-lanes:
-    name: Plan Unity lanes
-    # A job-level `if` cannot read `matrix`, so the lane list is decided once here
-    # and the matrix comes from it (#25). Pull requests and pushes to main run
-    # Unity 6 only; the nightly matrix adds the oldest supported editor.
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
-    outputs:
-      matrix: ${{ steps.lanes.outputs.matrix }}
-    steps:
-      - name: Choose lanes for this event
-        id: lanes
-        shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-        run: |
-          set -euo pipefail
-          if [ "${EVENT_NAME}" = "pull_request" ] || [ "${EVENT_NAME}" = "push" ]; then
-            lanes='[{"unity-version":"6000.5.2f1","lane":"integration","dxmessaging-version":"3.3.0"},{"unity-version":"6000.5.2f1","lane":"no-dependencies","dxmessaging-version":""}]'
-          else
-            lanes='[{"unity-version":"6000.5.2f1","lane":"integration","dxmessaging-version":"3.3.0"},{"unity-version":"6000.5.2f1","lane":"no-dependencies","dxmessaging-version":""},{"unity-version":"2021.3.45f1","lane":"no-dependencies","dxmessaging-version":""},{"unity-version":"2021.3.45f1","lane":"integration","dxmessaging-version":"3.3.0"}]'
-          fi
-          printf 'matrix=%s\n' "${lanes}" >> "${GITHUB_OUTPUT}"
-
   unity-tests:
     name: Unity ${{ matrix.unity-version }} EditMode (${{ matrix.lane }})
-    needs:
-      - runner-preflight
-      - plan-lanes
+    needs: runner-preflight
     # Same guard as the preflight: fork and Dependabot pull requests cannot
     # read the organization Unity serial or build-lock App secrets.
     #
@@ -92,14 +62,21 @@ jobs:
       }}
     runs-on: [self-hosted, Windows, RAM-64GB]
     timeout-minutes: 420
+    # Contract item 3: the audit proves the per-leg editor gate and the central
+    # return pins only on a matrix it can enumerate, so every axis holds literal
+    # values. An include-based or generated matrix is refused. The oldest
+    # supported editor runs in unity-tests-legacy.yml (#25).
     strategy:
       fail-fast: false
       max-parallel: 1
       matrix:
-        include: ${{ fromJSON(needs.plan-lanes.outputs.matrix) }}
+        unity-version:
+          - 6000.5.2f1
+        lane:
+          - integration
+          - no-dependencies
     steps:
       - name: Require current PR head before setup
-        if: ${{ github.event_name == 'pull_request' }}
         timeout-minutes: 2
         uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/require-current-pr-head@20077985093aac0e88f88f931ebedae78c1c9284 # v1.17.1
         with:
@@ -137,7 +114,6 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
 
       - name: Require current PR head before lock acquisition
-        if: ${{ github.event_name == 'pull_request' }}
         timeout-minutes: 2
         uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/require-current-pr-head@20077985093aac0e88f88f931ebedae78c1c9284 # v1.17.1
         with:
@@ -179,7 +155,7 @@ jobs:
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-          DXMESSAGING_VERSION: ${{ matrix.dxmessaging-version }}
+          DXMESSAGING_VERSION: ${{ matrix.lane == 'integration' && '3.3.0' || '' }}
         run: ./scripts/unity/run-editmode-tests.ps1
 
       - name: Report the Unity log tail
@@ -203,7 +179,7 @@ jobs:
           tool-cache: ${{ runner.tool_cache }}
           unity-email: ${{ secrets.UNITY_EMAIL }}
           unity-password: ${{ secrets.UNITY_PASSWORD }}
-          evidence-suffix: unity-tests-${{ matrix.lane }}
+          evidence-suffix: unity-tests-editmode
 
       - name: Classify Unity cleanup evidence
         id: cleanup_classification
@@ -259,7 +235,6 @@ jobs:
     name: Unity CI Success
     needs:
       - runner-preflight
-      - plan-lanes
       - unity-tests
     if: ${{ always() }}
     runs-on: ubuntu-latest
