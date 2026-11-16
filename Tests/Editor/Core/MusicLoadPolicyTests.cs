@@ -44,5 +44,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             );
             Assert.That(MusicLoadPolicy.Resolve(0f, requested), Is.EqualTo(requested), "a short clip keeps the choice");
         }
+
+        [Test]
+        public void AnUndefinedChoiceFallsBackToTheLengthRule()
+        {
+            MusicClipLoadType undefined = (MusicClipLoadType)42;
+
+            Assert.That(MusicLoadPolicy.Resolve(240f, undefined), Is.EqualTo(MusicClipLoadType.Streaming));
+            Assert.That(MusicLoadPolicy.Resolve(20f, undefined), Is.EqualTo(MusicClipLoadType.DecompressOnLoad));
+        }
     }
 }

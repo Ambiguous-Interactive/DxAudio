@@ -3,10 +3,10 @@ namespace WallstopStudios.DxAudio.Editor
     using UnityEditor;
     using UnityEngine;
 
-    /// <summary>Shows the load type a track asks for next to the clip's own, and applies it on request.</summary>
+    /// <summary>Shows the load type a clip's import settings hold beside the one a track asks for.</summary>
     /// <remarks>
-    /// The default inspector still authors every field. The clip's import settings decide how much memory a track
-    /// holds, so this shows the resolved choice and offers the one edit that writes it into the clip.
+    /// The default inspector still authors every field. The clip holds one load type, so this shows the resolved
+    /// choice next to the imported one and offers the write that makes them agree.
     /// </remarks>
     [CanEditMultipleObjects]
     [CustomEditor(typeof(MusicTrack))]
@@ -29,24 +29,40 @@ namespace WallstopStudios.DxAudio.Editor
                 return;
             }
 
-            MusicClipLoadType resolved = track.ResolvedClipLoadType;
-            MusicClipLoadType applied = MusicClipImport.AppliedLoadType(clip);
-
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Clip Load Type", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Clip Import", EditorStyles.boldLabel);
+            if (!MusicClipImport.TryGetAppliedLoadType(clip, out MusicClipLoadType applied))
+            {
+                EditorGUILayout.HelpBox("The clip's import type cannot be read.", MessageType.Warning);
+                return;
+            }
+
+            MusicClipLoadType resolved = track.ResolvedClipLoadType;
             EditorGUILayout.LabelField(
                 $"{clip.length:0.#}s clip",
-                resolved == applied ? applied.ToString() : $"imported as {applied}; the track asks for {resolved}"
+                applied == resolved ? applied.ToString() : $"imported as {applied}; the track asks for {resolved}"
             );
 
-            if (resolved == applied)
+            if (applied == resolved)
             {
                 return;
             }
 
-            if (GUILayout.Button($"Apply {resolved} to the clip"))
+            if (!MusicClipImport.CanApply(clip))
             {
-                MusicClipImport.TryApply(clip, resolved);
+                EditorGUILayout.HelpBox(
+                    "The clip has no editable importer, so its import type cannot be applied.",
+                    MessageType.Warning
+                );
+                return;
+            }
+
+            if (GUILayout.Button($"Apply {resolved} to the clip") && !MusicClipImport.TryApply(clip, resolved))
+            {
+                EditorGUILayout.HelpBox(
+                    "The clip's type did not change; a per-platform override or a read-only file may block it.",
+                    MessageType.Warning
+                );
             }
         }
     }

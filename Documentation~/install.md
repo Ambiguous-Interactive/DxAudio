@@ -52,7 +52,7 @@ Download `com.wallstop-studios.dxaudio-<version>.tgz` from a
 | Folder            | Ships | Contents                                                           |
 | ----------------- | ----- | ------------------------------------------------------------------ |
 | `Runtime/`        | Yes   | Cues, tracks, ducks, libraries and the two players                 |
-| `Editor/`         | Yes   | Cue and duck inspectors, library validation                        |
+| `Editor/`         | Yes   | Cue, duck and music track inspectors, library validation           |
 | `Tests/`          | Yes   | EditMode tests, run only when the package is listed in `testables` |
 | `Documentation~/` | No    | These pages                                                        |
 | `Samples~/`       | No    | The `BasicUsage` sample                                            |

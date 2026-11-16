@@ -3,11 +3,12 @@ namespace WallstopStudios.DxAudio.Editor
     using System;
     using System.Collections.Generic;
 
-    /// <summary>Checks DxAudio assets for content a player cannot reach.</summary>
+    /// <summary>Checks DxAudio assets for content a player cannot reach, and for a clip that ignores its track.</summary>
     /// <remarks>
     /// An empty take, a key two cues share, or a track no context names is silent at run time rather than
-    /// wrong-sounding, so it is easiest to find before play. These checks only read assets: they never
-    /// change one, and nothing in the runtime assemblies depends on them.
+    /// wrong-sounding, so it is easiest to find before play. A music clip whose import type does not follow its
+    /// track still plays, but holds more or less memory than the track asks for. These checks only read assets: they
+    /// never change one, and nothing in the runtime assemblies depends on them.
     /// </remarks>
     public static class DxAudioValidation
     {
@@ -103,9 +104,11 @@ namespace WallstopStudios.DxAudio.Editor
                 }
                 else if (!MusicClipImport.Matches(track))
                 {
+                    MusicClipImport.TryGetAppliedLoadType(track.Clip, out MusicClipLoadType applied);
                     findings.Add(
                         $"{name} asks for a {track.ResolvedClipLoadType} clip, but the clip is imported as "
-                            + $"{MusicClipImport.AppliedLoadType(track.Clip)}; the track inspector applies the choice."
+                            + $"{applied}; the track inspector applies the choice to the clip, which every user of "
+                            + "the clip shares."
                     );
                 }
 

@@ -9,20 +9,21 @@ namespace WallstopStudios.DxAudio
     /// </remarks>
     public static class MusicLoadPolicy
     {
-        /// <summary>A clip longer than this many seconds streams by default; a shorter one decompresses.</summary>
+        /// <summary>A clip longer than this many seconds streams by default; a clip of this length or less decompresses.</summary>
         public const float StreamingThresholdSeconds = 30f;
 
         /// <summary>The load type for a clip of <paramref name="lengthSeconds" />, keeping an explicit choice.</summary>
         public static MusicClipLoadType Resolve(float lengthSeconds, MusicClipLoadType requested)
         {
-            if (requested != MusicClipLoadType.Auto)
+            return requested switch
             {
-                return requested;
-            }
-
-            return StreamingThresholdSeconds < lengthSeconds
-                ? MusicClipLoadType.Streaming
-                : MusicClipLoadType.DecompressOnLoad;
+                MusicClipLoadType.DecompressOnLoad => MusicClipLoadType.DecompressOnLoad,
+                MusicClipLoadType.CompressedInMemory => MusicClipLoadType.CompressedInMemory,
+                MusicClipLoadType.Streaming => MusicClipLoadType.Streaming,
+                _ => StreamingThresholdSeconds < lengthSeconds
+                    ? MusicClipLoadType.Streaming
+                    : MusicClipLoadType.DecompressOnLoad,
+            };
         }
     }
 }

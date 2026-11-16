@@ -103,8 +103,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             MusicTrack boss = made.Track(MusicTrack.Create(Clip(made, 40f), context: "boss"));
             MusicLibrary library = made.Track(MusicLibrary.Create(new[] { boss }));
 
-            string messages = Joined(DxAudioValidation.Validate(library));
+            List<string> findings = DxAudioValidation.Validate(library);
+            string messages = Joined(findings);
 
+            Assert.That(findings, Has.Count.EqualTo(1));
             Assert.That(messages, Does.Contain("asks for a Streaming clip"));
             Assert.That(messages, Does.Contain("imported as DecompressOnLoad"));
         }
@@ -113,21 +115,74 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void AMusicTrackResolvesAutoFromTheClipLength()
         {
             using MadeObjects made = new();
-            MusicTrack longTrack = made.Track(MusicTrack.Create(Clip(made, 40f)));
+            AudioClip fortySeconds = Clip(made, 40f);
+            MusicTrack longTrack = made.Track(MusicTrack.Create(fortySeconds));
             MusicTrack shortTrack = made.Track(MusicTrack.Create(Clip(made, 20f)));
             MusicTrack forced = made.Track(
-                MusicTrack.Create(Clip(made, 40f), clipLoadType: MusicClipLoadType.DecompressOnLoad)
+                MusicTrack.Create(fortySeconds, clipLoadType: MusicClipLoadType.DecompressOnLoad)
             );
 
             Assert.That(longTrack.ResolvedClipLoadType, Is.EqualTo(MusicClipLoadType.Streaming));
             Assert.That(shortTrack.ResolvedClipLoadType, Is.EqualTo(MusicClipLoadType.DecompressOnLoad));
             Assert.That(forced.ResolvedClipLoadType, Is.EqualTo(MusicClipLoadType.DecompressOnLoad), "explicit wins");
-            Assert.That(MusicClipImport.Matches(forced), Is.True, "the clip already holds the asked-for type");
+            Assert.That(MusicClipImport.Matches(forced), Is.True, "the clip holds the asked-for type");
             Assert.That(
                 MusicClipImport.Matches(longTrack),
                 Is.False,
                 "a decompressed clip does not follow a track that wants streaming"
             );
+        }
+
+        [Test]
+        public void ApplyingALoadTypeWritesTheClipImportSettings()
+        {
+            const string Folder = "Assets/DxAudioLoadTypeTest";
+            const string SourceGuid = "5081b21fa3e1420dbfaac900a77b4b24";
+            string destination = Folder + "/TestTone.wav";
+            string source = AssetDatabase.GUIDToAssetPath(SourceGuid);
+            string projectRoot = System.IO.Path.GetDirectoryName(Application.dataPath);
+
+            using MadeObjects made = new();
+            AssetDatabase.CreateFolder("Assets", "DxAudioLoadTypeTest");
+            try
+            {
+                Assert.That(source.Length, Is.Not.Zero, "the fixture clip is missing");
+                // A copy gets its own GUID, so changing its importer cannot touch the committed fixture.
+                System.IO.File.Copy(
+                    System.IO.Path.Combine(projectRoot, source),
+                    System.IO.Path.Combine(projectRoot, destination),
+                    overwrite: true
+                );
+                AssetDatabase.ImportAsset(destination, ImportAssetOptions.ForceUpdate);
+
+                AudioClip clip = AssetDatabase.LoadAssetAtPath<AudioClip>(destination);
+                Assert.That(MusicClipImport.TryApply(clip, MusicClipLoadType.Streaming), Is.True);
+                AudioClip streamed = AssetDatabase.LoadAssetAtPath<AudioClip>(destination);
+                Assert.That(MusicClipImport.TryGetAppliedLoadType(streamed, out MusicClipLoadType applied), Is.True);
+                Assert.That(applied, Is.EqualTo(MusicClipLoadType.Streaming), "the importer took the write");
+                Assert.That(
+                    MusicClipImport.Matches(
+                        made.Track(MusicTrack.Create(streamed, clipLoadType: MusicClipLoadType.Streaming))
+                    ),
+                    Is.True
+                );
+
+                Assert.That(
+                    MusicClipImport.TryApply(clip, MusicClipLoadType.Auto),
+                    Is.False,
+                    "Auto names no concrete type"
+                );
+                AudioClip generated = made.Track(AudioClip.Create("generated", 800, 1, 8_000, false));
+                Assert.That(
+                    MusicClipImport.TryApply(generated, MusicClipLoadType.Streaming),
+                    Is.False,
+                    "a generated clip has no importer"
+                );
+            }
+            finally
+            {
+                AssetDatabase.DeleteAsset(Folder);
+            }
         }
 
         [Test]

@@ -37,8 +37,8 @@ namespace WallstopStudios.DxAudio
         [SerializeField]
         [Tooltip(
             "How much of the clip sits in memory while it plays. Auto streams clips longer than 30 seconds and "
-                + "decompresses shorter ones. The clip's import settings hold the real value; the track inspector "
-                + "applies it."
+                + "decompresses the rest. The clip's import settings hold the real value, which every user of the "
+                + "clip shares; the track inspector applies it."
         )]
         private MusicClipLoadType _clipLoadType = MusicClipLoadType.Auto;
 
