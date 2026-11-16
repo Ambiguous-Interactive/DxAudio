@@ -124,12 +124,20 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             SfxPlayerMessaging firstMessaging = Messaging(first);
             SfxPlayerMessaging secondMessaging = Messaging(second);
             List<SfxLoopStartedMessage> firstStarted = CaptureLoops(firstMessaging.gameObject);
+            List<SfxLoopStartedMessage> secondStarted = CaptureLoops(secondMessaging.gameObject);
 
             EmitLoop(firstMessaging.gameObject, "hum");
+            EmitLoop(secondMessaging.gameObject, "hum");
+
             StopLoop(secondMessaging.gameObject, firstStarted[0].loopId);
 
-            Assert.That(first.HeldVoiceCount, Is.EqualTo(1), "a request addressed elsewhere leaves this loop alone");
-            Assert.That(second.HeldVoiceCount, Is.Zero);
+            Assert.That(
+                firstStarted[0].loopId,
+                Is.Not.EqualTo(secondStarted[0].loopId),
+                "ids are unique across players"
+            );
+            Assert.That(first.HeldVoiceCount, Is.EqualTo(1), "the other player's id names no loop here");
+            Assert.That(second.HeldVoiceCount, Is.EqualTo(1), "nor does it end this player's own loop");
         }
 
         [Test]

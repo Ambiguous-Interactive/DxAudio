@@ -34,8 +34,14 @@ namespace WallstopStudios.DxAudio.Integration
 
         private readonly Dictionary<long, SfxLoopHandle> _loops = new(InitialLoopCapacity);
 
+        /*
+            Shared by every adapter in the process, so an id minted by one player is never a key in another's map.
+            A per-instance counter restarts at 1 and two players would mint the same id, which makes a request aimed
+            at the wrong player stop that player's unrelated loop.
+        */
+        private static long _nextLoopId;
+
         private SfxPlayer _player;
-        private long _nextLoopId;
 
         /// <summary>The player this adapter drives, or <see langword="null"/> once it is gone.</summary>
         public SfxPlayer Player
@@ -53,7 +59,6 @@ namespace WallstopStudios.DxAudio.Integration
         {
             // Resolved before the base stages registrations, so a handler never runs against a missing player.
             _player = GetComponent<SfxPlayer>();
-            _nextLoopId = 1;
             base.Awake();
         }
 
@@ -131,8 +136,7 @@ namespace WallstopStudios.DxAudio.Integration
                 return;
             }
 
-            long loopId = _nextLoopId;
-            ++_nextLoopId;
+            long loopId = ++_nextLoopId;
             _loops.Add(loopId, handle);
 
             SfxLoopStartedMessage startedMessage = new(loopId, request.key);
