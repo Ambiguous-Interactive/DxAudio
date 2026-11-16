@@ -4,11 +4,16 @@
 # The package has no Unity project of its own, so this script creates a minimal
 # project that references the checkout as a local package. The `testables` entry
 # compiles Tests/Editor, which a plain file dependency does not include.
+#
+# The DxMessaging integration is optional: leave -DxMessagingVersion empty to
+# prove the package compiles and its suite passes with the dependency absent, and
+# set it to compile and test the integration assembly in the same run.
 [CmdletBinding()]
 param(
     [string]$UnityVersion = $env:UNITY_VERSION,
     [string]$UnityEditorPath = $env:UNITY_EDITOR_PATH,
-    [string]$PackageRoot = $env:GITHUB_WORKSPACE
+    [string]$PackageRoot = $env:GITHUB_WORKSPACE,
+    [string]$DxMessagingVersion = $env:DXMESSAGING_VERSION
 )
 
 Set-StrictMode -Version Latest
@@ -53,7 +58,20 @@ $manifest = [ordered]@{
         'com.wallstop-studios.dxaudio' = "file:$packageUri"
     }
     testables = @('com.wallstop-studios.dxaudio')
-} | ConvertTo-Json -Depth 4
+}
+if (-not [string]::IsNullOrWhiteSpace($DxMessagingVersion)) {
+    # The integration is guarded by a version define, so without this entry the
+    # project compiles the package exactly as a DxMessaging-free game does.
+    $manifest.dependencies['com.wallstop-studios.dxmessaging'] = $DxMessagingVersion
+    $manifest.scopedRegistries = @(
+        [ordered]@{
+            name = 'npmjs'
+            url = 'https://registry.npmjs.org'
+            scopes = @('com.wallstop-studios')
+        }
+    )
+}
+$manifest = $manifest | ConvertTo-Json -Depth 5
 Set-Content -LiteralPath (Join-Path $packagesPath 'manifest.json') -Value $manifest -Encoding utf8
 Set-Content -LiteralPath (Join-Path $settingsPath 'ProjectVersion.txt') `
     -Value "m_EditorVersion: $UnityVersion" -Encoding utf8

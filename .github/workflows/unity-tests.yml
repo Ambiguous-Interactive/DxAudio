@@ -60,10 +60,16 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 1
+      # Two lanes, two states of the optional DxMessaging integration: the oldest
+      # supported editor runs without the package, and the newest runs with it, so
+      # the guarded assembly is proven both skipped and compiled on every pull
+      # request.
       matrix:
-        unity-version:
-          - 2021.3.45f1
-          - 6000.5.2f1
+        include:
+          - unity-version: 2021.3.45f1
+            dxmessaging-version: ""
+          - unity-version: 6000.5.2f1
+            dxmessaging-version: 3.3.0
     steps:
       - name: Require current PR head before setup
         timeout-minutes: 2
@@ -144,6 +150,7 @@ jobs:
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          DXMESSAGING_VERSION: ${{ matrix.dxmessaging-version }}
         run: ./scripts/unity/run-editmode-tests.ps1
 
       - name: Report the Unity log tail
@@ -233,8 +240,11 @@ jobs:
         env:
           RUNNER_PREFLIGHT_RESULT: ${{ needs.runner-preflight.result }}
           UNITY_TESTS_RESULT: ${{ needs.unity-tests.result }}
-          FORK_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
-          DEPENDABOT_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' }}
+          FORK_PR:
+            ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name !=
+            github.repository }}
+          DEPENDABOT_PR:
+            ${{ github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' }}
         run: |
           set -euo pipefail
           if [ "${FORK_PR}" = "true" ] || [ "${DEPENDABOT_PR}" = "true" ]; then
