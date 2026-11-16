@@ -1,6 +1,5 @@
 namespace WallstopStudios.DxAudio.Tests.Editor
 {
-    using System;
     using System.Collections.Generic;
     using NUnit.Framework;
     using UnityEditor;
@@ -261,31 +260,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static AudioClip Clip(MadeObjects made)
         {
             return made.Track(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
-        }
-
-        private sealed class MadeObjects : IDisposable
-        {
-            private readonly List<Object> _made = new();
-
-            public T Track<T>(T made)
-                where T : Object
-            {
-                _made.Add(made);
-                return made;
-            }
-
-            public void Dispose()
-            {
-                for (int index = 0; index < _made.Count; ++index)
-                {
-                    if (_made[index] != null)
-                    {
-                        Object.DestroyImmediate(_made[index]);
-                    }
-                }
-
-                _made.Clear();
-            }
         }
     }
 }
