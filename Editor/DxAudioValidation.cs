@@ -101,6 +101,13 @@ namespace WallstopStudios.DxAudio.Editor
                 {
                     findings.Add($"{name} has no clip, so it cannot play.");
                 }
+                else if (!MusicClipImport.Matches(track))
+                {
+                    findings.Add(
+                        $"{name} asks for a {track.ResolvedClipLoadType} clip, but the clip is imported as "
+                            + $"{MusicClipImport.AppliedLoadType(track.Clip)}; the track inspector applies the choice."
+                    );
+                }
 
                 if (string.IsNullOrWhiteSpace(track.Context))
                 {

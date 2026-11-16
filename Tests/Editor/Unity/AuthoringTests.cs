@@ -97,6 +97,42 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void AMusicLibraryCheckReportsAClipThatIgnoresTheTrackLoadType()
+        {
+            using MadeObjects made = new();
+            MusicTrack boss = made.Track(MusicTrack.Create(Clip(made, 40f), context: "boss"));
+            MusicLibrary library = made.Track(MusicLibrary.Create(new[] { boss }));
+
+            string messages = Joined(DxAudioValidation.Validate(library));
+
+            Assert.That(messages, Does.Contain("asks for a Streaming clip"));
+            Assert.That(messages, Does.Contain("imported as DecompressOnLoad"));
+        }
+
+        [Test]
+        public void AMusicTrackResolvesAutoFromTheClipLength()
+        {
+            using MadeObjects made = new();
+            MusicTrack longTrack = made.Track(MusicTrack.Create(Clip(made, 40f)));
+            MusicTrack shortTrack = made.Track(MusicTrack.Create(Clip(made, 20f)));
+            MusicTrack forced = made.Track(
+                MusicTrack.Create(Clip(made, 40f), clipLoadType: MusicClipLoadType.DecompressOnLoad)
+            );
+            MusicTrack streaming = made.Track(MusicTrack.Create(Clip(made, 5f, stream: true)));
+
+            Assert.That(longTrack.ResolvedClipLoadType, Is.EqualTo(MusicClipLoadType.Streaming));
+            Assert.That(shortTrack.ResolvedClipLoadType, Is.EqualTo(MusicClipLoadType.DecompressOnLoad));
+            Assert.That(forced.ResolvedClipLoadType, Is.EqualTo(MusicClipLoadType.DecompressOnLoad), "explicit wins");
+            Assert.That(MusicClipImport.Matches(forced), Is.True, "the clip already holds the asked-for type");
+            Assert.That(MusicClipImport.AppliedLoadType(streaming.Clip), Is.EqualTo(MusicClipLoadType.Streaming));
+            Assert.That(
+                MusicClipImport.Matches(streaming),
+                Is.False,
+                "a streaming clip does not follow a track asking for decompression"
+            );
+        }
+
+        [Test]
         public void ACueCheckWarnsThatALoopIgnoresItsStartOffsets()
         {
             using MadeObjects made = new();
@@ -160,11 +196,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             return new SfxVariant(Clip(made));
         }
 
-        private static AudioClip Clip(MadeObjects made, float seconds = 0.5f)
+        private static AudioClip Clip(MadeObjects made, float seconds = 0.5f, bool stream = false)
         {
             const int Frequency = 8_000;
             int samples = Mathf.Max(1, (int)(seconds * Frequency));
-            return made.Track(AudioClip.Create("test clip", samples, 1, Frequency, stream: false));
+            return made.Track(AudioClip.Create("test clip", samples, 1, Frequency, stream));
         }
     }
 }

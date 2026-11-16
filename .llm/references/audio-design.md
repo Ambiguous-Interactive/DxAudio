@@ -120,9 +120,32 @@ with [measure-audio-behaviour](../skills/measure-audio-behaviour/SKILL.md). A bu
 - Spatial blend comes from the cue. A flat play must not set a position.
 - `Time.unscaledTime` orders stealing so hit-stop does not reorder voices.
 
+## Clip load type
+
+Unity stores a clip's load type in its import settings, so a build cannot change it at play time. A `MusicTrack` records
+the choice, `MusicLoadPolicy` resolves `Auto` from the clip's length, and the track inspector writes the result into the
+clip's importer. Nothing in the runtime reads it.
+
+Measured in the host editor on 6000.6.7f1 with 44.1 kHz stereo clips, median of five unload and reload cycles:
+
+| Clip  | Load type            | Memory held | Load call, main thread |
+| ----- | -------------------- | ----------- | ---------------------- |
+| 20 s  | Decompress On Load   | 3,452 KiB   | 31.2 ms                |
+| 20 s  | Compressed In Memory | 373 KiB     | 0.3 ms                 |
+| 20 s  | Streaming            | 199 KiB     | 1.0 ms                 |
+| 30 s  | Decompress On Load   | 5,175 KiB   | 47.5 ms                |
+| 30 s  | Compressed In Memory | 556 KiB     | 0.2 ms                 |
+| 30 s  | Streaming            | 199 KiB     | 1.1 ms                 |
+| 240 s | Decompress On Load   | 41,351 KiB  | 367.2 ms               |
+| 240 s | Compressed In Memory | 4,390 KiB   | 1.0 ms                 |
+| 240 s | Streaming            | 199 KiB     | 1.9 ms                 |
+
+Decision: `MusicLoadPolicy` streams above 30 seconds and decompresses at or below it, and a track may override the
+choice. At the threshold, decompressed holds 5 MiB and stalls the main thread 48 ms; both grow with track length, while
+streaming stays at a 199 KiB front buffer. Edit mode renders no audio, so the audible start and the cost of a
+loop-boundary read are not in this table; issue #58 carries that play-mode probe.
+
 ## Open questions
 
 Mixer-group routing was measured against per-source writes for ducking and does not replace composing in package code;
 see [product-decisions](./product-decisions.md#ducks-compose-in-package-code).
-
-- Streaming versus decompressed clips for long music tracks.

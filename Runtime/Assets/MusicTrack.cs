@@ -34,6 +34,14 @@ namespace WallstopStudios.DxAudio
         )]
         private float _startTimeSeconds;
 
+        [SerializeField]
+        [Tooltip(
+            "How much of the clip sits in memory while it plays. Auto streams clips longer than 30 seconds and "
+                + "decompresses shorter ones. The clip's import settings hold the real value; the track inspector "
+                + "applies it."
+        )]
+        private MusicClipLoadType _clipLoadType = MusicClipLoadType.Auto;
+
         public string Context => _context;
 
         public AudioClip Clip => _clip;
@@ -44,6 +52,13 @@ namespace WallstopStudios.DxAudio
 
         public bool IsPlayable => _clip != null;
 
+        /// <summary>What the track asks for; <see cref="ResolvedClipLoadType" /> turns it into a concrete value.</summary>
+        public MusicClipLoadType ClipLoadType => _clipLoadType;
+
+        /// <summary>The load type this track's clip should use, from its preference and the clip's length.</summary>
+        public MusicClipLoadType ResolvedClipLoadType =>
+            MusicLoadPolicy.Resolve(_clip == null ? 0f : _clip.length, _clipLoadType);
+
         /// <summary>Where playback begins, clamped so it never starts at or past the clip's end.</summary>
         public float StartTimeSeconds => AudioClipStart.Clamped(_clip, _startTimeSeconds);
 
@@ -53,7 +68,8 @@ namespace WallstopStudios.DxAudio
             string context = null,
             bool loop = true,
             float volumeScale = 1f,
-            float startTimeSeconds = 0f
+            float startTimeSeconds = 0f,
+            MusicClipLoadType clipLoadType = MusicClipLoadType.Auto
         )
         {
             MusicTrack track = CreateInstance<MusicTrack>();
@@ -62,6 +78,7 @@ namespace WallstopStudios.DxAudio
             track._loop = loop;
             track._volumeScale = Mathf.Clamp01(volumeScale);
             track._startTimeSeconds = Mathf.Max(0f, startTimeSeconds);
+            track._clipLoadType = clipLoadType;
             return track;
         }
 
