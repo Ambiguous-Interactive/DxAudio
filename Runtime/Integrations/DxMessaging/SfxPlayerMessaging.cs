@@ -18,7 +18,8 @@ namespace WallstopStudios.DxAudio.Integration
     /// therefore stops nothing, rather than stopping whatever the pool has since started on that voice.
     /// </para>
     /// <para>
-    /// Handlers read the message by reference and the steady state allocates nothing: registration and the first
+    /// Handlers take the message by value, because DxMessaging 3's reference handlers cannot be built from a method
+    /// group. A message is a key and a few words, and the steady state allocates nothing: registration and the first
     /// insert of each held loop are the only costs.
     /// </para>
     /// </remarks>
@@ -47,6 +48,15 @@ namespace WallstopStudios.DxAudio.Integration
         public SfxPlayer Player
         {
             get { return _player; }
+        }
+
+        /// <summary>
+        /// No string-message demos. Nothing sends one, and DxMessaging 3 registers three handlers for them by default,
+        /// which costs work on every enable and nothing else.
+        /// </summary>
+        protected override bool RegisterForStringMessages
+        {
+            get { return false; }
         }
 
         /// <summary>How many loops this adapter started and has not ended.</summary>
@@ -96,7 +106,7 @@ namespace WallstopStudios.DxAudio.Integration
             base.OnDisable();
         }
 
-        private void HandlePlay(in SfxPlayRequest request)
+        private void HandlePlay(SfxPlayRequest request)
         {
             if (_player == null)
             {
@@ -112,7 +122,7 @@ namespace WallstopStudios.DxAudio.Integration
             _ = _player.Play(request.key);
         }
 
-        private void HandleLoop(in SfxLoopRequest request)
+        private void HandleLoop(SfxLoopRequest request)
         {
             if (_player == null)
             {
@@ -143,7 +153,7 @@ namespace WallstopStudios.DxAudio.Integration
             startedMessage.EmitGameObjectBroadcast(gameObject);
         }
 
-        private void HandleStopLoop(in SfxLoopStopRequest request)
+        private void HandleStopLoop(SfxLoopStopRequest request)
         {
             if (!_loops.TryGetValue(request.loopId, out SfxLoopHandle handle))
             {
@@ -160,7 +170,7 @@ namespace WallstopStudios.DxAudio.Integration
             _ = _player.StopLoop(handle);
         }
 
-        private void HandleStopAll(in SfxStopAllRequest request)
+        private void HandleStopAll(SfxStopAllRequest request)
         {
             _loops.Clear();
             if (_player == null)
@@ -171,7 +181,7 @@ namespace WallstopStudios.DxAudio.Integration
             _player.StopAll();
         }
 
-        private void HandleMute(in SfxMuteRequest request)
+        private void HandleMute(SfxMuteRequest request)
         {
             if (_player == null)
             {

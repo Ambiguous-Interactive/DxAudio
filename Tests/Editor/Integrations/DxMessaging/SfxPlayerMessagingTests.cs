@@ -303,7 +303,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             List<SfxLoopStartedMessage> heard = new();
             _ = Capture<SfxLoopStartedMessage>(
                 source,
-                (in SfxLoopStartedMessage message) =>
+                (SfxLoopStartedMessage message) =>
                 {
                     heard.Add(message);
                 }
@@ -316,7 +316,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             List<SfxCueDroppedMessage> heard = new();
             _ = Capture<SfxCueDroppedMessage>(
                 source,
-                (in SfxCueDroppedMessage message) =>
+                (SfxCueDroppedMessage message) =>
                 {
                     heard.Add(message);
                 }
@@ -331,7 +331,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         /// <c>active</c> and <c>Enable</c> are both required: the flag arms the handler, and enabling commits the
         /// staged registration. The token is disposed in teardown because the bus that holds it is static.
         /// </remarks>
-        private MessageRegistrationHandle Capture<T>(GameObject source, MessageHandler.FastHandler<T> handler)
+        private MessageRegistrationHandle Capture<T>(GameObject source, Action<T> handler)
             where T : DxMessaging.Core.Messages.IBroadcastMessage
         {
             MessageHandler messageHandler = new(source) { active = true };
