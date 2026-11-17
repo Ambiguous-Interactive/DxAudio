@@ -51,8 +51,9 @@ long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
 Edit mode produces no audio samples: `AudioSource.time` stays `0.000`, `AudioSource.GetOutputData` and
 `AudioListener.GetOutputData` return zeros, and `AudioRenderer` captures 0 frames, while `AudioSettings.dspTime` still
-advances. Only play mode or a player build measures samples, and play mode over the bridge stops the editor answering
-([capture-unity-state](./capture-unity-state/SKILL.md#play-mode)). Everywhere else, measure the gain the editor has
+advances. Only play mode or a player build measures samples. The bridge refuses play mode, and a PlayMode source
+never imports an asset, so a sample measurement runs as its own batchmode editor or a player build
+([unity-mcp](../unity-mcp/SKILL.md#play-mode)). Everywhere else, measure the gain the editor has
 scheduled the audio thread to apply, read from the objects the package writes. Paste this into `script_eval` with
 `internals: true`; the editor mixer types are internal:
 

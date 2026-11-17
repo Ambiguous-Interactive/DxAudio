@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+import shutil
 import socket
 import subprocess
 import os
 import sys
+import tempfile
 import threading
 import unittest
 from typing import cast
@@ -231,6 +233,119 @@ class StartupTests(unittest.TestCase):
             write.assert_called_once_with({'method': 'initialized'})
         with patch.object(bridge, 'write', side_effect=OSError('closed input')), patch.object(host, 'log'):
             self.assertIsNone(bridge.handle({'method': 'initialized'}))
+
+
+class PlayModeGuardTests(unittest.TestCase):
+    """Play mode stops the bridge answering, and an unattributed abort followed one run."""
+
+    refused_calls = [
+        ('editor_playmode_start', {}),
+        ('editor_playmode_pause', {}),
+        ('editor_playmode_set_run_in_background', {'value': True}),
+        ('runtime_quit', {}),
+        ('runtime_set_time_scale', {'scale': 0}),
+        ('test_run', {'mode': 'playmode'}),
+        ('test_run', {'mode': 'ALL'}),
+        ('test_run', {'mode': ' all '}),
+        ('test_run', {'mode': ['playmode']}),
+        ('test_run', {'mode': None}),
+        ('test_run', {}),
+        ('test_run', {'filter': 'WallstopStudios.DxAudio'}),
+    ]
+
+    allowed_calls = [
+        ('editor_playmode_stop', {}),
+        ('editor_playmode_list_instances', {}),
+        ('runtime_status', {}),
+        ('test_run', {'mode': 'editor'}),
+        ('test_run', {'mode': ' EDITOR '}),
+        ('test_status', {'detail': 'summary'}),
+        ('script_eval', {'code': 'return 1;'}),
+    ]
+
+    def test_play_mode_and_implicit_play_mode_runs_are_refused(self) -> None:
+        for name, arguments in self.refused_calls:
+            with self.subTest(name=name, arguments=arguments):
+                refusal = host.refused_tool_call(name, arguments, False)
+                self.assertIsNotNone(refusal)
+                self.assertIn(name, refusal)
+                self.assertIn(host.PLAY_MODE_OPT_IN + '=1', refusal)
+                self.assertIn('--suite playmode', refusal)
+
+    def test_the_implicit_run_refusal_names_the_cli_default(self) -> None:
+        # The CLI defaults `test run` to `all`, so an omitted mode is a PlayMode run.
+        refusal = host.refused_tool_call('test_run', {'filter': 'cues'}, False)
+        self.assertIn('defaults to all', refusal)
+
+    def test_edit_mode_and_recovery_calls_pass_the_guard(self) -> None:
+        for name, arguments in self.allowed_calls:
+            with self.subTest(name=name, arguments=arguments):
+                self.assertIsNone(host.refused_tool_call(name, arguments, False))
+
+    def test_the_host_opt_in_allows_every_call(self) -> None:
+        for value in ('1', 'true', 'YES', 'on'):
+            self.assertTrue(host.play_mode_allowed({host.PLAY_MODE_OPT_IN: value}), value)
+        for value in ('', '0', 'false', 'no', 'off'):
+            self.assertFalse(host.play_mode_allowed({host.PLAY_MODE_OPT_IN: value}), value)
+        for name, arguments in self.refused_calls:
+            with self.subTest(name=name):
+                self.assertIsNone(
+                    host.refused_tool_call(name, arguments, host.play_mode_allowed({host.PLAY_MODE_OPT_IN: '1'}))
+                )
+
+    def test_bridge_answers_a_refused_call_without_forwarding_it(self) -> None:
+        bridge = host.Bridge(settings())
+        self.addCleanup(bridge.close)
+        request = {'jsonrpc': '2.0', 'id': 7, 'method': 'tools/call', 'params': {'name': 'test_run', 'arguments': {}}}
+        with patch.object(bridge, 'request') as forward, patch.object(host, 'log'):
+            response = bridge.handle(request)
+        forward.assert_not_called()
+        self.assertEqual(response['id'], 7)
+        self.assertTrue(response['result']['isError'])
+        self.assertIn('refused', response['result']['content'][0]['text'])
+        self.assertIs(bridge.health()['playModeAllowed'], False)
+
+    def test_bridge_forwards_an_edit_mode_call(self) -> None:
+        bridge = host.Bridge(settings())
+        self.addCleanup(bridge.close)
+        request = {'jsonrpc': '2.0', 'id': 8, 'method': 'tools/call',
+                   'params': {'name': 'test_run', 'arguments': {'mode': 'editor'}}}
+        forwarded = {'jsonrpc': '2.0', 'id': 8, 'result': {'content': []}}
+        with patch.object(bridge, 'request', return_value=forwarded) as forward:
+            self.assertEqual(bridge.handle(request), forwarded)
+        forward.assert_called_once_with(request)
+
+
+class EditorLogTailTests(unittest.TestCase):
+    """Unity overwrites its log on the next start, so the bridge reads it first."""
+
+    def test_tail_keeps_the_last_lines_and_redacts_credentials(self) -> None:
+        root = Path(tempfile.mkdtemp(prefix='unity-mcp-log-'))
+        self.addCleanup(shutil.rmtree, root, True)
+        logs = root / 'Logs'
+        logs.mkdir()
+        lines = [f'line {index}' for index in range(60)] + ['Crash!!! token inherited-secret']
+        (logs / 'Editor.log').write_text('\n'.join(lines), encoding='utf-8')
+        values = settings()
+        values['projectPath'] = str(root)
+        bridge = host.Bridge(values)
+        self.addCleanup(bridge.close)
+        with patch.dict(host.os.environ, {'UNITY_MCP_API_KEY': 'inherited-secret'}):
+            tail = bridge.editor_log_tail(lines=5)
+        self.assertIn('line 59', tail)
+        self.assertNotIn('line 55', tail)
+        self.assertIn('Crash!!!', tail)
+        self.assertNotIn('inherited-secret', tail)
+
+    def test_diagnostics_carries_the_tail_even_when_status_fails(self) -> None:
+        values = settings()
+        values['projectPath'] = ''
+        bridge = host.Bridge(values)
+        self.addCleanup(bridge.close)
+        with patch.object(host.subprocess, 'run', side_effect=FileNotFoundError('unity')):
+            report = bridge.diagnostics()
+        self.assertEqual(report['editorLogTail'], '')
+        self.assertIn('probeError', report)
 
 
 if __name__ == '__main__':

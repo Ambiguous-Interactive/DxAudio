@@ -297,6 +297,27 @@ class HostTests(unittest.TestCase):
         self.assertFalse(report['statusSuccess'])
         self.assertIn('--project-path', report['health']['cli'])
 
+    def test_play_mode_call_is_refused_before_the_cli_sees_it(self) -> None:
+        """The bridge answers a play-mode call itself: play mode stops it answering."""
+        self.rpc('initialize')
+        refused = self.http('/mcp', dict(jsonrpc='2.0', id=8, method='tools/call',
+                                        params={'name': 'test_run', 'arguments': {'filter': 'cues'}}))[1]
+        self.assertTrue(refused['result']['isError'])
+        text = refused['result']['content'][0]['text']
+        self.assertIn('refused', text)
+        self.assertIn('defaults to all', text)
+        self.assertIn('UNITY_MCP_ALLOW_PLAY_MODE=1', text)
+        self.assertIn('refused a play-mode call', self.logs())
+
+        forwarded = self.http('/mcp', dict(jsonrpc='2.0', id=9, method='tools/call',
+                                          params={'name': 'test_run', 'arguments': {'mode': 'editor'}}))[1]
+        self.assertFalse(forwarded['result'].get('isError', False))
+        self.assertEqual(forwarded['result']['params']['arguments'], {'mode': 'editor'})
+
+        health = self.http('/healthz')[1]
+        self.assertIn('playModeAllowed', health)
+        self.assertIs(health['playModeAllowed'], False)
+
     def test_console_interrupt_exits_without_an_http_wakeup(self) -> None:
         self.rpc('initialize')
         interrupt = signal.CTRL_BREAK_EVENT if os.name == 'nt' else signal.SIGINT

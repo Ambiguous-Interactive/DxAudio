@@ -132,6 +132,28 @@ class DoctorTests(unittest.TestCase):
         self.assertIn('Pipeline discovery denied for this account', output)
         self.assertNotIn('likely not running', output)
 
+    def test_missing_editor_names_the_crash_evidence_path(self) -> None:
+        """A bridge that answers while its editor is gone points at the crash record."""
+        self.responses['tools/list'] = {'result': {'tools': [{'name': 'editor_status'}, {'name': 'bridge_diagnostics'}]}}
+        self.responses['tools/call'] = {'result': {'isError': True, 'content': [{'text': 'No Pipeline instance found for project: C:\\Code\\DxAudio'}]}}
+        original = self.request
+        def request(url: str, headers: Dict[str, str], payload: Optional[JsonObject]) -> JsonObject:
+            if payload and payload.get('params') == {'name': 'bridge_diagnostics', 'arguments': {}}:
+                details = {'discoveryErrors': [{'code': 'STATUS_NO_INSTANCES', 'message': 'No Unity Editor instances found.'}],
+                           'editorLogTail': 'Compiling scripts\nCrash!!! assert failed in AudioSource' }
+                return {'result': {'content': [{'text': json.dumps(details)}]}}
+            return original(url, headers, payload)
+        doctor = Doctor(self.root, self.root, {'UNITY_MCP_PROJECT': str(self.project), 'DXAUDIO_IN_CONTAINER': '0'}, self.command, request)
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(doctor.run(), 1)
+        text = output.getvalue()
+        self.assertIn('The pinned editor is gone', text)
+        self.assertIn('Logs/Editor.log', text)
+        self.assertIn('Crashes', text)
+        self.assertIn('do not repeat the command', text)
+        self.assertIn('Editor log tail:', text)
+        self.assertIn('Crash!!! assert failed in AudioSource', text)
+
     def test_healthy_roundtrip_and_token_precedence(self) -> None:
         (self.root / '.env.local').write_text('UNITY_MCP_TOKEN=local-secret\nUNITY_MCP_HTTP_PORT=9001', encoding='utf-8')
         doctor, code, output = self.run_doctor({'UNITY_MCP_PROJECT': str(self.project), 'UNITY_MCP_TOKEN': 'process-secret', 'UNITY_MCP_HTTP_PORT': '9002'})

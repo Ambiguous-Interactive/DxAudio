@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import deque
 from contextlib import contextmanager, suppress
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -21,7 +22,7 @@ import sys
 import threading
 import time
 from types import FrameType
-from typing import Any, Dict, Generator, List, Optional, Sequence, cast
+from typing import Any, Dict, Generator, List, Mapping, Optional, Sequence, cast
 from urllib.error import URLError
 from urllib.parse import urlsplit
 from urllib.request import ProxyHandler, build_opener
@@ -33,11 +34,60 @@ from unity_mcp_settings import BridgeSettings, credential_values, redact_credent
 JsonMap = Dict[str, Any]
 ROOT = Path(__file__).resolve().parent.parent
 
+# Play mode through this bridge stops the pinned editor answering until a human
+# leaves play mode, and the CLI's own default for `test run` is `all`, which runs
+# PlayMode tests when the caller only meant to say which tests to run. A PlayMode
+# run also ended in a fatal editor abort on 2026-11-17 that the crash record could
+# not attribute, so the bridge refuses both shapes unless the host opts in for a
+# human-supervised run.
+PLAY_MODE_TOOLS = frozenset(
+    (
+        'editor_playmode_start',
+        'editor_playmode_pause',
+        'editor_playmode_set_run_in_background',
+        'runtime_quit',
+        'runtime_set_target_frame_rate',
+        'runtime_set_time_scale',
+        'runtime_simulate_key',
+        'runtime_simulate_pointer',
+    )
+)
+PLAY_MODE_OPT_IN = 'UNITY_MCP_ALLOW_PLAY_MODE'
+TEST_RUN_REFUSAL = (
+    'The Unity bridge refused {name}: it must say mode editor. The Unity CLI defaults to all, which runs PlayMode '
+    'tests. Run a PlayMode suite as its own batchmode editor with scripts/run_unity_validation.py --suite playmode. '
+    'A host that accepts the risk sets {variable}=1 and restarts the bridge.'
+)
+PLAY_MODE_REFUSAL = (
+    'The Unity bridge refused {name}: play mode stops the pinned editor answering. One play-mode test run also ended '
+    'in a fatal editor abort that the crash record could not attribute. Use this bridge for EditMode work, and run '
+    'PlayMode work as its own batchmode editor with scripts/run_unity_validation.py --suite playmode. A host that '
+    'accepts the risk sets {variable}=1 and restarts the bridge. See .llm/skills/unity-mcp/SKILL.md.'
+)
+
 
 def log(message: str, error: bool = False) -> None:
     stream = sys.stderr.buffer if error else sys.stdout.buffer
     stream.write((message + '\n').encode('utf-8', errors='replace'))
     stream.flush()
+
+
+def play_mode_allowed(environment: Mapping[str, str]) -> bool:
+    """Return whether the host opted in to play-mode calls through the bridge."""
+    return environment.get(PLAY_MODE_OPT_IN, '').strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def refused_tool_call(name: object, arguments: object, allow_play_mode: bool) -> Optional[str]:
+    """Return the refusal text for a play-mode call, or None when it may proceed."""
+    if allow_play_mode or not isinstance(name, str):
+        return None
+    if name in PLAY_MODE_TOOLS:
+        return PLAY_MODE_REFUSAL.format(name=name, variable=PLAY_MODE_OPT_IN)
+    if name == 'test_run':
+        mode = cast(JsonMap, arguments).get('mode') if isinstance(arguments, dict) else None
+        if not (isinstance(mode, str) and mode.strip().lower() == 'editor'):
+            return TEST_RUN_REFUSAL.format(name=name, variable=PLAY_MODE_OPT_IN)
+    return None
 
 
 def rpc_error(identifier: object, code: int, message: str) -> JsonMap:
@@ -74,6 +124,7 @@ class Bridge:
         self.closed = False
         self.session_key = os.urandom(32)
         self.streams: Dict[str, queue.Queue[Optional[JsonMap]]] = {}
+        self.play_mode_allowed = play_mode_allowed(os.environ)
 
     def new_session(self) -> str:
         nonce = uuid.uuid4().hex
@@ -249,6 +300,23 @@ class Bridge:
         """Return the credential values the pinned CLI inherits from this process."""
         return credential_values((os.environ, {'UNITY_MCP_TOKEN': self.settings['token']}))
 
+    def editor_log_tail(self, lines: int = 40) -> str:
+        """Return the tail of the pinned project's editor log.
+
+        Unity overwrites `Logs/Editor.log` when it starts again, so this is the
+        only copy of a crash's last words once the editor is gone.
+        """
+        project = self.settings['projectPath']
+        if not project:
+            return ''
+        try:
+            with (Path(project) / 'Logs' / 'Editor.log').open('r', encoding='utf-8', errors='replace') as handle:
+                tail = deque(handle, maxlen=lines)
+        except OSError:
+            return ''
+        text = '\n'.join(line.rstrip() for line in tail)
+        return redact_credentials(text, self.secrets())[-4000:]
+
     def diagnostics(self) -> JsonMap:
         arguments = [self.settings['cliCommand'], 'status', '--format', 'json']
         if self.settings['projectPath']:
@@ -269,6 +337,7 @@ class Bridge:
             report['statusSuccess'] = status.get('success')
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             report['probeError'] = type(error).__name__ + ': pinned Unity status did not return structured diagnostics.'
+        report['editorLogTail'] = self.editor_log_tail()
         return report
 
     def handle(self, message: object) -> Optional[object]:
@@ -293,6 +362,10 @@ class Bridge:
         if request.get('method') == 'tools/call' and isinstance(params, dict) and cast(JsonMap, params).get('name') == 'bridge_diagnostics':
             text = redact_credentials(json.dumps(self.diagnostics(), ensure_ascii=False), self.secrets())
             return {'jsonrpc': '2.0', 'id': request['id'], 'result': {'content': [{'type': 'text', 'text': text}]}}
+        refusal = self.tool_refusal(params)
+        if refusal is not None:
+            log('[unity-mcp] refused a play-mode call: ' + refusal, True)
+            return {'jsonrpc': '2.0', 'id': request['id'], 'result': {'content': [{'type': 'text', 'text': refusal}], 'isError': True}}
         response = self.request(request)
         if request.get('method') == 'tools/list' and isinstance(response.get('result'), dict):
             result = cast(JsonMap, response['result'])
@@ -313,7 +386,15 @@ class Bridge:
                     'pid': child.pid if child is not None else None,
                     'sourceRevision': self.source_revision, 'pythonVersion': sys.version.split()[0],
                     'protocolVersion': 2, 'pendingRequests': len(self.pending),
+                    'playModeAllowed': self.play_mode_allowed,
                     'cliRunning': child is not None and child.poll() is None, 'editorReady': None}
+
+    def tool_refusal(self, params: object) -> Optional[str]:
+        """Return the refusal for a play-mode or implicit-PlayMode call, or None to forward it."""
+        if not isinstance(params, dict):
+            return None
+        call = cast(JsonMap, params)
+        return refused_tool_call(call.get('name'), call.get('arguments'), self.play_mode_allowed)
 
     def reconnect(self) -> bool:
         with self.lock:

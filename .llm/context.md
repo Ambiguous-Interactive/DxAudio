@@ -201,8 +201,15 @@ See [llm-attribution](./skills/llm-attribution/SKILL.md).
   gitignored and reference environment variables, never literals.
 - `npm run mcp:sync` writes the six frontend configs; `npm run mcp:doctor` checks credentials and endpoints.
 - Unity runs on the host. Container agents reach it through the host HTTP bridge: host `npm run unity:mcp:host`,
-  container `npm run mcp:sync`. See [unity-mcp](./skills/unity-mcp/SKILL.md).
+  container `npm run mcp:sync`. See [unity-mcp](./skills/unity-mcp/SKILL.md). The host is ARM64 with an Adreno GPU
+  and has crashed its editor repeatedly, so read [host-environment](./references/host-environment.md) before
+  blaming a change for a local crash.
 - Prefer the Unity bridge for tests (`npm run unity:tests`) over a cold batchmode import.
+- Bridge play mode is refused by default, because play mode stops the editor answering and the CLI's `test run`
+  defaults to `all`. `test_run` must say `mode` `editor`; run a PlayMode suite as its own batchmode editor with
+  `scripts/run_unity_validation.py --suite playmode`. A PlayMode test never imports or writes an asset, because an
+  import inside play mode refreshes the asset database in the running player loop. See
+  [unity-mcp](./skills/unity-mcp/SKILL.md#play-mode).
 
 ## Front-End Pointer Files
 
