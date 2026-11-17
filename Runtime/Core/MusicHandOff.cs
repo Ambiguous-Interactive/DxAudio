@@ -5,7 +5,7 @@ namespace WallstopStudios.DxAudio
     /// <summary>What has to happen to the voices when new music is asked for.</summary>
     public enum MusicHandOffKind
     {
-        [Obsolete("Use a specific MusicHandOffKind value instead of Unknown.")]
+        [Obsolete("Use a specific MusicHandOffKind value instead of Unknown.", true)]
         Unknown = 0,
 
         /// <summary>Nothing is audible: fade the new music in from silence.</summary>

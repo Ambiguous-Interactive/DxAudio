@@ -130,14 +130,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void ApplyingALoadTypeWritesTheClipImportSettings()
         {
-            const string Folder = "Assets/DxAudioLoadTypeTest";
             const string SourceGuid = "5081b21fa3e1420dbfaac900a77b4b24";
-            string destination = Folder + "/TestTone.wav";
             string source = AssetDatabase.GUIDToAssetPath(SourceGuid);
             string projectRoot = System.IO.Path.GetDirectoryName(Application.dataPath);
 
             using MadeObjects made = new();
-            AssetDatabase.CreateFolder("Assets", "DxAudioLoadTypeTest");
+            // A name collision makes Unity create a suffixed folder, so the returned GUID is the folder this test owns.
+            string folder = AssetDatabase.GUIDToAssetPath(AssetDatabase.CreateFolder("Assets", "DxAudioLoadTypeTest"));
+            string destination = folder + "/TestTone.wav";
             try
             {
                 Assert.That(source.Length, Is.Not.Zero, "the fixture clip is missing");
@@ -158,8 +158,37 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
             finally
             {
-                AssetDatabase.DeleteAsset(Folder);
+                AssetDatabase.DeleteAsset(folder);
             }
+        }
+
+        [Test]
+        public void AnEaseStoredBeforeTheSentinelKeepsItsCurve()
+        {
+            using MadeObjects made = new();
+            MusicLibrary library = made.Track(MusicLibrary.Create(null));
+            MusicDuck duck = made.Track(MusicDuck.Create(MusicDuckHolders.One, 0.5f));
+
+            // A 0.3.0 asset stored InOutSine as 6 and carried no version field.
+            SerializedObject storedLibrary = new(library);
+            storedLibrary.FindProperty("_fadeInEase").enumValueIndex = 6;
+            storedLibrary.FindProperty("_fadeOutEase").enumValueIndex = 0;
+            storedLibrary.FindProperty("_easeVersion").intValue = 0;
+            storedLibrary.ApplyModifiedPropertiesWithoutUndo();
+
+            SerializedObject storedDuck = new(duck);
+            storedDuck.FindProperty("_applyEase").enumValueIndex = 0;
+            storedDuck.FindProperty("_releaseEase").enumValueIndex = 6;
+            storedDuck.FindProperty("_easeVersion").intValue = 0;
+            storedDuck.ApplyModifiedPropertiesWithoutUndo();
+
+            library.OnAfterDeserialize();
+            duck.OnAfterDeserialize();
+
+            Assert.That(library.FadeInEase, Is.EqualTo(MusicEase.InOutSine), "the stored 6 is still InOutSine");
+            Assert.That(library.FadeOutEase, Is.EqualTo(MusicEase.Linear), "the stored 0 is still Linear");
+            Assert.That(duck.ApplyEase, Is.EqualTo(MusicEase.Linear), "the stored 0 is still Linear");
+            Assert.That(duck.ReleaseEase, Is.EqualTo(MusicEase.InOutSine), "the stored 6 is still InOutSine");
         }
 
         [Test]

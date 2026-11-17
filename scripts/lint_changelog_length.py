@@ -145,7 +145,8 @@ def extract_entries(section_lines: List[str], first_line_number: int = 1) -> Lis
     for index, raw_line in enumerate(section_lines):
         line = raw_line.strip()
         if line == "":
-            current = None
+            # A blank line does not end the entry: an indented paragraph after it is still the
+            # same entry, and the one-line rule must see it.
             continue
         if SUBSECTION_HEADING.search(line):
             subsection = line

@@ -10,7 +10,7 @@ namespace WallstopStudios.DxAudio
     /// </remarks>
     public enum MusicClipLoadType
     {
-        [Obsolete("A track must declare its clip load type; Unknown is the value an unset field holds.")]
+        [Obsolete("A track must declare its clip load type; Unknown is the value an unset field holds.", true)]
         Unknown = 0,
 
         /// <summary>Choose from the clip's length; see <see cref="MusicLoadPolicy" />.</summary>

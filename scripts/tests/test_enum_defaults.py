@@ -32,7 +32,7 @@ GOOD_ENUM = """namespace Fixture
 {
     public enum LoadType
     {
-        [Obsolete("Declare a value; Unknown is what an unset field holds.")]
+        [Obsolete("Declare a value; Unknown is what an unset field holds.", true)]
         Unknown = 0,
 
         Auto = 1,
@@ -79,15 +79,30 @@ def case_fails_when_unknown_is_implicit() -> None:
 
 
 def case_fails_when_unknown_is_not_obsolete() -> None:
-    broken = GOOD_ENUM.replace('        [Obsolete("Declare a value; Unknown is what an unset field holds.")]\n', "")
+    broken = GOOD_ENUM.replace('        [Obsolete("Declare a value; Unknown is what an unset field holds.", true)]\n', "")
     run_fixture(broken, [], 1, "must mark Unknown [Obsolete]")
+
+
+def case_fails_when_the_attribute_is_not_obsolete() -> None:
+    broken = GOOD_ENUM.replace(
+        '[Obsolete("Declare a value; Unknown is what an unset field holds.", true)]',
+        '[System.ComponentModel.Description("Unset")]',
+    )
+    run_fixture(broken, [], 1, "must mark Unknown [Obsolete]")
+
+
+def case_fails_when_a_later_member_has_no_value() -> None:
+    broken = GOOD_ENUM.replace("        Auto = 1,", "        Auto,")
+    run_fixture(broken, [], 1, "must give every member an explicit value, but 'Auto' has none")
 
 
 def case_ignores_prose_and_strings() -> None:
     source = (
         "namespace Fixture\n{\n"
         "    // An enum in a comment: enum Imaginary { Auto = 0 }\n"
+        "    /* A block comment: enum Blocked { Auto = 0 } */\n"
         '    internal static class Text { internal const string Note = "enum Quoted { Auto = 0 }"; }\n'
+        '    internal const string Verbatim = @"enum Spread {\n        Auto = 0,\n    }";\n'
         "}\n"
     )
     run_fixture(source, ["--verbose"], 0, "0 enum(s) scanned.")
@@ -108,6 +123,8 @@ def main() -> int:
             ("Fails_WhenUnknownIsNotZero", case_fails_when_unknown_is_not_zero),
             ("Fails_WhenUnknownIsImplicit", case_fails_when_unknown_is_implicit),
             ("Fails_WhenUnknownIsNotObsolete", case_fails_when_unknown_is_not_obsolete),
+            ("Fails_WhenTheAttributeIsNotObsolete", case_fails_when_the_attribute_is_not_obsolete),
+            ("Fails_WhenALaterMemberHasNoValue", case_fails_when_a_later_member_has_no_value),
             ("Ignores_ProseAndStrings", case_ignores_prose_and_strings),
             ("Passes_AgainstTheRepositoryItself", case_passes_against_the_repository_itself),
         ]

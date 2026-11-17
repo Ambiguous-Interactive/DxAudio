@@ -17,7 +17,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Changed
 
-- Require every enum to start with an obsolete `Unknown = 0`, so an unset serialized value is distinguishable from a chosen one; `MusicEase` values shift by one and `MusicClipLoadType` gains the sentinel ([#47](https://github.com/Ambiguous-Interactive/DxAudio/pull/47)).
+- Require every enum to start with an obsolete `Unknown = 0`, so an unset serialized value is distinguishable from a chosen one; `MusicEase` values shift by one and `MusicClipLoadType` gains the sentinel and a stored ease migrates to its original curve ([#47](https://github.com/Ambiguous-Interactive/DxAudio/pull/47)).
 - Format every source type at the 180-character line length the `.editorconfig` already declares, and keep each changelog entry on one line ([#47](https://github.com/Ambiguous-Interactive/DxAudio/pull/47)).
 - Local development harness, gates, and MCP tooling for this repository. No package behavior changes.
 - Unity CI runs 6000.5 on pull requests and main. The 2021.3 lane moved to a nightly matrix, which runs every supported editor in both states of the optional DxMessaging integration ([#25](https://github.com/Ambiguous-Interactive/DxAudio/issues/25)).

@@ -5,7 +5,7 @@ namespace WallstopStudios.DxAudio
     /// <summary>Why a cue did not play. Reported through <see cref="SfxPlayer.CueDropped"/>.</summary>
     public enum SfxDropReason
     {
-        [Obsolete("Use a specific SfxDropReason value instead of Unknown.")]
+        [Obsolete("Use a specific SfxDropReason value instead of Unknown.", true)]
         Unknown = 0,
 
         /// <summary>No cue, a key the library does not list, or a cue with no clip.</summary>

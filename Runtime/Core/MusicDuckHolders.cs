@@ -14,7 +14,7 @@ namespace WallstopStudios.DxAudio
     /// </remarks>
     public enum MusicDuckHolders
     {
-        [Obsolete("Every duck reason must declare its holders.")]
+        [Obsolete("Every duck reason must declare its holders.", true)]
         Unknown = 0,
 
         /// <summary>The reason is a state that is on or off. Asserting it again changes nothing; one release ends it.</summary>

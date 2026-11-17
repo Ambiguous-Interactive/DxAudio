@@ -9,7 +9,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         private enum Reason
         {
-            [Obsolete("Declare a reason; Unknown is what an unset value holds.")]
+            [Obsolete("Declare a reason; Unknown is what an unset value holds.", true)]
             Unknown = 0,
 
             Menu = 1,

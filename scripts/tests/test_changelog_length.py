@@ -161,6 +161,13 @@ CASES: List[ChangelogLengthCase] = [
         expect_failure="keep this changelog entry on one line",
     ),
     ChangelogLengthCase(
+        # A blank line does not hide the continuation: the entry still wraps.
+        "Fails_WhenAContinuationFollowsABlankLine",
+        "- Add support for\n\n  streamed clips.",
+        False,
+        expect_failure="keep this changelog entry on one line",
+    ),
+    ChangelogLengthCase(
         # A wrapped entry is reported by its line number, not its position.
         "Fails_AndNamesTheWrappedEntryLine",
         "### Added\n\n- Add the first entry.\n- Add the second entry and\n  keep going.",
