@@ -141,6 +141,8 @@ SUBJECTS_BY_PATH: Dict[str, Tuple[str, ...]] = {
     "scripts/lint_file_lengths.py": ("test_file_lengths.py",),
     "scripts/lint_assembly_warnings.py": ("test_assembly_warnings.py",),
     "scripts/lint_assembly_warnings.py.meta": ("test_assembly_warnings.py",),
+    "scripts/sync_compiler_policy.py": ("test_assembly_warnings.py",),
+    "scripts/sync_compiler_policy.py.meta": ("test_assembly_warnings.py",),
     "scripts/tests/test_assembly_warnings.py.meta": ("test_assembly_warnings.py",),
     "scripts/lint_csharp_member_order.py": ("test_csharp_member_order.py",),
     "scripts/lint_csharp_null_assertions.py": ("test_csharp_null_assertions.py",),

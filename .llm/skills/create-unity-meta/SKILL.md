@@ -18,6 +18,7 @@ Unity tracks every visible asset through a sibling `.meta` file with a stable GU
 4. **Move or rename:** move the `.meta` unchanged; the GUID travels with the file.
 5. **Delete:** delete the `.meta` in the same change.
 6. Unity also ignores any path segment ending in `~`. This package uses no `~` folders.
+7. The compiler-policy files are generated locally by `scripts/sync_compiler_policy.py` and gitignored, so `csc.rsp` and `WarningsAsErrors.ruleset` never carry a committed `.meta`.
 
 ## Folder meta
 

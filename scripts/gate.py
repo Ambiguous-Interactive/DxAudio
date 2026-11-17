@@ -179,9 +179,15 @@ LANES: Tuple[Tuple[str, Tuple[Step, ...]], ...] = (
                 (*_PYTHON_LAUNCHER, "scripts/lint_meta_companions.py"),
             ),
             Step(
+                "assembly.policy",
+                "Compiler policy sync",
+                (*_PYTHON_LAUNCHER, "scripts/sync_compiler_policy.py", "--verbose"),
+            ),
+            Step(
                 "assembly.warnings",
                 "Assembly warning policy",
-                (*_PYTHON_LAUNCHER, "scripts/lint_assembly_warnings.py"),
+                (*_PYTHON_LAUNCHER, "scripts/lint_assembly_warnings.py", "--verbose"),
+                ("assembly.policy",),
             ),
         ),
     ),

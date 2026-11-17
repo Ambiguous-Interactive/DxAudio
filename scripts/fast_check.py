@@ -320,9 +320,17 @@ def build_steps(plan: FastCheckPlan) -> Tuple[Tuple[CheckStep, ...], Tuple[Check
     if plan.assembly_warnings:
         quick.append(
             CheckStep(
+                "assembly.policy",
+                "compiler policy sync",
+                (*_PYTHON_LAUNCHER, "scripts/sync_compiler_policy.py"),
+            )
+        )
+        quick.append(
+            CheckStep(
                 "assembly.warnings",
                 "assembly warning policy",
                 (*_PYTHON_LAUNCHER, "scripts/lint_assembly_warnings.py"),
+                ("assembly.policy",),
             )
         )
 
