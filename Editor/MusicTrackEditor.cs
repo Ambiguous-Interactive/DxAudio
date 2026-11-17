@@ -1,6 +1,5 @@
 namespace WallstopStudios.DxAudio.Editor
 {
-    using System;
     using UnityEditor;
     using UnityEditor.UIElements;
     using UnityEngine;
@@ -16,6 +15,7 @@ namespace WallstopStudios.DxAudio.Editor
     public sealed class MusicTrackEditor : UnityEditor.Editor
     {
         private const string StatusName = "DxAudioClipImportStatus";
+        private const string BlockedMessage = "The clip's type did not change; a per-platform override or a read-only file may block it.";
 
         public override VisualElement CreateInspectorGUI()
         {
@@ -40,34 +40,31 @@ namespace WallstopStudios.DxAudio.Editor
         /// <summary>Rebuilds the clip import section under <paramref name="container" />.</summary>
         public static VisualElement RebuildClipImport(VisualElement container, MusicTrack track)
         {
+            AudioClip clip = track == null ? null : track.Clip;
+            return RebuildClipImport(container, track, clip, null);
+        }
+
+        private static VisualElement RebuildClipImport(VisualElement container, MusicTrack track, AudioClip clip, string warning)
+        {
             container.Clear();
-            if (track.Clip == null)
+            if (track == null || clip == null)
             {
                 return container;
             }
 
             VisualElement section = DxAudioInspectorUi.AddSection(container, "Clip Import");
-            section.Add(
-                BuildClipImport(
-                    track,
-                    message =>
-                    {
-                        // Rebuild the whole section, so a second blocked click replaces its warning instead of stacking.
-                        RebuildClipImport(container, track);
-                        if (message != null)
-                        {
-                            container.Add(new HelpBox(message, HelpBoxMessageType.Warning));
-                        }
-                    }
-                )
-            );
+            section.Add(BuildClipImport(track, clip, container));
+            if (warning != null)
+            {
+                section.Add(new HelpBox(warning, HelpBoxMessageType.Warning));
+            }
+
             return container;
         }
 
-        private static VisualElement BuildClipImport(MusicTrack track, Action<string> report)
+        private static VisualElement BuildClipImport(MusicTrack track, AudioClip clip, VisualElement container)
         {
             VisualElement view = new VisualElement();
-            AudioClip clip = track.Clip;
             if (!MusicClipImport.TryGetAppliedLoadType(clip, out MusicClipLoadType applied))
             {
                 view.Add(new HelpBox("The clip's import type cannot be read.", HelpBoxMessageType.Warning));
@@ -88,17 +85,19 @@ namespace WallstopStudios.DxAudio.Editor
                 return view;
             }
 
-            Button apply = new Button(() => Apply(track, report)) { text = $"Apply {resolved} to the clip" };
+            Button apply = new Button(() => Apply(track, clip, container)) { text = $"Apply {resolved} to the clip" };
             view.Add(apply);
             return view;
         }
 
-        private static void Apply(MusicTrack track, Action<string> report)
+        private static void Apply(MusicTrack track, AudioClip clip, VisualElement container)
         {
+            // A reimport can replace the loaded clip, so rebuild from the clip the asset database loads by path.
+            string path = AssetDatabase.GetAssetPath(clip);
             MusicClipLoadType resolved = track.ResolvedClipLoadType;
-            bool applied = MusicClipImport.TryApply(track.Clip, resolved);
-            string message = applied ? null : "The clip's type did not change; a per-platform override or a read-only file may block it.";
-            report(message);
+            bool applied = MusicClipImport.TryApply(clip, resolved);
+            AudioClip fresh = string.IsNullOrEmpty(path) ? clip : AssetDatabase.LoadAssetAtPath<AudioClip>(path);
+            RebuildClipImport(container, track, fresh, applied ? null : BlockedMessage);
         }
     }
 }

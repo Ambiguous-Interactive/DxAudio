@@ -44,12 +44,6 @@ namespace WallstopStudios.DxAudio.Editor
             return root;
         }
 
-        /// <summary>The composed preview for the set the inspectors share.</summary>
-        public static VisualElement BuildComposedPreview(MusicDuck duck)
-        {
-            return BuildComposedPreview(duck, _preview, true, out _);
-        }
-
         /// <summary>The composed preview for <paramref name="preview" />, which the added and removed rows edit.</summary>
         public static VisualElement BuildComposedPreview(MusicDuck duck, List<MusicDuck> preview)
         {
@@ -57,7 +51,7 @@ namespace WallstopStudios.DxAudio.Editor
         }
 
         /// <summary>The composed preview for the shared set and the action that redraws it.</summary>
-        public static VisualElement BuildComposedPreview(MusicDuck duck, out Action refresh)
+        private static VisualElement BuildComposedPreview(MusicDuck duck, out Action refresh)
         {
             return BuildComposedPreview(duck, _preview, true, out refresh);
         }
