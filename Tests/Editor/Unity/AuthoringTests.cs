@@ -306,10 +306,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             MusicTrack mismatch = made.Track(MusicTrack.Create(fixture, context: "boss", clipLoadType: MusicClipLoadType.Streaming));
             MusicTrack matched = made.Track(MusicTrack.Create(Clip(made, 20f), context: "town"));
 
-            VisualElement view = MusicTrackEditor.RebuildClipImport(new VisualElement(), mismatch);
+            VisualElement view = new VisualElement();
+            MusicTrackEditor.RebuildClipImport(view, mismatch);
+            MusicTrackEditor.RebuildClipImport(view, mismatch);
             Button apply = view.Q<Button>();
             VisualElement settled = MusicTrackEditor.RebuildClipImport(new VisualElement(), matched);
 
+            Assert.That(view.childCount, Is.EqualTo(1), "a rebuild replaces the section instead of nesting it");
             Assert.That(view.Q<Label>("DxAudioClipImportStatus").text, Does.Contain("the track asks for Streaming"));
             Assert.That(apply != null, Is.True);
             Assert.That(apply.text, Does.Contain("Streaming"));
