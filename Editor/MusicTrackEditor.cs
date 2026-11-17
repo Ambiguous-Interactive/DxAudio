@@ -74,6 +74,8 @@ namespace WallstopStudios.DxAudio.Editor
         private static void Apply(MusicTrack track, VisualElement view)
         {
             AudioClip clip = track.Clip;
+            // A reimport can replace the loaded clip, so read the length before the write.
+            float length = clip.length;
             MusicClipLoadType resolved = track.ResolvedClipLoadType;
             if (!MusicClipImport.TryApply(clip, resolved))
             {
@@ -81,7 +83,6 @@ namespace WallstopStudios.DxAudio.Editor
                 return;
             }
 
-            float length = clip.length;
             view.Clear();
             view.Add(new Label($"{length:0.#}s clip, imported as {resolved}."));
         }
