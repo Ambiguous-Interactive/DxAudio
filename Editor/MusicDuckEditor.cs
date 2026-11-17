@@ -37,20 +37,29 @@ namespace WallstopStudios.DxAudio.Editor
 
             VisualElement section = DxAudioInspectorUi.AddSection(root, "Composed Preview");
             section.Add(new HelpBox("Add the ducks that can hold the music at the same time to see what they compose to.", HelpBoxMessageType.None));
-            section.Add(BuildComposedPreview((MusicDuck)target));
+            VisualElement preview = BuildComposedPreview((MusicDuck)target, out Action refresh);
+            section.Add(preview);
+            // The composed line depends on this duck's own fields, so a serialized change redraws it.
+            preview.TrackSerializedObjectValue(serializedObject, _ => refresh());
             return root;
         }
 
         /// <summary>The composed preview for the set the inspectors share.</summary>
         public static VisualElement BuildComposedPreview(MusicDuck duck)
         {
-            return BuildComposedPreview(duck, _preview, true);
+            return BuildComposedPreview(duck, _preview, true, out _);
         }
 
         /// <summary>The composed preview for <paramref name="preview" />, which the added and removed rows edit.</summary>
         public static VisualElement BuildComposedPreview(MusicDuck duck, List<MusicDuck> preview)
         {
-            return BuildComposedPreview(duck, preview, false);
+            return BuildComposedPreview(duck, preview, false, out _);
+        }
+
+        /// <summary>The composed preview for the shared set and the action that redraws it.</summary>
+        public static VisualElement BuildComposedPreview(MusicDuck duck, out Action refresh)
+        {
+            return BuildComposedPreview(duck, _preview, true, out refresh);
         }
 
         /// <summary>What <paramref name="duck" /> and <paramref name="others" /> compose to while all are held.</summary>
@@ -79,7 +88,7 @@ namespace WallstopStudios.DxAudio.Editor
             return stack.Current;
         }
 
-        private static VisualElement BuildComposedPreview(MusicDuck duck, List<MusicDuck> preview, bool shared)
+        private static VisualElement BuildComposedPreview(MusicDuck duck, List<MusicDuck> preview, bool shared, out Action refresh)
         {
             VisualElement view = new VisualElement();
             VisualElement rows = new VisualElement();
@@ -106,7 +115,7 @@ namespace WallstopStudios.DxAudio.Editor
                 }
             }
 
-            Action refresh = Refresh;
+            Action refreshView = Refresh;
             Button add = new Button(() =>
             {
                 preview.Add(null);
@@ -122,15 +131,16 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 view.RegisterCallback<AttachToPanelEvent>(_ =>
                 {
-                    if (!_refreshers.Contains(refresh))
+                    if (!_refreshers.Contains(refreshView))
                     {
-                        _refreshers.Add(refresh);
+                        _refreshers.Add(refreshView);
                     }
                 });
-                view.RegisterCallback<DetachFromPanelEvent>(_ => _refreshers.Remove(refresh));
+                view.RegisterCallback<DetachFromPanelEvent>(_ => _refreshers.Remove(refreshView));
             }
 
             Refresh();
+            refresh = refreshView;
             return view;
         }
 

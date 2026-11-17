@@ -100,8 +100,8 @@ namespace WallstopStudios.DxAudio.Editor
 
         private void OnDisable()
         {
-            // One source serves every cue inspector, so closing any of them stops the preview.
-            SfxAudition.Stop();
+            // One source serves every cue inspector, so closing any of them ends the preview.
+            SfxAudition.DestroyPreview();
         }
     }
 }

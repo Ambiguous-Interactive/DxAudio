@@ -306,11 +306,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             MusicTrack mismatch = made.Track(MusicTrack.Create(fixture, context: "boss", clipLoadType: MusicClipLoadType.Streaming));
             MusicTrack matched = made.Track(MusicTrack.Create(Clip(made, 20f), context: "town"));
 
-            VisualElement view = MusicTrackEditor.BuildClipImport(mismatch);
+            VisualElement view = MusicTrackEditor.RebuildClipImport(new VisualElement(), mismatch);
             Button apply = view.Q<Button>();
-            VisualElement settled = MusicTrackEditor.BuildClipImport(matched);
+            VisualElement settled = MusicTrackEditor.RebuildClipImport(new VisualElement(), matched);
 
-            Assert.That(view.Q<Label>().text, Does.Contain("the track asks for Streaming"));
+            Assert.That(view.Q<Label>("DxAudioClipImportStatus").text, Does.Contain("the track asks for Streaming"));
             Assert.That(apply != null, Is.True);
             Assert.That(apply.text, Does.Contain("Streaming"));
             Assert.That(settled.Q<Button>() == null, Is.True, "a clip that follows its track needs no write");
@@ -336,12 +336,16 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void ALibraryWindowAddsARecheckButtonToTheReport()
+        public void ALibraryWindowOffersARecheckButtonBesideItsSummary()
         {
             VisualElement content = DxAudioLibraryWindow.BuildWindowContent(() => { });
+            Button checkAgain = content.Q<Button>();
+            Label summary = content.Q<Label>();
 
-            Assert.That(content.Q<Button>() != null, Is.True, "the window offers a recheck");
-            Assert.That(content.Q<Label>() != null, Is.True);
+            Assert.That(checkAgain != null, Is.True);
+            Assert.That(checkAgain.text, Is.EqualTo("Check Again"));
+            Assert.That(summary != null, Is.True);
+            Assert.That(summary.text, Does.Match(@"^\d+ librar(y|ies), \d+ problems?$"));
         }
 
         private static string Joined(List<string> findings)
