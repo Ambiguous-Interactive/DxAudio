@@ -77,11 +77,11 @@ def stale_policy(repo_root: Path) -> List[str]:
         for name, content in GENERATED_POLICY:
             path = directory / name
             try:
-                present = path.read_text(encoding="utf-8")
+                present = path.read_bytes()
             except OSError:
                 problems.append(f"{display_path(path, repo_root)} is missing; run scripts/sync_compiler_policy.py")
                 continue
-            if present != content:
+            if present != content.encode("utf-8"):
                 problems.append(
                     f"{display_path(path, repo_root)} does not carry the generated policy; "
                     "run scripts/sync_compiler_policy.py"
@@ -96,7 +96,7 @@ def write_policy(repo_root: Path) -> List[Path]:
         for name, content in GENERATED_POLICY:
             path = directory / name
             try:
-                if path.read_text(encoding="utf-8") == content:
+                if path.read_bytes() == content.encode("utf-8"):
                     continue
             except OSError:
                 pass

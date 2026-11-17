@@ -621,7 +621,8 @@ def case_fast_check_steps_run_the_gate_ladder(python: str) -> None:
             "missing = sorted(set(scripts(fast_steps)) - set(scripts(gate_steps)))",
             "absent = sorted(name for name in set(scripts(fast_steps)) | set(scripts(gate_steps)) if not (gate.REPO_ROOT / name).is_file())",
             "order = {step.name: list(step.after) for step in fast_steps}",
-            'print(json.dumps({"missing": missing, "absent": absent, "fast": [step.name for step in fast_steps], "gate": scripts(gate_steps), "order": order}))',
+            "gate_order = {step.name: list(step.after) for step in gate_steps}",
+            'print(json.dumps({"missing": missing, "absent": absent, "fast": [step.name for step in fast_steps], "gate": scripts(gate_steps), "order": order, "gateOrder": gate_order}))',
         ],
     )
     assert_exit_code(0, f"the driver must succeed (got {exit_code}): {output}", exit_code)
@@ -643,6 +644,10 @@ def case_fast_check_steps_run_the_gate_ladder(python: str) -> None:
     assert_true(
         result["order"].get("assembly.warnings") == ["assembly.policy"],
         f"the policy lint must wait for the sync, got: {result['order'].get('assembly.warnings')}",
+    )
+    assert_true(
+        result["gateOrder"].get("assembly.warnings") == ["assembly.policy"],
+        f"the gate's policy lint must wait for the sync, got: {result['gateOrder'].get('assembly.warnings')}",
     )
 
 

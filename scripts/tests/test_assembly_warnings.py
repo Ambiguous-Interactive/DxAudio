@@ -69,10 +69,11 @@ class LintSandbox:
         self.last_exit = completed.returncode
         self.output = (completed.stdout or "") + (completed.stderr or "")
 
-    def sync(self) -> None:
+    def sync(self, verbose: bool = False) -> None:
         """Write the generated policy the same way a local or CI run does."""
+        arguments = [sys.executable, str(SYNC), "--repo-root", str(self.root)]
         completed = subprocess.run(
-            [sys.executable, str(SYNC), "--repo-root", str(self.root)],
+            [*arguments, *(["--verbose"] if verbose else [])],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -81,6 +82,7 @@ class LintSandbox:
             check=False,
         )
         assert_exit_code(0, f"the sync must write the policy: {completed.stdout}{completed.stderr}", completed.returncode)
+        self.output = (completed.stdout or "") + (completed.stderr or "")
 
     def destroy(self) -> None:
         remove_temp_root(self.root)
@@ -147,11 +149,8 @@ def case_sync_writes_the_strict_policy_once() -> None:
             f"the ruleset must promote every warning: [{ruleset}]",
         )
         assert_true("\r" not in response + ruleset, "the policy must use LF endings")
-        sandbox.sync()
-        assert_true(
-            response == (sandbox.root / "Runtime" / "csc.rsp").read_text(encoding="utf-8"),
-            "a second sync must not rewrite the response file",
-        )
+        sandbox.sync(verbose=True)
+        assert_contains("a second sync must rewrite nothing", "wrote 0 file(s)", sandbox.output)
         assert_true(
             not (sandbox.root / "Tests").exists(),
             "a directory without an assembly definition must stay untouched",

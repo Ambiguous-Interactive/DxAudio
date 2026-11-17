@@ -19,8 +19,9 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 PACKAGE_DIRS = ("Runtime", "Editor", "Tests")
 PACKAGE_FILES = ("package.json", "README.md", "CHANGELOG.md", "LICENSE.md")
 # scripts/sync_compiler_policy.py writes these beside each assembly definition for local and CI compiles.
-# They never ship, so they carry no committed .meta and CI must not demand one.
-GENERATED_POLICY_SUFFIXES = (".rsp", ".ruleset")
+# They never ship, so they carry no committed .meta and CI must not demand one. Any other response file or
+# ruleset is a stray that scripts/lint_assembly_warnings.py rejects.
+GENERATED_POLICY_NAMES = ("csc.rsp", "WarningsAsErrors.ruleset")
 
 
 def importer_for(path: Path) -> str:
@@ -41,7 +42,7 @@ def importer_for(path: Path) -> str:
 
 def is_generated_policy(path: Path) -> bool:
     """Return whether a path is a compiler-policy file written by the sync script."""
-    return path.name.removesuffix(".meta").endswith(GENERATED_POLICY_SUFFIXES)
+    return path.name.removesuffix(".meta") in GENERATED_POLICY_NAMES
 
 
 def assets() -> list[Path]:
