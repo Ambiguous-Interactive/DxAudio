@@ -73,6 +73,8 @@ namespace WallstopStudios.DxAudio.Editor
             MusicClipLoadType resolved = track.ResolvedClipLoadType;
             if (applied == resolved)
             {
+                // Settling the mismatch any other way also settles the blocked write that reported it.
+                _warning = null;
                 view.Add(new Label($"{clip.length:0.#}s clip, imported as {applied}.") { name = StatusName });
                 return view;
             }

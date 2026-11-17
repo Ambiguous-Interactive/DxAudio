@@ -306,10 +306,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             MusicTrack mismatch = made.Track(MusicTrack.Create(fixture, context: "boss", clipLoadType: MusicClipLoadType.Streaming));
             MusicTrack matched = made.Track(MusicTrack.Create(Clip(made, 20f), context: "town"));
 
-            UnityEditor.Editor mismatchEditor = UnityEditor.Editor.CreateEditor(mismatch, typeof(MusicTrackEditor));
-            UnityEditor.Editor matchedEditor = UnityEditor.Editor.CreateEditor(matched, typeof(MusicTrackEditor));
+            UnityEditor.Editor mismatchEditor = null;
+            UnityEditor.Editor matchedEditor = null;
             try
             {
+                mismatchEditor = UnityEditor.Editor.CreateEditor(mismatch, typeof(MusicTrackEditor));
+                matchedEditor = UnityEditor.Editor.CreateEditor(matched, typeof(MusicTrackEditor));
                 VisualElement view = mismatchEditor.CreateInspectorGUI();
                 VisualElement settled = matchedEditor.CreateInspectorGUI();
                 Button apply = view.Q<Button>();
@@ -321,8 +323,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
             finally
             {
-                Object.DestroyImmediate(mismatchEditor);
-                Object.DestroyImmediate(matchedEditor);
+                if (mismatchEditor != null)
+                {
+                    Object.DestroyImmediate(mismatchEditor);
+                }
+
+                if (matchedEditor != null)
+                {
+                    Object.DestroyImmediate(matchedEditor);
+                }
             }
         }
 
