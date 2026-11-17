@@ -114,7 +114,8 @@ or `Feature`. Bodies stay under 300 lines; bulk material moves to `.llm/referenc
 10. `Runtime/Core` stays Unity-free. Engine types belong in `Runtime/Assets`, `Runtime/Players`, or the
     `UnityObjects.cs` shim.
 11. Every visible file or folder carries a committed `.meta`. Dot paths (`.llm/`, `.github/`, `.config/`, `.git/`) never
-    get one. See [create-unity-meta](./skills/create-unity-meta/SKILL.md).
+    get one, and the generated compiler-policy files (`csc.rsp`, `WarningsAsErrors.ruleset`) are exempt because they are
+    written locally and gitignored. See [create-unity-meta](./skills/create-unity-meta/SKILL.md).
 12. Never ship development files in the npm tarball. `package.json` `files` lists `Runtime`, `Editor`, `Tests`, and
     package metadata only; `tooling~`-style paths are not used here.
 13. Keep the public API additive where possible. Removing or renaming a public member is a breaking change and needs a

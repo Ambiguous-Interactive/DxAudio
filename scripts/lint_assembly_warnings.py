@@ -46,16 +46,14 @@ sys.dont_write_bytecode = True
 
 from sync_compiler_policy import (
     GENERATED_POLICY,
-    POLICY_RESPONSE_FILE,
-    POLICY_RULESET_FILE,
     SKIPPED_DIRECTORY_NAMES,
     assembly_directories,
     display_path,
+    stale_policy,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SHIPPED_SOURCE_ROOTS: Tuple[str, ...] = ("Runtime", "Editor")
-GENERATED_NAMES = frozenset(name for name, _ in GENERATED_POLICY)
 FORBIDDEN_CONFIGURATION_SUFFIXES: Tuple[str, ...] = (".rsp", ".ruleset")
 ENGINE_FREE_PROJECT = Path(".net-tests") / "DxAudio.Tests.csproj"
 WARNING_DISABLE_PATTERN = re.compile(r"^\s*#\s*pragma\s+warning\s+disable\b", re.IGNORECASE)
@@ -98,34 +96,18 @@ def _walk(repo_root: Path) -> Tuple[List[Path], List[Path]]:
     return sorted(configuration, key=str), sorted(sources, key=str)
 
 
-def _policy_violations(repo_root: Path, directories: Sequence[Path]) -> List[str]:
-    """Name every assembly directory whose generated policy is missing or weakened."""
-    violations: List[str] = []
-    for directory in directories:
-        for name, content in GENERATED_POLICY:
-            path = directory / name
-            try:
-                present = path.read_text(encoding="utf-8")
-            except OSError:
-                violations.append(
-                    f"{display_path(path, repo_root)} is missing; run scripts/sync_compiler_policy.py, "
-                    "because every assembly must compile with warnings as errors"
-                )
-                continue
-            if present != content:
-                violations.append(
-                    f"{display_path(path, repo_root)} does not carry the generated policy; "
-                    f"run scripts/sync_compiler_policy.py, because only {POLICY_RESPONSE_FILE} with the maximum "
-                    f"warning level and {POLICY_RULESET_FILE} promoting every warning are accepted"
-                )
-    return violations
+def _stale_messages(repo_root: Path) -> List[str]:
+    """Return the generated-policy paths that are missing or weakened."""
+    return [
+        f"{message}. Every assembly must compile with warnings as errors." for message in stale_policy(repo_root)
+    ]
 
 
 def find_policy_violations(repo_root: Path) -> Tuple[List[str], int, int]:
     """Return the policy violations, the configuration count and the source count."""
     configuration, sources = _walk(repo_root)
     directories = assembly_directories(repo_root)
-    violations: List[str] = _policy_violations(repo_root, directories)
+    violations: List[str] = _stale_messages(repo_root)
     generated = {directory / name for directory in directories for name, _ in GENERATED_POLICY}
 
     for path in configuration:
@@ -181,9 +163,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 1
 
     if options.verbose:
+        assemblies = len(assembly_directories(repo_root))
         print(
-            f"[assembly-warnings] ok: {len(assembly_directories(repo_root))} assembly director(ies) carry the "
-            f"generated policy, {configuration} compiler configuration file(s), {sources} shipped source file(s), "
+            f"[assembly-warnings] ok: {assemblies} assembly folder(s) carry the generated policy, "
+            f"{configuration} compiler configuration file(s), {sources} shipped source file(s), "
             "and the engine-free warnings-as-errors setting hold"
         )
     return 0

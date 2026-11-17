@@ -18,6 +18,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 PACKAGE_DIRS = ("Runtime", "Editor", "Tests")
 PACKAGE_FILES = ("package.json", "README.md", "CHANGELOG.md", "LICENSE.md")
+# scripts/sync_compiler_policy.py writes these beside each assembly definition for local and CI compiles.
+# They never ship, so they carry no committed .meta and CI must not demand one.
+GENERATED_POLICY_SUFFIXES = (".rsp", ".ruleset")
 
 
 def importer_for(path: Path) -> str:
@@ -36,6 +39,11 @@ def importer_for(path: Path) -> str:
     return "TextScriptImporter:\n  externalObjects: {}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n"
 
 
+def is_generated_policy(path: Path) -> bool:
+    """Return whether a path is a compiler-policy file written by the sync script."""
+    return path.name.removesuffix(".meta").endswith(GENERATED_POLICY_SUFFIXES)
+
+
 def assets() -> list[Path]:
     found = [ROOT / name for name in PACKAGE_FILES if (ROOT / name).exists()]
     for directory in PACKAGE_DIRS:
@@ -43,7 +51,11 @@ def assets() -> list[Path]:
         if not top.exists():
             continue
         found.append(top)
-        found.extend(p for p in sorted(top.rglob("*")) if p.suffix != ".meta" and not p.name.startswith("."))
+        found.extend(
+            p
+            for p in sorted(top.rglob("*"))
+            if p.suffix != ".meta" and not p.name.startswith(".") and not is_generated_policy(p)
+        )
     return found
 
 
@@ -70,7 +82,7 @@ def main() -> int:
     expected_metas = {asset.with_name(asset.name + ".meta") for asset in expected}
     for directory in PACKAGE_DIRS:
         for meta in (ROOT / directory).rglob("*.meta"):
-            if meta not in expected_metas:
+            if meta not in expected_metas and not is_generated_policy(meta):
                 problems.append(f"orphan: {meta.relative_to(ROOT)}")
 
     for problem in problems:

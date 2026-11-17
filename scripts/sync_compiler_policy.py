@@ -9,8 +9,8 @@ source, it writes the pair into each assembly directory before a local or CI
 compile, and ``.gitignore`` keeps the result out of the repository and the npm
 payload.
 
-``--check`` reports a missing or weakened file without writing, which is what
-``scripts/lint_assembly_warnings.py`` uses to fail the ladder.
+``--check`` reports a missing or weakened file without writing, and
+``scripts/lint_assembly_warnings.py`` fails the ladder on the same report.
 
 Launch with ``uv run scripts/sync_compiler_policy.py``; any Python 3.9+
 interpreter works. Exit codes: 0 = the policy is complete, 1 = a violation.
@@ -100,7 +100,7 @@ def write_policy(repo_root: Path) -> List[Path]:
                     continue
             except OSError:
                 pass
-            path.write_text(content, encoding="utf-8", newline="\n")
+            path.write_bytes(content.encode("utf-8"))
             changed.append(path)
     return changed
 
@@ -143,10 +143,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     else:
         changed = write_policy(repo_root)
         if options.verbose:
-            print(f"[compiler-policy] wrote {len(changed)} file(s) across {len(assemblies)} assembly director(ies)")
+            print(f"[compiler-policy] wrote {len(changed)} file(s) across {len(assemblies)} assembly folder(s)")
 
     if options.verbose:
-        print(f"[compiler-policy] ok: {len(assemblies)} assembly director(ies) carry the strict policy")
+        print(f"[compiler-policy] ok: {len(assemblies)} assembly folder(s) carry the strict policy")
     return 0
 
 

@@ -620,7 +620,8 @@ def case_fast_check_steps_run_the_gate_ladder(python: str) -> None:
             "scripts = lambda steps: sorted({a for step in steps for a in step.args if a.startswith('scripts/') and a.endswith('.py')})",
             "missing = sorted(set(scripts(fast_steps)) - set(scripts(gate_steps)))",
             "absent = sorted(name for name in set(scripts(fast_steps)) | set(scripts(gate_steps)) if not (gate.REPO_ROOT / name).is_file())",
-            'print(json.dumps({"missing": missing, "absent": absent, "fast": [step.name for step in fast_steps], "gate": scripts(gate_steps)}))',
+            "order = {step.name: list(step.after) for step in fast_steps}",
+            'print(json.dumps({"missing": missing, "absent": absent, "fast": [step.name for step in fast_steps], "gate": scripts(gate_steps), "order": order}))',
         ],
     )
     assert_exit_code(0, f"the driver must succeed (got {exit_code}): {output}", exit_code)
@@ -631,6 +632,17 @@ def case_fast_check_steps_run_the_gate_ladder(python: str) -> None:
     assert_true(
         "scripts/lint_assembly_warnings.py" in result["gate"],
         "the assembly warning policy must run in the gate",
+    )
+    # A lint that requires the generated policy fails a fresh checkout, so the
+    # sync must run first and the lint must wait for it (issue #40).
+    assert_true("assembly.policy" in result["fast"], "the fast check must write the compiler policy")
+    assert_true(
+        "scripts/sync_compiler_policy.py" in result["gate"],
+        "the gate must write the compiler policy",
+    )
+    assert_true(
+        result["order"].get("assembly.warnings") == ["assembly.policy"],
+        f"the policy lint must wait for the sync, got: {result['order'].get('assembly.warnings')}",
     )
 
 
