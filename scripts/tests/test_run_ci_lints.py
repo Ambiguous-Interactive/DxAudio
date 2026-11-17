@@ -18,6 +18,7 @@ EXPECTED = (
     ('lint_llm_instructions.py', ('--verbose-output',)),
     ('lint_csharp_null_assertions.py', ('--verbose',)),
     ('lint_csharp_usings.py', ('--verbose',)),
+    ('lint_enum_defaults.py', ('--verbose',)),
     ('lint_release_secrets.py', ('--verbose',)),
     ('lint_line_endings.py', ('--verbose',)),
     ('lint_meta_companions.py', ()),

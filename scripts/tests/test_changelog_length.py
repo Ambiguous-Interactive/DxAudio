@@ -153,12 +153,26 @@ CASES: List[ChangelogLengthCase] = [
         verbose_pattern="entry 1: 38",
     ),
     ChangelogLengthCase(
-        # The soft wrap joins into one rendered line: 45 characters, not two
-        # entries or a longer count.
-        "JoinsSoftWrappedContinuationLines",
+        # The sibling repositories keep one line per entry; a wrapped entry
+        # would make the rendered text easy to misread and the diff noisy.
+        "Fails_WhenAnEntryWrapsOntoASecondLine",
         "- Add the theme picker with\n  hot reload support.",
-        True,
-        verbose_pattern="entry 1: 45",
+        False,
+        expect_failure="keep this changelog entry on one line",
+    ),
+    ChangelogLengthCase(
+        # A blank line does not hide the continuation: the entry still wraps.
+        "Fails_WhenAContinuationFollowsABlankLine",
+        "- Add support for\n\n  streamed clips.",
+        False,
+        expect_failure="keep this changelog entry on one line",
+    ),
+    ChangelogLengthCase(
+        # A wrapped entry is reported by its line number, not its position.
+        "Fails_AndNamesTheWrappedEntryLine",
+        "### Added\n\n- Add the first entry.\n- Add the second entry and\n  keep going.",
+        False,
+        expect_failure=r"CHANGELOG\.md:7: keep this changelog entry on one line",
     ),
     ChangelogLengthCase(
         # Every Markdown list marker starts a measured entry; a marker the
@@ -183,8 +197,7 @@ CASES: List[ChangelogLengthCase] = [
         # Every exclusion together, the shape the shipped entries use.
         "Passes_WhenARealisticEntryUsesEveryExclusion",
         # The backticks stay literal in the fixture.
-        "- **Add** the `theme` picker: an open window reloads the selected theme\n"
-        "  immediately ([docs](https://example.com/guide)) (#148).",
+        "- **Add** the `theme` picker: an open window reloads the selected theme immediately ([docs](https://example.com/guide)) (#148).",
         True,
         verbose_pattern="entry 1: 83",
     ),
@@ -302,20 +315,20 @@ def case_fails_when_the_changelog_is_missing() -> None:
 
 def case_checks_spacing_in_all_sections() -> None:
     cases = [
-        ("- Add first.\n- Add second.", "- Released first.\n- Released second.", 0),
-        ("- Add first.\n  Wrapped text.\n- Add second.", "- Released.", 0),
-        ("- Add first.\n\n### Fixed\n\n- Fix second.", "- Released.", 0),
-        ("- Add first.\n\n- Add second.", "- Released.", 1),
-        ("- Add first.\n  Wrapped text.\n\n- Add second.", "- Released.", 1),
-        ("- Add first.", "- Released first.\n\n- Released second.", 1),
+        ("- Add first.\n- Add second.", "- Released first.\n- Released second.", 0, ""),
+        ("- Add first.\n- Add second.", "- Released.", 0, ""),
+        ("- Add first.\n\n### Fixed\n\n- Fix second.", "- Released.", 0, ""),
+        ("- Add first.\n\n- Add second.", "- Released.", 1, "remove blank lines between changelog entries"),
+        ("- Add first.\n\n- Add second.", "- Released.", 1, "remove blank lines between changelog entries"),
+        ("- Add first.", "- Released first.\n\n- Released second.", 1, "remove blank lines between changelog entries"),
     ]
-    for unreleased, released, expected in cases:
+    for unreleased, released, expected, message in cases:
         root = new_changelog_fixture(unreleased, released)
         try:
             output, code = invoke_fixture_lint(root)
             assert_exit_code(expected, f"spacing policy: {output}", code)
-            if expected:
-                assert_true("remove blank lines between changelog entries" in output, output)
+            if message:
+                assert_true(message in output, output)
         finally:
             remove_temp_root(root)
 

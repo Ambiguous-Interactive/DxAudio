@@ -98,11 +98,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
 
             long enabledGrowth = HeapGrowth(overlay, samples: SampleCount);
-            Assert.That(
-                enabledGrowth,
-                Is.GreaterThan(1_048_576L),
-                $"the probe must see the enabled path allocate; {SampleCount} samples grew the heap by {enabledGrowth} bytes"
-            );
+            Assert.That(enabledGrowth, Is.GreaterThan(1_048_576L), $"the probe must see the enabled path allocate; {SampleCount} samples grew the heap by {enabledGrowth} bytes");
 
             Assert.That(sfx.StopLoop(handle), Is.True);
             overlay.Enabled = false;
@@ -160,8 +156,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         private static AudioDiagnosticsOverlay Overlay(MadeObjects made, SfxPlayer sfx, MusicPlayer music)
         {
-            AudioDiagnosticsOverlay overlay = made.Track(new GameObject("diagnostics"))
-                .AddComponent<AudioDiagnosticsOverlay>();
+            AudioDiagnosticsOverlay overlay = made.Track(new GameObject("diagnostics")).AddComponent<AudioDiagnosticsOverlay>();
             overlay.Sfx = sfx;
             overlay.Music = music;
             return overlay;
@@ -175,21 +170,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             return player;
         }
 
-        private static SfxCue Cue(
-            MadeObjects made,
-            bool loop,
-            SfxPriority priority = SfxPriority.Medium,
-            float minimumIntervalSeconds = 0f
-        )
+        private static SfxCue Cue(MadeObjects made, bool loop, SfxPriority priority = SfxPriority.Medium, float minimumIntervalSeconds = 0f)
         {
-            return made.Track(
-                SfxCue.Create(
-                    new[] { new SfxVariant(Clip(made)) },
-                    priority: priority,
-                    minimumIntervalSeconds: minimumIntervalSeconds,
-                    loop: loop
-                )
-            );
+            return made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, priority: priority, minimumIntervalSeconds: minimumIntervalSeconds, loop: loop));
         }
 
         private static AudioClip Clip(MadeObjects made)

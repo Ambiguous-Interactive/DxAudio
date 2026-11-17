@@ -10,6 +10,31 @@
    with their ease curves.
 3. Add a **Music Player** component and assign the library.
 
+## Clip load type
+
+Unity holds a clip's audio data in one of three ways, and the choice lives in the clip's **Load Type** import setting,
+not in playback. Set **Clip Load Type** on the track, then press **Apply \<type\> to the clip** in the track inspector
+to write it:
+
+- **Auto** (default) streams a clip longer than 30 seconds and decompresses a clip of 30 seconds or less.
+- **Decompress On Load** keeps the whole decoded clip in memory, so playback never touches storage.
+- **Compressed In Memory** keeps the compressed clip and decodes it as it plays.
+- **Streaming** reads from disk as it plays, and reads again at every loop.
+
+Measured in the host editor on Unity 6000.6.7f1 with 44.1 kHz stereo clips:
+
+| Load type            | 20 s clip | 240 s clip | Load call   |
+| -------------------- | --------- | ---------- | ----------- |
+| Decompress On Load   | 3.4 MiB   | 40.4 MiB   | 31 / 367 ms |
+| Compressed In Memory | 0.4 MiB   | 4.3 MiB    | 1 ms        |
+| Streaming            | 0.2 MiB   | 0.2 MiB    | 1–2 ms      |
+
+A decompressed clip holds about 170 KiB for each second of music, so a long track's memory grows with its length. A
+streaming clip keeps a small buffer and pays a disk read at each loop. The editor renders no audio, so the table covers
+memory and the main-thread load call, not the audible start. A mismatched clip still plays, because the import setting
+wins; **Tools > DxAudio > Validate Libraries** reports the mismatch, and the track inspector applies the track's choice.
+The load type belongs to the clip, so every track and cue that uses it takes the same value.
+
 ## Play
 
 ```csharp

@@ -97,6 +97,101 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void AMusicLibraryCheckReportsAClipThatIgnoresTheTrackLoadType()
+        {
+            using MadeObjects made = new();
+            MusicTrack boss = made.Track(MusicTrack.Create(Clip(made, 40f), context: "boss"));
+            MusicLibrary library = made.Track(MusicLibrary.Create(new[] { boss }));
+
+            List<string> findings = DxAudioValidation.Validate(library);
+            string messages = Joined(findings);
+
+            Assert.That(findings, Has.Count.EqualTo(1));
+            Assert.That(messages, Does.Contain("asks for a Streaming clip"));
+            Assert.That(messages, Does.Contain("imported as DecompressOnLoad"));
+        }
+
+        [Test]
+        public void AMusicTrackResolvesAutoFromTheClipLength()
+        {
+            using MadeObjects made = new();
+            AudioClip fortySeconds = Clip(made, 40f);
+            MusicTrack longTrack = made.Track(MusicTrack.Create(fortySeconds));
+            MusicTrack shortTrack = made.Track(MusicTrack.Create(Clip(made, 20f)));
+            MusicTrack forced = made.Track(MusicTrack.Create(fortySeconds, clipLoadType: MusicClipLoadType.DecompressOnLoad));
+
+            Assert.That(longTrack.ResolvedClipLoadType, Is.EqualTo(MusicClipLoadType.Streaming));
+            Assert.That(shortTrack.ResolvedClipLoadType, Is.EqualTo(MusicClipLoadType.DecompressOnLoad));
+            Assert.That(forced.ResolvedClipLoadType, Is.EqualTo(MusicClipLoadType.DecompressOnLoad), "explicit wins");
+            Assert.That(MusicClipImport.Matches(forced), Is.True, "the clip holds the asked-for type");
+            Assert.That(MusicClipImport.Matches(longTrack), Is.False, "a decompressed clip does not follow a track that wants streaming");
+        }
+
+        [Test]
+        public void ApplyingALoadTypeWritesTheClipImportSettings()
+        {
+            const string SourceGuid = "5081b21fa3e1420dbfaac900a77b4b24";
+            string source = AssetDatabase.GUIDToAssetPath(SourceGuid);
+            string projectRoot = System.IO.Path.GetDirectoryName(Application.dataPath);
+
+            using MadeObjects made = new();
+            // A name collision makes Unity create a suffixed folder, so the returned GUID is the folder this test owns.
+            string folder = AssetDatabase.GUIDToAssetPath(AssetDatabase.CreateFolder("Assets", "DxAudioLoadTypeTest"));
+            string destination = folder + "/TestTone.wav";
+            try
+            {
+                Assert.That(source.Length, Is.Not.Zero, "the fixture clip is missing");
+                // A copy gets its own GUID, so changing its importer cannot touch the committed fixture.
+                System.IO.File.Copy(System.IO.Path.Combine(projectRoot, source), System.IO.Path.Combine(projectRoot, destination), overwrite: true);
+                AssetDatabase.ImportAsset(destination, ImportAssetOptions.ForceUpdate);
+
+                AudioClip clip = AssetDatabase.LoadAssetAtPath<AudioClip>(destination);
+                Assert.That(MusicClipImport.TryApply(clip, MusicClipLoadType.Streaming), Is.True);
+                AudioClip streamed = AssetDatabase.LoadAssetAtPath<AudioClip>(destination);
+                Assert.That(MusicClipImport.TryGetAppliedLoadType(streamed, out MusicClipLoadType applied), Is.True);
+                Assert.That(applied, Is.EqualTo(MusicClipLoadType.Streaming), "the importer took the write");
+                Assert.That(MusicClipImport.Matches(made.Track(MusicTrack.Create(streamed, clipLoadType: MusicClipLoadType.Streaming))), Is.True);
+
+                Assert.That(MusicClipImport.TryApply(streamed, MusicClipLoadType.Auto), Is.False, "Auto names no concrete type");
+                AudioClip generated = made.Track(AudioClip.Create("generated", 800, 1, 8_000, false));
+                Assert.That(MusicClipImport.TryApply(generated, MusicClipLoadType.Streaming), Is.False, "a generated clip has no importer");
+            }
+            finally
+            {
+                AssetDatabase.DeleteAsset(folder);
+            }
+        }
+
+        [Test]
+        public void AnEaseStoredBeforeTheSentinelKeepsItsCurve()
+        {
+            using MadeObjects made = new();
+            MusicLibrary library = made.Track(MusicLibrary.Create(null));
+            MusicDuck duck = made.Track(MusicDuck.Create(MusicDuckHolders.One, 0.5f));
+
+            // A 0.3.0 asset stored InOutSine as 6 and carried no version field.
+            SerializedObject storedLibrary = new(library);
+            storedLibrary.FindProperty("_fadeInEase").enumValueIndex = 6;
+            storedLibrary.FindProperty("_fadeOutEase").enumValueIndex = 0;
+            storedLibrary.FindProperty("_easeVersion").intValue = 0;
+            storedLibrary.ApplyModifiedPropertiesWithoutUndo();
+
+            SerializedObject storedDuck = new(duck);
+            storedDuck.FindProperty("_applyEase").enumValueIndex = 0;
+            storedDuck.FindProperty("_releaseEase").enumValueIndex = 6;
+            storedDuck.FindProperty("_easeVersion").intValue = 0;
+            storedDuck.ApplyModifiedPropertiesWithoutUndo();
+
+            library.OnAfterDeserialize();
+            duck.OnAfterDeserialize();
+
+            Assert.That(library.FadeInEase, Is.EqualTo(MusicEase.InOutSine), "the stored 6 is still InOutSine");
+            Assert.That(library.FadeOutEase, Is.EqualTo(MusicEase.Linear), "the stored 0 is still Linear");
+            Assert.That(duck.ApplyEase, Is.EqualTo(MusicEase.Linear), "the stored 0 is still Linear");
+            Assert.That(duck.ReleaseEase, Is.EqualTo(MusicEase.InOutSine), "the stored 6 is still InOutSine");
+        }
+
+        [Test]
         public void ACueCheckWarnsThatALoopIgnoresItsStartOffsets()
         {
             using MadeObjects made = new();
@@ -129,20 +224,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             using MadeObjects made = new();
             MusicDuck first = made.Track(MusicDuck.Create(MusicDuckHolders.One, 0.5f));
             MusicDuck permissive = made.Track(MusicDuck.Create(MusicDuckHolders.One, 1f));
-            MusicDuck filtered = made.Track(
-                MusicDuck.Create(
-                    MusicDuckHolders.Many,
-                    volumeScale: 0.8f,
-                    lowPassCutoffHz: 4_000f,
-                    highPassCutoffHz: 300f
-                )
-            );
+            MusicDuck filtered = made.Track(MusicDuck.Create(MusicDuckHolders.Many, volumeScale: 0.8f, lowPassCutoffHz: 4_000f, highPassCutoffHz: 300f));
             MusicDuck quietest = made.Track(MusicDuck.Create(MusicDuckHolders.One, 0.4f));
 
-            MusicAttenuation composed = MusicDuckEditor.Compose(
-                first,
-                new[] { permissive, filtered, quietest, null, first }
-            );
+            MusicAttenuation composed = MusicDuckEditor.Compose(first, new[] { permissive, filtered, quietest, null, first });
 
             Assert.That(composed.volumeScale, Is.EqualTo(0.4f).Within(0.0001f));
             Assert.That(composed.lowPassCutoffHz, Is.EqualTo(4_000f).Within(0.5f));

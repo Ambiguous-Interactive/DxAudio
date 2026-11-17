@@ -37,11 +37,7 @@ namespace WallstopStudios.DxAudio
         /// Whether a track has something to play. <see cref="Take"/> refuses one it rejects, rather than hold an
         /// override that plays silence while it reports that it holds the music. Defaults to every track.
         /// </param>
-        public MusicOverride(
-            Action<TTrack> onSelectionChanged = null,
-            IEqualityComparer<TTrack> sameMusic = null,
-            Func<TTrack, bool> isPlayable = null
-        )
+        public MusicOverride(Action<TTrack> onSelectionChanged = null, IEqualityComparer<TTrack> sameMusic = null, Func<TTrack, bool> isPlayable = null)
         {
             _onSelectionChanged = onSelectionChanged;
             _sameMusic = sameMusic ?? EqualityComparer<TTrack>.Default;
@@ -105,8 +101,7 @@ namespace WallstopStudios.DxAudio
         {
             TTrack previous = _announced;
             TTrack current = Current;
-            bool unchanged =
-                previous == null ? current == null : current != null && _sameMusic.Equals(previous, current);
+            bool unchanged = previous == null ? current == null : current != null && _sameMusic.Equals(previous, current);
             if (unchanged)
             {
                 return false;

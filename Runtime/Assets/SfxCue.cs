@@ -24,8 +24,7 @@ namespace WallstopStudios.DxAudio
 
         [SerializeField]
         [Tooltip(
-            "Interchangeable takes, picked at random and never the same one twice in a row. Each carries its "
-                + "own start offset, because a lead-in belongs to the recording."
+            "Interchangeable takes, picked at random and never the same one twice in a row. Each carries its " + "own start offset, because a lead-in belongs to the recording."
         )]
         private List<SfxVariant> _variants = new();
 
@@ -40,9 +39,7 @@ namespace WallstopStudios.DxAudio
 
         [Min(0f)]
         [SerializeField]
-        [Tooltip(
-            "Shortest gap between two plays of this one-shot cue. Zero lets every request through. Loops are never limited."
-        )]
+        [Tooltip("Shortest gap between two plays of this one-shot cue. Zero lets every request through. Loops are never limited.")]
         private float _minimumIntervalSeconds = DefaultMinimumIntervalSeconds;
 
         [SerializeField]
@@ -53,10 +50,7 @@ namespace WallstopStudios.DxAudio
         private SfxPriority _priority = SfxPriority.Medium;
 
         [SerializeField]
-        [Tooltip(
-            "Held until whoever started it stops it, instead of played once. Only for a sound that stands for a "
-                + "state, because something has to end it."
-        )]
+        [Tooltip("Held until whoever started it stops it, instead of played once. Only for a sound that stands for a " + "state, because something has to end it.")]
         private bool _loop;
 
         [SerializeField]
@@ -90,10 +84,7 @@ namespace WallstopStudios.DxAudio
         private bool _heardCentred;
 
         [SerializeField]
-        [Tooltip(
-            "Another cue whose last take number this one plays, so two halves of one performance match. Empty "
-                + "draws at random."
-        )]
+        [Tooltip("Another cue whose last take number this one plays, so two halves of one performance match. Empty " + "draws at random.")]
         private SfxCue _followsTakeOf;
 
         public string Key => _key;

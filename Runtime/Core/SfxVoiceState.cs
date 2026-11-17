@@ -11,13 +11,7 @@ namespace WallstopStudios.DxAudio
     /// </remarks>
     public readonly struct SfxVoiceState
     {
-        public static readonly SfxVoiceState Idle = new(
-            isUsable: true,
-            isPlaying: false,
-            isHeld: false,
-            SfxPriority.Medium,
-            startedAtUnscaledTime: 0f
-        );
+        public static readonly SfxVoiceState Idle = new(isUsable: true, isPlaying: false, isHeld: false, SfxPriority.Medium, startedAtUnscaledTime: 0f);
 
         /// <summary>
         /// Whether the voice still exists. A destroyed <c>AudioSource</c> reports that it is not playing, so
@@ -46,14 +40,7 @@ namespace WallstopStudios.DxAudio
 
         public readonly float startedAtUnscaledTime;
 
-        public SfxVoiceState(
-            bool isUsable,
-            bool isPlaying,
-            bool isHeld,
-            SfxPriority priority,
-            float startedAtUnscaledTime,
-            bool isPaused = false
-        )
+        public SfxVoiceState(bool isUsable, bool isPlaying, bool isHeld, SfxPriority priority, float startedAtUnscaledTime, bool isPaused = false)
         {
             this.isUsable = isUsable;
             this.isPlaying = isPlaying;

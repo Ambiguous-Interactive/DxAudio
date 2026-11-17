@@ -47,10 +47,7 @@ namespace WallstopStudios.DxAudio.Editor
 
             string libraryWord = _libraries.Count == 1 ? "library" : "libraries";
             string problemWord = problemCount == 1 ? "problem" : "problems";
-            EditorGUILayout.LabelField(
-                $"{_libraries.Count} {libraryWord}, {problemCount} {problemWord}",
-                EditorStyles.boldLabel
-            );
+            EditorGUILayout.LabelField($"{_libraries.Count} {libraryWord}, {problemCount} {problemWord}", EditorStyles.boldLabel);
 
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
             if (_libraries.Count == 0)

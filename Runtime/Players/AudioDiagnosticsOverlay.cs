@@ -152,23 +152,13 @@ namespace WallstopStudios.DxAudio
             int busy = 0;
             for (int index = 0; index < player.VoiceCount; index++)
             {
-                if (
-                    player.TryGetVoiceState(index, out SfxVoiceState state, out _)
-                    && state.isUsable
-                    && (state.isPlaying || state.isHeld)
-                )
+                if (player.TryGetVoiceState(index, out SfxVoiceState state, out _) && state.isUsable && (state.isPlaying || state.isHeld))
                 {
                     ++busy;
                 }
             }
 
-            _ = text.Append("Sfx: ")
-                .Append(player.VoiceCount)
-                .Append(" voices, ")
-                .Append(busy)
-                .Append(" busy, ")
-                .Append(player.HeldVoiceCount)
-                .AppendLine(" loop(s) held");
+            _ = text.Append("Sfx: ").Append(player.VoiceCount).Append(" voices, ").Append(busy).Append(" busy, ").Append(player.HeldVoiceCount).AppendLine(" loop(s) held");
 
             for (int index = 0; index < player.VoiceCount; index++)
             {
@@ -224,12 +214,7 @@ namespace WallstopStudios.DxAudio
             _ = text.AppendLine();
         }
 
-        private static void AppendDropCount(
-            StringBuilder text,
-            SfxDropCounts counts,
-            SfxDropReason reason,
-            ref bool first
-        )
+        private static void AppendDropCount(StringBuilder text, SfxDropCounts counts, SfxDropReason reason, ref bool first)
         {
             int count = counts[reason];
             if (count < 1)
@@ -288,16 +273,12 @@ namespace WallstopStudios.DxAudio
                 IMusicDuckReason reason = _duckReasons[index];
                 _ = text.Append("  ");
                 _ = text.Append(reason != null ? reason.ToString() : "a null reason");
-                _ = text.Append(" (")
-                    .Append(reason != null ? reason.Holders.ToString() : "Unknown")
-                    .Append(") #")
-                    .Append(_duckIds[index]);
+                _ = text.Append(" (").Append(reason != null ? reason.Holders.ToString() : "Unknown").Append(") #").Append(_duckIds[index]);
 
                 object holder = _duckHolders[index];
                 if (holder != null)
                 {
-                    _ = text.Append(" held by ")
-                        .Append(UnityObjects.IsDestroyed(holder) ? "a destroyed object" : holder.ToString());
+                    _ = text.Append(" held by ").Append(UnityObjects.IsDestroyed(holder) ? "a destroyed object" : holder.ToString());
                 }
 
                 _ = text.AppendLine();

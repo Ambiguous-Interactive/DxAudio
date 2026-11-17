@@ -128,8 +128,7 @@ namespace WallstopStudios.DxAudio
         /// <summary>Whether the current music is audible, rather than stopped or on its way out.</summary>
         public bool IsPlaying => _current != null && VoiceClip.IsSounding(_current.source);
 
-        private MusicOverride<MusicTrack> Selection =>
-            _selection ??= new MusicOverride<MusicTrack>(OnSelectionChanged, SameMusicComparer.Instance, IsPlayable);
+        private MusicOverride<MusicTrack> Selection => _selection ??= new MusicOverride<MusicTrack>(OnSelectionChanged, SameMusicComparer.Instance, IsPlayable);
 
         /// <summary>Plays the track the library lists for <paramref name="context"/>.</summary>
         /// <returns><see langword="false"/>, changing nothing, when the library lists none.</returns>
@@ -274,13 +273,7 @@ namespace WallstopStudios.DxAudio
                     continue;
                 }
 
-                if (
-                    voice == _current
-                    && !_paused
-                    && voice.track != null
-                    && !voice.source.loop
-                    && !voice.source.isPlaying
-                )
+                if (voice == _current && !_paused && voice.track != null && !voice.source.loop && !voice.source.isPlaying)
                 {
                     // A one-shot track ended on its own. Clear it, so a listener hears the stop and the same context
                     // can start again.
@@ -375,11 +368,7 @@ namespace WallstopStudios.DxAudio
                 return;
             }
 
-            if (
-                _current != null
-                && VoiceClip.HoldsSound(_current.source)
-                && MusicTrack.SameMusic(_current.track, track)
-            )
+            if (_current != null && VoiceClip.HoldsSound(_current.source) && MusicTrack.SameMusic(_current.track, track))
             {
                 return;
             }
@@ -525,20 +514,13 @@ namespace WallstopStudios.DxAudio
 
                 // Never saved with a scene in edit mode. In Play mode the flag would hide the voices from
                 // FindObjectsOfType, so a game's own pause-all could not reach them.
-                GameObject child = new($"Music Voice {index}")
-                {
-                    hideFlags = Application.isPlaying ? HideFlags.None : HideFlags.DontSave,
-                };
+                GameObject child = new($"Music Voice {index}") { hideFlags = Application.isPlaying ? HideFlags.None : HideFlags.DontSave };
                 child.transform.SetParent(transform, worldPositionStays: false);
                 AudioSource source = child.AddComponent<AudioSource>();
                 source.playOnAwake = false;
                 source.spatialBlend = 0f;
                 source.mute = _muted;
-                _voices[index] = new Voice(
-                    source,
-                    child.AddComponent<AudioLowPassFilter>(),
-                    child.AddComponent<AudioHighPassFilter>()
-                );
+                _voices[index] = new Voice(source, child.AddComponent<AudioLowPassFilter>(), child.AddComponent<AudioHighPassFilter>());
             }
         }
 

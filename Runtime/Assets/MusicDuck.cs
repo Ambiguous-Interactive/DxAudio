@@ -8,8 +8,10 @@ namespace WallstopStudios.DxAudio
     /// composes into the most restrictive of each setting, so systems duck and release independently.
     /// </remarks>
     [CreateAssetMenu(fileName = "MusicDuck", menuName = "DxAudio/Music Duck")]
-    public sealed class MusicDuck : ScriptableObject, IMusicDuckReason
+    public sealed class MusicDuck : ScriptableObject, IMusicDuckReason, ISerializationCallbackReceiver
     {
+        private const int CurrentEaseVersion = 1;
+
         [SerializeField]
         [Tooltip(
             "One: a state that is on or off, such as a menu; asserting it again changes nothing and one release "
@@ -47,6 +49,11 @@ namespace WallstopStudios.DxAudio
         [SerializeField]
         private MusicEase _releaseEase = MusicEase.InOutSine;
 
+        // Zero means the asset was written before the Unknown sentinel, when Linear was zero.
+        [SerializeField]
+        [HideInInspector]
+        private int _easeVersion = CurrentEaseVersion;
+
         public MusicDuckHolders Holders => _holders;
 
         public float ApplySeconds => _applySeconds;
@@ -58,6 +65,22 @@ namespace WallstopStudios.DxAudio
         public MusicEase ReleaseEase => _releaseEase;
 
         public MusicAttenuation Attenuation => new(_volumeScale, _lowPassCutoffHz, _highPassCutoffHz);
+
+        /// <inheritdoc />
+        public void OnAfterDeserialize()
+        {
+            if (_easeVersion >= CurrentEaseVersion)
+            {
+                return;
+            }
+
+            _applyEase = MusicEasing.FromStoredBeforeUnknown((int)_applyEase);
+            _releaseEase = MusicEasing.FromStoredBeforeUnknown((int)_releaseEase);
+            _easeVersion = CurrentEaseVersion;
+        }
+
+        /// <inheritdoc />
+        public void OnBeforeSerialize() { }
 
         /// <summary>Builds a duck in code, for tests and for games that author audio at runtime.</summary>
         public static MusicDuck Create(

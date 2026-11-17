@@ -92,7 +92,7 @@ LANES: Tuple[Tuple[str, Tuple[Step, ...]], ...] = (
             Step(
                 "csharp.format",
                 "CSharpier format",
-                ("dotnet", "tool", "run", "csharpier", "--", "format", ".net-tests", "Runtime", "Editor", "Tests"),
+                ("dotnet", "tool", "run", "csharpier", "--", "format", "."),
                 ("csharp.tool-restore",),
             ),
             Step(
@@ -105,6 +105,12 @@ LANES: Tuple[Tuple[str, Tuple[Step, ...]], ...] = (
                 "csharp.usings",
                 "C# usings lint",
                 (*_PYTHON_LAUNCHER, "scripts/lint_csharp_usings.py"),
+                ("csharp.format",),
+            ),
+            Step(
+                "csharp.enum-defaults",
+                "C# enum default lint",
+                (*_PYTHON_LAUNCHER, "scripts/lint_enum_defaults.py"),
                 ("csharp.format",),
             ),
         ),
@@ -211,6 +217,7 @@ STEP_NAMES: frozenset[str] = frozenset(step.name for step in ALL_STEPS)
 CSHARP_LINT_STEPS: Dict[str, str] = {
     "csharp.null-assertions": "scripts/lint_csharp_null_assertions.py",
     "csharp.usings": "scripts/lint_csharp_usings.py",
+    "csharp.enum-defaults": "scripts/lint_enum_defaults.py",
 }
 
 

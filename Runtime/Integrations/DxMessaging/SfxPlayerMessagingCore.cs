@@ -53,12 +53,7 @@ namespace WallstopStudios.DxAudio.Integration
         /// <param name="source">The GameObject a sender addresses; normally the player's own.</param>
         /// <param name="bus">The bus to announce on, or <see langword="null"/> for the global one.</param>
         /// <param name="busProvider">Resolves the bus when <paramref name="bus"/> is null.</param>
-        public SfxPlayerMessagingCore(
-            SfxPlayer player,
-            GameObject source,
-            IMessageBus bus = null,
-            IMessageBusProvider busProvider = null
-        )
+        public SfxPlayerMessagingCore(SfxPlayer player, GameObject source, IMessageBus bus = null, IMessageBusProvider busProvider = null)
         {
             _player = player;
             _source = source;
@@ -159,9 +154,7 @@ namespace WallstopStudios.DxAudio.Integration
             }
 
             SfxLoopHandle handle;
-            bool started = request.isPositional
-                ? _player.TryPlayLooping(cue, request.position, out handle)
-                : _player.TryPlayLooping(cue, out handle);
+            bool started = request.isPositional ? _player.TryPlayLooping(cue, request.position, out handle) : _player.TryPlayLooping(cue, out handle);
             if (!started)
             {
                 return;
@@ -252,8 +245,7 @@ namespace WallstopStudios.DxAudio.Integration
 
             foreach (KeyValuePair<long, SfxLoopHandle> held in _loops)
             {
-                bool live =
-                    _player.TryGetVoiceState(held.Value.voice, out _, out int lease) && lease == held.Value.lease;
+                bool live = _player.TryGetVoiceState(held.Value.voice, out _, out int lease) && lease == held.Value.lease;
                 if (!live)
                 {
                     _endedLoops.Add(held.Key);

@@ -52,9 +52,7 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
-            return minimumIntervalSeconds <= 0f
-                || !_lastPlayedByKey.TryGetValue(key, out float lastPlayed)
-                || minimumIntervalSeconds <= now - lastPlayed;
+            return minimumIntervalSeconds <= 0f || !_lastPlayedByKey.TryGetValue(key, out float lastPlayed) || minimumIntervalSeconds <= now - lastPlayed;
         }
 
         public void Forget(TKey key)

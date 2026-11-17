@@ -12,7 +12,7 @@ namespace WallstopStudios.DxAudio
     /// </remarks>
     public enum SfxPriority
     {
-        [Obsolete("Use a specific SfxPriority value instead of Unknown.")]
+        [Obsolete("Use a specific SfxPriority value instead of Unknown.", true)]
         Unknown = 0,
 
         /// <summary>Texture. Nobody notices if it never plays.</summary>

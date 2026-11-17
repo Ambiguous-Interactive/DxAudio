@@ -18,13 +18,7 @@ namespace WallstopStudios.DxAudio
         public const float DefaultPeakCeilingDbfs = -3f;
 
         /// <summary>The linear gain for a clip measured at <paramref name="measuredLufs"/> to reach <paramref name="targetLufs"/>.</summary>
-        public static float GainFor(
-            float measuredLufs,
-            float measuredPeakDbfs,
-            float targetLufs,
-            float busDb,
-            float peakCeilingDbfs = DefaultPeakCeilingDbfs
-        )
+        public static float GainFor(float measuredLufs, float measuredPeakDbfs, float targetLufs, float busDb, float peakCeilingDbfs = DefaultPeakCeilingDbfs)
         {
             float toTargetDb = targetLufs - busDb - measuredLufs;
             float toCeilingDb = peakCeilingDbfs - busDb - measuredPeakDbfs;
@@ -33,13 +27,7 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>Whether the peak ceiling, not the loudness target, sets the gain.</summary>
-        public static bool IsPeakLimited(
-            float measuredLufs,
-            float measuredPeakDbfs,
-            float targetLufs,
-            float busDb,
-            float peakCeilingDbfs = DefaultPeakCeilingDbfs
-        )
+        public static bool IsPeakLimited(float measuredLufs, float measuredPeakDbfs, float targetLufs, float busDb, float peakCeilingDbfs = DefaultPeakCeilingDbfs)
         {
             float toTargetDb = targetLufs - busDb - measuredLufs;
             float toCeilingDb = peakCeilingDbfs - busDb - measuredPeakDbfs;

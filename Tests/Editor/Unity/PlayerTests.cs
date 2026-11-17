@@ -22,18 +22,7 @@
             Assert.That(player.Play(loop), Is.False, "a loop sent to the one-shot path would hold a voice forever");
             Assert.That(player.TryPlayLooping(oneShot, out _), Is.False);
 
-            Assert.That(
-                drops,
-                Is.EqualTo(
-                    new[]
-                    {
-                        SfxDropReason.NotPlayable,
-                        SfxDropReason.NotPlayable,
-                        SfxDropReason.WrongPlayMethod,
-                        SfxDropReason.WrongPlayMethod,
-                    }
-                )
-            );
+            Assert.That(drops, Is.EqualTo(new[] { SfxDropReason.NotPlayable, SfxDropReason.NotPlayable, SfxDropReason.WrongPlayMethod, SfxDropReason.WrongPlayMethod }));
         }
 
         [Test]
@@ -115,28 +104,17 @@
         {
             using MadeObjects made = new();
             MusicPlayer player = MusicPlayer(made);
-            MusicDuck menu = made.Track(
-                MusicDuck.Create(MusicDuckHolders.One, volumeScale: 0.5f, applySeconds: 1f, releaseSeconds: 2f)
-            );
-            MusicDuck dialogue = made.Track(
-                MusicDuck.Create(MusicDuckHolders.Many, volumeScale: 0.2f, lowPassCutoffHz: 1_000f, applySeconds: 0f)
-            );
+            MusicDuck menu = made.Track(MusicDuck.Create(MusicDuckHolders.One, volumeScale: 0.5f, applySeconds: 1f, releaseSeconds: 2f));
+            MusicDuck dialogue = made.Track(MusicDuck.Create(MusicDuckHolders.Many, volumeScale: 0.2f, lowPassCutoffHz: 1_000f, applySeconds: 0f));
 
             MusicDuckLease menuLease = player.Duck(menu);
-            Assert.That(
-                player.Attenuation.volumeScale,
-                Is.EqualTo(1f).Within(0.001f),
-                "a duck ramps rather than jumps"
-            );
+            Assert.That(player.Attenuation.volumeScale, Is.EqualTo(1f).Within(0.001f), "a duck ramps rather than jumps");
             player.Tick(1f);
             Assert.That(player.Attenuation.volumeScale, Is.EqualTo(0.5f).Within(0.001f));
 
             GameObject speaker = made.Track(new GameObject("speaker"));
             _ = player.Duck(dialogue, speaker);
-            Assert.That(
-                player.Attenuation,
-                Is.EqualTo(new MusicAttenuation(0.2f, 1_000f, MusicAttenuation.OpenHighPassCutoffHz))
-            );
+            Assert.That(player.Attenuation, Is.EqualTo(new MusicAttenuation(0.2f, 1_000f, MusicAttenuation.OpenHighPassCutoffHz)));
             Assert.That(player.IsDucked(dialogue), Is.True);
 
             Object.DestroyImmediate(speaker);
@@ -147,11 +125,7 @@
             player.Tick(10f);
             Assert.That(player.Release(menuLease), Is.True);
             player.Tick(1f);
-            Assert.That(
-                player.Attenuation.volumeScale,
-                Is.InRange(0.5f, 1f),
-                "halfway through the menu's two-second release"
-            );
+            Assert.That(player.Attenuation.volumeScale, Is.InRange(0.5f, 1f), "halfway through the menu's two-second release");
             player.Tick(1f);
             Assert.That(player.Attenuation, Is.EqualTo(MusicAttenuation.Unattenuated));
         }
@@ -236,11 +210,7 @@
 
                 Assert.That(musicSource.isPlaying, Is.True);
                 Assert.That(sfxSource.isPlaying, Is.True);
-                Assert.That(
-                    musicSource.timeSamples,
-                    Is.EqualTo(2_000).Within(64),
-                    "resuming continues rather than restarts"
-                );
+                Assert.That(musicSource.timeSamples, Is.EqualTo(2_000).Within(64), "resuming continues rather than restarts");
                 Assert.That(sfxSource.timeSamples, Is.EqualTo(1_000).Within(64));
                 Assert.That(sfx.HeldVoiceCount, Is.EqualTo(1), "the loop keeps its lease");
                 Assert.That(sfx.Muted, Is.True, "the sound setting survives a pause");
@@ -423,23 +393,9 @@
             return made.Track(new GameObject("music")).AddComponent<MusicPlayer>();
         }
 
-        private static SfxCue Cue(
-            MadeObjects made,
-            bool loop,
-            string key = null,
-            float minimumIntervalSeconds = 0f,
-            SfxPriority priority = SfxPriority.Medium
-        )
+        private static SfxCue Cue(MadeObjects made, bool loop, string key = null, float minimumIntervalSeconds = 0f, SfxPriority priority = SfxPriority.Medium)
         {
-            return made.Track(
-                SfxCue.Create(
-                    new[] { new SfxVariant(Clip(made)) },
-                    key: key,
-                    priority: priority,
-                    loop: loop,
-                    minimumIntervalSeconds: minimumIntervalSeconds
-                )
-            );
+            return made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, key: key, priority: priority, loop: loop, minimumIntervalSeconds: minimumIntervalSeconds));
         }
 
         private static AudioClip Clip(MadeObjects made)

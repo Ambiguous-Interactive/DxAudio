@@ -22,17 +22,9 @@ namespace WallstopStudios.DxAudio
         private const float VolumeQuantum = 0.0001f;
         private const float CutoffQuantumHz = 0.5f;
 
-        public static readonly MusicAttenuation Unattenuated = new(
-            FullVolumeScale,
-            OpenLowPassCutoffHz,
-            OpenHighPassCutoffHz
-        );
+        public static readonly MusicAttenuation Unattenuated = new(FullVolumeScale, OpenLowPassCutoffHz, OpenHighPassCutoffHz);
 
-        public static readonly MusicAttenuation Silent = new(
-            SilentVolumeScale,
-            OpenLowPassCutoffHz,
-            OpenHighPassCutoffHz
-        );
+        public static readonly MusicAttenuation Silent = new(SilentVolumeScale, OpenLowPassCutoffHz, OpenHighPassCutoffHz);
 
         public readonly float volumeScale;
         public readonly float lowPassCutoffHz;

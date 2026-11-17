@@ -11,8 +11,10 @@ namespace WallstopStudios.DxAudio
     /// context, and <see cref="MusicPlayer.PlayContext"/> looks it up here.
     /// </remarks>
     [CreateAssetMenu(fileName = "MusicLibrary", menuName = "DxAudio/Music Library")]
-    public sealed class MusicLibrary : ScriptableObject
+    public sealed class MusicLibrary : ScriptableObject, ISerializationCallbackReceiver
     {
+        private const int CurrentEaseVersion = 1;
+
         private static event Action IndexesStale;
 
         [SerializeField]
@@ -38,6 +40,11 @@ namespace WallstopStudios.DxAudio
         [SerializeField]
         private MusicEase _fadeOutEase = MusicEase.InOutSine;
 
+        // Zero means the asset was written before the Unknown sentinel, when Linear was zero.
+        [SerializeField]
+        [HideInInspector]
+        private int _easeVersion = CurrentEaseVersion;
+
         private readonly Dictionary<string, MusicTrack> _tracksByContext = new(StringComparer.Ordinal);
         private bool _indexBuilt;
 
@@ -53,13 +60,24 @@ namespace WallstopStudios.DxAudio
 
         public MusicEase FadeOutEase => _fadeOutEase;
 
+        /// <inheritdoc />
+        public void OnAfterDeserialize()
+        {
+            if (_easeVersion >= CurrentEaseVersion)
+            {
+                return;
+            }
+
+            _fadeInEase = MusicEasing.FromStoredBeforeUnknown((int)_fadeInEase);
+            _fadeOutEase = MusicEasing.FromStoredBeforeUnknown((int)_fadeOutEase);
+            _easeVersion = CurrentEaseVersion;
+        }
+
+        /// <inheritdoc />
+        public void OnBeforeSerialize() { }
+
         /// <summary>Builds a library in code, for tests and for games that author audio at runtime.</summary>
-        public static MusicLibrary Create(
-            IEnumerable<MusicTrack> tracks,
-            float fadeInSeconds = 1.5f,
-            float fadeOutSeconds = 1.2f,
-            AudioMixerGroup mixerGroup = null
-        )
+        public static MusicLibrary Create(IEnumerable<MusicTrack> tracks, float fadeInSeconds = 1.5f, float fadeOutSeconds = 1.2f, AudioMixerGroup mixerGroup = null)
         {
             MusicLibrary library = CreateInstance<MusicLibrary>();
             library._tracks = tracks == null ? new List<MusicTrack>() : new List<MusicTrack>(tracks);
@@ -127,19 +145,13 @@ namespace WallstopStudios.DxAudio
                 // A listed track with no context can never be looked up, which reads as a silent context.
                 if (string.IsNullOrWhiteSpace(track.Context))
                 {
-                    Debug.LogWarning(
-                        $"The music track '{track.name}' in '{name}' names no context, so nothing can look it up.",
-                        this
-                    );
+                    Debug.LogWarning($"The music track '{track.name}' in '{name}' names no context, so nothing can look it up.", this);
                     continue;
                 }
 
                 if (!_tracksByContext.TryAdd(track.Context, track))
                 {
-                    Debug.LogWarning(
-                        $"Two music tracks in '{name}' share the context '{track.Context}'; only the first will play.",
-                        this
-                    );
+                    Debug.LogWarning($"Two music tracks in '{name}' share the context '{track.Context}'; only the first will play.", this);
                 }
             }
         }

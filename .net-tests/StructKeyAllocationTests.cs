@@ -50,13 +50,7 @@ namespace WallstopStudios.DxAudio.Tests
         }
 
         /// <returns>1 when <c>TryBegin</c> started a window, so the caller can assert outside the measure.</returns>
-        private static int Exercise(
-            SfxThrottle<CueKey> throttle,
-            SfxSelection<CueKey> selection,
-            CueKey leader,
-            CueKey follower,
-            float now
-        )
+        private static int Exercise(SfxThrottle<CueKey> throttle, SfxSelection<CueKey> selection, CueKey leader, CueKey follower, float now)
         {
             _ = throttle.IsReady(leader, now, 0.05f);
             bool begun = throttle.TryBegin(leader, now, 0.05f);

@@ -72,7 +72,7 @@ def case_plan_prints_the_full_lane_table(python: str) -> None:
         f"the plan must list the five lanes in order, got: {','.join(names)}",
     )
     steps = step_names(plan)
-    assert_true(len(steps) == 17, f"the plan must list 17 steps, got {len(steps)}")
+    assert_true(len(steps) == 18, f"the plan must list 18 steps, got {len(steps)}")
     assert_true(len(steps) == len(set(steps)), "step names must be unique")
     for name in steps:
         assert_true(
@@ -352,7 +352,7 @@ def case_scoped_lane_table_drops_the_csharp_lane_when_no_csharp_changed(python: 
     result = json.loads(output)
     assert_true(
         sorted(result["dropped"])
-        == ["csharp.format", "csharp.null-assertions", "csharp.tool-restore", "csharp.usings"],
+        == ["csharp.enum-defaults", "csharp.format", "csharp.null-assertions", "csharp.tool-restore", "csharp.usings"],
         f"the whole C# lane must be scoped out, got {result['dropped']}",
     )
     assert_true("csharp" not in result["lanes"], "the emptied C# lane must leave the table")

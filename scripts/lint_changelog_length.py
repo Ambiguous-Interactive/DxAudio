@@ -42,7 +42,7 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -92,10 +92,11 @@ def display_path(file_path: Path) -> str:
 
 @dataclass(frozen=True)
 class Entry:
-    """One changelog entry: its naming subsection and its wrapped lines."""
+    """One changelog entry: its naming subsection, its lines, and its 1-based line number."""
 
     subsection: str
     lines: List[str]
+    number: int = 0
 
 
 @dataclass(frozen=True)
@@ -108,17 +109,17 @@ class MeasuredEntry:
     number: int = 0  # assigned after collection, below
 
 
-def collect_measured_entries(section_lines: List[str]) -> List[MeasuredEntry]:
+def collect_measured_entries(section_lines: List[str], first_line_number: int = 1) -> List[MeasuredEntry]:
     """Measure every entry and assign its 1-based position."""
     measured: List[MeasuredEntry] = []
-    for entry in extract_entries(section_lines):
+    for entry in extract_entries(section_lines, first_line_number):
         rendered = render_entry(entry)
         measured.append(MeasuredEntry(entry=entry, rendered=rendered, length=len(rendered), number=len(measured) + 1))
     return measured
 
 
-def extract_unreleased(lines: List[str], source: Path) -> List[str]:
-    """Return the '[Unreleased]' body, failing closed on a missing or duplicated section."""
+def extract_unreleased(lines: List[str], source: Path) -> Tuple[List[str], int]:
+    """Return the '[Unreleased]' body and its first line number, failing closed on a bad section."""
     heading_indexes = [index for index, line in enumerate(lines) if UNRELEASED_HEADING.search(line)]
     if len(heading_indexes) == 0:
         raise ValueError(
@@ -133,18 +134,19 @@ def extract_unreleased(lines: List[str], source: Path) -> List[str]:
         if SECTION_HEADING.search(lines[index]):
             end = index
             break
-    return lines[start:end]
+    return lines[start:end], start + 1
 
 
-def extract_entries(section_lines: List[str]) -> List[Entry]:
+def extract_entries(section_lines: List[str], first_line_number: int = 1) -> List[Entry]:
     """Collect one entry per top-level list item, joining soft-wrapped lines."""
     entries: List[Entry] = []
     current: Optional[Entry] = None
     subsection = ""
-    for raw_line in section_lines:
+    for index, raw_line in enumerate(section_lines):
         line = raw_line.strip()
         if line == "":
-            current = None
+            # A blank line does not end the entry: an indented paragraph after it is still the
+            # same entry, and the one-line rule must see it.
             continue
         if SUBSECTION_HEADING.search(line):
             subsection = line
@@ -152,12 +154,26 @@ def extract_entries(section_lines: List[str]) -> List[Entry]:
             continue
         bullet = BULLET.search(line)
         if bullet is not None:
-            current = Entry(subsection=subsection, lines=[line[bullet.end() :]])
+            current = Entry(
+                subsection=subsection,
+                lines=[line[bullet.end() :]],
+                number=first_line_number + index,
+            )
             entries.append(current)
             continue
         if current is not None:
             current.lines.append(line)
     return entries
+
+
+def collect_wrapped_entry_failures(entries: List[Entry], source: Path) -> List[str]:
+    """Require every entry on one line, the shape the sibling repositories use."""
+    return [
+        f"{display_path(source)}:{entry.number}: keep this changelog entry on one line; "
+        f"it wraps onto {len(entry.lines)} lines."
+        for entry in entries
+        if len(entry.lines) > 1
+    ]
 
 
 def collect_spacing_failures(lines: List[str], source: Path) -> List[str]:
@@ -206,10 +222,11 @@ def main() -> int:
     )
     text = read_file_or_throw(changelog, "read the changelog")
     lines = re.split(r"\r?\n", text)
-    section = extract_unreleased(lines, changelog)
-    entries = collect_measured_entries(section)
+    section, first_line_number = extract_unreleased(lines, changelog)
+    entries = collect_measured_entries(section, first_line_number)
 
     failures = collect_spacing_failures(lines, changelog)
+    failures.extend(collect_wrapped_entry_failures([measured.entry for measured in entries], changelog))
     for measured in entries:
         if measured.length > CAP:
             origin = f" {measured.entry.subsection}" if measured.entry.subsection else ""

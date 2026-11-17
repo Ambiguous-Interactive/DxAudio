@@ -7,10 +7,7 @@ namespace WallstopStudios.DxAudio
     public sealed class MusicTrack : ScriptableObject
     {
         [SerializeField]
-        [Tooltip(
-            "The context this plays for (a screen, a level, an area) when looked up through a MusicLibrary. "
-                + "Optional when the track is only played by reference."
-        )]
+        [Tooltip("The context this plays for (a screen, a level, an area) when looked up through a MusicLibrary. " + "Optional when the track is only played by reference.")]
         private string _context;
 
         [SerializeField]
@@ -28,11 +25,16 @@ namespace WallstopStudios.DxAudio
 
         [Min(0f)]
         [SerializeField]
-        [Tooltip(
-            "Where the track begins on its first play. A looping track still loops back to zero, so this skips "
-                + "an intro rather than setting a loop point."
-        )]
+        [Tooltip("Where the track begins on its first play. A looping track still loops back to zero, so this skips " + "an intro rather than setting a loop point.")]
         private float _startTimeSeconds;
+
+        [SerializeField]
+        [Tooltip(
+            "How much of the clip sits in memory while it plays. Auto streams clips longer than 30 seconds and "
+                + "decompresses the rest. The clip's import settings hold the real value, which every user of the "
+                + "clip shares; the track inspector applies it."
+        )]
+        private MusicClipLoadType _clipLoadType = MusicClipLoadType.Auto;
 
         public string Context => _context;
 
@@ -44,6 +46,12 @@ namespace WallstopStudios.DxAudio
 
         public bool IsPlayable => _clip != null;
 
+        /// <summary>What the track asks for; <see cref="ResolvedClipLoadType" /> turns it into a concrete value.</summary>
+        public MusicClipLoadType ClipLoadType => _clipLoadType;
+
+        /// <summary>The load type this track's clip should use, from its preference and the clip's length.</summary>
+        public MusicClipLoadType ResolvedClipLoadType => MusicLoadPolicy.Resolve(_clip == null ? 0f : _clip.length, _clipLoadType);
+
         /// <summary>Where playback begins, clamped so it never starts at or past the clip's end.</summary>
         public float StartTimeSeconds => AudioClipStart.Clamped(_clip, _startTimeSeconds);
 
@@ -53,7 +61,8 @@ namespace WallstopStudios.DxAudio
             string context = null,
             bool loop = true,
             float volumeScale = 1f,
-            float startTimeSeconds = 0f
+            float startTimeSeconds = 0f,
+            MusicClipLoadType clipLoadType = MusicClipLoadType.Auto
         )
         {
             MusicTrack track = CreateInstance<MusicTrack>();
@@ -62,6 +71,7 @@ namespace WallstopStudios.DxAudio
             track._loop = loop;
             track._volumeScale = Mathf.Clamp01(volumeScale);
             track._startTimeSeconds = Mathf.Max(0f, startTimeSeconds);
+            track._clipLoadType = clipLoadType;
             return track;
         }
 

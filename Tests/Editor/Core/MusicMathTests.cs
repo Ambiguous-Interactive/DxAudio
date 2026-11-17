@@ -10,7 +10,22 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         public static IEnumerable<MusicEase> Eases()
         {
-            return (MusicEase[])Enum.GetValues(typeof(MusicEase));
+            MusicEase[] values = (MusicEase[])Enum.GetValues(typeof(MusicEase));
+            for (int index = 0; index < values.Length; ++index)
+            {
+                // The unset sentinel is not a fade curve; its own case asserts it renders as linear.
+                if (values[index] != default)
+                {
+                    yield return values[index];
+                }
+            }
+        }
+
+        [Test]
+        public void AnUnsetEaseRendersAsLinear()
+        {
+            Assert.That(MusicEasing.Evaluate(default, 0.25f), Is.EqualTo(0.25f).Within(Tolerance));
+            Assert.That(MusicEasing.Evaluate(default, 0.75f), Is.EqualTo(0.75f).Within(Tolerance));
         }
 
         [TestCaseSource(nameof(Eases))]
@@ -53,11 +68,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             MusicAttenuation wild = new(3f, 50_000f, 90_000f);
             Assert.That(wild.volumeScale, Is.EqualTo(1f));
             Assert.That(wild.lowPassCutoffHz, Is.EqualTo(MusicAttenuation.OpenLowPassCutoffHz));
-            Assert.That(
-                wild.highPassCutoffHz,
-                Is.LessThanOrEqualTo(wild.lowPassCutoffHz),
-                "crossed filters would cut everything"
-            );
+            Assert.That(wild.highPassCutoffHz, Is.LessThanOrEqualTo(wild.lowPassCutoffHz), "crossed filters would cut everything");
 
             MusicAttenuation crossed = new(0.5f, 500f, 2_000f);
             Assert.That(crossed.highPassCutoffHz, Is.EqualTo(500f));
