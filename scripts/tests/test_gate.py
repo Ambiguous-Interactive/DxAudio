@@ -72,7 +72,7 @@ def case_plan_prints_the_full_lane_table(python: str) -> None:
         f"the plan must list the five lanes in order, got: {','.join(names)}",
     )
     steps = step_names(plan)
-    assert_true(len(steps) == 18, f"the plan must list 18 steps, got {len(steps)}")
+    assert_true(len(steps) == 19, f"the plan must list 19 steps, got {len(steps)}")
     assert_true(len(steps) == len(set(steps)), "step names must be unique")
     for name in steps:
         assert_true(

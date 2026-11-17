@@ -17,6 +17,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Changed
 
+- Compile every assembly with warnings as errors. `scripts/sync_compiler_policy.py` writes the response file and the ruleset beside each assembly definition before a local, gate, or CI build, and both files stay out of the repository and the npm payload ([#40](https://github.com/Ambiguous-Interactive/DxAudio/issues/40)).
 - Move the cue, duck and music track inspectors, and the library window, to UI Toolkit with one shared style; audition, the composed duck preview and the clip import write work from the new tree ([#48](https://github.com/Ambiguous-Interactive/DxAudio/issues/48)).
 - Require every enum to start with an obsolete `Unknown = 0`, so an unset serialized value is distinguishable from a chosen one; `MusicEase` values shift by one and `MusicClipLoadType` gains the sentinel and a stored ease migrates to its original curve ([#47](https://github.com/Ambiguous-Interactive/DxAudio/pull/47)).
 - Format every source type at the 180-character line length the `.editorconfig` already declares, and keep each changelog entry on one line ([#47](https://github.com/Ambiguous-Interactive/DxAudio/pull/47)).

@@ -19,6 +19,7 @@ COMMANDS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
     ('lint_line_endings.py', ('--verbose',)),
     ('lint_meta_companions.py', ()),
     ('lint_docs_links.py', ('--verbose',)),
+    ('sync_compiler_policy.py', ()),
     ('lint_assembly_warnings.py', ('--verbose',)),
     ('lint_changelog_length.py', ('--verbose',)),
     ('lint_file_lengths.py', ('--verbose-output',)),
