@@ -11,6 +11,7 @@ is no longer required, and the real CLI contract is exercised instead.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -159,6 +160,57 @@ def case_preserves_process_failure_exit_code_and_records_failure() -> None:
         remove_temp_root(root)
 
 
+def case_writes_the_compiler_policy_before_unity_starts() -> None:
+    """The package carries no compiler policy, so a live run must write it (issue #40)."""
+    root = new_temp_root(prefix="unity-runner-policy-")
+    outside = new_temp_root(prefix="unity-runner-policy-output-")
+    try:
+        # A copy of scripts/ is its own package root, so the case writes its
+        # generated files there instead of into the developer's checkout.
+        scripts = root / "scripts"
+        shutil.copytree(REPO_ROOT / "scripts", scripts, ignore=shutil.ignore_patterns("__pycache__", "tests"))
+        assembly = scripts / "Runtime"
+        assembly.mkdir()
+        write_fixture_file(scripts, "Runtime/WallstopStudios.DxAudio.asmdef", "{}\n")
+        project = root / "HostProject"
+        new_unity_project_fixture(project)
+        runner = scripts / "run_unity_validation.py"
+        arguments: Sequence[str] = [
+            sys.executable,
+            str(runner),
+            "--host-project", str(project),
+            "--unity-executable", sys.executable,
+            "--unity-version", "6000.6.7f1",
+            "--suite", "editmode",
+        ]
+
+        planned = subprocess.run(
+            [*arguments, "--output-directory", str(outside / "Planned"), "--plan-only"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert_true(planned.returncode == 0, f"the plan must pass: {planned.stdout}{planned.stderr}")
+        assert_true(
+            "compiler policy" not in planned.stdout,
+            "a plan-only run compiles nothing and must write no policy",
+        )
+        assert_true(not (assembly / "csc.rsp").exists(), "a plan-only run must leave the assembly directory alone")
+
+        live = subprocess.run(
+            [*arguments, "--output-directory", str(outside / "Live")],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert_true("Wrote 2 compiler policy file(s)" in live.stdout, f"the run must write the policy: {live.stdout}")
+        assert_true((assembly / "csc.rsp").is_file(), "the live run must write the response file")
+        assert_true((assembly / "WarningsAsErrors.ruleset").is_file(), "the live run must write the ruleset")
+    finally:
+        remove_temp_root(root)
+        remove_temp_root(outside)
+
+
 def main() -> int:
     print("== direct Unity validation runner tests ==")
 
@@ -167,6 +219,7 @@ def main() -> int:
     run_case("Rejects_OutputInsidePackageRepository", case_rejects_output_inside_package_repository)
     run_case("Rejects_UnsupportedSuite_AtParameterBinding", case_rejects_unsupported_suite_at_parameter_binding)
     run_case("Preserves_ProcessFailureExitCode_AndRecordsFailure", case_preserves_process_failure_exit_code_and_records_failure)
+    run_case("Writes_CompilerPolicy_BeforeUnityStarts", case_writes_the_compiler_policy_before_unity_starts)
 
     failures = failure_count()
     print(f"== direct Unity validation runner: {failures} failure(s) ==")

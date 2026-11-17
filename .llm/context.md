@@ -114,16 +114,20 @@ or `Feature`. Bodies stay under 300 lines; bulk material moves to `.llm/referenc
 10. `Runtime/Core` stays Unity-free. Engine types belong in `Runtime/Assets`, `Runtime/Players`, or the
     `UnityObjects.cs` shim.
 11. Every visible file or folder carries a committed `.meta`. Dot paths (`.llm/`, `.github/`, `.config/`, `.git/`) never
-    get one. See [create-unity-meta](./skills/create-unity-meta/SKILL.md).
+    get one, and the generated compiler-policy files (`csc.rsp`, `WarningsAsErrors.ruleset`) are exempt because they are
+    written locally and gitignored. See [create-unity-meta](./skills/create-unity-meta/SKILL.md).
 12. Never ship development files in the npm tarball. `package.json` `files` lists `Runtime`, `Editor`, `Tests`, and
     package metadata only; `tooling~`-style paths are not used here.
 13. Keep the public API additive where possible. Removing or renaming a public member is a breaking change and needs a
     major version plus a migration note.
 14. Audio callbacks and per-frame code must not allocate, box, or log in the steady state. Measure with the allocation
     probe before claiming a fix.
-15. Never hide a compiler warning. `Runtime/` and `Editor/` carry no `#pragma warning disable`, the package ships no
-    `.rsp` or `.ruleset`, and `.net-tests` keeps `TreatWarningsAsErrors`. Fix the warning or version-guard the API;
-    `scripts/lint_assembly_warnings.py` enforces this in the fast check, the gate, and CI.
+15. Never hide a compiler warning. Every assembly compiles with warnings as errors: Unity feeds the generated
+    `csc.rsp` and `WarningsAsErrors.ruleset` beside each assembly definition into that compile, and
+    `scripts/sync_compiler_policy.py` writes them for local and CI runs. They are gitignored, so no consumer inherits
+    the policy and hand-editing one cannot hide a warning. `Runtime/` and `Editor/` carry no `#pragma warning disable`,
+    no other `.rsp` or `.ruleset` exists, and `.net-tests` keeps `TreatWarningsAsErrors`. Fix the warning or
+    version-guard the API; `scripts/lint_assembly_warnings.py` enforces this in the fast check, the gate, and CI.
 16. Every enum starts with an `[Obsolete]` `Unknown = 0` member and gives every other member an explicit value. A
     serializer writes 0 into a field that never carried a value, so a zero that is also a real choice cannot tell
     "unset" from "chosen". Naming `Unknown` in code is a compile error by design: handle it through the default branch

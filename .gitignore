@@ -54,3 +54,11 @@ node_modules/
 node_modules.meta
 package-lock.json
 package-lock.json.meta
+
+# Generated compiler policy (issue #40): scripts/sync_compiler_policy.py writes
+# it beside every assembly definition for local and CI compiles. It never ships,
+# because a checked-in ruleset would promote warnings in a consumer's build.
+**/csc.rsp
+**/csc.rsp.meta
+**/WarningsAsErrors.ruleset
+**/WarningsAsErrors.ruleset.meta

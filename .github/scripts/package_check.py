@@ -61,6 +61,11 @@ def payload_problems(paths: set[str]) -> list[str]:
     allowed = set(ROOT_FILES) | {f"{name}.meta" for name in ROOT_FILES + PACKAGE_DIRS}
     stray = {path for path in paths if path not in allowed and PurePosixPath(path).parts[0] not in PACKAGE_DIRS}
     problems = [f"not package content: {path}" for path in sorted(stray)]
+    # The compiler policy is generated beside each assembly definition for local and CI builds, so a
+    # response file or ruleset in the payload would promote warnings inside a consumer's project.
+    problems += [
+        f"compiler policy shipped: {path}" for path in sorted(paths) if path.endswith((".rsp", ".ruleset"))
+    ]
     # Unity imports neither a dotfile nor anything under a folder ending in ~, so neither has a .meta.
     paths = {path for path in paths - stray if not any(p.startswith(".") or p.endswith("~") for p in PurePosixPath(path).parts)}
     folders = {str(parent) for path in paths for parent in PurePosixPath(path).parents if str(parent) != "."}

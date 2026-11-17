@@ -41,7 +41,11 @@
     "LICENSE.md.meta",
     "README.md",
     "README.md.meta",
-    "package.json.meta"
+    "package.json.meta",
+    "!**/csc.rsp",
+    "!**/csc.rsp.meta",
+    "!**/WarningsAsErrors.ruleset",
+    "!**/WarningsAsErrors.ruleset.meta"
   ],
   "samples": [
     {
@@ -71,7 +75,7 @@
     "mcp:repair": "uv run --no-project scripts/uv_environment.py --repair && uv run scripts/mcp_doctor.py --repair",
     "unity:mcp:host": "uv run --no-project scripts/uv_environment.py --repair && uv run scripts/unity_mcp_host.py",
     "unity:mcp:doctor": "uv run --no-project scripts/uv_environment.py --repair && uv run scripts/unity_mcp_doctor.py",
-    "unity:tests": "uv run --no-project scripts/uv_environment.py --repair && uv run scripts/unity_tests.py",
+    "unity:tests": "uv run --no-project scripts/uv_environment.py --repair && uv run scripts/sync_compiler_policy.py && uv run scripts/unity_tests.py",
     "tools:install": "uv run --no-project scripts/uv_environment.py --repair && uv run .devcontainer/install_npm_tools.py",
     "ai:backends:install": "uv run --no-project scripts/uv_environment.py --repair && uv run .devcontainer/ai_backends.py install",
     "package:check": "python .github/scripts/package_check.py"

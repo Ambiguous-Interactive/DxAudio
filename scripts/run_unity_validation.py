@@ -42,6 +42,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional, Sequence
 
+sys.dont_write_bytecode = True
+
+from sync_compiler_policy import write_policy
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 SUITES = ("editmode", "playmode")
@@ -181,6 +185,13 @@ def run(options: argparse.Namespace) -> int:
         if options.plan_only:
             print(f"Validation plan written to {manifest_path}")
             return 0
+
+        # A checkout carries no compiler policy: the files are generated, so a
+        # direct run must write them before Unity compiles the package
+        # (issue #40).
+        written = write_policy(repo_root)
+        if written:
+            print(f"Wrote {len(written)} compiler policy file(s) for Unity")
 
         # start_new_session detaches the child into its own process group so a
         # timeout can kill the whole Unity tree the way the PowerShell
