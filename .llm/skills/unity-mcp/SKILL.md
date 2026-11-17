@@ -28,7 +28,7 @@ The host project must declare `com.unity.pipeline` in `Packages/manifest.json`. 
 | `npm run mcp:sync`             | either    | Writes the six frontend configs, idempotent                  |
 | `npm run mcp:doctor`           | either    | Credentials, config flavor, endpoint and stdio checks        |
 | `npm run unity:mcp:doctor`     | either    | Project pin, pipeline package, tool roundtrip                |
-| `npm run unity:tests`          | container | EditMode tests through the bridge                            |
+| `npm run unity:tests`          | host      | EditMode tests in a separate batchmode editor                |
 | `npm run unity:mcp:host -- --stop` | host  | Stop the bridge                                              |
 
 ## Play mode
