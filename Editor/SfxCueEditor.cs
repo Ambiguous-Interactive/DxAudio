@@ -2,148 +2,106 @@ namespace WallstopStudios.DxAudio.Editor
 {
     using System.Collections.Generic;
     using UnityEditor;
+    using UnityEditor.UIElements;
     using UnityEngine;
+    using UnityEngine.UIElements;
 
     /// <summary>Shows a cue's takes, where each begins, and plays one from the point the game would.</summary>
     /// <remarks>
-    /// The default inspector still authors everything. This adds the two questions a cue raises by ear:
-    /// is any take playable, and where does playback actually start after the clip's lead-in is skipped.
-    /// Audition uses a hidden, unsaved source, so it adds nothing to the open scene.
+    /// The default fields still author everything. This adds the two questions a cue raises by ear: is any take
+    /// playable, and where does playback actually start after the clip's lead-in is skipped. Audition uses a hidden,
+    /// unsaved source, so it adds nothing to the open scene.
     /// </remarks>
     [CanEditMultipleObjects]
     [CustomEditor(typeof(SfxCue))]
     public sealed class SfxCueEditor : UnityEditor.Editor
     {
-        private const string PreviewName = "DxAudio Preview Source";
+        private const string AuditionName = "DxAudioAudition";
 
-        private static AudioSource _previewSource;
-
-        static SfxCueEditor()
+        public override VisualElement CreateInspectorGUI()
         {
-            AssemblyReloadEvents.beforeAssemblyReload += DestroyPreviewSource;
-            EditorApplication.playModeStateChanged += OnPlayModeChanged;
-        }
-
-        public override void OnInspectorGUI()
-        {
-            DrawDefaultInspector();
+            VisualElement root = new VisualElement();
+            InspectorElement.FillDefaultInspector(root, serializedObject, this);
 
             // The take preview answers a question about one cue, so a mixed selection only edits fields.
             if (targets.Length != 1)
             {
-                return;
+                return root;
             }
 
             SfxCue cue = (SfxCue)target;
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Authoring Check", EditorStyles.boldLabel);
-            List<string> findings = DxAudioValidation.Validate(cue);
-            if (findings.Count == 0)
+            VisualElement authoring = new VisualElement();
+            root.Add(authoring);
+            RebuildAuthoring(authoring, cue);
+            // IMGUI redrew this section on every repaint; a serialized change rebuilds it the same way.
+            authoring.TrackSerializedObjectValue(serializedObject, _ => RebuildAuthoring(authoring, cue));
+            return root;
+        }
+
+        private static void RebuildAuthoring(VisualElement container, SfxCue cue)
+        {
+            container.Clear();
+            VisualElement check = DxAudioInspectorUi.AddSection(container, "Authoring Check");
+            DxAudioInspectorUi.AddFindings(check, DxAudioValidation.Validate(cue), "Every take is ready to play.");
+            DxAudioInspectorUi.AddSection(container, "Takes").Add(BuildTakes(cue));
+        }
+
+        /// <summary>The take list the cue inspector shows.</summary>
+        public static VisualElement BuildTakes(SfxCue cue)
+        {
+            VisualElement list = new VisualElement();
+            if (cue == null)
             {
-                EditorGUILayout.HelpBox("Every take is ready to play.", MessageType.Info);
-            }
-            else
-            {
-                for (int index = 0; index < findings.Count; ++index)
-                {
-                    EditorGUILayout.HelpBox(findings[index], MessageType.Warning);
-                }
+                list.Add(new Label("There is no cue to show."));
+                return list;
             }
 
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Takes", EditorStyles.boldLabel);
             IReadOnlyList<SfxVariant> variants = cue.Variants;
             if (variants.Count == 0)
             {
-                EditorGUILayout.LabelField("No takes yet. Add one above.");
-                return;
+                list.Add(new Label("No takes yet. Add one above."));
+                return list;
             }
 
             for (int index = 0; index < variants.Count; ++index)
             {
-                DrawTake(cue, variants[index], index);
+                list.Add(BuildTake(cue, variants[index], index));
             }
+
+            return list;
         }
 
-        private static void DrawTake(SfxCue cue, SfxVariant variant, int index)
+        private static VisualElement BuildTake(SfxCue cue, SfxVariant variant, int index)
         {
             if (variant == null)
             {
-                EditorGUILayout.LabelField($"Take {index + 1}: empty");
-                return;
+                VisualElement empty = DxAudioInspectorUi.Row();
+                DxAudioInspectorUi.AddText(empty, $"Take {index + 1}: empty");
+                return empty;
             }
 
             AudioClip clip = variant.Clip;
             if (clip == null)
             {
-                EditorGUILayout.LabelField($"Take {index + 1}: no clip");
-                return;
+                VisualElement silent = DxAudioInspectorUi.Row();
+                DxAudioInspectorUi.AddText(silent, $"Take {index + 1}: no clip");
+                return silent;
             }
 
-            EditorGUILayout.BeginHorizontal();
+            VisualElement row = DxAudioInspectorUi.Row();
             float start = cue.PlaybackStartSecondsFor(variant);
-            EditorGUILayout.LabelField($"Take {index + 1}: {clip.name}", $"starts {start:0.###}s of {clip.length:0.###}s");
-            if (GUILayout.Button("Audition", GUILayout.Width(80f)))
-            {
-                Audition(cue, variant);
-            }
+            DxAudioInspectorUi.AddText(row, $"Take {index + 1}: {clip.name}, starts {start:0.###}s of {clip.length:0.###}s");
 
-            EditorGUILayout.EndHorizontal();
-        }
-
-        private static void Audition(SfxCue cue, SfxVariant variant)
-        {
-            AudioSource source = PreviewSource();
-            source.Stop();
-            source.clip = variant.Clip;
-            source.loop = false;
-            source.volume = cue.Volume;
-            // Pitch jitter belongs to a voice draw, and a loop never restarts where the preview started.
-            source.pitch = 1f;
-            source.time = cue.PlaybackStartSecondsFor(variant);
-            source.Play();
+            Button audition = new Button(() => SfxAudition.Play(cue, variant)) { text = "Audition", name = AuditionName };
+            audition.style.width = 80f;
+            row.Add(audition);
+            return row;
         }
 
         private void OnDisable()
         {
-            if (_previewSource != null)
-            {
-                _previewSource.Stop();
-            }
-        }
-
-        private static void OnPlayModeChanged(PlayModeStateChange change)
-        {
-            if (change == PlayModeStateChange.ExitingEditMode)
-            {
-                DestroyPreviewSource();
-            }
-        }
-
-        private static AudioSource PreviewSource()
-        {
-            if (_previewSource == null)
-            {
-                GameObject host = EditorUtility.CreateGameObjectWithHideFlags(PreviewName, HideFlags.HideAndDontSave, typeof(AudioSource));
-                _previewSource = host.GetComponent<AudioSource>();
-                if (_previewSource == null)
-                {
-                    _previewSource = host.AddComponent<AudioSource>();
-                }
-            }
-
-            _previewSource.playOnAwake = false;
-            _previewSource.spatialBlend = 0f;
-            return _previewSource;
-        }
-
-        private static void DestroyPreviewSource()
-        {
-            if (_previewSource != null)
-            {
-                Object.DestroyImmediate(_previewSource.gameObject);
-                _previewSource = null;
-            }
+            // One source serves every cue inspector, so closing any of them ends the preview.
+            SfxAudition.DestroyPreview();
         }
     }
 }

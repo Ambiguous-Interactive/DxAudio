@@ -3,7 +3,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     using System.Collections.Generic;
     using NUnit.Framework;
     using UnityEditor;
+    using UnityEditor.UIElements;
     using UnityEngine;
+    using UnityEngine.UIElements;
     using WallstopStudios.DxAudio.Editor;
 
     public sealed class AuthoringTests
@@ -233,6 +235,136 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(composed.lowPassCutoffHz, Is.EqualTo(4_000f).Within(0.5f));
             Assert.That(composed.highPassCutoffHz, Is.EqualTo(300f).Within(0.5f));
             Assert.That(MusicDuckEditor.Compose(null, null).Equals(MusicAttenuation.Unattenuated), Is.True);
+        }
+
+        [Test]
+        public void ACueInspectorOffersOneAuditionForEachTake()
+        {
+            using MadeObjects made = new();
+            SfxCue cue = made.Track(SfxCue.Create(new[] { Variant(made), Variant(made) }, key: "step"));
+            SfxCue empty = made.Track(SfxCue.Create(new SfxVariant[0]));
+
+            List<Button> auditions = SfxCueEditor.BuildTakes(cue).Query<Button>("DxAudioAudition").ToList();
+
+            Assert.That(auditions, Has.Count.EqualTo(2));
+            Assert.That(auditions[0].text, Is.EqualTo("Audition"));
+            Assert.That(SfxCueEditor.BuildTakes(empty).Q<Label>().text, Is.EqualTo("No takes yet. Add one above."));
+        }
+
+        [Test]
+        public void AuditioningATakePlaysItFromTheCuesStart()
+        {
+            using MadeObjects made = new();
+            SfxVariant variant = new(Clip(made, 1f), startTimeSeconds: 0.25f);
+            SfxCue cue = made.Track(SfxCue.Create(new[] { variant }));
+
+            AudioSource source = SfxAudition.Play(cue, variant);
+            try
+            {
+                Assert.That(source != null, Is.True);
+                Assert.That(source.isPlaying, Is.True, "the preview starts");
+                Assert.That(source.clip == variant.Clip, Is.True, "the preview plays the take's clip");
+                Assert.That(source.loop, Is.False);
+                Assert.That(source.volume, Is.EqualTo(cue.Volume).Within(0.0001f));
+                Assert.That(source.time, Is.EqualTo(cue.PlaybackStartSecondsFor(variant)).Within(0.001f));
+
+                SfxAudition.Stop();
+                Assert.That(source.isPlaying, Is.False);
+            }
+            finally
+            {
+                SfxAudition.DestroyPreview();
+            }
+
+            Assert.That(SfxAudition.Play(cue, new SfxVariant()) == null, Is.True, "a take with no clip has nothing to audition");
+        }
+
+        [Test]
+        public void ADuckInspectorShowsWhatItsPreviewSetComposesTo()
+        {
+            using MadeObjects made = new();
+            MusicDuck first = made.Track(MusicDuck.Create(MusicDuckHolders.One, 0.5f));
+            MusicDuck quietest = made.Track(MusicDuck.Create(MusicDuckHolders.One, 0.4f));
+            List<MusicDuck> preview = new() { first, quietest };
+
+            VisualElement view = MusicDuckEditor.BuildComposedPreview(first, preview);
+            Label composed = view.Q<Label>("DxAudioComposed");
+
+            Assert.That(composed != null, Is.True);
+            Assert.That(composed.text, Does.Contain("volume x0.4"), "the most restrictive volume wins");
+            Assert.That(view.Query<ObjectField>().ToList(), Has.Count.EqualTo(2), "one row per held duck");
+        }
+
+        [Test]
+        public void AMusicTrackInspectorOffersTheLoadTypeWrite()
+        {
+            const string FixtureGuid = "5081b21fa3e1420dbfaac900a77b4b24";
+            AudioClip fixture = AssetDatabase.LoadAssetAtPath<AudioClip>(AssetDatabase.GUIDToAssetPath(FixtureGuid));
+            Assert.That(fixture != null, Is.True, "the fixture clip is missing");
+
+            using MadeObjects made = new();
+            MusicTrack mismatch = made.Track(MusicTrack.Create(fixture, context: "boss", clipLoadType: MusicClipLoadType.Streaming));
+            MusicTrack matched = made.Track(MusicTrack.Create(Clip(made, 20f), context: "town"));
+
+            UnityEditor.Editor mismatchEditor = null;
+            UnityEditor.Editor matchedEditor = null;
+            try
+            {
+                mismatchEditor = UnityEditor.Editor.CreateEditor(mismatch, typeof(MusicTrackEditor));
+                matchedEditor = UnityEditor.Editor.CreateEditor(matched, typeof(MusicTrackEditor));
+                VisualElement view = mismatchEditor.CreateInspectorGUI();
+                VisualElement settled = matchedEditor.CreateInspectorGUI();
+                Button apply = view.Q<Button>();
+
+                Assert.That(view.Q<Label>("DxAudioClipImportStatus").text, Does.Contain("the track asks for Streaming"));
+                Assert.That(apply != null, Is.True);
+                Assert.That(apply.text, Does.Contain("Streaming"));
+                Assert.That(settled.Q<Button>() == null, Is.True, "a clip that follows its track needs no write");
+            }
+            finally
+            {
+                if (mismatchEditor != null)
+                {
+                    Object.DestroyImmediate(mismatchEditor);
+                }
+
+                if (matchedEditor != null)
+                {
+                    Object.DestroyImmediate(matchedEditor);
+                }
+            }
+        }
+
+        [Test]
+        public void ALibraryWindowReportNamesEveryProblem()
+        {
+            using MadeObjects made = new();
+            SfxCue silent = made.Track(SfxCue.Create(new[] { new SfxVariant() }, key: "step"));
+            SfxLibrary library = made.Track(SfxLibrary.Create(new[] { silent, null }));
+            List<Object> libraries = new() { library };
+            List<List<string>> findings = new() { DxAudioValidation.Validate(library) };
+
+            VisualElement report = DxAudioLibraryWindow.BuildReport(libraries, findings);
+
+            Assert.That(report.Q<Label>().text, Is.EqualTo("1 library, 2 problems"));
+            Assert.That(report.Query<HelpBox>().ToList(), Has.Count.EqualTo(2));
+
+            VisualElement empty = DxAudioLibraryWindow.BuildReport(new List<Object>(), new List<List<string>>());
+            Assert.That(empty.Q<Label>().text, Is.EqualTo("0 libraries, 0 problems"));
+            Assert.That(empty.Q<HelpBox>() != null, Is.True, "an empty project says so");
+        }
+
+        [Test]
+        public void ALibraryWindowOffersARecheckButtonBesideItsSummary()
+        {
+            VisualElement content = DxAudioLibraryWindow.BuildWindowContent(() => { });
+            Button checkAgain = content.Q<Button>();
+            Label summary = content.Q<Label>();
+
+            Assert.That(checkAgain != null, Is.True);
+            Assert.That(checkAgain.text, Is.EqualTo("Check Again"));
+            Assert.That(summary != null, Is.True);
+            Assert.That(summary.text, Does.Match(@"^\d+ librar(y|ies), \d+ problems?$"));
         }
 
         private static string Joined(List<string> findings)
