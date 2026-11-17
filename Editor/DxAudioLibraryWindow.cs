@@ -20,12 +20,27 @@ namespace WallstopStudios.DxAudio.Editor
         {
             DxAudioLibraryWindow window = GetWindow<DxAudioLibraryWindow>();
             window.titleContent = new GUIContent("DxAudio Libraries");
+            // An open window keeps its last report, so the menu item validates again instead of showing it.
+            window.Refresh();
             window.Show();
         }
 
         public void CreateGUI()
         {
-            Rebuild();
+            Refresh();
+        }
+
+        /// <summary>The whole window tree: the recheck button and the current report.</summary>
+        public static VisualElement BuildWindowContent(Action checkAgain)
+        {
+            VisualElement content = new VisualElement();
+            content.style.flexGrow = 1f;
+            content.Add(new Button(checkAgain) { text = "Check Again" });
+            List<Object> libraries = new();
+            List<List<string>> findings = new();
+            Collect(libraries, findings);
+            content.Add(BuildReport(libraries, findings));
+            return content;
         }
 
         /// <summary>The report the window shows for <paramref name="libraries" /> and their findings.</summary>
@@ -81,14 +96,10 @@ namespace WallstopStudios.DxAudio.Editor
             return report;
         }
 
-        private void Rebuild()
+        private void Refresh()
         {
             rootVisualElement.Clear();
-            List<Object> libraries = new();
-            List<List<string>> findings = new();
-            Collect(libraries, findings);
-            rootVisualElement.Add(new Button(Rebuild) { text = "Check Again" });
-            rootVisualElement.Add(BuildReport(libraries, findings));
+            rootVisualElement.Add(BuildWindowContent(Refresh));
         }
 
         private static void Collect(List<Object> libraries, List<List<string>> findings)

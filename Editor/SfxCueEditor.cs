@@ -30,10 +30,20 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             SfxCue cue = (SfxCue)target;
-            VisualElement check = DxAudioInspectorUi.AddSection(root, "Authoring Check");
-            DxAudioInspectorUi.AddFindings(check, DxAudioValidation.Validate(cue), "Every take is ready to play.");
-            DxAudioInspectorUi.AddSection(root, "Takes").Add(BuildTakes(cue));
+            VisualElement authoring = new VisualElement();
+            root.Add(authoring);
+            RebuildAuthoring(authoring, cue);
+            // IMGUI redrew this section on every repaint; a serialized change rebuilds it the same way.
+            authoring.TrackSerializedObjectValue(serializedObject, _ => RebuildAuthoring(authoring, cue));
             return root;
+        }
+
+        private static void RebuildAuthoring(VisualElement container, SfxCue cue)
+        {
+            container.Clear();
+            VisualElement check = DxAudioInspectorUi.AddSection(container, "Authoring Check");
+            DxAudioInspectorUi.AddFindings(check, DxAudioValidation.Validate(cue), "Every take is ready to play.");
+            DxAudioInspectorUi.AddSection(container, "Takes").Add(BuildTakes(cue));
         }
 
         /// <summary>The take list the cue inspector shows.</summary>
@@ -90,6 +100,7 @@ namespace WallstopStudios.DxAudio.Editor
 
         private void OnDisable()
         {
+            // One source serves every cue inspector, so closing any of them stops the preview.
             SfxAudition.Stop();
         }
     }

@@ -1,5 +1,6 @@
 namespace WallstopStudios.DxAudio.Editor
 {
+    using System;
     using System.Collections.Generic;
     using UnityEditor;
     using UnityEditor.UIElements;
@@ -19,6 +20,9 @@ namespace WallstopStudios.DxAudio.Editor
 
         // One set across inspectors: the question is what the ducks a scene raises compose to.
         private static readonly List<MusicDuck> _preview = new();
+
+        // Every open preview draws the shared set, so a change in one inspector redraws all of them.
+        private static readonly List<Action> _refreshers = new();
 
         public override VisualElement CreateInspectorGUI()
         {
@@ -40,30 +44,13 @@ namespace WallstopStudios.DxAudio.Editor
         /// <summary>The composed preview for the set the inspectors share.</summary>
         public static VisualElement BuildComposedPreview(MusicDuck duck)
         {
-            return BuildComposedPreview(duck, _preview);
+            return BuildComposedPreview(duck, _preview, true);
         }
 
         /// <summary>The composed preview for <paramref name="preview" />, which the added and removed rows edit.</summary>
         public static VisualElement BuildComposedPreview(MusicDuck duck, List<MusicDuck> preview)
         {
-            VisualElement view = new VisualElement();
-            VisualElement rows = new VisualElement();
-            Label composed = new Label { name = ComposedName };
-            view.Add(rows);
-
-            Button add = new Button(() =>
-            {
-                preview.Add(null);
-                FillRows(duck, preview, rows, composed);
-            })
-            {
-                text = "Add Duck",
-            };
-
-            view.Add(add);
-            view.Add(composed);
-            FillRows(duck, preview, rows, composed);
-            return view;
+            return BuildComposedPreview(duck, preview, false);
         }
 
         /// <summary>What <paramref name="duck" /> and <paramref name="others" /> compose to while all are held.</summary>
@@ -92,7 +79,62 @@ namespace WallstopStudios.DxAudio.Editor
             return stack.Current;
         }
 
-        private static void FillRows(MusicDuck duck, List<MusicDuck> preview, VisualElement rows, Label composed)
+        private static VisualElement BuildComposedPreview(MusicDuck duck, List<MusicDuck> preview, bool shared)
+        {
+            VisualElement view = new VisualElement();
+            VisualElement rows = new VisualElement();
+            Label composed = new Label { name = ComposedName };
+            view.Add(rows);
+
+            void Refresh()
+            {
+                FillRows(duck, preview, rows, composed, Notify);
+            }
+
+            void Notify()
+            {
+                if (!shared)
+                {
+                    Refresh();
+                    return;
+                }
+
+                // A change in one inspector redraws every open preview, so no row index goes stale.
+                for (int index = _refreshers.Count - 1; 0 <= index; --index)
+                {
+                    _refreshers[index]();
+                }
+            }
+
+            Action refresh = Refresh;
+            Button add = new Button(() =>
+            {
+                preview.Add(null);
+                Notify();
+            })
+            {
+                text = "Add Duck",
+            };
+
+            view.Add(add);
+            view.Add(composed);
+            if (shared)
+            {
+                view.RegisterCallback<AttachToPanelEvent>(_ =>
+                {
+                    if (!_refreshers.Contains(refresh))
+                    {
+                        _refreshers.Add(refresh);
+                    }
+                });
+                view.RegisterCallback<DetachFromPanelEvent>(_ => _refreshers.Remove(refresh));
+            }
+
+            Refresh();
+            return view;
+        }
+
+        private static void FillRows(MusicDuck duck, List<MusicDuck> preview, VisualElement rows, Label composed, Action afterChange)
         {
             rows.Clear();
             for (int index = 0; index < preview.Count; ++index)
@@ -108,15 +150,23 @@ namespace WallstopStudios.DxAudio.Editor
                 field.style.flexGrow = 1f;
                 field.RegisterValueChangedCallback(change =>
                 {
-                    preview[rowIndex] = (MusicDuck)change.newValue;
-                    ShowComposed(duck, preview, composed);
+                    if (0 <= rowIndex && rowIndex < preview.Count)
+                    {
+                        preview[rowIndex] = (MusicDuck)change.newValue;
+                    }
+
+                    afterChange();
                 });
                 row.Add(field);
 
                 Button remove = new Button(() =>
                 {
-                    preview.RemoveAt(rowIndex);
-                    FillRows(duck, preview, rows, composed);
+                    if (0 <= rowIndex && rowIndex < preview.Count)
+                    {
+                        preview.RemoveAt(rowIndex);
+                    }
+
+                    afterChange();
                 })
                 {
                     text = "Remove",

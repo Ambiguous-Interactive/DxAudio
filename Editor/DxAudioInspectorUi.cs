@@ -13,7 +13,7 @@ namespace WallstopStudios.DxAudio.Editor
     internal static class DxAudioInspectorUi
     {
         /// <summary>Adds a spaced section under <paramref name="parent" /> and returns it.</summary>
-        public static VisualElement AddSection(VisualElement parent, string title)
+        internal static VisualElement AddSection(VisualElement parent, string title)
         {
             VisualElement section = new VisualElement();
             section.style.marginTop = 8f;
@@ -25,7 +25,7 @@ namespace WallstopStudios.DxAudio.Editor
         }
 
         /// <summary>A row that holds a description and the control that acts on it.</summary>
-        public static VisualElement Row()
+        internal static VisualElement Row()
         {
             VisualElement row = new VisualElement();
             row.style.flexDirection = FlexDirection.Row;
@@ -34,7 +34,7 @@ namespace WallstopStudios.DxAudio.Editor
         }
 
         /// <summary>Adds a label that takes the row's spare width and returns it.</summary>
-        public static Label AddText(VisualElement parent, string text)
+        internal static Label AddText(VisualElement parent, string text)
         {
             Label label = new Label(text);
             label.style.flexGrow = 1f;
@@ -43,7 +43,7 @@ namespace WallstopStudios.DxAudio.Editor
         }
 
         /// <summary>Adds one warning per finding, or one clear line when there are none.</summary>
-        public static void AddFindings(VisualElement parent, IReadOnlyList<string> findings, string clear)
+        internal static void AddFindings(VisualElement parent, IReadOnlyList<string> findings, string clear)
         {
             if (findings.Count == 0)
             {

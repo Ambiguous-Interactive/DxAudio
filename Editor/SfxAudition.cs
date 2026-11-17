@@ -17,7 +17,7 @@ namespace WallstopStudios.DxAudio.Editor
 
         static SfxAudition()
         {
-            AssemblyReloadEvents.beforeAssemblyReload += DestroySource;
+            AssemblyReloadEvents.beforeAssemblyReload += DestroyPreview;
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
         }
 
@@ -51,11 +51,21 @@ namespace WallstopStudios.DxAudio.Editor
             }
         }
 
+        /// <summary>Destroys the preview source, so it does not outlive a test or an editor session.</summary>
+        public static void DestroyPreview()
+        {
+            if (_previewSource != null)
+            {
+                Object.DestroyImmediate(_previewSource.gameObject);
+                _previewSource = null;
+            }
+        }
+
         private static void OnPlayModeChanged(PlayModeStateChange change)
         {
             if (change == PlayModeStateChange.ExitingEditMode)
             {
-                DestroySource();
+                DestroyPreview();
             }
         }
 
@@ -74,15 +84,6 @@ namespace WallstopStudios.DxAudio.Editor
             _previewSource.playOnAwake = false;
             _previewSource.spatialBlend = 0f;
             return _previewSource;
-        }
-
-        private static void DestroySource()
-        {
-            if (_previewSource != null)
-            {
-                Object.DestroyImmediate(_previewSource.gameObject);
-                _previewSource = null;
-            }
         }
     }
 }

@@ -26,13 +26,23 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             MusicTrack track = (MusicTrack)target;
+            VisualElement import = new VisualElement();
+            root.Add(import);
+            RebuildClipImport(import, track);
+            // IMGUI redrew this section on every repaint; a serialized change rebuilds it the same way.
+            import.TrackSerializedObjectValue(serializedObject, _ => RebuildClipImport(import, track));
+            return root;
+        }
+
+        private static void RebuildClipImport(VisualElement container, MusicTrack track)
+        {
+            container.Clear();
             if (track.Clip == null)
             {
-                return root;
+                return;
             }
 
-            DxAudioInspectorUi.AddSection(root, "Clip Import").Add(BuildClipImport(track));
-            return root;
+            DxAudioInspectorUi.AddSection(container, "Clip Import").Add(BuildClipImport(track));
         }
 
         /// <summary>Shows the clip's imported load type beside the track's and offers the write that agrees them.</summary>
@@ -79,6 +89,9 @@ namespace WallstopStudios.DxAudio.Editor
             MusicClipLoadType resolved = track.ResolvedClipLoadType;
             if (!MusicClipImport.TryApply(clip, resolved))
             {
+                // Rebuild so a second blocked click replaces the warning instead of stacking another.
+                view.Clear();
+                view.Add(BuildClipImport(track));
                 view.Add(new HelpBox("The clip's type did not change; a per-platform override or a read-only file may block it.", HelpBoxMessageType.Warning));
                 return;
             }

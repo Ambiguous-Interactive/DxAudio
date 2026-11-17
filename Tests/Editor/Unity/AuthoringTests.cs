@@ -262,14 +262,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             try
             {
                 Assert.That(source != null, Is.True);
+                Assert.That(source.isPlaying, Is.True, "the preview starts");
                 Assert.That(source.clip == variant.Clip, Is.True, "the preview plays the take's clip");
                 Assert.That(source.loop, Is.False);
                 Assert.That(source.volume, Is.EqualTo(cue.Volume).Within(0.0001f));
                 Assert.That(source.time, Is.EqualTo(cue.PlaybackStartSecondsFor(variant)).Within(0.001f));
+
+                SfxAudition.Stop();
+                Assert.That(source.isPlaying, Is.False);
             }
             finally
             {
-                SfxAudition.Stop();
+                SfxAudition.DestroyPreview();
             }
 
             Assert.That(SfxAudition.Play(cue, new SfxVariant()) == null, Is.True, "a take with no clip has nothing to audition");
@@ -329,6 +333,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             VisualElement empty = DxAudioLibraryWindow.BuildReport(new List<Object>(), new List<List<string>>());
             Assert.That(empty.Q<Label>().text, Is.EqualTo("0 libraries, 0 problems"));
             Assert.That(empty.Q<HelpBox>() != null, Is.True, "an empty project says so");
+        }
+
+        [Test]
+        public void ALibraryWindowAddsARecheckButtonToTheReport()
+        {
+            VisualElement content = DxAudioLibraryWindow.BuildWindowContent(() => { });
+
+            Assert.That(content.Q<Button>() != null, Is.True, "the window offers a recheck");
+            Assert.That(content.Q<Label>() != null, Is.True);
         }
 
         private static string Joined(List<string> findings)
