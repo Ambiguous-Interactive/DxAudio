@@ -21,6 +21,7 @@ COMMANDS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
     ('lint_docs_links.py', ('--verbose',)),
     ('sync_compiler_policy.py', ()),
     ('lint_assembly_warnings.py', ('--verbose',)),
+    ('lint_playmode_sources.py', ('--verbose',)),
     ('lint_changelog_length.py', ('--verbose',)),
     ('lint_file_lengths.py', ('--verbose-output',)),
     ('generate_skills_index.py', ()),

@@ -189,6 +189,11 @@ LANES: Tuple[Tuple[str, Tuple[Step, ...]], ...] = (
                 (*_PYTHON_LAUNCHER, "scripts/lint_assembly_warnings.py", "--verbose"),
                 ("assembly.policy",),
             ),
+            Step(
+                "csharp.playmode",
+                "PlayMode source policy",
+                (*_PYTHON_LAUNCHER, "scripts/lint_playmode_sources.py", "--verbose"),
+            ),
         ),
     ),
     (
