@@ -109,6 +109,7 @@ class Doctor:
         self.request = request
         self.failures = 0
         self.warnings = 0
+        self.editor_missing = False
         self.project: Optional[Path] = None
         container_flag = environment.get('DXAUDIO_IN_CONTAINER')
         self.remote = container_flag == '1' if container_flag is not None else Path('/.dockerenv').exists() or Path('/run/.containerenv').exists()
@@ -284,6 +285,7 @@ class Doctor:
                 readiness_failed = True
         except (OSError, ValueError) as error:
             self.fail(f'editor_status canary failed: {error}')
+            self.editor_missing = 'No Pipeline instance' in str(error)
             readiness_failed = True
         if readiness_failed:
             self.report_pinned_diagnostics(rpc, names)
@@ -298,6 +300,15 @@ class Doctor:
             raw = object_value(entries[0]).get('text') if isinstance(entries, list) and entries else ''
             details = object_value(cast(Json, json.loads(raw))) if isinstance(raw, str) else {}
             self.warn('Pinned host diagnosis: ' + json.dumps(details.get('discoveryErrors', details.get('probeError', 'No structured host result.'))))
+            reported = details.get('discoveryErrors')
+            codes = [object_value(entry).get('code') for entry in reported] if isinstance(reported, list) else []
+            if self.editor_missing or 'STATUS_NO_INSTANCES' in codes:
+                # A bridge that answers while its editor is gone looks the same
+                # whether the editor exited or aborted, and play mode through the
+                # bridge has aborted it before. Keep the evidence path in reach.
+                self.warn('The pinned editor is gone. Read Logs/Editor.log on the host and the newest '
+                          '%LOCALAPPDATA%\\Temp\\Unity\\Editor\\Crashes\\Crash_* folder before you restart the editor, '
+                          'and do not repeat the command that took it down.')
         except (OSError, ValueError) as error:
             self.warn('Pinned host diagnosis failed: ' + str(error))
 

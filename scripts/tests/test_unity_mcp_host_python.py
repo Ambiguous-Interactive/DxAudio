@@ -233,5 +233,75 @@ class StartupTests(unittest.TestCase):
             self.assertIsNone(bridge.handle({'method': 'initialized'}))
 
 
+class PlayModeGuardTests(unittest.TestCase):
+    """Play mode through the bridge aborted the pinned editor once (2026-11-17)."""
+
+    refused_calls = [
+        ('editor_playmode_start', {}),
+        ('editor_playmode_pause', {}),
+        ('editor_playmode_set_run_in_background', {'value': True}),
+        ('runtime_quit', {}),
+        ('runtime_set_time_scale', {'scale': 0}),
+        ('test_run', {'mode': 'playmode'}),
+        ('test_run', {'mode': 'ALL'}),
+        ('test_run', {'mode': ' all '}),
+    ]
+
+    allowed_calls = [
+        ('editor_playmode_stop', {}),
+        ('editor_playmode_list_instances', {}),
+        ('test_run', {'mode': 'editor'}),
+        ('test_run', {}),
+        ('test_status', {'detail': 'summary'}),
+        ('script_eval', {'code': 'return 1;'}),
+    ]
+
+    def test_play_mode_calls_are_refused_without_the_host_opt_in(self) -> None:
+        for name, arguments in self.refused_calls:
+            with self.subTest(name=name, arguments=arguments):
+                refusal = host.refused_play_mode_call(name, arguments, False)
+                self.assertIsNotNone(refusal)
+                self.assertIn(name, refusal)
+                self.assertIn(host.PLAY_MODE_OPT_IN + '=1', refusal)
+                self.assertIn('--suite playmode', refusal)
+
+    def test_edit_mode_and_recovery_calls_pass_the_guard(self) -> None:
+        for name, arguments in self.allowed_calls:
+            with self.subTest(name=name, arguments=arguments):
+                self.assertIsNone(host.refused_play_mode_call(name, arguments, False))
+
+    def test_the_host_opt_in_allows_every_call(self) -> None:
+        self.assertTrue(host.play_mode_allowed({host.PLAY_MODE_OPT_IN: '1'}))
+        self.assertFalse(host.play_mode_allowed({}))
+        for value in ('0', 'false', 'no', ''):
+            self.assertFalse(host.play_mode_allowed({host.PLAY_MODE_OPT_IN: value}))
+        for name, arguments in self.refused_calls:
+            with self.subTest(name=name):
+                self.assertIsNone(host.refused_play_mode_call(name, arguments, host.play_mode_allowed({host.PLAY_MODE_OPT_IN: '1'})))
+
+    def test_bridge_answers_a_refused_call_without_forwarding_it(self) -> None:
+        bridge = host.Bridge(settings())
+        self.addCleanup(bridge.close)
+        request = {'jsonrpc': '2.0', 'id': 7, 'method': 'tools/call',
+                   'params': {'name': 'test_run', 'arguments': {'mode': 'playmode'}}}
+        with patch.object(bridge, 'request') as forward, patch.object(host, 'log'):
+            response = bridge.handle(request)
+        forward.assert_not_called()
+        self.assertEqual(response['id'], 7)
+        self.assertTrue(response['result']['isError'])
+        self.assertIn('refused', response['result']['content'][0]['text'])
+        self.assertTrue(bridge.health()['playModeAllowed'] is False)
+
+    def test_bridge_forwards_an_edit_mode_call(self) -> None:
+        bridge = host.Bridge(settings())
+        self.addCleanup(bridge.close)
+        request = {'jsonrpc': '2.0', 'id': 8, 'method': 'tools/call',
+                   'params': {'name': 'test_run', 'arguments': {'mode': 'editor'}}}
+        forwarded = {'jsonrpc': '2.0', 'id': 8, 'result': {'content': []}}
+        with patch.object(bridge, 'request', return_value=forwarded) as forward:
+            self.assertEqual(bridge.handle(request), forwarded)
+        forward.assert_called_once_with(request)
+
+
 if __name__ == '__main__':
     unittest.main()

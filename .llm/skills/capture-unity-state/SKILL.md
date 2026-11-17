@@ -34,8 +34,16 @@ A dirty or playing editor means **refuse and name the scenes**. A modal dialog b
 
 ## Play mode
 
-Entering play mode over MCP stops the bridge answering until a human leaves play mode. Only start a play-mode run when a human is present, and never as the last operation of a
-session.
+The bridge refuses play-mode calls, and that is the policy rather than a limitation: entering play mode over the bridge
+stops the editor answering, and a PlayMode test run aborted the pinned editor on 2026-11-17 (`STATUS_FATAL_APP_EXIT` in
+its crash dump). A PlayMode suite runs as its own batchmode editor through `scripts/run_unity_validation.py --suite
+playmode`, never through this bridge. See [unity-mcp](../unity-mcp/SKILL.md#play-mode).
+
+## Evidence before you clear anything
+
+`console_clear` deletes the only record of a compile failure or a crash breadcrumb, and the console cannot be replayed.
+Read `console_get` first and keep the text. The same caution applies to restarting or reloading the editor: copy the log
+tail before it rotates, because Unity keeps one `Logs/Editor-prev.log` and overwrites it on the next start.
 
 ## Artifacts
 
