@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import deque
 from contextlib import contextmanager, suppress
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -299,6 +300,23 @@ class Bridge:
         """Return the credential values the pinned CLI inherits from this process."""
         return credential_values((os.environ, {'UNITY_MCP_TOKEN': self.settings['token']}))
 
+    def editor_log_tail(self, lines: int = 40) -> str:
+        """Return the tail of the pinned project's editor log.
+
+        Unity overwrites `Logs/Editor.log` when it starts again, so this is the
+        only copy of a crash's last words once the editor is gone.
+        """
+        project = self.settings['projectPath']
+        if not project:
+            return ''
+        try:
+            with (Path(project) / 'Logs' / 'Editor.log').open('r', encoding='utf-8', errors='replace') as handle:
+                tail = deque(handle, maxlen=lines)
+        except OSError:
+            return ''
+        text = '\n'.join(line.rstrip() for line in tail)
+        return redact_credentials(text, self.secrets())[-4000:]
+
     def diagnostics(self) -> JsonMap:
         arguments = [self.settings['cliCommand'], 'status', '--format', 'json']
         if self.settings['projectPath']:
@@ -319,6 +337,7 @@ class Bridge:
             report['statusSuccess'] = status.get('success')
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             report['probeError'] = type(error).__name__ + ': pinned Unity status did not return structured diagnostics.'
+        report['editorLogTail'] = self.editor_log_tail()
         return report
 
     def handle(self, message: object) -> Optional[object]:

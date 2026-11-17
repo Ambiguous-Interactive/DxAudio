@@ -70,7 +70,8 @@ What to do instead:
 editor exited or aborted. Stop issuing calls and collect the evidence first:
 
 1. `Logs/Editor.log` on the host holds the tail of the session, and `Logs/Editor-prev.log` the session before it.
-   Unity overwrites `Editor.log` on the next start, so copy the tail before a restart.
+   Unity overwrites `Editor.log` on the next start, so copy the tail before a restart. `bridge_diagnostics` already
+   returns it as `editorLogTail`, and the doctor prints its last lines, because the bridge outlives the editor.
 2. `%LOCALAPPDATA%\Temp\Unity\Editor\Crashes\Crash_<utc>_<serial>` holds `crash.dmp` and a startup copy of the log.
    The folder name is the crash time in UTC, which is how a crash is told apart from a kill.
 3. `crash.dmp` is a minidump: the exception code names the failure (`0xC0000005` is a fault, `0x40000015` is an

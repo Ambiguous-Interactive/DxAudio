@@ -304,11 +304,16 @@ class Doctor:
             codes = [object_value(entry).get('code') for entry in reported] if isinstance(reported, list) else []
             if self.editor_missing or 'STATUS_NO_INSTANCES' in codes:
                 # A bridge that answers while its editor is gone looks the same
-                # whether the editor exited or aborted, and play mode through the
-                # bridge has aborted it before. Keep the evidence path in reach.
+                # whether the editor exited or aborted, and this host's editor has
+                # aborted four times in three days. Keep the evidence in reach.
                 self.warn('The pinned editor is gone. Read Logs/Editor.log on the host and the newest '
                           '%LOCALAPPDATA%\\Temp\\Unity\\Editor\\Crashes\\Crash_* folder before you restart the editor, '
                           'and do not repeat the command that took it down.')
+                tail = details.get('editorLogTail')
+                if isinstance(tail, str) and tail.strip():
+                    # Unity overwrites the log on the next start, so print what is left now.
+                    last = ' | '.join(tail.strip().splitlines()[-6:])
+                    self.warn('Editor log tail: ' + (last[-900:] if 900 < len(last) else last))
         except (OSError, ValueError) as error:
             self.warn('Pinned host diagnosis failed: ' + str(error))
 

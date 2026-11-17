@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+import shutil
 import socket
 import subprocess
 import os
 import sys
+import tempfile
 import threading
 import unittest
 from typing import cast
@@ -312,6 +314,38 @@ class PlayModeGuardTests(unittest.TestCase):
         with patch.object(bridge, 'request', return_value=forwarded) as forward:
             self.assertEqual(bridge.handle(request), forwarded)
         forward.assert_called_once_with(request)
+
+
+class EditorLogTailTests(unittest.TestCase):
+    """Unity overwrites its log on the next start, so the bridge reads it first."""
+
+    def test_tail_keeps_the_last_lines_and_redacts_credentials(self) -> None:
+        root = Path(tempfile.mkdtemp(prefix='unity-mcp-log-'))
+        self.addCleanup(shutil.rmtree, root, True)
+        logs = root / 'Logs'
+        logs.mkdir()
+        lines = [f'line {index}' for index in range(60)] + ['Crash!!! token inherited-secret']
+        (logs / 'Editor.log').write_text('\n'.join(lines), encoding='utf-8')
+        values = settings()
+        values['projectPath'] = str(root)
+        bridge = host.Bridge(values)
+        self.addCleanup(bridge.close)
+        with patch.dict(host.os.environ, {'UNITY_MCP_API_KEY': 'inherited-secret'}):
+            tail = bridge.editor_log_tail(lines=5)
+        self.assertIn('line 59', tail)
+        self.assertNotIn('line 55', tail)
+        self.assertIn('Crash!!!', tail)
+        self.assertNotIn('inherited-secret', tail)
+
+    def test_diagnostics_carries_the_tail_even_when_status_fails(self) -> None:
+        values = settings()
+        values['projectPath'] = ''
+        bridge = host.Bridge(values)
+        self.addCleanup(bridge.close)
+        with patch.object(host.subprocess, 'run', side_effect=FileNotFoundError('unity')):
+            report = bridge.diagnostics()
+        self.assertEqual(report['editorLogTail'], '')
+        self.assertIn('probeError', report)
 
 
 if __name__ == '__main__':
