@@ -129,3 +129,5 @@ It omits `-quit` on purpose; with `-quit`, Unity exits before the test runner st
 
 - [capture-unity-state](../capture-unity-state/SKILL.md) - reading editor state safely
 - [.llm/mcp/README.md](../../mcp/README.md) - full bridge reference
+- [host-environment](../../references/host-environment.md) - the host's hardware, its crash record, and how to read a
+  minidump before a restart rotates the log
