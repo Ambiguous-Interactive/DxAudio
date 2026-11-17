@@ -203,9 +203,11 @@ See [llm-attribution](./skills/llm-attribution/SKILL.md).
 - Unity runs on the host. Container agents reach it through the host HTTP bridge: host `npm run unity:mcp:host`,
   container `npm run mcp:sync`. See [unity-mcp](./skills/unity-mcp/SKILL.md).
 - Prefer the Unity bridge for tests (`npm run unity:tests`) over a cold batchmode import.
-- Never enter or drive play mode through the bridge. The bridge refuses those calls by default, because play mode
-  stops the pinned editor answering and aborted it once; run a PlayMode suite as its own batchmode editor with
-  `scripts/run_unity_validation.py --suite playmode`. See [unity-mcp](./skills/unity-mcp/SKILL.md#play-mode).
+- Bridge play mode is refused by default, because play mode stops the editor answering and the CLI's `test run`
+  defaults to `all`. `test_run` must say `mode` `editor`; run a PlayMode suite as its own batchmode editor with
+  `scripts/run_unity_validation.py --suite playmode`. A PlayMode test never imports or writes an asset, because an
+  import inside play mode refreshes the asset database in the running player loop. See
+  [unity-mcp](./skills/unity-mcp/SKILL.md#play-mode).
 
 ## Front-End Pointer Files
 

@@ -102,6 +102,7 @@ class FastCheckPlan:
     harness: bool
     packaging: bool
     assembly_warnings: bool
+    playmode_sources: bool
     release_surface: bool
     line_endings: bool
     self_tests_all: bool
@@ -143,6 +144,14 @@ def build_plan(repo_root: Path, base_sha: str) -> FastCheckPlan:
         assembly_warnings=any(
             path.endswith((".asmdef", ".ruleset", ".rsp", ".dll.meta"))
             or path.startswith(".net-tests/")
+            or (path.endswith(".cs") and path.startswith(("Runtime/", "Editor/")))
+            for path in changed
+        ),
+        # The PlayMode rule covers every source of a PlayMode test assembly, so
+        # a change anywhere in Tests/PlayMode, or a C# change in the package,
+        # can introduce an asset mutation the editor dies on.
+        playmode_sources=any(
+            path.startswith(("Tests/PlayMode/", "Tests/PlayMode.meta"))
             or (path.endswith(".cs") and path.startswith(("Runtime/", "Editor/")))
             for path in changed
         ),
@@ -316,6 +325,15 @@ def build_steps(plan: FastCheckPlan) -> Tuple[Tuple[CheckStep, ...], Tuple[Check
 
     if plan.packaging:
         quick.append(CheckStep("pack.npm-pack", "npm pack dry run", ("npm", "pack", "--dry-run", "--no-audit", "--no-fund")))
+
+    if plan.csharp or plan.playmode_sources:
+        quick.append(
+            CheckStep(
+                "csharp.playmode-sources",
+                "PlayMode source policy",
+                (*_PYTHON_LAUNCHER, "scripts/lint_playmode_sources.py"),
+            )
+        )
 
     if plan.assembly_warnings:
         quick.append(

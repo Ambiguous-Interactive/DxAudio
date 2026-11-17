@@ -33,27 +33,36 @@ The host project must declare `com.unity.pipeline` in `Packages/manifest.json`. 
 
 ## Play mode
 
-**Never enter or drive play mode through the bridge.** Play mode stops the editor answering until a human leaves it,
-and on 2026-11-17 a PlayMode test run aborted the pinned editor: the crash dump reports `STATUS_FATAL_APP_EXIT`, the
-`test_run` call timed out after 180 s, and the pinned instance disappeared until the editor was restarted by hand. The
-run also left `Assets/DxAudioProbe` behind.
+Play mode through the bridge is a hazard to the bridge, not to the editor: the pinned editor stops answering every
+call until a human leaves play mode. The CLI adds a second trap: `test run` takes `mode` `all` when the caller omits
+it, so a plain `test_run {"filter": ...}` runs PlayMode tests.
 
-The bridge enforces this. It answers a play-mode call with an error and forwards nothing, unless the host sets
-`UNITY_MCP_ALLOW_PLAY_MODE=1` and restarts the bridge for a supervised run. The refused calls are
-`editor_playmode_start`, `editor_playmode_pause`, `editor_playmode_set_run_in_background`, `runtime_quit`,
-`runtime_set_target_frame_rate`, `runtime_set_time_scale`, `runtime_simulate_key`, `runtime_simulate_pointer`, and
-`test_run` with `mode` `playmode` or `all`. Read-only and recovery calls stay allowed: `editor_playmode_stop`,
-`editor_playmode_list_instances`, `runtime_status`, `test_status`, and `test_run` with `mode` `editor`.
+On 2026-11-17 a PlayMode test run also ended in a fatal editor abort (`STATUS_FATAL_APP_EXIT` in the crash dump, the
+CLI timing out after 180 s). That abort is not attributed: the host's editor has crashed four times in three days, and
+three of those came from sessions that never entered play mode. Two hit the same instruction in Unity's own code
+(`Unity.dll+0x2F27E54`, a read at `0xA4`) and one hit Boehm GC. The dump from the PlayMode run is a different mode, and
+the log that named it rotated away with the restart.
+
+What the bridge does, and why:
+
+- `test_run` must say `mode` `editor`. Without it the CLI runs `all`, so the bridge refuses the call rather than run
+  tests nobody asked for.
+- `editor_playmode_start`, `editor_playmode_pause`, `editor_playmode_set_run_in_background`, and the `runtime_*`
+  mutators are refused, because they stop the bridge answering. `editor_playmode_stop`,
+  `editor_playmode_list_instances`, `runtime_status`, and `test_status` stay allowed so a stuck editor is recoverable.
+- `UNITY_MCP_ALLOW_PLAY_MODE=1` on the host restores every refused call for a supervised run. The bridge reads it at
+  start, so restart the bridge after a change.
 
 What to do instead:
 
-- EditMode and asset work: this bridge, as before.
+- EditMode and asset work: this bridge.
 - A PlayMode suite: `uv run scripts/run_unity_validation.py --suite playmode ...`, which starts its own batchmode
   editor process and never touches the bridge. Batchmode renders no audio, so an audible measurement still needs a
   player build and a person at the machine.
-- A PlayMode test never writes assets: no `AssetDatabase` write, no file under `Assets/`, no `SaveAndReimport`. An
-  import during play mode forces a synchronous refresh inside the running player loop, which is where the 2026-11-17
-  run died. Generate fixtures before play mode, or in a player build.
+- A PlayMode test never imports or writes an asset. An import inside play mode runs a synchronous asset refresh in the
+  running player loop, and this host has lost the editor twice while it imported assets. `scripts/lint_playmode_sources.py`
+  fails a `Tests/PlayMode` source that names `AssetDatabase`, `AssetImporter`, `SaveAndReimport`, `ImportAsset`, or a
+  file write. Author the fixture before play mode, or measure it in a player build.
 
 ### When the bridge answers but the editor is gone
 
@@ -61,9 +70,12 @@ What to do instead:
 editor exited or aborted. Stop issuing calls and collect the evidence first:
 
 1. `Logs/Editor.log` on the host holds the tail of the session, and `Logs/Editor-prev.log` the session before it.
+   Unity overwrites `Editor.log` on the next start, so copy the tail before a restart.
 2. `%LOCALAPPDATA%\Temp\Unity\Editor\Crashes\Crash_<utc>_<serial>` holds `crash.dmp` and a startup copy of the log.
-   The folder name is the crash time, which is how a crash is told apart from a kill.
-3. `npm run unity:mcp:doctor` warns with the same path and never restarts anything by itself.
+   The folder name is the crash time in UTC, which is how a crash is told apart from a kill.
+3. `crash.dmp` is a minidump: the exception code names the failure (`0xC0000005` is a fault, `0x40000015` is an
+   abort). The exception address and the module list tell you whether Unity or a driver faulted.
+4. `npm run unity:mcp:doctor` warns with the same path and never restarts anything by itself.
 
 Then restart the editor by hand, and do not repeat the command that took it down.
 
@@ -114,5 +126,5 @@ It omits `-quit` on purpose; with `-quit`, Unity exits before the test runner st
 
 ## Related
 
-- [capture-unity-state](./capture-unity-state/SKILL.md) - reading editor state safely
+- [capture-unity-state](../capture-unity-state/SKILL.md) - reading editor state safely
 - [.llm/mcp/README.md](../../mcp/README.md) - full bridge reference

@@ -69,3 +69,9 @@ The batchmode command deliberately omits `-quit`; with it, Unity shuts down befo
 
 - [measure-audio-behaviour](./measure-audio-behaviour/SKILL.md) - allocation and timing probes
 - [voice-arbitration](./voice-arbitration/SKILL.md) - the policy these tests pin
+
+## PlayMode sources
+
+A PlayMode test never imports or writes an asset: an import inside play mode runs a synchronous asset
+refresh in the player loop, and `scripts/lint_playmode_sources.py` fails one that does. Author the fixture
+before play mode starts, or measure in a player build.
