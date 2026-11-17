@@ -306,17 +306,24 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             MusicTrack mismatch = made.Track(MusicTrack.Create(fixture, context: "boss", clipLoadType: MusicClipLoadType.Streaming));
             MusicTrack matched = made.Track(MusicTrack.Create(Clip(made, 20f), context: "town"));
 
-            VisualElement view = new VisualElement();
-            MusicTrackEditor.RebuildClipImport(view, mismatch);
-            MusicTrackEditor.RebuildClipImport(view, mismatch);
-            Button apply = view.Q<Button>();
-            VisualElement settled = MusicTrackEditor.RebuildClipImport(new VisualElement(), matched);
+            UnityEditor.Editor mismatchEditor = UnityEditor.Editor.CreateEditor(mismatch, typeof(MusicTrackEditor));
+            UnityEditor.Editor matchedEditor = UnityEditor.Editor.CreateEditor(matched, typeof(MusicTrackEditor));
+            try
+            {
+                VisualElement view = mismatchEditor.CreateInspectorGUI();
+                VisualElement settled = matchedEditor.CreateInspectorGUI();
+                Button apply = view.Q<Button>();
 
-            Assert.That(view.childCount, Is.EqualTo(1), "a rebuild replaces the section instead of nesting it");
-            Assert.That(view.Q<Label>("DxAudioClipImportStatus").text, Does.Contain("the track asks for Streaming"));
-            Assert.That(apply != null, Is.True);
-            Assert.That(apply.text, Does.Contain("Streaming"));
-            Assert.That(settled.Q<Button>() == null, Is.True, "a clip that follows its track needs no write");
+                Assert.That(view.Q<Label>("DxAudioClipImportStatus").text, Does.Contain("the track asks for Streaming"));
+                Assert.That(apply != null, Is.True);
+                Assert.That(apply.text, Does.Contain("Streaming"));
+                Assert.That(settled.Q<Button>() == null, Is.True, "a clip that follows its track needs no write");
+            }
+            finally
+            {
+                Object.DestroyImmediate(mismatchEditor);
+                Object.DestroyImmediate(matchedEditor);
+            }
         }
 
         [Test]

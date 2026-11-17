@@ -8,7 +8,8 @@ namespace WallstopStudios.DxAudio.Editor
     /// <summary>Shows the load type a clip's import settings hold beside the one a track asks for.</summary>
     /// <remarks>
     /// The default fields still author every value. The clip holds one load type, so this shows the resolved choice
-    /// next to the imported one and offers the write that makes them agree.
+    /// next to the imported one and offers the write that makes them agree. A blocked write keeps its explanation
+    /// across the rebuild that its own reimport triggers.
     /// </remarks>
     [CanEditMultipleObjects]
     [CustomEditor(typeof(MusicTrack))]
@@ -16,6 +17,8 @@ namespace WallstopStudios.DxAudio.Editor
     {
         private const string StatusName = "DxAudioClipImportStatus";
         private const string BlockedMessage = "The clip's type did not change; a per-platform override or a read-only file may block it.";
+
+        private string _warning;
 
         public override VisualElement CreateInspectorGUI()
         {
@@ -31,38 +34,34 @@ namespace WallstopStudios.DxAudio.Editor
             MusicTrack track = (MusicTrack)target;
             VisualElement import = new VisualElement();
             root.Add(import);
-            RebuildClipImport(import, track);
+            Rebuild(import, track);
             // IMGUI redrew this section on every repaint; a serialized change rebuilds it the same way.
-            import.TrackSerializedObjectValue(serializedObject, _ => RebuildClipImport(import, track));
+            import.TrackSerializedObjectValue(serializedObject, _ => Rebuild(import, track));
             return root;
         }
 
-        /// <summary>Rebuilds the clip import section under <paramref name="container" />.</summary>
-        public static VisualElement RebuildClipImport(VisualElement container, MusicTrack track)
+        private void Rebuild(VisualElement container, MusicTrack track)
         {
-            AudioClip clip = track == null ? null : track.Clip;
-            return RebuildClipImport(container, track, clip, null);
+            Rebuild(container, track, track == null ? null : track.Clip);
         }
 
-        private static VisualElement RebuildClipImport(VisualElement container, MusicTrack track, AudioClip clip, string warning)
+        private void Rebuild(VisualElement container, MusicTrack track, AudioClip clip)
         {
             container.Clear();
             if (track == null || clip == null)
             {
-                return container;
+                return;
             }
 
             VisualElement section = DxAudioInspectorUi.AddSection(container, "Clip Import");
             section.Add(BuildClipImport(track, clip, container));
-            if (warning != null)
+            if (_warning != null)
             {
-                section.Add(new HelpBox(warning, HelpBoxMessageType.Warning));
+                section.Add(new HelpBox(_warning, HelpBoxMessageType.Warning));
             }
-
-            return container;
         }
 
-        private static VisualElement BuildClipImport(MusicTrack track, AudioClip clip, VisualElement container)
+        private VisualElement BuildClipImport(MusicTrack track, AudioClip clip, VisualElement container)
         {
             VisualElement view = new VisualElement();
             if (!MusicClipImport.TryGetAppliedLoadType(clip, out MusicClipLoadType applied))
@@ -85,19 +84,20 @@ namespace WallstopStudios.DxAudio.Editor
                 return view;
             }
 
-            Button apply = new Button(() => Apply(track, clip, container)) { text = $"Apply {resolved} to the clip" };
+            Button apply = new Button(() => Write(track, clip, container)) { text = $"Apply {resolved} to the clip" };
             view.Add(apply);
             return view;
         }
 
-        private static void Apply(MusicTrack track, AudioClip clip, VisualElement container)
+        private void Write(MusicTrack track, AudioClip clip, VisualElement container)
         {
             // A reimport can replace the loaded clip, so rebuild from the clip the asset database loads by path.
             string path = AssetDatabase.GetAssetPath(clip);
             MusicClipLoadType resolved = track.ResolvedClipLoadType;
             bool applied = MusicClipImport.TryApply(clip, resolved);
             AudioClip fresh = string.IsNullOrEmpty(path) ? clip : AssetDatabase.LoadAssetAtPath<AudioClip>(path);
-            RebuildClipImport(container, track, fresh, applied ? null : BlockedMessage);
+            _warning = applied ? null : BlockedMessage;
+            Rebuild(container, track, fresh);
         }
     }
 }
