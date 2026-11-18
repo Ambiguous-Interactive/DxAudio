@@ -8,6 +8,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
+- Add an engine-free `DspGraph`: each node holds a `DspChain`, an edge fans a node out and sums it back in, and the graph delays the shorter branch so parallel paths stay aligned. It refuses a cycle or an oversized graph before audio runs ([#69](https://github.com/Ambiguous-Interactive/DxAudio/issues/69)).
 - Add a delay-line `DspPitchShifter` effect and its asset: it moves a sound from -24 to 24 semitones with two crossfaded read heads, reports its delay in samples, and allocates nothing per block ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add the DSP host: a cue or music track names a `DspChainAsset`, each pooled voice runs its own prepared copy, a player-wide bus runs after it, and a chain or cue inspector shows the live gain reduction of every stage ([#59](https://github.com/Ambiguous-Interactive/DxAudio/issues/59)).
 - Add the engine-free DSP chain: an ordered `DspChain` of limiter, compressor, distortion and bit crusher effects that shape an interleaved block in place without allocating ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
@@ -20,6 +21,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Changed
 
+- Make `DspEffect.Prepare` and `DspChain.Prepare` into `TryPrepare`, which answers a layout the stage cannot run with `false` instead of an exception, so game code reports a bad layout rather than catching one ([#70](https://github.com/Ambiguous-Interactive/DxAudio/issues/70)).
 - Require `mode` `editor` on every bridged `test_run`, refuse play mode there, fail a PlayMode source that imports an asset, and name the crash record when the bridge outlives its editor ([#53](https://github.com/Ambiguous-Interactive/DxAudio/issues/53)).
 - Compile every assembly with warnings as errors. `scripts/sync_compiler_policy.py` writes the response file and the ruleset beside each assembly definition before a local, gate, or CI build, and both files stay out of the repository and the npm payload ([#40](https://github.com/Ambiguous-Interactive/DxAudio/issues/40)).
 - Move the cue, duck and music track inspectors, and the library window, to UI Toolkit with one shared style; audition, the composed duck preview and the clip import write work from the new tree ([#48](https://github.com/Ambiguous-Interactive/DxAudio/issues/48)).
