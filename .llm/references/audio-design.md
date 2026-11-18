@@ -214,8 +214,8 @@ one host on each pooled voice; `MusicPlayer` does the same for its three voices.
 - A device change re-prepares the selected chains from `AudioSettings.OnAudioConfigurationChanged`, on the main thread.
   A chain's delay line is sized from the sample rate, so a prepared chain is wrong the moment the device moves.
 - `SfxPlayer.BuildVoices` warms the bus and every listed cue's chain on every voice, and `MusicPlayer.EnsureVoices` does
-  the same for its tracks. A cue played by reference that the library does not list is built the first time a voice
-  meets it, which is the one allocation a chained play can make.
+  the same for its tracks. A cue played by reference that no library lists is built the first time a voice meets it,
+  which is the one allocation a chained play can make; `SfxPlayer.Warm(cue)` moves that first build off the play.
 - The bus runs inside each voice after the voice's own chain. Unity gives a script no way to sum one source into
   another, so every bus effect acts on one voice at a time: two voices that each fit under a ceiling can still sum
   above it, which makes a bus a shared shaping stage rather than an output limiter.

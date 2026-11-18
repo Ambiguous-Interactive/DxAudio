@@ -223,6 +223,25 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(host.LiveBusChain.Count, Is.EqualTo(1), "the music bus reaches the voice");
         }
 
+        [Test]
+        public void AGameCanWarmAReferenceCueBeforePlayingIt()
+        {
+            using MadeObjects made = new();
+            DspChainAsset chain = Chain(made, made.Track(DspDistortionAsset.Create(drive: 4f)));
+            SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, chain: chain));
+            SfxPlayer player = Player(made, SfxLibrary.Create(new SfxCue[0], voiceCount: 2));
+
+            Assert.That(player.Warm(cue), Is.True, "the pool warms what the library lists; a reference cue needs this call");
+
+            IReadOnlyList<AudioFilterHost> hosts = player.GetComponentsInChildren<AudioFilterHost>();
+            for (int index = 0; index < hosts.Count; ++index)
+            {
+                Assert.That(hosts[index].IsPrepared(chain), Is.True, "every voice is ready before the first play");
+            }
+
+            Assert.That(player.Play(cue), Is.True);
+        }
+
         private static DspChainAsset Chain(MadeObjects made, params DspEffectAsset[] effects)
         {
             return made.Track(DspChainAsset.Create(effects));

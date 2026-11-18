@@ -43,7 +43,7 @@ last sound's gain or delay line.
 
 A voice reads an asset once, the first time it meets it, and keeps those settings until it is destroyed: an edit
 reaches the voices that have not met the asset yet. Chain assets a library lists are prepared with the voice pool, so
-the first play of them allocates nothing.
+the first play of them allocates nothing. A cue played by reference can be prepared ahead with `_sfx.Warm(cue)`.
 
 ## Limits
 

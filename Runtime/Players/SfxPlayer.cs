@@ -278,6 +278,31 @@ namespace WallstopStudios.DxAudio
             return true;
         }
 
+        /// <summary>Prepares <paramref name="cue" />'s chain on every voice, so a play of a reference cue allocates nothing.</summary>
+        /// <remarks>
+        /// The pool prepares every cue its library lists. This covers a cue a game holds by reference and never lists,
+        /// because the player cannot know it in advance and would otherwise build its chain inside the play call.
+        /// </remarks>
+        /// <returns><see langword="false" /> when the player has no voices to prepare.</returns>
+        public bool Warm(SfxCue cue)
+        {
+            if (cue == null || _voices.Length == 0)
+            {
+                return false;
+            }
+
+            for (int index = 0; index < _hosts.Length; index++)
+            {
+                AudioFilterHost host = _hosts[index];
+                if (host != null)
+                {
+                    host.Warm(cue.Chain);
+                }
+            }
+
+            return true;
+        }
+
         /// <summary>Stops every voice, loops included, and forgets every rate limit and take.</summary>
         public void StopAll()
         {
@@ -431,6 +456,8 @@ namespace WallstopStudios.DxAudio
             {
                 // The chain is cleared here, not at stop: a voice is about to start a new play, and it must not
                 // inherit the last one's delay line or envelope. The bus is cleared by the same assignment.
+                // A cue the library does not list is built on this voice now, which is its first and only allocation;
+                // a game that plays such a cue by reference can call Warm(cue) to move that cost off the play.
                 host.Chain = cue.Chain;
             }
             _priorities[index] = cue.Priority;

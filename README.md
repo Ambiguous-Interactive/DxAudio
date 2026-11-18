@@ -135,6 +135,7 @@ voice clears both its cue chain and the bus when it starts a play, so it never i
 ```csharp
 _sfx.BusChain = sfxBusChain;   // runs after each voice's own chain
 _music.BusChain = musicBusChain;
+_sfx.Warm(cue);                // prepares a cue the library does not list, before its first play
 ```
 
 A bus runs on every voice rather than on the mixed output, because Unity gives a script no way to sum one source into
