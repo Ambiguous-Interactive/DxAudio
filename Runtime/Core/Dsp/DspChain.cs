@@ -96,8 +96,8 @@ namespace WallstopStudios.DxAudio
             _sampleRate = sampleRate;
             _maxBlockSize = maxBlockSize;
             _channels = channels;
-            // Indexed, because a stage may append to this chain from its own Prepare, which would invalidate an
-            // enumerator. The count is read per pass for the same reason.
+            // Indexed on purpose. A stage may append to this chain from its own Prepare, and an enumerator would
+            // throw; the count is read per pass so the appended stage is prepared too in the same call.
             for (int i = 0; i < _effects.Count; i++)
             {
                 _effects[i].Prepare(sampleRate, maxBlockSize, channels);
@@ -107,18 +107,20 @@ namespace WallstopStudios.DxAudio
         /// <summary>Runs the block through every stage, in order.</summary>
         public void Process(float[] buffer, int offset, int count, int channels)
         {
-            foreach (DspEffect effect in _effects)
+            // Indexed for the same reason as Prepare: a stage that appends while processing must not make the
+            // audio thread throw. The new stage runs in this block.
+            for (int i = 0; i < _effects.Count; i++)
             {
-                effect.Process(buffer, offset, count, channels);
+                _effects[i].Process(buffer, offset, count, channels);
             }
         }
 
         /// <summary>Resets every effect, so a pooled voice starts clean.</summary>
         public void Reset()
         {
-            foreach (DspEffect effect in _effects)
+            for (int i = 0; i < _effects.Count; i++)
             {
-                effect.Reset();
+                _effects[i].Reset();
             }
         }
     }
