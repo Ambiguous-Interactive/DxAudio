@@ -72,8 +72,8 @@ One integration is optional. `Runtime/Integrations/DxMessaging` compiles only wh
 com.wallstop-studios.dxmessaging installed, through a version define and a define constraint on its assembly. Without
 the package that assembly is skipped entirely, so a DxMessaging-free project sees no missing reference and compiles
 exactly as before. Pull-request and main CI run Unity 6 in both states, for same-repository pull requests that are not
-from Dependabot; fork and Dependabot pull requests skip the Unity lanes. A nightly matrix adds Unity 2021.3 in both
-states.
+from Dependabot; fork and Dependabot pull requests skip the Unity lanes. The same job matrix runs nightly on Unity
+2021.3 in both states.
 
 If a later version needs another package, `package.json` lists it at an exact version. Unity then resolves it from the
 registries in your manifest for every install path. CI fails when an assembly references a package that `package.json`
