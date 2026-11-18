@@ -12,7 +12,17 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void AVeryLongTimeConstantStillMoves()
         {
             Assert.That(AudioMath.OnePoleCoefficient(1_000f, SampleRate), Is.GreaterThan(0f), "the subtraction happens before the cast to float");
-            Assert.That(AudioMath.OnePoleCoefficient(0.005f, SampleRate), Is.EqualTo(1f - (float)Math.Exp(-1.0 / 240.0)).Within(0.000001f));
+
+            // Without the fix the 5 ms coefficient is still right, so the shape is checked as the physics it
+            // stands for: one time constant closes about 63% of a step.
+            float coefficient = AudioMath.OnePoleCoefficient(0.005f, SampleRate);
+            float smoothed = 0f;
+            for (int frame = 0; frame < 240; frame++)
+            {
+                smoothed += (1f - smoothed) * coefficient;
+            }
+
+            Assert.That(smoothed, Is.EqualTo(1f - (float)Math.Exp(-1.0)).Within(0.001f));
         }
 
         [Test]
