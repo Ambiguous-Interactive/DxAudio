@@ -149,6 +149,19 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(coarse, Is.EqualTo(fine), "a block boundary must not change what the effects do");
         }
 
+        [Test]
+        public void EveryEffectRefusesAnImpossibleLayout()
+        {
+            DspEffect[] effects = { new DspLimiter(), new DspCompressor(), new DspDistortion(), new DspBitCrusher() };
+
+            for (int i = 0; i < effects.Length; i++)
+            {
+                DspEffect effect = effects[i];
+                _ = Assert.Throws<ArgumentOutOfRangeException>(() => effect.Prepare(0, 256, 2), effect.DisplayName);
+                _ = Assert.Throws<ArgumentOutOfRangeException>(() => effect.Prepare(SampleRate, 256, 0), effect.DisplayName);
+            }
+        }
+
         private static void RunInBlocks(float[] block, int blockFrames)
         {
             DspChain chain = new();

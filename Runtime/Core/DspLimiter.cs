@@ -74,9 +74,14 @@ namespace WallstopStudios.DxAudio
 
         public override void Prepare(int sampleRate, int maxBlockSize, int channels)
         {
-            if (sampleRate <= 0 || channels <= 0)
+            if (sampleRate <= 0)
             {
-                return;
+                throw new ArgumentOutOfRangeException(nameof(sampleRate));
+            }
+
+            if (channels <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(channels));
             }
 
             _sampleRate = sampleRate;
