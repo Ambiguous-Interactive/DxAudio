@@ -42,13 +42,12 @@ namespace WallstopStudios.DxAudio
         private int _outputChannels;
         private int _liveChannels;
         private int _skippedBlocks;
-        private int _clearVoice;
-        private int _clearBus;
 
         /// <summary>The chain this host runs, or null when it passes the block through.</summary>
         /// <remarks>
-        /// Assigning starts a new play. The chain and the bus are cleared at the next block boundary, never here: the
-        /// audio thread may be inside the block that is still playing.
+        /// Assigning starts a new play. The chain and the bus are cleared at the next block that runs them, never here:
+        /// the audio thread may be inside a block that is still playing, and a swap must not spend another chain's
+        /// clear.
         /// </remarks>
         public DspChainAsset Chain
         {
@@ -58,8 +57,8 @@ namespace WallstopStudios.DxAudio
                 Instance prepared = InstanceFor(value, bus: false);
                 _chain = value;
                 _running = prepared;
-                _clearVoice = 1;
-                _clearBus = 1;
+                MarkCleared(prepared);
+                MarkCleared(_bus);
             }
         }
 
@@ -72,7 +71,7 @@ namespace WallstopStudios.DxAudio
                 Instance prepared = InstanceFor(value, bus: true);
                 _busChain = value;
                 _bus = prepared;
-                _clearBus = 1;
+                MarkCleared(prepared);
             }
         }
 
@@ -181,11 +180,13 @@ namespace WallstopStudios.DxAudio
                 return;
             }
 
-            DspChain running = _running != null ? _running.For(channels) : null;
-            DspChain bus = _bus != null ? _bus.For(channels) : null;
+            Instance runningInstance = _running;
+            Instance busInstance = _bus;
+            DspChain running = runningInstance != null ? runningInstance.For(channels) : null;
+            DspChain bus = busInstance != null ? busInstance.For(channels) : null;
             if (running == null && bus == null)
             {
-                if (_running != null || _bus != null)
+                if (runningInstance != null || busInstance != null)
                 {
                     _skippedBlocks++;
                 }
@@ -194,22 +195,14 @@ namespace WallstopStudios.DxAudio
             }
 
             _liveChannels = channels;
-            if (0 != _clearVoice)
+            if (running != null && runningInstance.ClearBeforeNextBlock())
             {
-                _clearVoice = 0;
-                if (running != null)
-                {
-                    running.Reset();
-                }
+                running.Reset();
             }
 
-            if (0 != _clearBus)
+            if (bus != null && busInstance.ClearBeforeNextBlock())
             {
-                _clearBus = 0;
-                if (bus != null)
-                {
-                    bus.Reset();
-                }
+                bus.Reset();
             }
 
             if (running != null)
@@ -267,8 +260,21 @@ namespace WallstopStudios.DxAudio
             Instance bus = InstanceFor(_busChain, bus: true);
             _running = running;
             _bus = bus;
-            _clearVoice = 1;
-            _clearBus = 1;
+            MarkCleared(running);
+            MarkCleared(bus);
+        }
+
+        /// <summary>Asks for <paramref name="instance" /> to be cleared before it next processes a block.</summary>
+        /// <remarks>
+        /// The request belongs to the instance, not to the host: a swap races the audio thread, and a host-wide flag
+        /// could be spent on the chain the block is finishing instead of the one the next play selected.
+        /// </remarks>
+        private static void MarkCleared(Instance instance)
+        {
+            if (instance != null)
+            {
+                instance.ClearRequested = 1;
+            }
         }
 
         /// <summary>Reads the output rate, block size and channel count every chain on this host is prepared for.</summary>
@@ -349,6 +355,21 @@ namespace WallstopStudios.DxAudio
             {
                 this.asset = asset;
                 this.bus = bus;
+            }
+
+            /// <summary>One when a new play has asked for a clear that no block has applied yet.</summary>
+            public int ClearRequested;
+
+            /// <summary>Whether a clear is owed to this instance, taking the request when it is.</summary>
+            public bool ClearBeforeNextBlock()
+            {
+                if (0 == ClearRequested)
+                {
+                    return false;
+                }
+
+                ClearRequested = 0;
+                return true;
             }
 
             public void Prepare(int sampleRate, int blockSize, int shapes)

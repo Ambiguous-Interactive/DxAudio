@@ -80,13 +80,13 @@ namespace WallstopStudios.DxAudio.Editor
                 return;
             }
 
-            float[] reductions = LiveReductions(asset, effects.Count);
+            float[] reductions = LiveReductions(asset, effects);
             for (int index = 0; index < effects.Count; ++index)
             {
                 DspEffectAsset effect = effects[index];
                 VisualElement row = Row();
                 AddText(row, effect == null ? $"Stage {index + 1}: empty" : $"{index + 1}. {NameOf(effect)}: {effect.Describe()}");
-                if (reductions != null)
+                if (reductions != null && effect != null)
                 {
                     AddText(row, $"{reductions[index]:0.#} dB");
                 }
@@ -121,13 +121,25 @@ namespace WallstopStudios.DxAudio.Editor
             return string.IsNullOrEmpty(effect.name) ? effect.GetType().Name : effect.name;
         }
 
-        /// <summary>The most restrictive live reduction per stage, across every running host that plays the chain.</summary>
-        /// <returns><see langword="null" /> when nothing runs the chain, so no stage has a reading.</returns>
-        private static float[] LiveReductions(DspChainAsset asset, int stages)
+        /// <summary>The most restrictive live reduction per authored stage, across every running host that plays the chain.</summary>
+        /// <returns>
+        /// <see langword="null" /> when nothing runs the chain, so no stage has a reading. An empty slot keeps its zero,
+        /// because the built chain skips it and its stage number belongs to another row.
+        /// </returns>
+        private static float[] LiveReductions(DspChainAsset asset, IReadOnlyList<DspEffectAsset> effects)
         {
             if (!Application.isPlaying)
             {
                 return null;
+            }
+
+            int stages = 0;
+            for (int index = 0; index < effects.Count; ++index)
+            {
+                if (effects[index] != null)
+                {
+                    ++stages;
+                }
             }
 
             AudioFilterHost[] hosts = Hosts();
@@ -156,14 +168,22 @@ namespace WallstopStudios.DxAudio.Editor
                     continue;
                 }
 
-                reductions ??= new float[stages];
-                for (int stage = 0; stage < stages; ++stage)
+                reductions ??= new float[effects.Count];
+                int stage = 0;
+                for (int authored = 0; authored < effects.Count; ++authored)
                 {
-                    float reduction = chain[stage].GainReductionDecibels;
-                    if (reduction < reductions[stage])
+                    if (effects[authored] == null)
                     {
-                        reductions[stage] = reduction;
+                        continue;
                     }
+
+                    float reduction = chain[stage].GainReductionDecibels;
+                    if (reduction < reductions[authored])
+                    {
+                        reductions[authored] = reduction;
+                    }
+
+                    ++stage;
                 }
             }
 

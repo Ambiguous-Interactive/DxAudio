@@ -405,6 +405,30 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
         }
 
+        [Test]
+        public void AChainInspectorNumbersAroundAnEmptySlot()
+        {
+            using MadeObjects made = new();
+            DspChainAsset chain = made.Track(
+                DspChainAsset.Create(new DspEffectAsset[] { made.Track(DspBitCrusherAsset.Create(bits: 6)), null, made.Track(DspLimiterAsset.Create()) })
+            );
+            UnityEditor.Editor editor = null;
+            try
+            {
+                editor = UnityEditor.Editor.CreateEditor(chain, typeof(DspChainAssetEditor));
+                string rows = Joined(Labels(editor.CreateInspectorGUI()));
+
+                Assert.That(Order(rows, "1. ", "6 bit", "Stage 2: empty", "3. ", "DspLimiterAsset"), Is.True, "an empty slot keeps its own row");
+            }
+            finally
+            {
+                if (editor != null)
+                {
+                    Object.DestroyImmediate(editor);
+                }
+            }
+        }
+
         /// <summary>Whether <paramref name="parts" /> appear in <paramref name="text" /> in the order given, each once.</summary>
         private static bool Order(string text, params string[] parts)
         {
