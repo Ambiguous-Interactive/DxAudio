@@ -43,6 +43,7 @@ namespace WallstopStudios.DxAudio
         public override string DisplayName => "Limiter";
 
         /// <summary>The loudest sample that leaves the limiter, as a linear gain.</summary>
+        /// <remarks>Clamped between a hair above silence and full scale; a limiter never lifts a signal.</remarks>
         public float Ceiling
         {
             get => _ceiling;
@@ -56,7 +57,10 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>How far ahead the limiter lowers its gain, in seconds.</summary>
-        /// <remarks>It sizes the delay line, so a new value applies at the next <see cref="Prepare"/>.</remarks>
+        /// <remarks>
+        /// It sizes the delay line, so a new value applies at the next <see cref="Prepare"/>. It is clamped to one
+        /// second: a longer delay is a wrong setting, not a limiter.
+        /// </remarks>
         public float LookaheadSeconds
         {
             get => _lookaheadSeconds;
