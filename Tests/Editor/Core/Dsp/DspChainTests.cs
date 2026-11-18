@@ -140,8 +140,16 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void TheChainAddsUpItsStagesReductions()
         {
             DspChain chain = new();
-            chain.Add(new DspDistortion { Drive = 2f });
             chain.Add(new DspLimiter { Ceiling = 0.25f, LookaheadSeconds = 0f });
+            chain.Add(
+                new DspCompressor
+                {
+                    ThresholdDecibels = -20f,
+                    Ratio = 4f,
+                    AttackSeconds = 0f,
+                    ReleaseSeconds = 0f,
+                }
+            );
             chain.Prepare(SampleRate, 256, 1);
             float[] block = Sine(1_000f, 1f, 256);
 
@@ -149,10 +157,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             chain.Process(block, 0, block.Length, 1);
 
-            float limiter = chain[1].GainReductionDecibels;
-            Assert.That(limiter, Is.LessThan(-10f), "a quarter ceiling is about 12 dB down");
-            Assert.That(chain[0].GainReductionDecibels, Is.Zero, "a shaper does not turn the signal down");
-            Assert.That(chain.GainReductionDecibels, Is.EqualTo(chain[0].GainReductionDecibels + limiter), "stages in series add their reductions");
+            float first = chain[0].GainReductionDecibels;
+            float second = chain[1].GainReductionDecibels;
+            Assert.That(first, Is.LessThan(-10f), "a quarter ceiling is about 12 dB down");
+            Assert.That(second, Is.LessThan(-4f), "the compressor sees a quarter-scale signal over its threshold");
+            Assert.That(second, Is.Not.EqualTo(first), "a reading that keeps only one stage cannot pass this");
+            Assert.That(chain.GainReductionDecibels, Is.EqualTo(first + second), "stages in series add their reductions");
         }
 
         [Test]
