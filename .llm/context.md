@@ -29,12 +29,7 @@ Runtime/                              # The shipped assembly (WallstopStudios.Dx
   Core/                               # Engine-free logic: no UnityEngine types
     AudioMath.cs                      # Decibel/linear conversion, one-pole smoothing, positive modulo
     AudioLoudness.cs                  # Loudness helpers
-    DspBitCrusher.cs                  # Bit depth and sample-rate loss
-    DspChain.cs                       # Ordered effect chain
-    DspCompressor.cs                  # Threshold, ratio, attack, release and makeup
-    DspDistortion.cs                  # Wave shaper with a tone control
-    DspEffect.cs                      # The effect contract: buffer in, buffer out
-    DspLimiter.cs                     # Ceiling with lookahead
+    Dsp/                              # DSP chain: the contract, the ordered chain, four effects
     MusicAttenuation.cs               # Fades, ramps and low/high-pass math
     MusicDuckStack.cs                 # Duck composition and holder bookkeeping
     MusicDuckLease.cs                 # Copy-safe lease structs

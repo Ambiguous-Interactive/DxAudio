@@ -101,6 +101,10 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>Gain added after the reduction, in decibels.</summary>
+        /// <remarks>
+        /// A lift is a gain, so makeup can take a full-scale input above full scale; that is what the knob is for.
+        /// A ceiling belongs to a limiter after the compressor, not to the compressor.
+        /// </remarks>
         public float MakeupDecibels
         {
             get => _makeupDecibels;
@@ -137,7 +141,7 @@ namespace WallstopStudios.DxAudio
 
         public override void Process(float[] buffer, int offset, int count, int channels)
         {
-            if (buffer == null || channels != _channels || offset < 0 || count <= 0 || count % channels != 0 || buffer.Length < offset + count)
+            if (buffer == null || channels <= 0 || channels != _channels || offset < 0 || count <= 0 || count % channels != 0 || buffer.Length - count < offset)
             {
                 return;
             }

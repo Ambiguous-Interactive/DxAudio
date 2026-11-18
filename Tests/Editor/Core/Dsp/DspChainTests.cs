@@ -180,6 +180,19 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(Peak(block), Is.LessThanOrEqualTo(0.5001f), "the late stage is prepared, so it actually runs");
         }
 
+        [TestCase(0, TestName = "Zero channels is refused")]
+        [TestCase(-2, TestName = "Negative channels is refused")]
+        public void ABlockOfAnImpossibleShapeIsRefused(int channels)
+        {
+            DspLimiter limiter = new();
+            float[] block = new float[8];
+
+            limiter.Process(block, 0, block.Length, channels);
+            limiter.Process(block, int.MaxValue, 10, 1);
+
+            Assert.That(block, Is.All.Zero, "a nonsensical range is refused, not indexed or divided by");
+        }
+
         [Test]
         public void APartialFrameIsRefused()
         {

@@ -66,14 +66,28 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Prepare(crusher);
             float[] output = Render(crusher, source);
 
-            float step = 2f / (1 << bits);
+            float step = 2f / ((1 << bits) - 1);
             for (int frame = 0; frame < output.Length; frame++)
             {
-                float levels = output[frame] / step;
+                float levels = (output[frame] + 1f) / step;
                 Assert.That(Math.Abs(levels - Math.Round(levels)), Is.LessThan(0.001f), $"sample {frame} is not a step of {step}");
             }
 
             Assert.That(Peak(output), Is.LessThanOrEqualTo(1f));
+        }
+
+        [Test]
+        public void OneBitKeepsOnlyTheTwoEndsOfTheRange()
+        {
+            DspBitCrusher crusher = new() { Bits = 1 };
+            float[] source = Ramp(-1f, 1f, 1_000);
+
+            float[] output = Render(crusher, source, 256);
+
+            for (int frame = 0; frame < output.Length; frame++)
+            {
+                Assert.That(Math.Abs(output[frame]), Is.EqualTo(1f), $"sample {frame} is one of the two levels");
+            }
         }
 
         [Test]

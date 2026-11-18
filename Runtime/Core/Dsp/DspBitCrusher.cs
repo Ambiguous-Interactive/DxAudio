@@ -6,9 +6,10 @@ namespace WallstopStudios.DxAudio
     /// <remarks>
     /// Two separate losses make the sound: rounding each sample to a step is the grit, and repeating a sample is
     /// the aliasing that reads as a lower sample rate. Both are wanted here, and both are exact, so the effect is
-    /// easy to reason about: an output sample is always a multiple of the step, or the last multiple written.
+    /// easy to reason about: an output sample is always a step of the range, or the last one written.
     ///
-    /// The step covers the full range, so five bits give sixteen steps between silence and full scale.
+    /// The steps span silence to full scale at both ends, so five bits give exactly thirty-two levels, quietest
+    /// first; one bit gives only the two ends of the range.
     /// </remarks>
     public sealed class DspBitCrusher : DspEffect
     {
@@ -20,6 +21,7 @@ namespace WallstopStudios.DxAudio
 
         private int _bits;
         private int _rateReduction;
+        private int _levels;
         private float _step;
         private float[] _held;
         private int _heldFor;
@@ -72,7 +74,7 @@ namespace WallstopStudios.DxAudio
 
         public override void Process(float[] buffer, int offset, int count, int channels)
         {
-            if (buffer == null || channels != _channels || offset < 0 || count <= 0 || count % channels != 0 || buffer.Length < offset + count)
+            if (buffer == null || channels <= 0 || channels != _channels || offset < 0 || count <= 0 || count % channels != 0 || buffer.Length - count < offset)
             {
                 return;
             }
@@ -113,13 +115,26 @@ namespace WallstopStudios.DxAudio
 
         private float Quantize(float sample)
         {
-            float quantized = (float)Math.Round(sample / _step) * _step;
-            return AudioMath.Clamp(quantized, -1f, 1f);
+            int level = (int)Math.Round((sample + 1f) / _step);
+            if (level < 0)
+            {
+                level = 0;
+            }
+
+            int loudest = _levels - 1;
+            if (loudest < level)
+            {
+                level = loudest;
+            }
+
+            return -1f + (level * _step);
         }
 
         private void Recompute()
         {
-            _step = 2f / (1 << _bits);
+            // Two ends of the range plus the levels between them, so the count is exactly two to the bits.
+            _levels = 1 << _bits;
+            _step = 2f / (_levels - 1);
         }
     }
 }
