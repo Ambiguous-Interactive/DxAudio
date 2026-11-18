@@ -70,9 +70,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void PrepareRefusesAnImpossibleLayout(int sampleRate, int maxBlockSize, int channels)
         {
             DspChain chain = new();
-            chain.Add(new DspLimiter());
+            chain.Add(new DspBitCrusher { Bits = 1 });
+            Assert.That(chain.TryPrepare(SampleRate, 256, 1), Is.True);
+            float[] block = Sine(440f, 0.5f, 256);
+            float[] before = (float[])block.Clone();
 
             Assert.That(chain.TryPrepare(sampleRate, maxBlockSize, channels), Is.False);
+            chain.Process(block, 0, block.Length, 1);
+
+            Assert.That(block, Is.EqualTo(before), "a refused chain keeps the buffers its stages hold and must not run them");
         }
 
         [Test]

@@ -189,6 +189,44 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void ABlockLargerThanThePreparedShapePassesThrough()
+        {
+            DspGraph graph = FanIn(ChainOf(new DelayEffect(0) { Gain = 0f }), ChainOf(new DelayEffect(0) { Gain = 0f }));
+            graph.TryPrepare(SampleRate, 64, 2, 0, 3);
+
+            float[] block = Impulse(128, 2, 0, 1f);
+            float[] before = (float[])block.Clone();
+            graph.Process(block, 0, block.Length, 2);
+
+            Assert.That(block, Is.EqualTo(before), "a block wider than the prepared one is not the shape the graph holds");
+        }
+
+        [Test]
+        public void AnEdgeDelayLongerThanTheBlockStillArrivesOnTime()
+        {
+            const int offset = 8;
+            DspGraph graph = FanIn(ChainOf(new DelayEffect(300)), ChainOf(new DelayEffect(10)));
+            graph.TryPrepare(SampleRate, 64, 1, 0, 3);
+
+            float[] gathered = new float[64 * 8];
+            float[] block = new float[64 + offset];
+            for (int pass = 0; pass < 8; pass++)
+            {
+                Array.Clear(block, 0, block.Length);
+                if (pass == 0)
+                {
+                    block[offset] = 0.5f;
+                }
+
+                graph.Process(block, offset, 64, 1);
+                Array.Copy(block, offset, gathered, pass * 64, 64);
+            }
+
+            Assert.That(gathered[300], Is.EqualTo(1f).Within(1e-5f), "a 290-frame edge delay spans four blocks");
+            Assert.That(NonZeroCount(gathered), Is.EqualTo(1), "the short branch waits across every block");
+        }
+
+        [Test]
         public void ResetClearsEveryBranchAndLine()
         {
             DspGraph graph = FanIn(ChainOf(new DelayEffect(100)), ChainOf(new DelayEffect(300)));

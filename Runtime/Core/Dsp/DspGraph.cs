@@ -15,7 +15,8 @@ namespace WallstopStudios.DxAudio
     ///
     /// <see cref="TryPrepare"/> sizes every buffer and refuses a cycle, a stray node or a graph over the size budget
     /// before any audio runs. <see cref="Process"/> then allocates nothing, logs nothing, takes no lock and throws
-    /// nothing.
+    /// nothing for a prepared shape. Like a chain, a graph is built and prepared before a block runs it: preparing one
+    /// while another thread is inside <see cref="Process"/> would hand that block half a graph.
     /// </remarks>
     public sealed class DspGraph
     {

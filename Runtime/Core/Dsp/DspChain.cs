@@ -18,6 +18,7 @@ namespace WallstopStudios.DxAudio
         private int _sampleRate;
         private int _maxBlockSize;
         private int _channels;
+        private bool _prepared;
 
         public DspChain()
         {
@@ -95,12 +96,14 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>Prepares every effect for the same rate, block size and channel count.</summary>
-        /// <returns>
-        /// <see langword="false"/> when a part of the layout is not positive, or a stage refuses the layout; a refused
-        /// chain passes every block through.
-        /// </returns>
+        /// <remarks>
+        /// A chain that refuses a layout, or that was never prepared, passes every block through. The effects may hold
+        /// buffers from an earlier prepare, so without this answer a refused chain would keep running on them.
+        /// </remarks>
+        /// <returns><see langword="false"/> when a part of the layout is not positive; the chain then runs nothing.</returns>
         public bool TryPrepare(int sampleRate, int maxBlockSize, int channels)
         {
+            _prepared = false;
             if (sampleRate <= 0 || maxBlockSize <= 0 || channels <= 0)
             {
                 return false;
@@ -109,20 +112,26 @@ namespace WallstopStudios.DxAudio
             _sampleRate = sampleRate;
             _maxBlockSize = maxBlockSize;
             _channels = channels;
-            bool prepared = true;
             // Indexed on purpose. A stage may append to this chain from its own Prepare, and an enumerator would
             // throw; the count is read per pass so the appended stage is prepared too in the same call.
             for (int i = 0; i < _effects.Count; i++)
             {
-                prepared = _effects[i].TryPrepare(sampleRate, maxBlockSize, channels) && prepared;
+                _ = _effects[i].TryPrepare(sampleRate, maxBlockSize, channels);
             }
 
-            return prepared;
+            _prepared = true;
+            return true;
         }
 
         /// <summary>Runs the block through every stage, in order.</summary>
+        /// <remarks>A chain that is not prepared passes the block through untouched.</remarks>
         public void Process(float[] buffer, int offset, int count, int channels)
         {
+            if (!_prepared)
+            {
+                return;
+            }
+
             // Indexed for the same reason as TryPrepare: a stage that appends while processing must not make the
             // audio thread throw. The new stage runs in this block.
             for (int i = 0; i < _effects.Count; i++)
