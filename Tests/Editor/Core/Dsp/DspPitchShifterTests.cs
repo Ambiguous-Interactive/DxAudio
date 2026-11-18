@@ -223,8 +223,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
         }
 
-        [TestCase(12f, 0f, TestName = "Returning to unison does not splice the waveform")]
-        [TestCase(0f, 12f, TestName = "Leaving unison does not splice the waveform")]
+        [TestCase(12f, 0f, TestName = "Returning to unison from an octave up does not splice the waveform")]
+        [TestCase(-12f, 0f, TestName = "Returning to unison from an octave down does not splice the waveform")]
+        [TestCase(0f, 12f, TestName = "Leaving unison upwards does not splice the waveform")]
+        [TestCase(0f, -12f, TestName = "Leaving unison downwards does not splice the waveform")]
         public void CrossingUnisonDoesNotSpliceTheWaveform(float before, float after)
         {
             DspPitchShifter shifter = new() { Semitones = before };
@@ -250,10 +252,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(largest, Is.LessThan(0.15f), "a switch at the boundary is as smooth as the tone itself, so neither direction clicks");
         }
 
-        [Test]
-        public void UnisonAfterAShiftIsAPureDelayAgain()
+        [TestCase(12f, TestName = "An octave up returns to a pure delay")]
+        [TestCase(-12f, TestName = "An octave down returns to a pure delay")]
+        public void UnisonAfterAShiftIsAPureDelayAgain(float semitones)
         {
-            DspPitchShifter shifter = new() { Semitones = 12f };
+            DspPitchShifter shifter = new() { Semitones = semitones };
             shifter.Prepare(SampleRate, 256, 1);
             int latency = shifter.LatencySamples;
             int frames = 16_384;
@@ -265,9 +268,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             shifter.Semitones = 0f;
             ProcessInBlocks(shifter, block, 1, 256, half, frames);
 
-            // The sweep glides home at half a frame per frame, so a whole window passes before the delay is fixed.
-            int settled = half + (2 * (latency - 1));
-            for (int frame = settled + 1; frame < frames; frame++)
+            // The mix crossfades into the settled read over ten milliseconds, then the delay is fixed.
+            int fade = (int)(0.01f * SampleRate);
+            for (int frame = half + fade; frame < frames; frame++)
             {
                 Assert.That(block[frame], Is.EqualTo(input[frame - latency]), $"frame {frame} is a copy of the input, not a comb of two heads");
             }
