@@ -288,18 +288,23 @@ class DoctorTests(unittest.TestCase):
 
     def test_mcp_doctor_counts_stdio_outcomes_and_redacts_secrets(self) -> None:
         from mcp_doctor import Doctor as McpDoctor
-        for script, expected in [
-            ('import json,sys;sys.stdin.readline();print(json.dumps({"result":{"serverInfo":{"name":"fixture"}}}))', 0),
-            ('import json,sys;sys.stdin.readline();print(json.dumps({"error":{"message":"synthetic-secret"}}))', 1),
-            ('import subprocess,sys,time;sys.stdin.readline();subprocess.Popen([sys.executable,"-c","import time;time.sleep(10)"]);print(\'{"result":{"serverInfo":{"name":"fixture"}}}\',flush=True);time.sleep(10)', 0),
-            ('import sys;sys.stdin.readline()', 1),
-            ('import time;time.sleep(10)', 1),
+
+        # The third case prints its response and then leaves a child holding the
+        # pipe open, so the probe can only finish at its own timeout. Each case
+        # therefore carries the timeout it is measured against, and the deadline
+        # adds interpreter startup on a loaded runner.
+        for script, expected, timeout in [
+            ('import json,sys;sys.stdin.readline();print(json.dumps({"result":{"serverInfo":{"name":"fixture"}}}))', 0, 5.0),
+            ('import json,sys;sys.stdin.readline();print(json.dumps({"error":{"message":"synthetic-secret"}}))', 1, 5.0),
+            ('import subprocess,sys,time;sys.stdin.readline();subprocess.Popen([sys.executable,"-c","import time;time.sleep(10)"]);print(\'{"result":{"serverInfo":{"name":"fixture"}}}\',flush=True);time.sleep(10)', 0, 1.5),
+            ('import sys;sys.stdin.readline()', 1, 5.0),
+            ('import time;time.sleep(10)', 1, 0.5),
         ]:
             with self.subTest(script=script), contextlib.redirect_stdout(io.StringIO()) as output:
                 doctor = McpDoctor(self.root, {'ZAI_API_KEY': 'synthetic-secret'})
                 started = time.monotonic()
-                doctor.spawn_probe('fixture', [sys.executable, '-u', '-c', script], {}, timeout=0.3 if script.startswith('import time;') else 5)
-                self.assertLess(time.monotonic() - started, 5)
+                doctor.spawn_probe('fixture', [sys.executable, '-u', '-c', script], {}, timeout=timeout)
+                self.assertLess(time.monotonic() - started, timeout + 2.0)
                 self.assertEqual(doctor.failures, expected)
                 self.assertNotIn('synthetic-secret', output.getvalue())
 
