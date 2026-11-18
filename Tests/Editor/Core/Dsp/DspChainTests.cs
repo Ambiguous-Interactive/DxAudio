@@ -117,6 +117,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             chain.Process(block, 0, block.Length, 1);
 
             Assert.That(chain.Count, Is.EqualTo(2), "the block completed and the stage joined the chain");
+            Assert.That(appended.PreparedAs, Is.EqualTo((SampleRate, 256, 1)), "the appended stage takes the chain's layout");
             Assert.That(appended.Processed, Is.EqualTo(1), "the appended stage runs in the same block");
         }
 
