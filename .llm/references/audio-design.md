@@ -165,7 +165,12 @@ Rules for a new effect:
 
 The limiter holds its reduction for the whole lookahead after a sample crosses the ceiling and only then releases. A
 release that started at once would let the delayed peak through above the ceiling; measured with a full-scale 1 kHz sine
-and a 0.5 ceiling, nothing leaves above 0.4999.
+and a 0.5 ceiling, nothing leaves above 0.4999. Its release and the compressor's attack and release are time constants
+in the value they smooth, so a compressor `AttackSeconds` of 5 ms reaches 63% of its reduction in 5 ms.
+
+Makeup is a gain stage: it can take a full-scale input above full scale, which is why a chain that needs a ceiling puts
+the limiter last. The bit crusher keeps exactly `2^bits` levels with both ends of the range included, so one bit keeps
+only `-1` and `1`.
 
 | Probe                                        | Result                                              |
 | -------------------------------------------- | --------------------------------------------------- |
