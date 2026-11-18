@@ -128,13 +128,14 @@ namespace WallstopStudios.DxAudio
             {
                 int frameStart = offset + (frame * stride);
                 int slot = _delayIndex * stride;
-                float peak = 0f;
+                float incomingPeak = 0f;
+                float outgoingPeak = 0f;
                 for (int channel = 0; channel < stride; channel++)
                 {
                     float incoming = Math.Abs(buffer[frameStart + channel]);
-                    if (peak < incoming)
+                    if (incomingPeak < incoming)
                     {
-                        peak = incoming;
+                        incomingPeak = incoming;
                     }
 
                     // The frame that leaves now was measured by an earlier block, so a ceiling lowered since
@@ -142,30 +143,37 @@ namespace WallstopStudios.DxAudio
                     if (0 < _delayFrames)
                     {
                         float outgoing = Math.Abs(_delay[slot + channel]);
-                        if (peak < outgoing)
+                        if (outgoingPeak < outgoing)
                         {
-                            peak = outgoing;
+                            outgoingPeak = outgoing;
                         }
                     }
                 }
 
-                if (_ceiling < peak)
+                // The hold keeps the gain steady while a peak travels the lookahead, so only an arriving peak
+                // renews it. The countdown still runs whenever nothing renews it, even while a peak in flight holds
+                // the gain down; otherwise a sustained passage would extend the hold by its own length.
+                if (_ceiling < incomingPeak)
                 {
-                    float neededGain = _ceiling / peak;
-                    if (neededGain < _gain)
-                    {
-                        _gain = neededGain;
-                    }
-
-                    // The reduction is already in place for the sample that caused it, so it has to stay for the
-                    // whole lookahead; releasing now would let the delayed peak through above the ceiling.
                     _holdFrames = _delayFrames;
                 }
                 else if (0 < _holdFrames)
                 {
                     _holdFrames--;
                 }
-                else
+
+                float peak = outgoingPeak < incomingPeak ? incomingPeak : outgoingPeak;
+                if (_ceiling < peak)
+                {
+                    // The frame that leaves is measured against the ceiling of its own block too, so a ceiling
+                    // lowered since it was stored still holds.
+                    float neededGain = _ceiling / peak;
+                    if (neededGain < _gain)
+                    {
+                        _gain = neededGain;
+                    }
+                }
+                else if (0 == _holdFrames)
                 {
                     _gain += (1f - _gain) * _releaseCoefficient;
                 }

@@ -97,7 +97,9 @@ or `Feature`. Bodies stay under 300 lines; bulk material moves to `.llm/referenc
 ### C# and Unity
 
 1. Target C# 9 (`LangVersion 9.0` in `.net-tests`); the package supports Unity 2021.3 and newer. Block-scoped
-   namespaces; `using` directives go inside the namespace.
+   namespaces; `using` directives go inside the namespace. Never use an `init` accessor or a `record`: Unity's
+   profile has no `System.Runtime.CompilerServices.IsExternalInit`, so the assembly fails to compile there while
+   `.net-tests` passes (a real CI failure, session 018).
 2. Format with CSharpier (`dotnet tool run csharpier format`). Tools are pinned in `.config/dotnet-tools.json`; never
    hand-format.
 3. Explicit types and explicit access modifiers. Braces on every body. Prefer `sealed` and `readonly` where behavior

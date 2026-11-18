@@ -164,8 +164,10 @@ Rules for a new effect:
 - `Prepare` owns every allocation and must match the channel count the block arrives with. A stage that was never
   prepared, or that is handed another shape, passes the block through untouched.
 - `Reset` clears delay lines, envelopes and holds, because voices are pooled.
-- Parameters smooth inside the effect with `AudioMath.OnePoleCoefficient`, so a knob move is a short ramp: the limiter's
-  release, the compressor's attack and release, and the distortion's drive and tone.
+- Gain and shape move through `AudioMath.OnePoleCoefficient`, so a knob move is a short ramp: the limiter's release, the
+  compressor's gain reduction, and the distortion's drive and tone. A compressor `AttackSeconds` or `ReleaseSeconds`
+  change is not itself ramped: it recomputes the coefficient for the very next sample, which is why those knobs are set
+  before audio starts.
 
 The limiter holds its reduction for the whole lookahead after a sample crosses the ceiling and only then releases. A
 release that started at once would let the delayed peak through above the ceiling; measured with a full-scale 1 kHz sine
@@ -176,12 +178,19 @@ Makeup is a gain stage: it can take a full-scale input above full scale, which i
 the limiter last. The bit crusher keeps exactly `2^bits` levels with both ends of the range included, so one bit keeps
 only `-1` and `1`.
 
-| Probe                                        | Result                                              |
-| -------------------------------------------- | --------------------------------------------------- |
-| Four-effect chain, 10,000 stereo blocks      | 0 bytes allocated                                   |
-| Same input in 64-frame and 1024-frame blocks | bit-identical output                                |
-| Full-scale sine, limiter ceiling 0.5         | peak 0.4998 to 0.4999                               |
-| Compressor, 0 dBFS, -20 dB threshold, 4:1    | 15 dB reduction, matches the static curve within 5% |
+| Probe                                        | Result                                                 |
+| -------------------------------------------- | ------------------------------------------------------ |
+| Four-effect chain, 10,000 stereo blocks      | 0 bytes allocated                                      |
+| Same input in 64-frame and 1024-frame blocks | bit-identical output                                   |
+| Full-scale sine, limiter ceiling 0.5         | peak 0.4998 to 0.4999                                  |
+| Compressor, 0 dBFS, -20 dB threshold, 4:1    | 15 dB reduction, matches the static curve within 5%    |
+| Four-effect chain, 256 s of stereo audio     | 631 ms, about 400x realtime, 13 us per 256-frame block |
+
+The time figure is from .NET 9 on the dev container, not from an editor or a player. It is why these four effects need no
+FFT, no SIMD intrinsic and no third-party library: a limiter, a compressor, a distortion and a bit crusher are per-sample
+work, and an FFT would add a window of latency and its own artefacts for nothing. Unity exposes no portable SIMD for a
+Mono/IL2CPP build without a dependency, and the package keeps none. A future pitch shifter is the one effect that would
+need a delay line and resampling, and that is where a library decision belongs.
 
 ## Open questions
 

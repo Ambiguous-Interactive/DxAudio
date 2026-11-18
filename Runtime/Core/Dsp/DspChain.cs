@@ -34,9 +34,9 @@ namespace WallstopStudios.DxAudio
             get
             {
                 int latency = 0;
-                for (int i = 0; i < _effects.Count; i++)
+                foreach (DspEffect effect in _effects)
                 {
-                    latency += _effects[i].LatencySamples;
+                    latency += effect.LatencySamples;
                 }
 
                 return latency;
@@ -96,6 +96,8 @@ namespace WallstopStudios.DxAudio
             _sampleRate = sampleRate;
             _maxBlockSize = maxBlockSize;
             _channels = channels;
+            // Indexed on purpose. A stage may append to this chain from its own Prepare, and an enumerator would
+            // throw; the count is read per pass so the appended stage is prepared too in the same call.
             for (int i = 0; i < _effects.Count; i++)
             {
                 _effects[i].Prepare(sampleRate, maxBlockSize, channels);
@@ -105,6 +107,8 @@ namespace WallstopStudios.DxAudio
         /// <summary>Runs the block through every stage, in order.</summary>
         public void Process(float[] buffer, int offset, int count, int channels)
         {
+            // Indexed for the same reason as Prepare: a stage that appends while processing must not make the
+            // audio thread throw. The new stage runs in this block.
             for (int i = 0; i < _effects.Count; i++)
             {
                 _effects[i].Process(buffer, offset, count, channels);
