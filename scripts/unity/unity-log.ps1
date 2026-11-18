@@ -1,5 +1,25 @@
-# Shared redacted Unity log output for the DxAudio Unity workflows.
-#
+# Shared Unity run naming and redacted log output for the DxAudio Unity workflows.
+
+# One job runs the EditMode suite once per optional-integration state, and every
+# run shares RUNNER_TEMP. A label keeps each run's project, results and log in
+# its own path. An empty label keeps the historical version-only name.
+function Get-EditModeRunName {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$UnityVersion,
+        [string]$Label = ''
+    )
+    if ([string]::IsNullOrWhiteSpace($Label)) {
+        return $UnityVersion
+    }
+    # The name becomes a path segment, so accept only characters a shell and a
+    # path both keep intact.
+    if ($Label -notmatch '^[A-Za-z0-9-]+$') {
+        throw "Label must be empty or match ^[A-Za-z0-9-]+\$; got '$Label'."
+    }
+    return "$UnityVersion-$Label"
+}
+
 # The runner's job log is shared and durable, so this helper removes every
 # credential shape the caller knows before it prints anything.
 function Write-RedactedLogTail {
