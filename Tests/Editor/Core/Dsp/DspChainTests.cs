@@ -108,7 +108,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void AStageMayAddToTheChainFromItsProcess()
         {
             DspChain chain = new();
-            AddingEffect adder = new(chain, new DspBitCrusher(), addWhileProcessing: true);
+            RecordingEffect appended = new();
+            AddingEffect adder = new(chain, appended, addWhileProcessing: true);
             chain.Add(adder);
             chain.Prepare(SampleRate, 256, 1);
             float[] block = Sine(440f, 0.5f, 256);
@@ -116,6 +117,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             chain.Process(block, 0, block.Length, 1);
 
             Assert.That(chain.Count, Is.EqualTo(2), "the block completed and the stage joined the chain");
+            Assert.That(appended.Processed, Is.EqualTo(1), "the appended stage runs in the same block");
         }
 
         [Test]
@@ -347,12 +349,17 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             public int Resets { get; private set; }
 
+            public int Processed { get; private set; }
+
             public override void Prepare(int sampleRate, int maxBlockSize, int channels)
             {
                 PreparedAs = (sampleRate, maxBlockSize, channels);
             }
 
-            public override void Process(float[] buffer, int offset, int count, int channels) { }
+            public override void Process(float[] buffer, int offset, int count, int channels)
+            {
+                Processed++;
+            }
 
             public override void Reset()
             {
