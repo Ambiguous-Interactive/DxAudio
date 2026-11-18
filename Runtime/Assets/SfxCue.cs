@@ -87,6 +87,13 @@ namespace WallstopStudios.DxAudio
         [Tooltip("Another cue whose last take number this one plays, so two halves of one performance match. Empty " + "draws at random.")]
         private SfxCue _followsTakeOf;
 
+        [SerializeField]
+        [Tooltip(
+            "Effects this cue's voices run, in order. Empty plays the take untouched. A voice builds its own copy, "
+                + "cleared at the start of every play, so a pooled voice never inherits the last cue's envelope."
+        )]
+        private DspChainAsset _chain;
+
         public string Key => _key;
 
         public IReadOnlyList<SfxVariant> Variants => _variants;
@@ -123,6 +130,9 @@ namespace WallstopStudios.DxAudio
 
         public SfxCue FollowsTakeOf => _followsTakeOf;
 
+        /// <summary>The effects this cue's voices run, or null to play the take untouched.</summary>
+        public DspChainAsset Chain => _chain;
+
         /// <summary>How many variants hold a clip. Selection draws from this, so an empty slot is never picked.</summary>
         public int PlayableVariantCount
         {
@@ -158,7 +168,8 @@ namespace WallstopStudios.DxAudio
             bool heardCentred = false,
             SfxCue followsTakeOf = null,
             bool ignoresListenerPause = false,
-            AudioMixerGroup mixerGroupOverride = null
+            AudioMixerGroup mixerGroupOverride = null,
+            DspChainAsset chain = null
         )
         {
             SfxCue cue = CreateInstance<SfxCue>();
@@ -176,6 +187,7 @@ namespace WallstopStudios.DxAudio
             cue._followsTakeOf = followsTakeOf;
             cue._ignoresListenerPause = ignoresListenerPause;
             cue._mixerGroupOverride = mixerGroupOverride;
+            cue._chain = chain;
             return cue;
         }
 

@@ -137,6 +137,25 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void TheChainReportsTheMostRestrictiveStagesReduction()
+        {
+            DspChain chain = new();
+            chain.Add(new DspDistortion { Drive = 2f });
+            chain.Add(new DspLimiter { Ceiling = 0.25f, LookaheadSeconds = 0f });
+            chain.Prepare(SampleRate, 256, 1);
+            float[] block = Sine(1_000f, 1f, 256);
+
+            Assert.That(chain.GainReductionDecibels, Is.Zero, "nothing has run yet, so nothing holds the signal down");
+
+            chain.Process(block, 0, block.Length, 1);
+
+            float limiter = chain[1].GainReductionDecibels;
+            Assert.That(limiter, Is.LessThan(-10f), "a quarter ceiling is about 12 dB down");
+            Assert.That(chain[0].GainReductionDecibels, Is.Zero, "a shaper does not turn the signal down");
+            Assert.That(chain.GainReductionDecibels, Is.EqualTo(limiter), "the chain reports its most restrictive stage");
+        }
+
+        [Test]
         public void AnUnpreparedChainPassesTheBlockUntouched()
         {
             float[] block = Sine(440f, 0.5f, 128);

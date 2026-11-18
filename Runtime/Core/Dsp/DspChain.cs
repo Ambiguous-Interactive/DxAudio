@@ -43,6 +43,29 @@ namespace WallstopStudios.DxAudio
             }
         }
 
+        /// <summary>The most restrictive stage's gain reduction, in decibels; zero when nothing holds the signal down.</summary>
+        /// <remarks>
+        /// The stages run in series, so the signal is already down by each of them; the smallest figure is how far the
+        /// chain holds it down, without counting makeup gain a later stage adds back.
+        /// </remarks>
+        public float GainReductionDecibels
+        {
+            get
+            {
+                float most = 0f;
+                for (int i = 0; i < _effects.Count; i++)
+                {
+                    float reduction = _effects[i].GainReductionDecibels;
+                    if (reduction < most)
+                    {
+                        most = reduction;
+                    }
+                }
+
+                return most;
+            }
+        }
+
         /// <summary>Appends <paramref name="effect"/> to the end of the chain.</summary>
         /// <remarks>
         /// A stage added after <see cref="Prepare"/> is prepared at once with the chain's layout. Otherwise it would

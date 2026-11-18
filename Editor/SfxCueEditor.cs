@@ -43,6 +43,8 @@ namespace WallstopStudios.DxAudio.Editor
             container.Clear();
             VisualElement check = DxAudioInspectorUi.AddSection(container, "Authoring Check");
             DxAudioInspectorUi.AddFindings(check, DxAudioValidation.Validate(cue), "Every take is ready to play.");
+            VisualElement effects = DxAudioInspectorUi.AddSection(container, "Effects");
+            DxAudioInspectorUi.AddChainRows(effects, cue.Chain);
             DxAudioInspectorUi.AddSection(container, "Takes").Add(BuildTakes(cue));
         }
 

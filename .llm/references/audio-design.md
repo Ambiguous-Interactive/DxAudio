@@ -8,7 +8,7 @@ change must preserve.
 | Layer             | Unity dependency | Responsibility                                              |
 | ----------------- | ---------------- | ----------------------------------------------------------- |
 | `Runtime/Core`    | none             | Arbitration, selection, throttling, ramps, ducks, overrides |
-| `Runtime/Assets`  | ScriptableObject | Data: cues, variants, tracks, libraries, ducks              |
+| `Runtime/Assets`  | ScriptableObject | Data: cues, variants, tracks, libraries, ducks, chains      |
 | `Runtime/Players` | MonoBehaviour    | Owning `AudioSource` pools and the update loop              |
 
 `UnityObjects.cs` is the only Unity-aware shim in `Core`. A new `UnityEngine` reference in `Core` is a defect, not a
@@ -110,6 +110,7 @@ Stop() -> fade out
 | `AudioDiagnosticsOverlay.Sample`, switched off | 0 bytes                               |
 | `AudioDiagnosticsOverlay.Sample`, switched on  | allowed to allocate; diagnostics only |
 | `DspChain.Process`, four stages, stereo block  | 0 bytes                               |
+| `SfxPlayer.Play`, cue with a chain             | 0 bytes once the voice has met it     |
 
 Per-frame time: music duck application at three voices stays under 1.5 us per frame at p95, with no allocation. Measure
 with [measure-audio-behaviour](../skills/measure-audio-behaviour/SKILL.md). A budget is only real when a probe pins it.
@@ -191,6 +192,35 @@ FFT, no SIMD intrinsic and no third-party library: a limiter, a compressor, a di
 work, and an FFT would add a window of latency and its own artefacts for nothing. Unity exposes no portable SIMD for a
 Mono/IL2CPP build without a dependency, and the package keeps none. A future pitch shifter is the one effect that would
 need a delay line and resampling, and that is where a library decision belongs.
+
+## DSP attachment
+
+`AudioFilterHost` is the only Unity-coupled audio path. It runs one `DspChain` on `OnAudioFilterRead`, and
+`ProcessBuffer` is that same path, so an EditMode test drives a synthetic block with no audio device. `SfxPlayer` puts
+one host on each pooled voice; `MusicPlayer` does the same for its three voices.
+
+- A cue (`SfxCue.Chain`) and a track (`MusicTrack.Chain`) name a `DspChainAsset`; each player (`SfxPlayer.BusChain`,
+  `MusicPlayer.BusChain`) names one bus chain. Every voice builds its own effect instances from the asset, because a
+  delay line or an envelope belongs to the voice that is playing.
+- A host keeps every chain it has met prepared for its output rate and channel count, so choosing one again allocates
+  nothing. A chain asset is a recipe: an edit reaches the next voice that meets it, never a prepared copy.
+- `Chain`'s setter clears the chain. `SfxPlayer` sets it on every play, so a reused voice never inherits the last cue's
+  gain, and the allocation probe covers a chained cue.
+- `SfxPlayer.BuildVoices` warms the bus and every listed cue's chain on every voice. A cue played by reference that the
+  library does not list is built the first time a voice meets it, which is the one allocation a chained play can make.
+- A block whose channel count differs from the prepared one passes through, because the engine picks the output rate and
+  `AudioSettings.speakerMode` fixes the count at prepare time.
+- The bus runs inside each voice after the voice's own chain. Unity gives a script no way to sum one source into
+  another, so a bus limiter or distortion behaves as a bus while a bus compressor acts on each voice alone.
+- The chain, cue and track inspectors show one row per stage in signal order, with the live reduction any running host
+  reports. That reading is diagnostics, so it may allocate; it is the smallest figure across the stages, since the
+  stages run in series.
+
+| Probe                                 | Result                                          |
+| ------------------------------------- | ----------------------------------------------- |
+| `AudioFilterHost` driven with a block | limiter ceiling holds, no audio device needed   |
+| Cue with a chain, 100,000 plays       | heap grows less than the probe ceiling          |
+| Reused voice after a limited block    | chain reports 0 dB reduction, so it was cleared |
 
 ## Open questions
 

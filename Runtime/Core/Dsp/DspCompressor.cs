@@ -119,7 +119,7 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>How far the gain is currently held down, in decibels; zero is untouched.</summary>
-        public float GainReductionDecibels => _gainDecibels;
+        public override float GainReductionDecibels => _gainDecibels;
 
         public override void Prepare(int sampleRate, int maxBlockSize, int channels)
         {
