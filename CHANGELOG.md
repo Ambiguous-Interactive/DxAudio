@@ -8,6 +8,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
+- Add the engine-free DSP chain: an ordered `DspChain` of limiter, compressor, distortion and bit crusher effects that shape an interleaved block in place without allocating ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add a **Clip Load Type** to `MusicTrack`. **Auto** streams a clip longer than 30 seconds and decompresses the rest, the track inspector applies the choice to the clip's import settings, and the library check reports a clip that does not follow it ([#44](https://github.com/Ambiguous-Interactive/DxAudio/issues/44)).
 - Add the user manual in `Documentation~/` (install, quickstart, cues, music, ducks and troubleshooting) and a `BasicUsage` sample scene that plays a cue, holds a loop, starts music and ducks it ([#16](https://github.com/Ambiguous-Interactive/DxAudio/issues/16)).
 - `MusicPlayer` raises `TrackChanged` and `Stopped`, and both players take `Paused`, which holds every voice at its playhead so resuming continues rather than restarts. The DxMessaging integration adds music requests, duck ids and `AudioPauseRequest` ([#36](https://github.com/Ambiguous-Interactive/DxAudio/issues/36)).
