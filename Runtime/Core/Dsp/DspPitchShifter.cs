@@ -158,7 +158,8 @@ namespace WallstopStudios.DxAudio
 
             // One setting for the whole block, so a knob set on the main thread cannot split a block between two
             // speeds. Every tap position advances per frame either way, so block size never changes the sound.
-            double step = _shifting ? 1.0 - _ratio : 0.0;
+            bool shifting = _shifting;
+            double step = shifting ? 1.0 - _ratio : 0.0;
             int frames = count / channels;
             int stride = channels;
             for (int frame = 0; frame < frames; frame++)
@@ -180,7 +181,7 @@ namespace WallstopStudios.DxAudio
                     buffer[frameStart + channel] = sample;
                 }
 
-                _phase = _shifting ? WrapPhase(_phase + step, _windowFrames) : GlideToUnison(_phase, _halfWindowFrames);
+                _phase = shifting ? WrapPhase(_phase + step, _windowFrames) : GlideToUnison(_phase, _halfWindowFrames);
                 _writeFrame++;
                 if (_writeFrame == _capacityFrames)
                 {
