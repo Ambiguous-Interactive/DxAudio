@@ -8,6 +8,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
+- Add a delay-line `DspPitchShifter` effect and its asset: it moves a sound from -24 to 24 semitones with two crossfaded read heads, reports its delay in samples, and allocates nothing per block ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add the DSP host: a cue or music track names a `DspChainAsset`, each pooled voice runs its own prepared copy, a player-wide bus runs after it, and a chain or cue inspector shows the live gain reduction of every stage ([#59](https://github.com/Ambiguous-Interactive/DxAudio/issues/59)).
 - Add the engine-free DSP chain: an ordered `DspChain` of limiter, compressor, distortion and bit crusher effects that shape an interleaved block in place without allocating ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add a **Clip Load Type** to `MusicTrack`. **Auto** streams a clip longer than 30 seconds and decompresses the rest, the track inspector applies the choice to the clip's import settings, and the library check reports a clip that does not follow it ([#44](https://github.com/Ambiguous-Interactive/DxAudio/issues/44)).

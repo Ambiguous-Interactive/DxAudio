@@ -60,9 +60,56 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             using MadeObjects made = new();
             AudioFilterHost host = Host(made, Chain(made, made.Track(DspLimiterAsset.Create(lookaheadSeconds: 0.005f))));
-            int expected = Mathf.RoundToInt(0.005f * AudioSettings.outputSampleRate);
+            int expected = Mathf.RoundToInt(0.005f * OutputSampleRate());
 
             Assert.That(host.LatencySamples, Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void AChainAssetBuildsAPitchShifterFromItsFields()
+        {
+            using MadeObjects made = new();
+            DspPitchShifterAsset asset = made.Track(DspPitchShifterAsset.Create(semitones: 7f, windowSeconds: 0.01f));
+
+            DspPitchShifter shifter = (DspPitchShifter)asset.CreateEffect();
+
+            Assert.That(asset.Describe(), Does.Contain("7 st").And.Contain("10 ms"));
+            Assert.That(shifter.Semitones, Is.EqualTo(7f));
+            Assert.That(shifter.WindowSeconds, Is.EqualTo(0.01f));
+
+            DspPitchShifterAsset fallback = made.Track(DspPitchShifterAsset.Create(semitones: float.NaN, windowSeconds: float.PositiveInfinity));
+            Assert.That(fallback.Semitones, Is.Zero, "a non-number falls back to unison rather than reaching the effect");
+            Assert.That(fallback.WindowSeconds, Is.EqualTo(DspPitchShifter.DefaultWindowSeconds));
+        }
+
+        [Test]
+        public void AHostRunsAPitchShifterAndReportsItsDelay()
+        {
+            using MadeObjects made = new();
+            AudioFilterHost host = Host(made, Chain(made, made.Track(DspPitchShifterAsset.Create(semitones: 0f, windowSeconds: 0.005f))));
+            int window = Mathf.RoundToInt(0.005f * OutputSampleRate());
+            if (window < 2)
+            {
+                window = 2;
+            }
+
+            if (0 < (window & 1))
+            {
+                window++;
+            }
+
+            int expected = (window / 2) + 1;
+            float[] block = new float[host.ChannelCount * (expected + 16)];
+            for (int channel = 0; channel < host.ChannelCount; ++channel)
+            {
+                block[channel] = 0.5f;
+            }
+
+            host.OnAudioFilterRead(block, host.ChannelCount);
+
+            Assert.That(host.LatencySamples, Is.EqualTo(expected));
+            Assert.That(block[(expected - 1) * host.ChannelCount], Is.Zero, "the step has not arrived one frame early");
+            Assert.That(block[expected * host.ChannelCount], Is.EqualTo(0.5f).Within(0.0001f), "unison delays the block by the reported figure");
         }
 
         [Test]
@@ -252,6 +299,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             AudioFilterHost host = made.Track(new GameObject("host")).AddComponent<AudioFilterHost>();
             host.Chain = chain;
             return host;
+        }
+
+        /// <summary>The rate a host prepares with: the device rate, or its 48 kHz fallback when the device reports none.</summary>
+        private static int OutputSampleRate()
+        {
+            return 0 < AudioSettings.outputSampleRate ? AudioSettings.outputSampleRate : 48_000;
         }
 
         private static AudioFilterHost HostOf(MonoBehaviour player)

@@ -22,6 +22,7 @@ namespace WallstopStudios.DxAudio.Tests
             chain.Add(new DspCompressor());
             chain.Add(new DspDistortion { Drive = 6f });
             chain.Add(new DspBitCrusher { Bits = 6, RateReduction = 2 });
+            chain.Add(new DspPitchShifter { Semitones = 7f });
             chain.Prepare(SampleRate, BlockFrames, Channels);
 
             float[] block = new float[BlockFrames * Channels];
@@ -39,7 +40,7 @@ namespace WallstopStudios.DxAudio.Tests
             }
 
             long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-            Assert.That(allocated, Is.Zero, $"{Blocks} blocks through four effects allocated {allocated} bytes");
+            Assert.That(allocated, Is.Zero, $"{Blocks} blocks through five effects allocated {allocated} bytes");
         }
     }
 }
