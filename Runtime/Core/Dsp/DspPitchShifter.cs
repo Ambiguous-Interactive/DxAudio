@@ -13,9 +13,10 @@ namespace WallstopStudios.DxAudio
     /// fixed delay of half a window and a little warble on a pure tone. A shorter window lowers the delay and adds
     /// warble; a longer one smooths the tone and delays it more.
     ///
-    /// At unison the two heads would sit at different delays and comb the sound, so the effect collapses them onto one
-    /// integer delay of exactly <see cref="LatencySamples"/>. A shift of zero therefore delays the signal and leaves it
-    /// otherwise untouched.
+    /// At unison the two heads would sit at different delays and comb the sound, so the sweep parks at the point where
+    /// one head is silent and the other reads at exactly <see cref="LatencySamples"/>. A shift of zero therefore delays
+    /// the signal and leaves it otherwise untouched. Returning to unison glides the sweep home at half a frame per
+    /// frame, which lasts about one window and bends the tone instead of splicing it.
     /// </remarks>
     public sealed class DspPitchShifter : DspEffect
     {
@@ -38,19 +39,21 @@ namespace WallstopStudios.DxAudio
         /// <summary>The delay of the nearest readable frame, which keeps every tap behind its write.</summary>
         private const float MinimumDelayFrames = 1f;
 
+        /// <summary>How far the sweep moves per frame while it parks at unison, so the read glides rather than jumps.</summary>
+        /// <remarks>Half a frame per frame plays the signal at half again its speed for the glide, about one window long.</remarks>
+        private const double UnisonGlideFrames = 0.5;
+
         private float _semitones;
         private float _windowSeconds;
         private float _ratio;
         private bool _shifting;
-        private int _sampleRate;
-        private int _maxBlockSize;
         private int _channels;
         private int _windowFrames;
         private int _halfWindowFrames;
         private int _capacityFrames;
         private int _latencyFrames;
         private int _writeFrame;
-        private float _phase;
+        private double _phase;
         private float[] _line;
 
         public DspPitchShifter()
@@ -83,29 +86,18 @@ namespace WallstopStudios.DxAudio
 
         /// <summary>How long each read head sweeps before it jumps back, in seconds.</summary>
         /// <remarks>
-        /// A change reallocates the delay line, so set it before audio starts. The delay is half this window, which is
-        /// why a short window is the only way to lower the latency.
+        /// The delay line is sized at <see cref="Prepare"/> and not rebuilt here, because a setter can run on any thread
+        /// while the audio thread is inside <see cref="Process"/>. The delay is half this window, which is why a short
+        /// window is the only way to lower the latency.
         /// </remarks>
         public float WindowSeconds
         {
             get => _windowSeconds;
             set
             {
-                if (!AudioMath.IsFinite(value))
+                if (AudioMath.IsFinite(value))
                 {
-                    return;
-                }
-
-                float clamped = AudioMath.Clamp(value, MinimumWindowSeconds, MaximumWindowSeconds);
-                if (clamped == _windowSeconds)
-                {
-                    return;
-                }
-
-                _windowSeconds = clamped;
-                if (0 < _sampleRate)
-                {
-                    Prepare(_sampleRate, _maxBlockSize, _channels);
+                    _windowSeconds = AudioMath.Clamp(value, MinimumWindowSeconds, MaximumWindowSeconds);
                 }
             }
         }
@@ -136,10 +128,7 @@ namespace WallstopStudios.DxAudio
                 throw new ArgumentOutOfRangeException(nameof(channels));
             }
 
-            _sampleRate = sampleRate;
-            _maxBlockSize = maxBlockSize;
-            _channels = channels;
-            // Two heads sit half a window apart, so an even window makes that gap a whole number of frames. The two
+            _channels = channels; // Two heads sit half a window apart, so an even window makes that gap a whole number of frames. The two
             // spare frames hold the write and the interpolated neighbour apart at the longest delay.
             int window = (int)Math.Round(_windowSeconds * sampleRate);
             if (window < 2)
@@ -169,8 +158,7 @@ namespace WallstopStudios.DxAudio
 
             // One setting for the whole block, so a knob set on the main thread cannot split a block between two
             // speeds. Every tap position advances per frame either way, so block size never changes the sound.
-            float step = _shifting ? 1f - _ratio : 0f;
-            bool unison = !_shifting;
+            double step = _shifting ? 1.0 - _ratio : 0.0;
             int frames = count / channels;
             int stride = channels;
             for (int frame = 0; frame < frames; frame++)
@@ -182,28 +170,17 @@ namespace WallstopStudios.DxAudio
                     _line[writeStart + channel] = buffer[frameStart + channel];
                 }
 
-                if (unison)
+                float firstDelay = (float)_phase + MinimumDelayFrames;
+                float secondDelay = (float)WrapPhase(_phase + _halfWindowFrames, _windowFrames) + MinimumDelayFrames;
+                float firstGain = TriangleGain(_phase, _windowFrames);
+                float secondGain = 1f - firstGain;
+                for (int channel = 0; channel < stride; channel++)
                 {
-                    for (int channel = 0; channel < stride; channel++)
-                    {
-                        buffer[frameStart + channel] = Read(_latencyFrames, channel, stride);
-                    }
-                }
-                else
-                {
-                    float firstDelay = _phase + MinimumDelayFrames;
-                    float secondDelay = WrapPhase(_phase + _halfWindowFrames, _windowFrames) + MinimumDelayFrames;
-                    float firstGain = TriangleGain(_phase, _windowFrames);
-                    float secondGain = 1f - firstGain;
-                    for (int channel = 0; channel < stride; channel++)
-                    {
-                        float sample = (firstGain * Read(firstDelay, channel, stride)) + (secondGain * Read(secondDelay, channel, stride));
-                        buffer[frameStart + channel] = sample;
-                    }
-
-                    _phase = WrapPhase(_phase + step, _windowFrames);
+                    float sample = (firstGain * Read(firstDelay, channel, stride)) + (secondGain * Read(secondDelay, channel, stride));
+                    buffer[frameStart + channel] = sample;
                 }
 
+                _phase = _shifting ? WrapPhase(_phase + step, _windowFrames) : GlideToUnison(_phase, _halfWindowFrames);
                 _writeFrame++;
                 if (_writeFrame == _capacityFrames)
                 {
@@ -215,7 +192,9 @@ namespace WallstopStudios.DxAudio
         public override void Reset()
         {
             _writeFrame = 0;
-            _phase = 0f;
+            // A fresh voice starts at rest: at half a window one head is silent and the other reads the signal back at
+            // exactly the reported delay, so a pooled voice does not fade in from a stale sweep.
+            _phase = _halfWindowFrames;
             if (_line != null)
             {
                 Array.Clear(_line, 0, _line.Length);
@@ -223,11 +202,10 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>A triangular window over one sweep, so a head is silent at the start and the end of its pass.</summary>
-        private static float TriangleGain(float phase, int windowFrames)
+        private static float TriangleGain(double phase, int windowFrames)
         {
-            float fraction = phase / windowFrames;
-            float doubled = 2f * fraction;
-            return doubled <= 1f ? doubled : 2f - doubled;
+            double doubled = 2.0 * (phase / windowFrames);
+            return doubled <= 1.0 ? (float)doubled : (float)(2.0 - doubled);
         }
 
         /// <summary>Keeps a sweep inside one window, so a head never reads a frame that is more than a window old.</summary>
@@ -235,9 +213,9 @@ namespace WallstopStudios.DxAudio
         /// A tap at delay zero is at zero gain, so the jump back to the start of the sweep is inaudible. The loop is
         /// bounded by the step, which stays under one window because the ratio is clamped to a quarter and four.
         /// </remarks>
-        private static float WrapPhase(float phase, int windowFrames)
+        private static double WrapPhase(double phase, int windowFrames)
         {
-            while (phase < 0f)
+            while (phase < 0.0)
             {
                 phase += windowFrames;
             }
@@ -248,6 +226,17 @@ namespace WallstopStudios.DxAudio
             }
 
             return phase;
+        }
+
+        /// <summary>Moves a resting sweep towards the unison point at <see cref="UnisonGlideFrames"/> per frame.</summary>
+        private static double GlideToUnison(double phase, int halfWindowFrames)
+        {
+            if (phase < halfWindowFrames)
+            {
+                return Math.Min(halfWindowFrames, phase + UnisonGlideFrames);
+            }
+
+            return Math.Max(halfWindowFrames, phase - UnisonGlideFrames);
         }
 
         /// <summary>Reads one channel at a fractional delay behind the write, interpolating between the two frames.</summary>

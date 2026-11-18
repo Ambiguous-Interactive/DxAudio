@@ -25,8 +25,10 @@ namespace WallstopStudios.DxAudio
         public static DspPitchShifterAsset Create(float semitones = 0f, float windowSeconds = DspPitchShifter.DefaultWindowSeconds)
         {
             DspPitchShifterAsset asset = CreateInstance<DspPitchShifterAsset>();
-            asset._semitones = Mathf.Clamp(semitones, DspPitchShifter.MinimumSemitones, DspPitchShifter.MaximumSemitones);
-            asset._windowSeconds = Mathf.Clamp(windowSeconds, DspPitchShifter.MinimumWindowSeconds, DspPitchShifter.MaximumWindowSeconds);
+            asset._semitones = AudioMath.IsFinite(semitones) ? Mathf.Clamp(semitones, DspPitchShifter.MinimumSemitones, DspPitchShifter.MaximumSemitones) : 0f;
+            asset._windowSeconds = AudioMath.IsFinite(windowSeconds)
+                ? Mathf.Clamp(windowSeconds, DspPitchShifter.MinimumWindowSeconds, DspPitchShifter.MaximumWindowSeconds)
+                : DspPitchShifter.DefaultWindowSeconds;
             return asset;
         }
 

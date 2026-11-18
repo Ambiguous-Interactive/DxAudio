@@ -76,6 +76,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(asset.Describe(), Does.Contain("7 st").And.Contain("10 ms"));
             Assert.That(shifter.Semitones, Is.EqualTo(7f));
             Assert.That(shifter.WindowSeconds, Is.EqualTo(0.01f));
+
+            DspPitchShifterAsset fallback = made.Track(DspPitchShifterAsset.Create(semitones: float.NaN, windowSeconds: float.PositiveInfinity));
+            Assert.That(fallback.Semitones, Is.Zero, "a non-number falls back to unison rather than reaching the effect");
+            Assert.That(fallback.WindowSeconds, Is.EqualTo(DspPitchShifter.DefaultWindowSeconds));
         }
 
         [Test]
@@ -104,6 +108,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             host.OnAudioFilterRead(block, host.ChannelCount);
 
             Assert.That(host.LatencySamples, Is.EqualTo(expected));
+            Assert.That(block[(expected - 1) * host.ChannelCount], Is.Zero, "the step has not arrived one frame early");
             Assert.That(block[expected * host.ChannelCount], Is.EqualTo(0.5f).Within(0.0001f), "unison delays the block by the reported figure");
         }
 

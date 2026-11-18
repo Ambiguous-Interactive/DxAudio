@@ -182,12 +182,16 @@ The pitch shifter resamples one delay line with two read heads half a window apa
 head that jumps back to the start of its sweep is always silent. It is a granular shift, not a phase vocoder: it keeps
 transients, needs no transform, and pays with some warble on a pure tone. A sweep wraps inside one window, and each tap
 stays at least one frame behind the write, so linear interpolation never reads the future. At unison the two heads would
-comb the sound at their different delays, so they collapse onto one integer delay of exactly `LatencySamples`; the
-signal then passes through unchanged, only delayed. That keeps one latency figure for both settings and means a chain
-that runs the shifter at zero is not silent, merely late. Its line is allocated in `Prepare`, about 19 KiB per voice for
-50 ms of stereo at 48 kHz, so a pool that warms many chained cues pays for each voice separately. Measured at 48 kHz
-with a 50 ms window: a 440 Hz tone leaves at 880 Hz for +12 semitones, 659 Hz for +7, and 220 Hz for -12, at its
-original amplitude and within 1 Hz of the tempered target; the delay is 1,201 samples, half the window plus one.
+comb the sound at their different delays, so the sweep parks at half a window, where one head is silent and the other
+reads at exactly `LatencySamples`; the signal then passes through unchanged, only delayed. That keeps one latency figure
+for both settings and means a chain that runs the shifter at zero is not silent, merely late. Returning to unison glides
+the sweep home at half a frame per frame, about one window, so a jump to zero is a short bend and not a click; measured
+on a 997 Hz tone the largest sample-to-sample step across the switch is the tone's own slope, 0.13. Its line is
+allocated in `Prepare`, about 19 KiB per voice for 50 ms of stereo at 48 kHz, so a pool that warms many chained cues pays
+for each voice separately; a window change is read at the next `Prepare`, never by the setter, because the audio thread
+may be inside a block. Measured at 48 kHz with a 50 ms window: a 440 Hz tone leaves at 880 Hz for +12 semitones, 659 Hz
+for +7, and 220 Hz for -12, at its original amplitude and within 1 Hz of the tempered target; the delay is 1,201 samples,
+half the window plus one.
 
 | Probe                                         | Result                                                 |
 | --------------------------------------------- | ------------------------------------------------------ |

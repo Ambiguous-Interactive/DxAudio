@@ -56,14 +56,16 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void ANewWindowReplacesTheDelayLineAndItsLatency()
+        public void ANewWindowWaitsForTheNextPrepare()
         {
             DspPitchShifter shifter = new() { WindowSeconds = 0.05f };
             shifter.Prepare(SampleRate, 256, 1);
 
             shifter.WindowSeconds = 0.01f;
 
-            Assert.That(shifter.LatencySamples, Is.EqualTo(241), "a prepared stage rebuilds its line for a new window");
+            Assert.That(shifter.LatencySamples, Is.EqualTo(1_201), "a live stage keeps the line it prepared, so a setter never allocates under the audio thread");
+            shifter.Prepare(SampleRate, 256, 1);
+            Assert.That(shifter.LatencySamples, Is.EqualTo(241), "the next Prepare sizes the line for the new window");
         }
 
         [TestCase(1, TestName = "A mono impulse arrives once at the reported latency")]
@@ -149,7 +151,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void AReusedShifterStartsSilentAfterReset()
+        public void AReusedShifterMatchesAFreshOneAfterReset()
         {
             DspPitchShifter reused = new() { Semitones = 12f };
             reused.Prepare(SampleRate, 256, 1);
@@ -221,6 +223,33 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
         }
 
+        [TestCase(12f, 0f, TestName = "Returning to unison does not splice the waveform")]
+        [TestCase(0f, 12f, TestName = "Leaving unison does not splice the waveform")]
+        public void CrossingUnisonDoesNotSpliceTheWaveform(float before, float after)
+        {
+            DspPitchShifter shifter = new() { Semitones = before };
+            shifter.Prepare(SampleRate, 256, 1);
+            float[] block = Sine(997f, 0.5f, 16_384);
+            int half = block.Length / 2;
+
+            ProcessInBlocks(shifter, block, 1, 256, 0, half);
+            shifter.Semitones = after;
+            ProcessInBlocks(shifter, block, 1, 256, half, block.Length);
+
+            float largest = 0f;
+            for (int frame = 1; frame < block.Length; frame++)
+            {
+                float step = Math.Abs(block[frame] - block[frame - 1]);
+                if (largest < step)
+                {
+                    largest = step;
+                }
+            }
+
+            // The loudest tone here is 1,994 Hz at half scale, whose own slope is 0.13 per sample at 48 kHz.
+            Assert.That(largest, Is.LessThan(0.15f), "a switch at the boundary is as smooth as the tone itself, so neither direction clicks");
+        }
+
         [Test]
         public void UnisonAfterAShiftIsAPureDelayAgain()
         {
@@ -236,7 +265,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             shifter.Semitones = 0f;
             ProcessInBlocks(shifter, block, 1, 256, half, frames);
 
-            for (int frame = half + latency; frame < frames; frame++)
+            // The sweep glides home at half a frame per frame, so a whole window passes before the delay is fixed.
+            int settled = half + (2 * (latency - 1));
+            for (int frame = settled + 1; frame < frames; frame++)
             {
                 Assert.That(block[frame], Is.EqualTo(input[frame - latency]), $"frame {frame} is a copy of the input, not a comb of two heads");
             }
