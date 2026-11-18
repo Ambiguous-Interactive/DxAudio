@@ -55,7 +55,8 @@ stay intact and no library or FFT is needed, at the cost of some warble on a pur
 
 - **Semitones** moves the pitch from -24 to 24. At zero the sweep parks where one head is silent, so the sound passes
   through unchanged, only delayed. Turning the knob back to zero crossfades into that parked read over ten milliseconds,
-  so the change does not click.
+  so the change does not click. On a sustained high tone that crossfade can dip for about two milliseconds, because the
+  two reads are at different delays; a note or a transient hides it.
 - **Window** is how long each head sweeps. The delay is half of it: 50 ms costs about 25 ms at 48 kHz. A shorter window
   lowers the delay and adds warble; a longer one smooths the tone. Set it before playback: the delay line is sized when
   the chain is prepared, not when the field changes.

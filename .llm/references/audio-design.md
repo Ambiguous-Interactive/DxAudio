@@ -186,7 +186,10 @@ comb the sound at their different delays, so the sweep parks at half a window, w
 reads at exactly `LatencySamples`; the signal then passes through unchanged, only delayed. That keeps one latency figure
 for both settings and means a chain that runs the shifter at zero is not silent, merely late. Returning to unison
 crossfades the mix into that settled read over ten milliseconds, so a jump to zero never splices the waveform; measured
-on a 997 Hz tone the largest sample-to-sample step across every switch direction is the tone's own slope, 0.13. Its line
+on a 997 Hz tone the largest sample-to-sample step across every switch direction is the tone's own slope, 0.13. The
+crossfade can null a sustained high tone for about two milliseconds, because the two reads are at different delays:
+5 kHz at the longest window measured -36 dB, and white noise lost about 5 dB of RMS. A shorter window and the same fade
+narrow the case, and the alternative, an instant switch, was a full-scale splice. Its line
 is allocated in `Prepare`: a stereo line is about 19 KiB at 50 ms and 48 kHz, a mono line about 10 KiB, and a host
 prepares every block shape up to the output layout, so a warmed stereo voice holds about 28 KiB per chain asset. A pool
 that warms many chained cues pays that for each voice separately; a window change is read at the next `Prepare`, never
