@@ -61,5 +61,37 @@ namespace WallstopStudios.DxAudio
 
             return (float)Math.Pow(10.0, decibels / 20.0);
         }
+
+        /// <summary>Whether <paramref name="value"/> is a real number, so a bad knob cannot poison a filter or envelope.</summary>
+        /// <remarks>
+        /// A serialized field can carry a NaN or an infinity. Every recursive stage keeps state, so one bad value
+        /// would not be a one-block glitch: the effect would stay dead until it is reset. Setters refuse one rather
+        /// than pass it on.
+        /// </remarks>
+        public static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+
+        /// <summary>
+        /// The per-sample coefficient of a one-pole smoother that closes about 63% of a step in
+        /// <paramref name="seconds"/>.
+        /// </summary>
+        /// <remarks>
+        /// A knob move that lands on the next block clicks; smoothing it per sample turns the step into a short
+        /// ramp. A zero time yields a coefficient of one, so the smoother lands on its target at once instead of
+        /// dividing by zero.
+        /// </remarks>
+        public static float OnePoleCoefficient(float seconds, int sampleRate)
+        {
+            if (seconds <= 0f || sampleRate <= 0)
+            {
+                return 1f;
+            }
+
+            // Subtract in double before the cast: for a long time the exponential rounds to exactly one as a
+            // float, which would hand back a coefficient of zero and a smoother that never moves.
+            return (float)(1.0 - Math.Exp(-1.0 / (seconds * sampleRate)));
+        }
     }
 }

@@ -27,8 +27,9 @@ nested under a Unity project's `Packages/`; open agent frontends with this folde
 ```text
 Runtime/                              # The shipped assembly (WallstopStudios.DxAudio.asmdef)
   Core/                               # Engine-free logic: no UnityEngine types
-    AudioMath.cs                      # Decibel/linear conversion, positive modulo
+    AudioMath.cs                      # Decibel/linear conversion, one-pole smoothing, positive modulo
     AudioLoudness.cs                  # Loudness helpers
+    Dsp/                              # DSP chain: the contract, the ordered chain, four effects
     MusicAttenuation.cs               # Fades, ramps and low/high-pass math
     MusicDuckStack.cs                 # Duck composition and holder bookkeeping
     MusicDuckLease.cs                 # Copy-safe lease structs
