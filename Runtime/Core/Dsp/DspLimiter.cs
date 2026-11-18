@@ -128,13 +128,14 @@ namespace WallstopStudios.DxAudio
             {
                 int frameStart = offset + (frame * stride);
                 int slot = _delayIndex * stride;
-                float peak = 0f;
+                float incomingPeak = 0f;
+                float outgoingPeak = 0f;
                 for (int channel = 0; channel < stride; channel++)
                 {
                     float incoming = Math.Abs(buffer[frameStart + channel]);
-                    if (peak < incoming)
+                    if (incomingPeak < incoming)
                     {
-                        peak = incoming;
+                        incomingPeak = incoming;
                     }
 
                     // The frame that leaves now was measured by an earlier block, so a ceiling lowered since
@@ -142,13 +143,14 @@ namespace WallstopStudios.DxAudio
                     if (0 < _delayFrames)
                     {
                         float outgoing = Math.Abs(_delay[slot + channel]);
-                        if (peak < outgoing)
+                        if (outgoingPeak < outgoing)
                         {
-                            peak = outgoing;
+                            outgoingPeak = outgoing;
                         }
                     }
                 }
 
+                float peak = outgoingPeak < incomingPeak ? incomingPeak : outgoingPeak;
                 if (_ceiling < peak)
                 {
                     float neededGain = _ceiling / peak;
@@ -158,8 +160,12 @@ namespace WallstopStudios.DxAudio
                     }
 
                     // The reduction is already in place for the sample that caused it, so it has to stay for the
-                    // whole lookahead; releasing now would let the delayed peak through above the ceiling.
-                    _holdFrames = _delayFrames;
+                    // whole lookahead; releasing now would let the delayed peak through above the ceiling. Only an
+                    // arriving peak renews the hold: a peak on its way out needs no lookahead of its own.
+                    if (_ceiling < incomingPeak)
+                    {
+                        _holdFrames = _delayFrames;
+                    }
                 }
                 else if (0 < _holdFrames)
                 {

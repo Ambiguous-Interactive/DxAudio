@@ -25,6 +25,17 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(smoothed, Is.EqualTo(1f - (float)Math.Exp(-1.0)).Within(0.001f));
         }
 
+        [TestCase(1e34f)]
+        [TestCase(float.MaxValue)]
+        public void AnExtremeTimeConstantStillMoves(float seconds)
+        {
+            float coefficient = AudioMath.OnePoleCoefficient(seconds, SampleRate);
+
+            Assert.That(coefficient, Is.GreaterThan(0f), "a long time constant is slow, never frozen");
+            Assert.That(float.IsInfinity(coefficient), Is.False);
+            Assert.That(coefficient, Is.LessThan(0.001f));
+        }
+
         [Test]
         public void TheLimiterPassesASignalBelowItsCeilingUntouched()
         {
@@ -105,6 +116,43 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void TheLimiterKeepsOneGainAcrossTheLookahead()
+        {
+            DspLimiter limiter = new()
+            {
+                Ceiling = 0.5f,
+                LookaheadSeconds = 0.005f,
+                ReleaseSeconds = 0f,
+            };
+            float[] source = Sine(200f, 1f, 9_600);
+
+            Prepare(limiter);
+            float[] output = Render(limiter, source);
+
+            // A zero release would snap the gain back between peaks and chop the wave; the hold keeps one gain
+            // for the whole window the delayed peak spends in flight.
+            float smallestReduction = float.MaxValue;
+            float largestReduction = 0f;
+            for (int frame = 4_800; frame < source.Length; frame++)
+            {
+                float reduction = -limiter.GainReductionDecibels;
+                if (reduction < smallestReduction)
+                {
+                    smallestReduction = reduction;
+                }
+
+                if (largestReduction < reduction)
+                {
+                    largestReduction = reduction;
+                }
+            }
+
+            Assert.That(smallestReduction, Is.EqualTo(6.0206f).Within(0.01f), "the gain sits at the ceiling reduction");
+            Assert.That(largestReduction - smallestReduction, Is.LessThan(0.01f), "the gain does not move while a peak is in flight");
+            Assert.That(Peak(output, 0), Is.LessThanOrEqualTo(0.5001f));
+        }
+
+        [Test]
         public void TheLimiterWithoutLookaheadStillHoldsTheCeiling()
         {
             DspLimiter limiter = new() { Ceiling = 0.25f, LookaheadSeconds = 0f };
@@ -134,6 +182,29 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             _ = Render(limiter, quiet);
 
             Assert.That(limiter.GainReductionDecibels, Is.GreaterThan(-1f), "four release times bring the gain back to unity");
+        }
+
+        [Test]
+        public void APeakOnItsWayOutDoesNotRenewTheHold()
+        {
+            DspLimiter limiter = new()
+            {
+                Ceiling = 0.5f,
+                LookaheadSeconds = 1f,
+                ReleaseSeconds = 0f,
+            };
+            float[] peak = new float[1];
+            peak[0] = 1f;
+
+            Prepare(limiter);
+            _ = Render(limiter, peak);
+            // A frame or two past the lookahead, so the impulse has left and the tail is heard after it.
+            float[] tail = Constant(0.1f, SampleRate + 2);
+            float[] output = Render(limiter, tail);
+
+            Assert.That(output[output.Length - 1], Is.EqualTo(0.1f).Within(0.0001f), "the hold ends with the peak that caused it");
+            Assert.That(limiter.GainReductionDecibels, Is.Zero.Within(0.01f), "a zero release lets go at once");
+            Assert.That(Peak(output, 0), Is.LessThanOrEqualTo(0.5f), "the peak itself still leaves under the ceiling");
         }
 
         [Test]

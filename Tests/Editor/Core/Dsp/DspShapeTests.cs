@@ -67,10 +67,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float[] output = Render(crusher, source);
 
             float step = 2f / ((1 << bits) - 1);
-            for (int frame = 0; frame < output.Length; frame++)
+            foreach (float sample in output)
             {
-                float levels = (output[frame] + 1f) / step;
-                Assert.That(Math.Abs(levels - Math.Round(levels)), Is.LessThan(0.001f), $"sample {frame} is not a step of {step}");
+                float levels = (sample + 1f) / step;
+                Assert.That(Math.Abs(levels - Math.Round(levels)), Is.LessThan(0.001f), $"a sample is not a step of {step}");
             }
 
             Assert.That(Peak(output), Is.LessThanOrEqualTo(1f));
@@ -84,9 +84,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             float[] output = Render(crusher, source, 256);
 
-            for (int frame = 0; frame < output.Length; frame++)
+            foreach (float sample in output)
             {
-                Assert.That(Math.Abs(output[frame]), Is.EqualTo(1f), $"sample {frame} is one of the two levels");
+                Assert.That(Math.Abs(sample), Is.EqualTo(1f), "every sample is one of the two levels");
             }
         }
 
@@ -133,7 +133,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             after.Prepare(16_000, BlockFrames, 1);
             after.ToneHz = DspDistortion.OpenToneHz;
 
-            Assert.That(Render(after, source), Is.EqualTo(Render(before, source)), "a 20 kHz tone is capped to the rate whichever way it was set");
+            // Process directly: Render would prepare again at 48 kHz and overwrite the 16 kHz coefficient.
+            float[] first = (float[])source.Clone();
+            float[] second = (float[])source.Clone();
+            before.Process(first, 0, first.Length, 1);
+            after.Process(second, 0, second.Length, 1);
+
+            Assert.That(second, Is.EqualTo(first), "a 20 kHz tone is capped to the rate whichever way it was set");
         }
 
         [Test]
@@ -197,9 +203,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Prepare(distortion);
             float[] output = Render(distortion, Sine(1_000f, 1f, 1_024));
-            for (int frame = 0; frame < output.Length; frame++)
+            foreach (float sample in output)
             {
-                Assert.That(float.IsNaN(output[frame]), Is.False, $"frame {frame} is not a number");
+                Assert.That(float.IsNaN(sample), Is.False, "every sample is a number");
             }
         }
 
@@ -247,9 +253,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static float Peak(float[] samples)
         {
             float peak = 0f;
-            for (int i = 0; i < samples.Length; i++)
+            foreach (float sample in samples)
             {
-                float magnitude = Math.Abs(samples[i]);
+                float magnitude = Math.Abs(sample);
                 if (peak < magnitude)
                 {
                     peak = magnitude;

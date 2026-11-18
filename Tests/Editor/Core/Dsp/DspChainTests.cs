@@ -241,9 +241,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static float Peak(float[] samples)
         {
             float peak = 0f;
-            for (int i = 0; i < samples.Length; i++)
+            foreach (float sample in samples)
             {
-                float magnitude = Math.Abs(samples[i]);
+                float magnitude = Math.Abs(sample);
                 if (peak < magnitude)
                 {
                     peak = magnitude;

@@ -34,9 +34,9 @@ namespace WallstopStudios.DxAudio
             get
             {
                 int latency = 0;
-                for (int i = 0; i < _effects.Count; i++)
+                foreach (DspEffect effect in _effects)
                 {
-                    latency += _effects[i].LatencySamples;
+                    latency += effect.LatencySamples;
                 }
 
                 return latency;
@@ -96,27 +96,27 @@ namespace WallstopStudios.DxAudio
             _sampleRate = sampleRate;
             _maxBlockSize = maxBlockSize;
             _channels = channels;
-            for (int i = 0; i < _effects.Count; i++)
+            foreach (DspEffect effect in _effects)
             {
-                _effects[i].Prepare(sampleRate, maxBlockSize, channels);
+                effect.Prepare(sampleRate, maxBlockSize, channels);
             }
         }
 
         /// <summary>Runs the block through every stage, in order.</summary>
         public void Process(float[] buffer, int offset, int count, int channels)
         {
-            for (int i = 0; i < _effects.Count; i++)
+            foreach (DspEffect effect in _effects)
             {
-                _effects[i].Process(buffer, offset, count, channels);
+                effect.Process(buffer, offset, count, channels);
             }
         }
 
         /// <summary>Resets every effect, so a pooled voice starts clean.</summary>
         public void Reset()
         {
-            for (int i = 0; i < _effects.Count; i++)
+            foreach (DspEffect effect in _effects)
             {
-                _effects[i].Reset();
+                effect.Reset();
             }
         }
     }
