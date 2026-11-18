@@ -109,6 +109,7 @@ Stop() -> fade out
 | `DescribeDucks()`                              | allowed to allocate; diagnostics only |
 | `AudioDiagnosticsOverlay.Sample`, switched off | 0 bytes                               |
 | `AudioDiagnosticsOverlay.Sample`, switched on  | allowed to allocate; diagnostics only |
+| `DspChain.Process`, four stages, stereo block  | 0 bytes                               |
 
 Per-frame time: music duck application at three voices stays under 1.5 us per frame at p95, with no allocation. Measure
 with [measure-audio-behaviour](../skills/measure-audio-behaviour/SKILL.md). A budget is only real when a probe pins it.
@@ -146,6 +147,32 @@ Decision: `MusicLoadPolicy` streams above 30 seconds and decompresses at or belo
 choice. At the threshold, decompressed holds 5 MiB and stalls the main thread 48 ms; both grow with track length, while
 streaming stays at a 199 KiB front buffer. Edit mode renders no audio, so the audible start and the cost of a
 loop-boundary read are not in this table; issue #46 carries that play-mode probe.
+
+## DSP chain
+
+A chain is an ordered list of `DspEffect` stages, not a graph: order is the sound, and a general node graph needs fan-in
+and fan-out buffers plus per-branch latency before a second branch exists. Effects shape an interleaved block in place,
+so a stage needs no scratch buffer and a voice's audio path allocates nothing. Pitch shifting is the only proposed effect
+that would add latency, which is why `DspEffect.LatencySamples` exists from the first stage.
+
+Rules for a new effect:
+
+- `Process` runs on the audio thread: no allocation, no log, no lock, no throw.
+- `Prepare` owns every allocation and must match the channel count the block arrives with. A stage that was never
+  prepared, or that is handed another shape, passes the block through untouched.
+- `Reset` clears delay lines, envelopes and holds, because voices are pooled.
+- Parameters smooth inside the effect with `AudioMath.OnePoleCoefficient`, so a knob move is a short ramp.
+
+The limiter holds its reduction for the whole lookahead after a sample crosses the ceiling and only then releases. A
+release that started at once would let the delayed peak through above the ceiling; measured with a full-scale 1 kHz sine
+and a 0.5 ceiling, nothing leaves above 0.4999.
+
+| Probe                                        | Result                                              |
+| -------------------------------------------- | --------------------------------------------------- |
+| Four-effect chain, 10,000 stereo blocks      | 0 bytes allocated                                   |
+| Same input in 64-frame and 1024-frame blocks | bit-identical output                                |
+| Full-scale sine, limiter ceiling 0.5         | peak 0.4998 to 0.4999                               |
+| Compressor, 0 dBFS, -20 dB threshold, 4:1    | 15 dB reduction, matches the static curve within 5% |
 
 ## Open questions
 
