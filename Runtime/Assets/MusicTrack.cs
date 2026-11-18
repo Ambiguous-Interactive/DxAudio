@@ -36,6 +36,10 @@ namespace WallstopStudios.DxAudio
         )]
         private MusicClipLoadType _clipLoadType = MusicClipLoadType.Auto;
 
+        [SerializeField]
+        [Tooltip("Effects this track's voice runs, in order. Empty plays the clip untouched. The voice clears them when the track starts.")]
+        private DspChainAsset _chain;
+
         public string Context => _context;
 
         public AudioClip Clip => _clip;
@@ -43,6 +47,9 @@ namespace WallstopStudios.DxAudio
         public bool Loop => _loop;
 
         public float VolumeScale => _volumeScale;
+
+        /// <summary>The effects this track's voice runs, or null to play the clip untouched.</summary>
+        public DspChainAsset Chain => _chain;
 
         public bool IsPlayable => _clip != null;
 
@@ -62,7 +69,8 @@ namespace WallstopStudios.DxAudio
             bool loop = true,
             float volumeScale = 1f,
             float startTimeSeconds = 0f,
-            MusicClipLoadType clipLoadType = MusicClipLoadType.Auto
+            MusicClipLoadType clipLoadType = MusicClipLoadType.Auto,
+            DspChainAsset chain = null
         )
         {
             MusicTrack track = CreateInstance<MusicTrack>();
@@ -72,6 +80,7 @@ namespace WallstopStudios.DxAudio
             track._volumeScale = Mathf.Clamp01(volumeScale);
             track._startTimeSeconds = Mathf.Max(0f, startTimeSeconds);
             track._clipLoadType = clipLoadType;
+            track._chain = chain;
             return track;
         }
 

@@ -18,6 +18,12 @@ namespace WallstopStudios.DxAudio
         /// <summary>How many samples of delay this effect adds, for aligning branches that run in parallel.</summary>
         public virtual int LatencySamples => 0;
 
+        /// <summary>How far the stage holds the signal down now, in decibels; zero is untouched.</summary>
+        /// <remarks>
+        /// A diagnostic reading, taken from the main thread. An effect that does not turn a signal down answers zero.
+        /// </remarks>
+        public virtual float GainReductionDecibels => 0f;
+
         /// <summary>Reserves whatever the effect needs before it processes audio.</summary>
         /// <remarks>Allocation belongs here, never in <see cref="Process"/>.</remarks>
         public abstract void Prepare(int sampleRate, int maxBlockSize, int channels);

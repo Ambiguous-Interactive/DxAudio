@@ -8,7 +8,7 @@ change must preserve.
 | Layer             | Unity dependency | Responsibility                                              |
 | ----------------- | ---------------- | ----------------------------------------------------------- |
 | `Runtime/Core`    | none             | Arbitration, selection, throttling, ramps, ducks, overrides |
-| `Runtime/Assets`  | ScriptableObject | Data: cues, variants, tracks, libraries, ducks              |
+| `Runtime/Assets`  | ScriptableObject | Data: cues, variants, tracks, libraries, ducks, chains      |
 | `Runtime/Players` | MonoBehaviour    | Owning `AudioSource` pools and the update loop              |
 
 `UnityObjects.cs` is the only Unity-aware shim in `Core`. A new `UnityEngine` reference in `Core` is a defect, not a
@@ -110,6 +110,7 @@ Stop() -> fade out
 | `AudioDiagnosticsOverlay.Sample`, switched off | 0 bytes                               |
 | `AudioDiagnosticsOverlay.Sample`, switched on  | allowed to allocate; diagnostics only |
 | `DspChain.Process`, four stages, stereo block  | 0 bytes                               |
+| `SfxPlayer.Play`, cue listed with a chain      | 0 bytes once the voice has met it     |
 
 Per-frame time: music duck application at three voices stays under 1.5 us per frame at p95, with no allocation. Measure
 with [measure-audio-behaviour](../skills/measure-audio-behaviour/SKILL.md). A budget is only real when a probe pins it.
@@ -191,6 +192,52 @@ FFT, no SIMD intrinsic and no third-party library: a limiter, a compressor, a di
 work, and an FFT would add a window of latency and its own artefacts for nothing. Unity exposes no portable SIMD for a
 Mono/IL2CPP build without a dependency, and the package keeps none. A future pitch shifter is the one effect that would
 need a delay line and resampling, and that is where a library decision belongs.
+
+## DSP attachment
+
+`AudioFilterHost` is the only Unity-coupled audio path. It runs one `DspChain` on `OnAudioFilterRead`, and
+`ProcessBuffer` is that same path, so an EditMode test drives a synthetic block with no audio device. `SfxPlayer` puts
+one host on each pooled voice; `MusicPlayer` does the same for its three voices.
+
+- A cue (`SfxCue.Chain`) and a track (`MusicTrack.Chain`) name a `DspChainAsset`; each player (`SfxPlayer.BusChain`,
+  `MusicPlayer.BusChain`) names one bus chain. Every voice builds its own effect instances from the asset, because a
+  delay line or an envelope belongs to the voice that is playing.
+- A host prepares every asset it meets for each block shape from one channel up to the output layout. Do not prepare
+  only for the output layout: a filter block can arrive narrower than the device, and a chain of the wrong shape passes
+  the block through, which is a bypass nothing else reports. A shape wider than the layout passes through and counts in
+  `SkippedBlocks`.
+- `Chain`'s setter clears both the voice's chain and the bus. `SfxPlayer` and `MusicPlayer` set it on every play, so a
+  reused voice never inherits the last play's gain, delay line or envelope. The bus needs the same clear for the same
+  reason.
+- A chain asset is a recipe: a voice reads it the first time it meets it and keeps those settings, so an edit reaches
+  the voices that have not met the asset yet. This is why a live knob belongs on an effect instance, not on an asset.
+- A device change re-prepares the selected chains from `AudioSettings.OnAudioConfigurationChanged`, on the main thread.
+  A chain's delay line is sized from the sample rate, so a prepared chain is wrong the moment the device moves.
+- `SfxPlayer.BuildVoices` warms the bus and every listed cue's chain on every voice, and `MusicPlayer.EnsureVoices` does
+  the same for its tracks. A cue played by reference that no library lists is built the first time a voice meets it,
+  which is the one allocation a chained play can make; `SfxPlayer.Warm(cue)` moves that first build off the play.
+- The bus runs inside each voice after the voice's own chain. Unity gives a script no way to sum one source into
+  another, so every bus effect acts on one voice at a time: two voices that each fit under a ceiling can still sum
+  above it, which makes a bus a shared shaping stage rather than an output limiter.
+- `Chain`'s setter asks for a clear, and `ProcessBuffer` applies it at the next block boundary before the stages run.
+  Resetting the effects on the main thread would race the block the audio thread is inside.
+- `DspChain.GainReductionDecibels` sums its stages, because stages in series add their decibels; makeup gain is not
+  counted. The chain, cue and track inspectors show one row per stage in signal order with the live reading any running
+  host reports. That reading is diagnostics, so it may allocate.
+
+| Probe                                              | Result                                         |
+| -------------------------------------------------- | ---------------------------------------------- |
+| `AudioFilterHost` driven with a synthetic block    | ceiling holds; mono and stereo blocks both run |
+| Cue with a chain, 100,000 plays                    | 0 bytes of heap growth                         |
+| A block wider than the layout                      | passes through, `SkippedBlocks` counts it      |
+| Reused voice after a limited block                 | chain and bus read 0 dB, so both were cleared  |
+| Pool build, 16 voices, 1 chained four-effect cue   | 2.5 ms, under the memory gauge's resolution    |
+| Pool build, 16 voices, 16 chained four-effect cues | 4.5 ms and 652 KiB                             |
+| Pool build, 16 voices, 64 chained four-effect cues | 9.3 ms and 3.2 MiB                             |
+
+The warm cost is why a project should share a handful of chain assets rather than author one per cue: the pool builds
+one prepared chain per voice per asset per shape. Building on first play instead would put an allocation on the play
+path, which is the invariant this package keeps.
 
 ## Open questions
 

@@ -92,7 +92,7 @@ namespace WallstopStudios.DxAudio
         public override int LatencySamples => _delayFrames;
 
         /// <summary>How far the gain is currently held down, in decibels; zero is not limiting.</summary>
-        public float GainReductionDecibels => AudioMath.LinearToDecibels(_gain);
+        public override float GainReductionDecibels => AudioMath.LinearToDecibels(_gain);
 
         public override void Prepare(int sampleRate, int maxBlockSize, int channels)
         {

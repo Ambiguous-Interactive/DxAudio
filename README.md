@@ -125,6 +125,24 @@ _sfx.StopLoop(_humHandle); // a stale handle stops nothing
 | Only equal or higher priority is playing | The cue is dropped. Cutting off an audible sound is worse than one that never starts. |
 | A voice holds a loop                     | It is never taken.                                                                    |
 
+### Effects
+
+A cue or a music track can name a **DSP chain** (**Create > DxAudio > DSP > Chain**), a list of limiter, compressor,
+distortion and bit crusher stages in the order the signal meets them. Every pooled voice builds its own copy the first
+time it meets a chain, from the settings the asset holds then, so an edit reaches the voices that have not met it yet. A
+voice clears both its cue chain and the bus when it starts a play, so it never inherits the last sound's delay line.
+
+```csharp
+_sfx.BusChain = sfxBusChain;   // runs after each voice's own chain
+_music.BusChain = musicBusChain;
+_sfx.Warm(cue);                // prepares a cue the library does not list, before its first play
+```
+
+A bus runs on every voice rather than on the mixed output, because Unity gives a script no way to sum one source into
+another. Every bus effect, a limiter and a distortion included, therefore acts on one voice at a time: two voices that
+each fit under a ceiling can still sum above it, so a bus is a shared shaping stage and not an output limiter. The
+chain, cue and track inspectors show each stage with its live gain reduction while audio plays.
+
 ## Music
 
 1. Create tracks with **Create > DxAudio > Music Track** and give each a context, such as `title` or `level-1`.

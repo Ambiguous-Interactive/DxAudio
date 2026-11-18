@@ -43,6 +43,25 @@ namespace WallstopStudios.DxAudio
             }
         }
 
+        /// <summary>How far the chain holds the signal down now, in decibels; zero when nothing turns it down.</summary>
+        /// <remarks>
+        /// The stages run in series, so their reductions add: two stages of 3 dB hold the signal 6 dB down. Makeup gain
+        /// is not counted, because it is a lift a later stage applies rather than a reduction.
+        /// </remarks>
+        public float GainReductionDecibels
+        {
+            get
+            {
+                float held = 0f;
+                for (int i = 0; i < _effects.Count; i++)
+                {
+                    held += _effects[i].GainReductionDecibels;
+                }
+
+                return held;
+            }
+        }
+
         /// <summary>Appends <paramref name="effect"/> to the end of the chain.</summary>
         /// <remarks>
         /// A stage added after <see cref="Prepare"/> is prepared at once with the chain's layout. Otherwise it would

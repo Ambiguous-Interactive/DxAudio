@@ -5,13 +5,16 @@ namespace WallstopStudios.DxAudio.Editor
     using UnityEngine;
     using UnityEngine.UIElements;
 
-    /// <summary>The headings, rows and help lines the four DxAudio authoring surfaces share.</summary>
+    /// <summary>The headings, rows and help lines the DxAudio authoring surfaces share.</summary>
     /// <remarks>
     /// Every surface draws with UI Toolkit, so one helper keeps the spacing and the warning shape the same. A
     /// finding is a <see cref="HelpBox" />, and a clear surface says so instead of showing nothing.
     /// </remarks>
     internal static class DxAudioInspectorUi
     {
+        /// <summary>How often a live reading refreshes while audio plays, in milliseconds.</summary>
+        private const long RefreshMilliseconds = 200;
+
         /// <summary>Adds a spaced section under <paramref name="parent" /> and returns it.</summary>
         internal static VisualElement AddSection(VisualElement parent, string title)
         {
@@ -55,6 +58,146 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 parent.Add(new HelpBox(findings[index], HelpBoxMessageType.Warning));
             }
+        }
+
+        /// <summary>Adds one row per stage of <paramref name="asset" />, in order, with any live gain reduction.</summary>
+        /// <remarks>
+        /// Order is the sound, so the rows are the authored list, top first. A chain that a running voice plays also
+        /// shows how far each stage holds the signal down; that reading is diagnostics, so it may allocate.
+        /// </remarks>
+        internal static void AddChainRows(VisualElement parent, DspChainAsset asset)
+        {
+            if (asset == null)
+            {
+                parent.Add(new Label("No chain: voices play their clip untouched."));
+                return;
+            }
+
+            IReadOnlyList<DspEffectAsset> effects = asset.Effects;
+            if (effects.Count == 0)
+            {
+                parent.Add(new Label("The chain holds no effects, so it plays the clip untouched."));
+                return;
+            }
+
+            float[] reductions = LiveReductions(asset, effects);
+            for (int index = 0; index < effects.Count; ++index)
+            {
+                DspEffectAsset effect = effects[index];
+                VisualElement row = Row();
+                AddText(row, effect == null ? $"Stage {index + 1}: empty" : $"{index + 1}. {NameOf(effect)}: {effect.Describe()}");
+                if (reductions != null && effect != null)
+                {
+                    AddText(row, $"{reductions[index]:0.#} dB");
+                }
+
+                parent.Add(row);
+            }
+
+            if (reductions == null)
+            {
+                parent.Add(new Label("A running voice shows its live gain reduction beside each stage."));
+            }
+        }
+
+        /// <summary>Rebuilds <paramref name="rows" /> while audio plays, because a live reading moves with no edit.</summary>
+        internal static void RefreshWhilePlaying(VisualElement rows, DspChainAsset asset)
+        {
+            rows.schedule.Execute(() =>
+                {
+                    // The rows are rebuilt on an edit anyway. Only a running voice adds a reading with no edit.
+                    if (Application.isPlaying)
+                    {
+                        rows.Clear();
+                        AddChainRows(rows, asset);
+                    }
+                })
+                .Every(RefreshMilliseconds);
+        }
+
+        /// <summary>The asset's name, or its type when an asset made in code was never given one.</summary>
+        private static string NameOf(DspEffectAsset effect)
+        {
+            return string.IsNullOrEmpty(effect.name) ? effect.GetType().Name : effect.name;
+        }
+
+        /// <summary>The most restrictive live reduction per authored stage, across every running host that plays the chain.</summary>
+        /// <returns>
+        /// <see langword="null" /> when nothing runs the chain, so no stage has a reading. An empty slot keeps its zero,
+        /// because the built chain skips it and its stage number belongs to another row.
+        /// </returns>
+        private static float[] LiveReductions(DspChainAsset asset, IReadOnlyList<DspEffectAsset> effects)
+        {
+            if (!Application.isPlaying)
+            {
+                return null;
+            }
+
+            int stages = 0;
+            for (int index = 0; index < effects.Count; ++index)
+            {
+                if (effects[index] != null)
+                {
+                    ++stages;
+                }
+            }
+
+            AudioFilterHost[] hosts = Hosts();
+            float[] reductions = null;
+            for (int index = 0; index < hosts.Length; ++index)
+            {
+                AudioFilterHost host = hosts[index];
+                // A stopped voice keeps its chain and its last reading, so it must not speak for a sounding one.
+                if (!host.IsSounding)
+                {
+                    continue;
+                }
+
+                DspChain chain = null;
+                if (host.Chain == asset)
+                {
+                    chain = host.LiveChain;
+                }
+                else if (host.BusChain == asset)
+                {
+                    chain = host.LiveBusChain;
+                }
+
+                if (chain == null || chain.Count != stages)
+                {
+                    continue;
+                }
+
+                reductions ??= new float[effects.Count];
+                int stage = 0;
+                for (int authored = 0; authored < effects.Count; ++authored)
+                {
+                    if (effects[authored] == null)
+                    {
+                        continue;
+                    }
+
+                    float reduction = chain[stage].GainReductionDecibels;
+                    if (reduction < reductions[authored])
+                    {
+                        reductions[authored] = reduction;
+                    }
+
+                    ++stage;
+                }
+            }
+
+            return reductions;
+        }
+
+        /// <summary>Every host the running editor holds.</summary>
+        /// <remarks>
+        /// The scene-wide finders changed shape twice across the supported versions, and the oldest and newest
+        /// spellings each warn on the other's editor. This one call is the same on 2021.3 and on 6000.x.
+        /// </remarks>
+        private static AudioFilterHost[] Hosts()
+        {
+            return Resources.FindObjectsOfTypeAll<AudioFilterHost>();
         }
     }
 }

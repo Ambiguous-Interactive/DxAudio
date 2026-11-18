@@ -1,6 +1,7 @@
 namespace WallstopStudios.DxAudio
 {
     using System;
+    using System.Collections.Generic;
     using UnityEngine;
 
     /// <summary>A claim on one held voice, returned by <see cref="SfxPlayer.TryPlayLooping(SfxCue, out SfxLoopHandle)"/>.</summary>
@@ -60,12 +61,17 @@ namespace WallstopStudios.DxAudio
         [Tooltip("The listener a centred cue is placed in front of. Empty uses the main camera's.")]
         private AudioListener _listener;
 
+        [SerializeField]
+        [Tooltip("A chain every voice runs after its cue's own, one voice at a time. It cannot hold the sum of the voices under a ceiling. Empty passes through.")]
+        private DspChainAsset _busChain;
+
         private bool _paused;
 
         private readonly SfxThrottle<SfxCue> _throttle = new();
         private readonly SfxSelection<SfxCue> _selection = new();
 
         private AudioSource[] _voices = Array.Empty<AudioSource>();
+        private AudioFilterHost[] _hosts = Array.Empty<AudioFilterHost>();
         private SfxVoiceState[] _states = Array.Empty<SfxVoiceState>();
         private SfxPriority[] _priorities = Array.Empty<SfxPriority>();
         private float[] _startedAt = Array.Empty<float>();
@@ -117,6 +123,24 @@ namespace WallstopStudios.DxAudio
         {
             get => _listener;
             set => _listener = value;
+        }
+
+        /// <summary>The chain every voice runs after its cue's own. Setting it reaches the voices already built.</summary>
+        public DspChainAsset BusChain
+        {
+            get => _busChain;
+            set
+            {
+                _busChain = value;
+                for (int index = 0; index < _hosts.Length; index++)
+                {
+                    AudioFilterHost host = _hosts[index];
+                    if (host != null)
+                    {
+                        host.BusChain = value;
+                    }
+                }
+            }
         }
 
         /// <summary>Whether every sounding voice is held at its playhead. Loops and leases are kept while paused.</summary>
@@ -249,6 +273,31 @@ namespace WallstopStudios.DxAudio
             {
                 voice.Stop();
                 voice.loop = false;
+            }
+
+            return true;
+        }
+
+        /// <summary>Prepares <paramref name="cue" />'s chain on every voice, so a play of a reference cue allocates nothing.</summary>
+        /// <remarks>
+        /// The pool prepares every cue its library lists. This covers a cue a game holds by reference and never lists,
+        /// because the player cannot know it in advance and would otherwise build its chain inside the play call.
+        /// </remarks>
+        /// <returns><see langword="false" /> when the player has no voices to prepare.</returns>
+        public bool Warm(SfxCue cue)
+        {
+            if (cue == null || _voices.Length == 0)
+            {
+                return false;
+            }
+
+            for (int index = 0; index < _hosts.Length; index++)
+            {
+                AudioFilterHost host = _hosts[index];
+                if (host != null)
+                {
+                    host.Warm(cue.Chain);
+                }
             }
 
             return true;
@@ -402,6 +451,15 @@ namespace WallstopStudios.DxAudio
             AudioSource voice = _voices[index];
             voice.Stop();
             Configure(voice, cue, variant, position);
+            AudioFilterHost host = _hosts[index];
+            if (host != null)
+            {
+                // The chain is cleared here, not at stop: a voice is about to start a new play, and it must not
+                // inherit the last one's delay line or envelope. The bus is cleared by the same assignment.
+                // A cue the library does not list is built on this voice now, which is its first and only allocation;
+                // a game that plays such a cue by reference can call Warm(cue) to move that cost off the play.
+                host.Chain = cue.Chain;
+            }
             _priorities[index] = cue.Priority;
             _startedAt[index] = now;
             _leases[index] = ++_nextLease;
@@ -559,6 +617,7 @@ namespace WallstopStudios.DxAudio
             DestroyVoices();
             int count = _library != null ? _library.VoiceCount : 0;
             _voices = new AudioSource[count];
+            _hosts = new AudioFilterHost[count];
             _states = new SfxVoiceState[count];
             _priorities = new SfxPriority[count];
             _startedAt = new float[count];
@@ -582,6 +641,42 @@ namespace WallstopStudios.DxAudio
                 voice.dopplerLevel = 0f;
                 voice.mute = _muted;
                 _voices[index] = voice;
+
+                // One host per voice, so a cue's chain shapes that source alone.
+                AudioFilterHost host = child.AddComponent<AudioFilterHost>();
+                host.BusChain = _busChain;
+                _hosts[index] = host;
+            }
+
+            WarmChains();
+        }
+
+        /// <summary>Prepares the bus and every listed cue's chain on every voice, so a play of them allocates nothing.</summary>
+        private void WarmChains()
+        {
+            IReadOnlyList<SfxCue> cues = _library != null ? _library.Cues : null;
+            for (int index = 0; index < _hosts.Length; index++)
+            {
+                AudioFilterHost host = _hosts[index];
+                if (host == null)
+                {
+                    continue;
+                }
+
+                host.Warm(_busChain);
+                if (cues == null)
+                {
+                    continue;
+                }
+
+                for (int cueIndex = 0; cueIndex < cues.Count; cueIndex++)
+                {
+                    SfxCue cue = cues[cueIndex];
+                    if (cue != null)
+                    {
+                        host.Warm(cue.Chain);
+                    }
+                }
             }
         }
 

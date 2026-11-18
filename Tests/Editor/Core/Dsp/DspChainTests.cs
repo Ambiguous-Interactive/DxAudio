@@ -137,6 +137,35 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void TheChainAddsUpItsStagesReductions()
+        {
+            DspChain chain = new();
+            chain.Add(new DspLimiter { Ceiling = 0.25f, LookaheadSeconds = 0f });
+            chain.Add(
+                new DspCompressor
+                {
+                    ThresholdDecibels = -20f,
+                    Ratio = 4f,
+                    AttackSeconds = 0f,
+                    ReleaseSeconds = 0f,
+                }
+            );
+            chain.Prepare(SampleRate, 256, 1);
+            float[] block = Sine(1_000f, 1f, 256);
+
+            Assert.That(chain.GainReductionDecibels, Is.Zero, "nothing has run yet, so nothing holds the signal down");
+
+            chain.Process(block, 0, block.Length, 1);
+
+            float first = chain[0].GainReductionDecibels;
+            float second = chain[1].GainReductionDecibels;
+            Assert.That(first, Is.LessThan(-10f), "a quarter ceiling is about 12 dB down");
+            Assert.That(second, Is.LessThan(-4f), "the compressor sees a quarter-scale signal over its threshold");
+            Assert.That(second, Is.Not.EqualTo(first), "a reading that keeps only one stage cannot pass this");
+            Assert.That(chain.GainReductionDecibels, Is.EqualTo(first + second), "stages in series add their reductions");
+        }
+
+        [Test]
         public void AnUnpreparedChainPassesTheBlockUntouched()
         {
             float[] block = Sine(440f, 0.5f, 128);

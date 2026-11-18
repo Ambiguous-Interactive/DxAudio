@@ -367,6 +367,97 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(summary.text, Does.Match(@"^\d+ librar(y|ies), \d+ problems?$"));
         }
 
+        [Test]
+        public void ACueInspectorListsItsChainStagesInSignalOrder()
+        {
+            using MadeObjects made = new();
+            DspChainAsset chain = made.Track(
+                DspChainAsset.Create(new DspEffectAsset[] { made.Track(DspBitCrusherAsset.Create(bits: 6)), made.Track(DspLimiterAsset.Create(ceilingDecibels: -3f)) })
+            );
+            SfxCue cue = made.Track(SfxCue.Create(new[] { Variant(made) }, chain: chain));
+
+            UnityEditor.Editor cueEditor = null;
+            UnityEditor.Editor chainEditor = null;
+            try
+            {
+                cueEditor = UnityEditor.Editor.CreateEditor(cue, typeof(SfxCueEditor));
+                chainEditor = UnityEditor.Editor.CreateEditor(chain, typeof(DspChainAssetEditor));
+                List<string> cueRows = Labels(cueEditor.CreateInspectorGUI());
+                List<string> chainRows = Labels(chainEditor.CreateInspectorGUI());
+
+                Assert.That(Joined(cueRows), Does.Contain("1. ").And.Contain("6 bit, every 1 frame"));
+                Assert.That(Joined(cueRows), Does.Contain("2. ").And.Contain("ceiling -3 dB"));
+                Assert.That(Order(Joined(cueRows), "1. ", "6 bit", "2. ", "ceiling -3 dB"), Is.True, "the rows follow the authored order");
+                Assert.That(Joined(chainRows), Does.Contain("ceiling -3 dB"), "the chain's own inspector draws the same rows");
+                Assert.That(Joined(cueRows), Does.Contain("A running voice shows its live gain reduction"), "no voice runs in edit mode");
+            }
+            finally
+            {
+                if (cueEditor != null)
+                {
+                    Object.DestroyImmediate(cueEditor);
+                }
+
+                if (chainEditor != null)
+                {
+                    Object.DestroyImmediate(chainEditor);
+                }
+            }
+        }
+
+        [Test]
+        public void AChainInspectorNumbersAroundAnEmptySlot()
+        {
+            using MadeObjects made = new();
+            DspChainAsset chain = made.Track(
+                DspChainAsset.Create(new DspEffectAsset[] { made.Track(DspBitCrusherAsset.Create(bits: 6)), null, made.Track(DspLimiterAsset.Create()) })
+            );
+            UnityEditor.Editor editor = null;
+            try
+            {
+                editor = UnityEditor.Editor.CreateEditor(chain, typeof(DspChainAssetEditor));
+                string rows = Joined(Labels(editor.CreateInspectorGUI()));
+
+                Assert.That(Order(rows, "1. ", "6 bit", "Stage 2: empty", "3. ", "DspLimiterAsset"), Is.True, "an empty slot keeps its own row");
+            }
+            finally
+            {
+                if (editor != null)
+                {
+                    Object.DestroyImmediate(editor);
+                }
+            }
+        }
+
+        /// <summary>Whether <paramref name="parts" /> appear in <paramref name="text" /> in the order given, each once.</summary>
+        private static bool Order(string text, params string[] parts)
+        {
+            int from = 0;
+            for (int index = 0; index < parts.Length; ++index)
+            {
+                int at = text.IndexOf(parts[index], from, System.StringComparison.Ordinal);
+                if (at < 0)
+                {
+                    return false;
+                }
+
+                from = at + parts[index].Length;
+            }
+
+            return true;
+        }
+
+        private static List<string> Labels(VisualElement view)
+        {
+            List<string> texts = new();
+            foreach (Label label in view.Query<Label>().ToList())
+            {
+                texts.Add(label.text);
+            }
+
+            return texts;
+        }
+
         private static string Joined(List<string> findings)
         {
             return string.Join(" | ", findings);

@@ -16,6 +16,7 @@ Unity 2021.3 or newer.
 | [Quickstart](quickstart.md)           | Play a cue and start music in a few minutes          |
 | [Cues](cues.md)                       | Author sound effects and understand the pool         |
 | [Music](music.md)                     | Set up contexts, fades, overrides and mixer groups   |
+| [Effects](effects.md)                 | Shape a cue, a track or a whole player with a chain  |
 | [Ducks](ducks.md)                     | Hold the music down for dialogue, menus or cutscenes |
 | [Troubleshooting](troubleshooting.md) | Find why a sound did not play or stayed silent       |
 
@@ -32,6 +33,7 @@ list it in the Package Manager **Samples** tab, or copy the folder into `Assets/
 - **Music library.** The tracks a music player looks up by context, plus the fade times.
 - **Duck.** A reason to lower and filter the music, with `One` or `Many` holders.
 - **Voice.** One `AudioSource` the player owns and reuses. Playing a cue claims a voice.
+- **Chain.** An ordered list of effects a cue, a track or a player's bus runs on its voices.
 
 ## See also
 

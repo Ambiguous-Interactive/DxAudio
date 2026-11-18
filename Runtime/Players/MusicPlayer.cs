@@ -1,6 +1,7 @@
 namespace WallstopStudios.DxAudio
 {
     using System;
+    using System.Collections.Generic;
     using UnityEngine;
 
     /// <summary>
@@ -36,6 +37,10 @@ namespace WallstopStudios.DxAudio
         [Tooltip("Keeps the music playing while AudioListener.pause is set, so a pause menu is not silent.")]
         private bool _playsWhilePaused = true;
 
+        [SerializeField]
+        [Tooltip("A chain every music voice runs after its track's own, one voice at a time. It cannot hold the sum of the voices under a ceiling. Empty passes through.")]
+        private DspChainAsset _busChain;
+
         private readonly MusicDuckStack _ducks = new();
         private bool _paused;
         private readonly Voice[] _voices = new Voice[VoiceCount];
@@ -50,6 +55,23 @@ namespace WallstopStudios.DxAudio
         {
             get => _library;
             set => _library = value;
+        }
+
+        /// <summary>The chain every music voice runs after its track's own. Setting it reaches the voices already built.</summary>
+        public DspChainAsset BusChain
+        {
+            get => _busChain;
+            set
+            {
+                _busChain = value;
+                foreach (Voice voice in _voices)
+                {
+                    if (voice != null && voice.host != null)
+                    {
+                        voice.host.BusChain = value;
+                    }
+                }
+            }
         }
 
         /// <summary>Raised when the music that should sound changes to <c>track</c>. Additive.</summary>
@@ -387,6 +409,12 @@ namespace WallstopStudios.DxAudio
             source.mute = _muted;
             source.ignoreListenerPause = _playsWhilePaused;
             source.outputAudioMixerGroup = _library != null ? _library.MixerGroup : null;
+            if (voice.host != null)
+            {
+                // The chain and the bus are cleared by the assignment: this voice is starting a new play.
+                voice.host.Chain = track.Chain;
+            }
+
             voice.track = track;
             voice.fadingOut = false;
             voice.stop.Cancel();
@@ -520,7 +548,33 @@ namespace WallstopStudios.DxAudio
                 source.playOnAwake = false;
                 source.spatialBlend = 0f;
                 source.mute = _muted;
-                _voices[index] = new Voice(source, child.AddComponent<AudioLowPassFilter>(), child.AddComponent<AudioHighPassFilter>());
+                AudioFilterHost host = child.AddComponent<AudioFilterHost>();
+                Voice voice = new(source, child.AddComponent<AudioLowPassFilter>(), child.AddComponent<AudioHighPassFilter>(), host);
+                // Registered before the warm pass, so a chain that throws while preparing cannot leave an untracked
+                // child behind and make the next attempt create another.
+                _voices[index] = voice;
+                host.BusChain = _busChain;
+                WarmChains(host);
+            }
+        }
+
+        /// <summary>Prepares the bus and every listed track's chain on <paramref name="host" />, so a play of them allocates nothing.</summary>
+        private void WarmChains(AudioFilterHost host)
+        {
+            host.Warm(_busChain);
+            if (_library == null)
+            {
+                return;
+            }
+
+            IReadOnlyList<MusicTrack> tracks = _library.Tracks;
+            for (int index = 0; index < tracks.Count; index++)
+            {
+                MusicTrack track = tracks[index];
+                if (track != null)
+                {
+                    host.Warm(track.Chain);
+                }
             }
         }
 
@@ -529,16 +583,18 @@ namespace WallstopStudios.DxAudio
             public readonly AudioSource source;
             public readonly AudioLowPassFilter lowPass;
             public readonly AudioHighPassFilter highPass;
+            public readonly AudioFilterHost host;
             public readonly MusicStopSchedule stop = new();
             public MusicTrack track;
             public MusicRamp fade = MusicRamp.At(0f);
             public bool fadingOut;
 
-            public Voice(AudioSource source, AudioLowPassFilter lowPass, AudioHighPassFilter highPass)
+            public Voice(AudioSource source, AudioLowPassFilter lowPass, AudioHighPassFilter highPass, AudioFilterHost host)
             {
                 this.source = source;
                 this.lowPass = lowPass;
                 this.highPass = highPass;
+                this.host = host;
                 lowPass.enabled = false;
                 highPass.enabled = false;
             }

@@ -73,6 +73,23 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void PlayingACueWithAChainDoesNotAllocate()
+        {
+            using MadeObjects made = new();
+            DspChainAsset chain = made.Track(DspChainAsset.Create(new DspEffectAsset[] { made.Track(DspLimiterAsset.Create()), made.Track(DspDistortionAsset.Create()) }));
+            SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, minimumIntervalSeconds: 0f, chain: chain));
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
+            for (int index = 0; index < WarmupPlays; index++)
+            {
+                player.Play(cue);
+            }
+
+            long growth = HeapGrowth(() => player.Play(cue), PlayCount);
+
+            Assert.That(growth, Is.LessThan(Ceiling), $"Play through a chain grew the heap by {growth} bytes over {PlayCount:N0} plays.");
+        }
+
+        [Test]
         public void TheHeapProbeSeesAPlantedAllocation()
         {
             Assert.That(_planted, Is.GreaterThan(Ceiling), $"a probe that cannot fail is not evidence; {PlayCount:N0} retained planted strings grew it by {_planted} bytes");

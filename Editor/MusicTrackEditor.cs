@@ -48,7 +48,17 @@ namespace WallstopStudios.DxAudio.Editor
         private void Rebuild(VisualElement container, MusicTrack track, AudioClip clip)
         {
             container.Clear();
-            if (track == null || clip == null)
+            if (track == null)
+            {
+                return;
+            }
+
+            VisualElement effects = DxAudioInspectorUi.AddSection(container, "Effects");
+            VisualElement rows = new VisualElement();
+            effects.Add(rows);
+            DxAudioInspectorUi.AddChainRows(rows, track.Chain);
+            DxAudioInspectorUi.RefreshWhilePlaying(rows, track.Chain);
+            if (clip == null)
             {
                 return;
             }
