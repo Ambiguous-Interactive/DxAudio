@@ -23,7 +23,7 @@ namespace WallstopStudios.DxAudio.Tests
             chain.Add(new DspDistortion { Drive = 6f });
             chain.Add(new DspBitCrusher { Bits = 6, RateReduction = 2 });
             chain.Add(new DspPitchShifter { Semitones = 7f });
-            chain.Prepare(SampleRate, BlockFrames, Channels);
+            chain.TryPrepare(SampleRate, BlockFrames, Channels);
 
             float[] block = new float[BlockFrames * Channels];
             for (int frame = 0; frame < block.Length; frame++)

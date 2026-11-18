@@ -378,7 +378,7 @@ namespace WallstopStudios.DxAudio
                 for (int index = 0; index < shapes; index++)
                 {
                     DspChain chain = asset.CreateChain();
-                    chain.Prepare(sampleRate, blockSize, index + 1);
+                    _ = chain.TryPrepare(sampleRate, blockSize, index + 1);
                     _chains[index] = chain;
                 }
             }

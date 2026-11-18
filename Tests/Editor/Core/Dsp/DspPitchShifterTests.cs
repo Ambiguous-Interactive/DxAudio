@@ -25,7 +25,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void ABlockOfAnotherChannelCountIsRefused()
         {
             DspPitchShifter shifter = new() { Semitones = 12f };
-            shifter.Prepare(SampleRate, 256, 2);
+            shifter.TryPrepare(SampleRate, 256, 2);
             float[] block = Sine(440f, 0.5f, 128);
             float[] before = (float[])block.Clone();
 
@@ -41,7 +41,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             DspPitchShifter shifter = new();
 
-            _ = Assert.Throws<ArgumentOutOfRangeException>(() => shifter.Prepare(sampleRate, maxBlockSize, channels));
+            Assert.That(shifter.TryPrepare(sampleRate, maxBlockSize, channels), Is.False);
         }
 
         [TestCase(0.05f, 1_201, TestName = "The default window delays half of it plus one frame")]
@@ -50,7 +50,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void LatencyIsHalfTheWindowPlusOneFrame(float windowSeconds, int expected)
         {
             DspPitchShifter shifter = new() { WindowSeconds = windowSeconds };
-            shifter.Prepare(SampleRate, 256, 1);
+            shifter.TryPrepare(SampleRate, 256, 1);
 
             Assert.That(shifter.LatencySamples, Is.EqualTo(expected));
         }
@@ -59,12 +59,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void ANewWindowWaitsForTheNextPrepare()
         {
             DspPitchShifter shifter = new() { WindowSeconds = 0.05f };
-            shifter.Prepare(SampleRate, 256, 1);
+            shifter.TryPrepare(SampleRate, 256, 1);
 
             shifter.WindowSeconds = 0.01f;
 
             Assert.That(shifter.LatencySamples, Is.EqualTo(1_201), "a live stage keeps the line it prepared, so a setter never allocates under the audio thread");
-            shifter.Prepare(SampleRate, 256, 1);
+            shifter.TryPrepare(SampleRate, 256, 1);
             Assert.That(shifter.LatencySamples, Is.EqualTo(241), "the next Prepare sizes the line for the new window");
         }
 
@@ -73,7 +73,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void AtUnisonTheSignalArrivesAtTheReportedLatency(int channels)
         {
             DspPitchShifter shifter = new() { WindowSeconds = 0.05f };
-            shifter.Prepare(SampleRate, 256, channels);
+            shifter.TryPrepare(SampleRate, 256, channels);
             int latency = shifter.LatencySamples;
             int frames = latency + 512;
             float[] input = new float[frames * channels];
@@ -106,7 +106,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void AShiftMovesTheToneToTheExpectedFrequency(float semitones, double expectedHz, double inputHz)
         {
             DspPitchShifter shifter = new() { Semitones = semitones };
-            shifter.Prepare(SampleRate, 256, 1);
+            shifter.TryPrepare(SampleRate, 256, 1);
             int analysisStart = shifter.LatencySamples + 2_048;
             int analysisFrames = 12_000;
             float[] block = Sine((float)inputHz, 0.5f, analysisStart + analysisFrames);
@@ -123,7 +123,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void UnisonDelaysTheToneWithoutMovingIt()
         {
             DspPitchShifter shifter = new();
-            shifter.Prepare(SampleRate, 256, 1);
+            shifter.TryPrepare(SampleRate, 256, 1);
             int analysisStart = shifter.LatencySamples + 2_048;
             int analysisFrames = 12_000;
             float[] block = Sine(440f, 0.5f, analysisStart + analysisFrames);
@@ -142,7 +142,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void AShiftKeepsTheSignalInsideItsInputRange(float semitones)
         {
             DspPitchShifter shifter = new() { Semitones = semitones };
-            shifter.Prepare(SampleRate, 256, 1);
+            shifter.TryPrepare(SampleRate, 256, 1);
             float[] block = Sine(1_000f, 1f, 24_000);
 
             ProcessInBlocks(shifter, block, 1, 256);
@@ -154,7 +154,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void AReusedShifterMatchesAFreshOneAfterReset()
         {
             DspPitchShifter reused = new() { Semitones = 12f };
-            reused.Prepare(SampleRate, 256, 1);
+            reused.TryPrepare(SampleRate, 256, 1);
             float[] noise = Sine(1_000f, 1f, 4_096);
             ProcessInBlocks(reused, noise, 1, 256);
             reused.Reset();
@@ -164,7 +164,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             ProcessInBlocks(reused, afterReset, 1, 256);
 
             DspPitchShifter fresh = new() { Semitones = 12f };
-            fresh.Prepare(SampleRate, 256, 1);
+            fresh.TryPrepare(SampleRate, 256, 1);
             float[] fromFresh = (float[])expected.Clone();
             ProcessInBlocks(fresh, fromFresh, 1, 256);
 
@@ -178,8 +178,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float[] coarse = (float[])fine.Clone();
             DspPitchShifter fineShifter = new() { Semitones = 7f };
             DspPitchShifter coarseShifter = new() { Semitones = 7f };
-            fineShifter.Prepare(SampleRate, 64, 1);
-            coarseShifter.Prepare(SampleRate, 1_024, 1);
+            fineShifter.TryPrepare(SampleRate, 64, 1);
+            coarseShifter.TryPrepare(SampleRate, 1_024, 1);
 
             ProcessInBlocks(fineShifter, fine, 1, 64);
             ProcessInBlocks(coarseShifter, coarse, 1, 1_024);
@@ -192,7 +192,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void AShiftedConstantKeepsItsLevel()
         {
             DspPitchShifter shifter = new() { Semitones = 12f };
-            shifter.Prepare(SampleRate, 256, 1);
+            shifter.TryPrepare(SampleRate, 256, 1);
             int settled = shifter.LatencySamples * 2;
             float[] block = new float[settled + 4_096];
             for (int index = 0; index < block.Length; index++)
@@ -219,7 +219,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(shifter.Semitones, Is.EqualTo(7f));
             Assert.That(shifter.WindowSeconds, Is.EqualTo(0.02f));
 
-            shifter.Prepare(SampleRate, 256, 1);
+            shifter.TryPrepare(SampleRate, 256, 1);
             float[] block = Sine(1_000f, 1f, 4_096);
             ProcessInBlocks(shifter, block, 1, 256);
             foreach (float sample in block)
@@ -235,7 +235,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void CrossingUnisonDoesNotSpliceTheWaveform(float before, float after)
         {
             DspPitchShifter shifter = new() { Semitones = before };
-            shifter.Prepare(SampleRate, 256, 1);
+            shifter.TryPrepare(SampleRate, 256, 1);
             float[] block = Sine(997f, 0.5f, 16_384);
             int half = block.Length / 2;
 
@@ -262,7 +262,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void UnisonAfterAShiftIsAPureDelayAgain(float semitones)
         {
             DspPitchShifter shifter = new() { Semitones = semitones };
-            shifter.Prepare(SampleRate, 256, 1);
+            shifter.TryPrepare(SampleRate, 256, 1);
             int latency = shifter.LatencySamples;
             int frames = 16_384;
             float[] input = Sine(440f, 0.5f, frames);

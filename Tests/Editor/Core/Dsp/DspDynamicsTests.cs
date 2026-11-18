@@ -125,7 +125,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 ReleaseSeconds = 0f,
             };
             float[] source = Sine(200f, 1f, 9_600);
-            limiter.Prepare(SampleRate, 1, 1);
+            limiter.TryPrepare(SampleRate, 1, 1);
 
             // One frame at a time, so the gain is read while the audio runs rather than after it has finished.
             float smallestReduction = float.MaxValue;
@@ -481,7 +481,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 interleaved[frame * 2 + 1] = source[frame] * 0.1f;
             }
 
-            limiter.Prepare(SampleRate, BlockFrames, 2);
+            limiter.TryPrepare(SampleRate, BlockFrames, 2);
             for (int offset = 0; offset < interleaved.Length; offset += BlockFrames * 2)
             {
                 int count = Math.Min(BlockFrames * 2, interleaved.Length - offset);
@@ -502,7 +502,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         private static void Prepare(DspEffect effect)
         {
-            effect.Prepare(SampleRate, BlockFrames, 1);
+            effect.TryPrepare(SampleRate, BlockFrames, 1);
         }
 
         private static float[] Render(DspEffect effect, float[] source)

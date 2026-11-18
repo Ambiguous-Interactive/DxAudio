@@ -20,7 +20,7 @@ namespace WallstopStudios.DxAudio
 
         public int Count => _effects.Count;
 
-        /// <summary>Builds a chain with one fresh effect for every authored stage, ready for <c>Prepare</c>.</summary>
+        /// <summary>Builds a chain with one fresh effect for every authored stage, ready for <c>TryPrepare</c>.</summary>
         public DspChain CreateChain()
         {
             DspChain chain = new();

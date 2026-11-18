@@ -55,18 +55,8 @@ namespace WallstopStudios.DxAudio
             set => _rateReduction = Math.Max(1, value);
         }
 
-        public override void Prepare(int sampleRate, int maxBlockSize, int channels)
+        protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
         {
-            if (sampleRate <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(sampleRate));
-            }
-
-            if (channels <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(channels));
-            }
-
             _channels = channels;
             _held = new float[channels];
             Reset();
