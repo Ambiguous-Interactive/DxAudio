@@ -11,12 +11,11 @@ namespace WallstopStudios.DxAudio
     ///
     /// A chain keeps delay lines and envelopes, so it belongs to the voice that plays. Every chain asset this host has
     /// met stays prepared for each block shape up to the output layout, because a filter block can arrive narrower than
-    /// the device: choosing one again allocates nothing, and <see cref="Chain" />'s setter clears the voice's chain and
-    /// the bus, because a new play must not inherit the last one's delay line or gain.
+    /// the device. A voice reads an asset once: it keeps the effect settings it built the first time it met that asset.
     ///
-    /// The bus runs after the voice's own chain. Unity gives a script no way to sum one source into another, so a
-    /// player's bus runs on each voice rather than on the mixed output: a limiter or a distortion on it behaves as the
-    /// bus, while a compressor works on each voice alone.
+    /// The bus runs after the voice's own chain, on each voice separately. Unity gives a script no way to sum one
+    /// source into another, so every bus effect in this package acts on one voice at a time and never on the mixed
+    /// output: two voices that each fit under a ceiling can still sum above it.
     /// </remarks>
     [DisallowMultipleComponent]
     [AddComponentMenu("DxAudio/Audio Filter Host")]
@@ -31,28 +30,36 @@ namespace WallstopStudios.DxAudio
         private DspChainAsset _chain;
 
         [SerializeField]
-        [Tooltip("A chain this host runs after its own, so a player's bus reaches every voice.")]
+        [Tooltip("A chain this host runs after its own, on one voice at a time, so a player's bus reaches every voice.")]
         private DspChainAsset _busChain;
 
         private readonly List<Instance> _instances = new();
         private Instance _running;
         private Instance _bus;
+        private AudioSource _source;
         private int _sampleRate;
         private int _blockSize = FallbackBlockSize;
         private int _outputChannels;
         private int _liveChannels;
         private int _skippedBlocks;
+        private int _clearVoice;
+        private int _clearBus;
 
         /// <summary>The chain this host runs, or null when it passes the block through.</summary>
-        /// <remarks>Assigning starts a new play: the voice's chain and the bus both lose the last play's state.</remarks>
+        /// <remarks>
+        /// Assigning starts a new play. The chain and the bus are cleared at the next block boundary, never here: the
+        /// audio thread may be inside the block that is still playing.
+        /// </remarks>
         public DspChainAsset Chain
         {
             get => _chain;
             set
             {
+                Instance prepared = InstanceFor(value, bus: false);
                 _chain = value;
-                _running = InstanceFor(value, bus: false);
-                ClearState();
+                _running = prepared;
+                _clearVoice = 1;
+                _clearBus = 1;
             }
         }
 
@@ -62,12 +69,10 @@ namespace WallstopStudios.DxAudio
             get => _busChain;
             set
             {
+                Instance prepared = InstanceFor(value, bus: true);
                 _busChain = value;
-                _bus = InstanceFor(value, bus: true);
-                if (_bus != null)
-                {
-                    _bus.Reset();
-                }
+                _bus = prepared;
+                _clearBus = 1;
             }
         }
 
@@ -104,10 +109,12 @@ namespace WallstopStudios.DxAudio
         {
             get
             {
-                float held = LiveChain != null ? LiveChain.GainReductionDecibels : 0f;
-                if (LiveBusChain != null)
+                DspChain running = LiveChain;
+                DspChain bus = LiveBusChain;
+                float held = running != null ? running.GainReductionDecibels : 0f;
+                if (bus != null)
                 {
-                    held += LiveBusChain.GainReductionDecibels;
+                    held += bus.GainReductionDecibels;
                 }
 
                 return held;
@@ -117,8 +124,18 @@ namespace WallstopStudios.DxAudio
         /// <summary>The output channel count this host prepares for; every narrower block also runs.</summary>
         public int ChannelCount => _outputChannels;
 
-        /// <summary>How many blocks were narrower, or wider, than any prepared chain. A diagnostic; zero is healthy.</summary>
+        /// <summary>How many blocks were wider than any prepared chain. A diagnostic; zero is healthy.</summary>
         public int SkippedBlocks => _skippedBlocks;
+
+        /// <summary>Whether the source on this object reports playback now, so a live reading belongs to it.</summary>
+        public bool IsSounding
+        {
+            get
+            {
+                AudioSource source = Source;
+                return source != null && source.isPlaying;
+            }
+        }
 
         /// <summary>Prepares <paramref name="asset" />'s chain for this voice now, so the first play of it allocates nothing.</summary>
         public void Warm(DspChainAsset asset)
@@ -177,6 +194,24 @@ namespace WallstopStudios.DxAudio
             }
 
             _liveChannels = channels;
+            if (0 != _clearVoice)
+            {
+                _clearVoice = 0;
+                if (running != null)
+                {
+                    running.Reset();
+                }
+            }
+
+            if (0 != _clearBus)
+            {
+                _clearBus = 0;
+                if (bus != null)
+                {
+                    bus.Reset();
+                }
+            }
+
             if (running != null)
             {
                 running.Process(buffer, 0, buffer.Length, channels);
@@ -188,6 +223,19 @@ namespace WallstopStudios.DxAudio
             }
         }
 
+        private AudioSource Source
+        {
+            get
+            {
+                if (_source == null)
+                {
+                    _source = GetComponent<AudioSource>();
+                }
+
+                return _source;
+            }
+        }
+
         private void Awake()
         {
             EnsurePrepared();
@@ -195,11 +243,35 @@ namespace WallstopStudios.DxAudio
             BusChain = _busChain;
         }
 
-        /// <summary>Reads the output rate, block size and channel count every chain on this host is prepared for.</summary>
+        private void OnEnable()
+        {
+            AudioSettings.OnAudioConfigurationChanged += OnAudioConfigurationChanged;
+        }
+
+        private void OnDisable()
+        {
+            AudioSettings.OnAudioConfigurationChanged -= OnAudioConfigurationChanged;
+        }
+
+        /// <summary>Re-prepares the selected chains for a new output rate or layout. Runs on the main thread.</summary>
         /// <remarks>
-        /// Read once. A voice added before its player sets a chain is prepared from the device, and a player that
-        /// already set one is not prepared again, so a late device query never invalidates a prepared chain.
+        /// A chain's delay lines are sized from the sample rate, so a device change leaves every prepared chain wrong
+        /// until this runs. The old instances stay alive for the block in flight and are dropped after it.
         /// </remarks>
+        internal void OnAudioConfigurationChanged(bool deviceChanged)
+        {
+            _sampleRate = 0;
+            _liveChannels = 0;
+            _instances.Clear();
+            Instance running = InstanceFor(_chain, bus: false);
+            Instance bus = InstanceFor(_busChain, bus: true);
+            _running = running;
+            _bus = bus;
+            _clearVoice = 1;
+            _clearBus = 1;
+        }
+
+        /// <summary>Reads the output rate, block size and channel count every chain on this host is prepared for.</summary>
         private void EnsurePrepared()
         {
             if (0 < _sampleRate)
@@ -215,19 +287,6 @@ namespace WallstopStudios.DxAudio
 
         /// <summary>The block shape a reading describes: the last block run, or the output layout before any block.</summary>
         private int ReadingChannels => 0 < _liveChannels ? _liveChannels : _outputChannels;
-
-        private void ClearState()
-        {
-            if (_running != null)
-            {
-                _running.Reset();
-            }
-
-            if (_bus != null)
-            {
-                _bus.Reset();
-            }
-        }
 
         /// <summary>The prepared chains for <paramref name="asset" /> in one slot, built the first time this voice meets it.</summary>
         private Instance InstanceFor(DspChainAsset asset, bool bus)

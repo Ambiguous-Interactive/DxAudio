@@ -12,6 +12,9 @@ namespace WallstopStudios.DxAudio.Editor
     /// </remarks>
     internal static class DxAudioInspectorUi
     {
+        /// <summary>How often a live reading refreshes while audio plays, in milliseconds.</summary>
+        private const long RefreshMilliseconds = 200;
+
         /// <summary>Adds a spaced section under <paramref name="parent" /> and returns it.</summary>
         internal static VisualElement AddSection(VisualElement parent, string title)
         {
@@ -82,7 +85,7 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 DspEffectAsset effect = effects[index];
                 VisualElement row = Row();
-                AddText(row, effect == null ? $"Stage {index + 1}: empty" : $"{index + 1}. {effect.name}: {effect.Describe()}");
+                AddText(row, effect == null ? $"Stage {index + 1}: empty" : $"{index + 1}. {NameOf(effect)}: {effect.Describe()}");
                 if (reductions != null)
                 {
                     AddText(row, $"{reductions[index]:0.#} dB");
@@ -95,6 +98,27 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 parent.Add(new Label("A running voice shows its live gain reduction beside each stage."));
             }
+        }
+
+        /// <summary>Rebuilds <paramref name="rows" /> while audio plays, because a live reading moves with no edit.</summary>
+        internal static void RefreshWhilePlaying(VisualElement rows, DspChainAsset asset)
+        {
+            rows.schedule.Execute(() =>
+                {
+                    // The rows are rebuilt on an edit anyway. Only a running voice adds a reading with no edit.
+                    if (Application.isPlaying)
+                    {
+                        rows.Clear();
+                        AddChainRows(rows, asset);
+                    }
+                })
+                .Every(RefreshMilliseconds);
+        }
+
+        /// <summary>The asset's name, or its type when an asset made in code was never given one.</summary>
+        private static string NameOf(DspEffectAsset effect)
+        {
+            return string.IsNullOrEmpty(effect.name) ? effect.GetType().Name : effect.name;
         }
 
         /// <summary>The most restrictive live reduction per stage, across every running host that plays the chain.</summary>
@@ -111,6 +135,12 @@ namespace WallstopStudios.DxAudio.Editor
             for (int index = 0; index < hosts.Length; ++index)
             {
                 AudioFilterHost host = hosts[index];
+                // A stopped voice keeps its chain and its last reading, so it must not speak for a sounding one.
+                if (!host.IsSounding)
+                {
+                    continue;
+                }
+
                 DspChain chain = null;
                 if (host.Chain == asset)
                 {

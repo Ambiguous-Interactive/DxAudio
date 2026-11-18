@@ -24,8 +24,7 @@ Put a limiter last if a compressor's makeup gain can pass full scale.
 
 ## A player-wide bus
 
-Each player has one **Bus Chain**. It runs after every voice's own chain, so a limiter on it holds the whole sound
-quiet enough for the mix. Set it in code or in the player's inspector:
+Each player has one **Bus Chain**. It runs after every voice's own chain, so it is one place to shape the whole sound.
 
 ```csharp
 _sfx.BusChain = sfxBus;
@@ -33,8 +32,8 @@ _music.BusChain = musicBus;
 ```
 
 Unity gives a script no way to sum one source into another, so the bus runs once per voice rather than on the mixed
-output. A limiter, a distortion or a bit crusher on the bus behaves as a bus. A compressor does not: each voice is
-compressed on its own, so the sum of the voices is not compressed as one signal.
+output. Every bus effect, a limiter and a distortion included, acts on one voice at a time: two voices that each fit
+under a ceiling can still sum above it. A bus is a shared shaping stage, not an output limiter.
 
 ## What a voice keeps
 
@@ -42,8 +41,9 @@ Every voice builds its own copy of a chain, because an effect keeps a delay line
 not share. A voice clears both its cue chain and the bus when it starts a play, so a pooled voice never inherits the
 last sound's gain or delay line.
 
-An asset is a recipe: editing it changes the next voice that meets it, not a voice already playing it. Chain assets a
-library lists are prepared with the voice pool, so the first play of them allocates nothing.
+A voice reads an asset once, the first time it meets it, and keeps those settings until it is destroyed: an edit
+reaches the voices that have not met the asset yet. Chain assets a library lists are prepared with the voice pool, so
+the first play of them allocates nothing.
 
 ## Limits
 

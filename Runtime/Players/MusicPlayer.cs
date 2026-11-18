@@ -38,7 +38,7 @@ namespace WallstopStudios.DxAudio
         private bool _playsWhilePaused = true;
 
         [SerializeField]
-        [Tooltip("A chain every music voice runs after its track's own, for a whole-music-bus compressor or limiter. Empty passes through.")]
+        [Tooltip("A chain every music voice runs after its track's own, one voice at a time. It cannot hold the sum of the voices under a ceiling. Empty passes through.")]
         private DspChainAsset _busChain;
 
         private readonly MusicDuckStack _ducks = new();
@@ -549,9 +549,12 @@ namespace WallstopStudios.DxAudio
                 source.spatialBlend = 0f;
                 source.mute = _muted;
                 AudioFilterHost host = child.AddComponent<AudioFilterHost>();
+                Voice voice = new(source, child.AddComponent<AudioLowPassFilter>(), child.AddComponent<AudioHighPassFilter>(), host);
+                // Registered before the warm pass, so a chain that throws while preparing cannot leave an untracked
+                // child behind and make the next attempt create another.
+                _voices[index] = voice;
                 host.BusChain = _busChain;
                 WarmChains(host);
-                _voices[index] = new Voice(source, child.AddComponent<AudioLowPassFilter>(), child.AddComponent<AudioHighPassFilter>(), host);
             }
         }
 

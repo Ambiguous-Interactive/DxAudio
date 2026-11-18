@@ -387,6 +387,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
                 Assert.That(Joined(cueRows), Does.Contain("1. ").And.Contain("6 bit, every 1 frame"));
                 Assert.That(Joined(cueRows), Does.Contain("2. ").And.Contain("ceiling -3 dB"));
+                Assert.That(Order(Joined(cueRows), "1. ", "6 bit", "2. ", "ceiling -3 dB"), Is.True, "the rows follow the authored order");
                 Assert.That(Joined(chainRows), Does.Contain("ceiling -3 dB"), "the chain's own inspector draws the same rows");
                 Assert.That(Joined(cueRows), Does.Contain("A running voice shows its live gain reduction"), "no voice runs in edit mode");
             }
@@ -402,6 +403,24 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                     Object.DestroyImmediate(chainEditor);
                 }
             }
+        }
+
+        /// <summary>Whether <paramref name="parts" /> appear in <paramref name="text" /> in the order given, each once.</summary>
+        private static bool Order(string text, params string[] parts)
+        {
+            int from = 0;
+            for (int index = 0; index < parts.Length; ++index)
+            {
+                int at = text.IndexOf(parts[index], from, System.StringComparison.Ordinal);
+                if (at < 0)
+                {
+                    return false;
+                }
+
+                from = at + parts[index].Length;
+            }
+
+            return true;
         }
 
         private static List<string> Labels(VisualElement view)

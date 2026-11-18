@@ -209,12 +209,18 @@ one host on each pooled voice; `MusicPlayer` does the same for its three voices.
 - `Chain`'s setter clears both the voice's chain and the bus. `SfxPlayer` and `MusicPlayer` set it on every play, so a
   reused voice never inherits the last play's gain, delay line or envelope. The bus needs the same clear for the same
   reason.
-- A chain asset is a recipe: an edit reaches the next voice that meets it, never a prepared copy.
+- A chain asset is a recipe: a voice reads it the first time it meets it and keeps those settings, so an edit reaches
+  the voices that have not met the asset yet. This is why a live knob belongs on an effect instance, not on an asset.
+- A device change re-prepares the selected chains from `AudioSettings.OnAudioConfigurationChanged`, on the main thread.
+  A chain's delay line is sized from the sample rate, so a prepared chain is wrong the moment the device moves.
 - `SfxPlayer.BuildVoices` warms the bus and every listed cue's chain on every voice, and `MusicPlayer.EnsureVoices` does
   the same for its tracks. A cue played by reference that the library does not list is built the first time a voice
   meets it, which is the one allocation a chained play can make.
 - The bus runs inside each voice after the voice's own chain. Unity gives a script no way to sum one source into
-  another, so a bus limiter or distortion behaves as a bus while a bus compressor acts on each voice alone.
+  another, so every bus effect acts on one voice at a time: two voices that each fit under a ceiling can still sum
+  above it, which makes a bus a shared shaping stage rather than an output limiter.
+- `Chain`'s setter asks for a clear, and `ProcessBuffer` applies it at the next block boundary before the stages run.
+  Resetting the effects on the main thread would race the block the audio thread is inside.
 - `DspChain.GainReductionDecibels` sums its stages, because stages in series add their decibels; makeup gain is not
   counted. The chain, cue and track inspectors show one row per stage in signal order with the live reading any running
   host reports. That reading is diagnostics, so it may allocate.

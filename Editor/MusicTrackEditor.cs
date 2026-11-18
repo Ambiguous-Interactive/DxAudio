@@ -54,7 +54,10 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             VisualElement effects = DxAudioInspectorUi.AddSection(container, "Effects");
-            DxAudioInspectorUi.AddChainRows(effects, track.Chain);
+            VisualElement rows = new VisualElement();
+            effects.Add(rows);
+            DxAudioInspectorUi.AddChainRows(rows, track.Chain);
+            DxAudioInspectorUi.RefreshWhilePlaying(rows, track.Chain);
             if (clip == null)
             {
                 return;

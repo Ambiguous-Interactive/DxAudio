@@ -62,7 +62,7 @@ namespace WallstopStudios.DxAudio
         private AudioListener _listener;
 
         [SerializeField]
-        [Tooltip("A chain every voice runs after its cue's own, for a whole-SFX-bus compressor or limiter. Empty passes through.")]
+        [Tooltip("A chain every voice runs after its cue's own, one voice at a time. It cannot hold the sum of the voices under a ceiling. Empty passes through.")]
         private DspChainAsset _busChain;
 
         private bool _paused;

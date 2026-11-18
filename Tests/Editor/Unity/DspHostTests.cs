@@ -94,26 +94,42 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void AReusedVoiceClearsTheChainItsLastPlayLeftBehind()
+        public void ANewPlayStartsItsChainClean()
         {
             using MadeObjects made = new();
-            DspChainAsset chain = Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -6f, lookaheadSeconds: 0f)));
-            DspChainAsset other = Chain(made, made.Track(DspBitCrusherAsset.Create(bits: 4)));
+            // A slow release leaves the last play's gain in the chain long enough to see it if it survives.
+            DspChainAsset chain = Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -6f, lookaheadSeconds: 0f, releaseSeconds: 10f)));
+            SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, minimumIntervalSeconds: 0f, chain: chain));
+            SfxPlayer player = Player(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
+            Assert.That(player.Play(cue), Is.True);
+            AudioFilterHost host = HostOf(player);
+            host.OnAudioFilterRead(FullScale(host.ChannelCount * 16), host.ChannelCount);
+            float[] held = Quiet(0.1f, host.ChannelCount * 16);
+            host.OnAudioFilterRead(held, host.ChannelCount);
+            Assert.That(Peak(held), Is.LessThan(0.06f), "the held gain stays down for the rest of this play");
+
+            player.StopAll();
+            Assert.That(player.Play(cue), Is.True, "the pool holds one voice, so this is the same voice");
+
+            float[] fresh = Quiet(0.1f, host.ChannelCount * 16);
+            host.OnAudioFilterRead(fresh, host.ChannelCount);
+            Assert.That(Peak(fresh), Is.EqualTo(0.1f).Within(0.001f), "a new play must not inherit the last play's gain");
+        }
+
+        [Test]
+        public void ACueWithNoChainLeavesTheVoiceUnshaped()
+        {
+            using MadeObjects made = new();
+            DspChainAsset chain = Chain(made, made.Track(DspLimiterAsset.Create()));
             SfxCue loud = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, priority: SfxPriority.Low, chain: chain));
-            SfxCue silent = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, priority: SfxPriority.Medium));
-            SfxCue again = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, priority: SfxPriority.High, chain: other));
-            SfxPlayer player = Player(made, SfxLibrary.Create(new[] { loud, silent, again }, voiceCount: 1));
+            SfxCue bare = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, priority: SfxPriority.High));
+            SfxPlayer player = Player(made, SfxLibrary.Create(new[] { loud, bare }, voiceCount: 1));
             Assert.That(player.Play(loud), Is.True);
             AudioFilterHost host = HostOf(player);
-            host.OnAudioFilterRead(FullScale(host.ChannelCount * 64), host.ChannelCount);
-            Assert.That(host.GainReductionDecibels, Is.LessThan(-4f), "the first cue drove the limiter down");
 
-            Assert.That(player.Play(silent), Is.True, "the pool holds one voice, so this is the same voice");
+            Assert.That(player.Play(bare), Is.True, "the higher cue takes the one voice");
+
             Assert.That(host.LiveChain == null, Is.True, "a cue with no chain must not keep the last cue's chain");
-
-            Assert.That(player.Play(again), Is.True);
-            Assert.That(host.Chain == other);
-            Assert.That(host.GainReductionDecibels, Is.Zero, "a reused voice must not inherit the last play's envelope");
         }
 
         [Test]
@@ -154,6 +170,22 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             host.OnAudioFilterRead(block, host.ChannelCount);
 
             Assert.That(Peak(block), Is.EqualTo(1f).Within(0.0001f), "one bit keeps only the ends of the range, so 0.3 leaves as 1");
+        }
+
+        [Test]
+        public void ARateChangeRepreparesTheChain()
+        {
+            using MadeObjects made = new();
+            AudioFilterHost host = Host(made, Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -6f, lookaheadSeconds: 0f))));
+            host.OnAudioFilterRead(FullScale(host.ChannelCount * 64), host.ChannelCount);
+
+            host.OnAudioConfigurationChanged(deviceChanged: true);
+
+            Assert.That(host.LiveChain.Count, Is.EqualTo(1), "the chain is rebuilt for the new device instead of kept at the old rate");
+            float[] block = FullScale(host.ChannelCount * 64);
+            host.OnAudioFilterRead(block, host.ChannelCount);
+            Assert.That(Peak(block), Is.LessThanOrEqualTo(0.51f), "the rebuilt chain runs");
+            Assert.That(host.SkippedBlocks, Is.Zero);
         }
 
         [Test]
@@ -224,6 +256,17 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             for (int index = 0; index < count; ++index)
             {
                 block[index] = 1f;
+            }
+
+            return block;
+        }
+
+        private static float[] Quiet(float level, int count)
+        {
+            float[] block = new float[count];
+            for (int index = 0; index < count; ++index)
+            {
+                block[index] = level;
             }
 
             return block;

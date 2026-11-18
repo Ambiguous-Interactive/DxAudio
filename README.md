@@ -129,8 +129,8 @@ _sfx.StopLoop(_humHandle); // a stale handle stops nothing
 
 A cue or a music track can name a **DSP chain** (**Create > DxAudio > DSP > Chain**), a list of limiter, compressor,
 distortion and bit crusher stages in the order the signal meets them. Every pooled voice builds its own copy the first
-time it meets a chain, from the settings the asset holds then, so two voices never share an envelope. A voice clears
-both its cue chain and the bus when it starts a play, so it never inherits the last sound's delay line.
+time it meets a chain, from the settings the asset holds then, so an edit reaches the voices that have not met it yet. A
+voice clears both its cue chain and the bus when it starts a play, so it never inherits the last sound's delay line.
 
 ```csharp
 _sfx.BusChain = sfxBusChain;   // runs after each voice's own chain
@@ -138,8 +138,9 @@ _music.BusChain = musicBusChain;
 ```
 
 A bus runs on every voice rather than on the mixed output, because Unity gives a script no way to sum one source into
-another. A limiter or a distortion on the bus behaves as the bus; a compressor works on each voice alone. The chain
-inspector, and the cue and track inspectors, show each stage with its live gain reduction while audio runs.
+another. Every bus effect, a limiter and a distortion included, therefore acts on one voice at a time: two voices that
+each fit under a ceiling can still sum above it, so a bus is a shared shaping stage and not an output limiter. The
+chain, cue and track inspectors show each stage with its live gain reduction while audio plays.
 
 ## Music
 

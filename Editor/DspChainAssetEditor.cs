@@ -2,7 +2,6 @@ namespace WallstopStudios.DxAudio.Editor
 {
     using UnityEditor;
     using UnityEditor.UIElements;
-    using UnityEngine;
     using UnityEngine.UIElements;
 
     /// <summary>Shows a chain in the order the signal meets it, with the live reduction of a voice that plays it.</summary>
@@ -14,9 +13,6 @@ namespace WallstopStudios.DxAudio.Editor
     [CustomEditor(typeof(DspChainAsset))]
     public sealed class DspChainAssetEditor : UnityEditor.Editor
     {
-        /// <summary>How often a running chain refreshes its reading, in milliseconds.</summary>
-        private const long RefreshMilliseconds = 200;
-
         public override VisualElement CreateInspectorGUI()
         {
             VisualElement root = new VisualElement();
@@ -42,16 +38,7 @@ namespace WallstopStudios.DxAudio.Editor
                     DxAudioInspectorUi.AddChainRows(rows, asset);
                 }
             );
-            rows.schedule.Execute(() =>
-                {
-                    // The rows are rebuilt on an edit anyway. Only a running voice adds a reading with no edit.
-                    if (Application.isPlaying)
-                    {
-                        rows.Clear();
-                        DxAudioInspectorUi.AddChainRows(rows, asset);
-                    }
-                })
-                .Every(RefreshMilliseconds);
+            DxAudioInspectorUi.RefreshWhilePlaying(rows, asset);
             return root;
         }
     }

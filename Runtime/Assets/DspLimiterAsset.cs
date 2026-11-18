@@ -13,7 +13,7 @@ namespace WallstopStudios.DxAudio
 
         [Min(0f)]
         [SerializeField]
-        [Tooltip("How far ahead the gain comes down, so a peak is turned down before it arrives. A new value applies at the next play.")]
+        [Tooltip("How far ahead the gain comes down, so a peak is turned down before it arrives. A new value reaches the voices that have not met this chain yet.")]
         private float _lookaheadSeconds = 0.005f;
 
         [Min(0f)]

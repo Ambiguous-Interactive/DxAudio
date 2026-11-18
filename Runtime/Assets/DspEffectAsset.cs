@@ -4,9 +4,10 @@ namespace WallstopStudios.DxAudio
 
     /// <summary>One stage of a chain, authored as data, so a chain is an asset like a cue or a track.</summary>
     /// <remarks>
-    /// An asset is a recipe, not a live effect: every voice that plays it builds its own
-    /// <see cref="DspEffect" />, because an effect keeps delay lines and envelopes that two voices must not share.
-    /// Editing an asset changes what the next play builds, never a voice already running.
+    /// An asset is a recipe, not a live effect: every voice that plays it builds its own <see cref="DspEffect" />,
+    /// because an effect keeps delay lines and envelopes that two voices must not share. A voice reads the asset once,
+    /// the first time it meets it, and keeps those settings for as long as it lives, so an edit reaches only the voices
+    /// that have not met the asset yet.
     /// </remarks>
     public abstract class DspEffectAsset : ScriptableObject
     {
