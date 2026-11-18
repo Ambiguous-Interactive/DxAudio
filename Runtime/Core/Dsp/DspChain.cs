@@ -96,9 +96,11 @@ namespace WallstopStudios.DxAudio
             _sampleRate = sampleRate;
             _maxBlockSize = maxBlockSize;
             _channels = channels;
-            foreach (DspEffect effect in _effects)
+            // Indexed, because a stage may append to this chain from its own Prepare, which would invalidate an
+            // enumerator. The count is read per pass for the same reason.
+            for (int i = 0; i < _effects.Count; i++)
             {
-                effect.Prepare(sampleRate, maxBlockSize, channels);
+                _effects[i].Prepare(sampleRate, maxBlockSize, channels);
             }
         }
 

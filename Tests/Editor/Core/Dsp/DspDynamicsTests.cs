@@ -125,31 +125,47 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 ReleaseSeconds = 0f,
             };
             float[] source = Sine(200f, 1f, 9_600);
+            limiter.Prepare(SampleRate, 1, 1);
 
-            Prepare(limiter);
-            float[] output = Render(limiter, source);
-
-            // A zero release would snap the gain back between peaks and chop the wave; the hold keeps one gain
-            // for the whole window the delayed peak spends in flight.
+            // One frame at a time, so the gain is read while the audio runs rather than after it has finished.
             float smallestReduction = float.MaxValue;
             float largestReduction = 0f;
-            for (int frame = 4_800; frame < source.Length; frame++)
+            float peak = 0f;
+            float[] frame = new float[1];
+            for (int index = 0; index < source.Length; index++)
             {
-                float reduction = -limiter.GainReductionDecibels;
-                if (reduction < smallestReduction)
+                frame[0] = source[index];
+                limiter.Process(frame, 0, 1, 1);
+                peak = Math.Max(peak, Math.Abs(frame[0]));
+                if (4_800 < index)
                 {
-                    smallestReduction = reduction;
-                }
-
-                if (largestReduction < reduction)
-                {
-                    largestReduction = reduction;
+                    float reduction = -limiter.GainReductionDecibels;
+                    smallestReduction = Math.Min(smallestReduction, reduction);
+                    largestReduction = Math.Max(largestReduction, reduction);
                 }
             }
 
             Assert.That(smallestReduction, Is.EqualTo(6.0206f).Within(0.01f), "the gain sits at the ceiling reduction");
             Assert.That(largestReduction - smallestReduction, Is.LessThan(0.01f), "the gain does not move while a peak is in flight");
-            Assert.That(Peak(output, 0), Is.LessThanOrEqualTo(0.5001f));
+            Assert.That(peak, Is.LessThanOrEqualTo(0.5001f));
+        }
+
+        [Test]
+        public void ASustainedPassageDoesNotExtendTheHold()
+        {
+            DspLimiter limiter = new()
+            {
+                Ceiling = 0.5f,
+                LookaheadSeconds = 1f,
+                ReleaseSeconds = 0f,
+            };
+
+            Prepare(limiter);
+            _ = Render(limiter, Constant(1f, SampleRate));
+            float[] output = Render(limiter, Constant(0.1f, SampleRate + 2));
+
+            Assert.That(output[output.Length - 1], Is.EqualTo(0.1f).Within(0.0001f), "the hold ends with the passage that caused it");
+            Assert.That(limiter.GainReductionDecibels, Is.Zero.Within(0.01f));
         }
 
         [Test]

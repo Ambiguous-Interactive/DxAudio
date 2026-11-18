@@ -94,6 +94,17 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void AStageMayAddToTheChainFromItsPrepare()
+        {
+            DspChain chain = new();
+            chain.Add(new AddingEffect(chain, new DspBitCrusher()));
+
+            chain.Prepare(SampleRate, 256, 1);
+
+            Assert.That(chain.Count, Is.EqualTo(2), "the stage added itself without breaking the pass");
+        }
+
+        [Test]
         public void LatencyIsTheSumOfItsStages()
         {
             DspLimiter limiter = new() { LookaheadSeconds = 0.005f };
@@ -277,6 +288,32 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
 
             return block;
+        }
+
+        private sealed class AddingEffect : DspEffect
+        {
+            private readonly DspChain _chain;
+            private readonly DspEffect _stage;
+            private bool _added;
+
+            public AddingEffect(DspChain chain, DspEffect stage)
+            {
+                _chain = chain;
+                _stage = stage;
+            }
+
+            public override string DisplayName => "Adding";
+
+            public override void Prepare(int sampleRate, int maxBlockSize, int channels)
+            {
+                if (!_added)
+                {
+                    _added = true;
+                    _chain.Add(_stage);
+                }
+            }
+
+            public override void Process(float[] buffer, int offset, int count, int channels) { }
         }
 
         private sealed class RecordingEffect : DspEffect
