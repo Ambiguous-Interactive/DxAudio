@@ -23,6 +23,11 @@ namespace WallstopStudios.DxAudio
         public abstract void Prepare(int sampleRate, int maxBlockSize, int channels);
 
         /// <summary>Shapes <paramref name="count"/> interleaved samples of <paramref name="buffer"/> in place.</summary>
+        /// <remarks>
+        /// <paramref name="channels"/> has to match the count <see cref="Prepare"/> was given. An effect that keeps
+        /// per-channel state refuses a block of another shape and passes it through, rather than index past its
+        /// buffers on the audio thread.
+        /// </remarks>
         public abstract void Process(float[] buffer, int offset, int count, int channels);
 
         /// <summary>Clears delay lines, envelopes and holds, so a reused voice starts silent.</summary>
