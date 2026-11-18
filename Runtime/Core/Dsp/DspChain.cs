@@ -43,26 +43,22 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        /// <summary>The most restrictive stage's gain reduction, in decibels; zero when nothing holds the signal down.</summary>
+        /// <summary>How far the chain holds the signal down now, in decibels; zero when nothing turns it down.</summary>
         /// <remarks>
-        /// The stages run in series, so the signal is already down by each of them; the smallest figure is how far the
-        /// chain holds it down, without counting makeup gain a later stage adds back.
+        /// The stages run in series, so their reductions add: two stages of 3 dB hold the signal 6 dB down. Makeup gain
+        /// is not counted, because it is a lift a later stage applies rather than a reduction.
         /// </remarks>
         public float GainReductionDecibels
         {
             get
             {
-                float most = 0f;
+                float held = 0f;
                 for (int i = 0; i < _effects.Count; i++)
                 {
-                    float reduction = _effects[i].GainReductionDecibels;
-                    if (reduction < most)
-                    {
-                        most = reduction;
-                    }
+                    held += _effects[i].GainReductionDecibels;
                 }
 
-                return most;
+                return held;
             }
         }
 

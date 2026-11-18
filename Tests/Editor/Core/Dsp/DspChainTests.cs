@@ -137,7 +137,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void TheChainReportsTheMostRestrictiveStagesReduction()
+        public void TheChainAddsUpItsStagesReductions()
         {
             DspChain chain = new();
             chain.Add(new DspDistortion { Drive = 2f });
@@ -152,7 +152,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float limiter = chain[1].GainReductionDecibels;
             Assert.That(limiter, Is.LessThan(-10f), "a quarter ceiling is about 12 dB down");
             Assert.That(chain[0].GainReductionDecibels, Is.Zero, "a shaper does not turn the signal down");
-            Assert.That(chain.GainReductionDecibels, Is.EqualTo(limiter), "the chain reports its most restrictive stage");
+            Assert.That(chain.GainReductionDecibels, Is.EqualTo(chain[0].GainReductionDecibels + limiter), "stages in series add their reductions");
         }
 
         [Test]

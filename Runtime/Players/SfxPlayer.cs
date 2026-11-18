@@ -429,10 +429,9 @@ namespace WallstopStudios.DxAudio
             AudioFilterHost host = _hosts[index];
             if (host != null)
             {
-                // The chain is cleared here, not at stop: a voice is about to start a different cue, and it must not
-                // inherit the last cue's delay line or envelope.
+                // The chain is cleared here, not at stop: a voice is about to start a new play, and it must not
+                // inherit the last one's delay line or envelope. The bus is cleared by the same assignment.
                 host.Chain = cue.Chain;
-                host.BusChain = _busChain;
             }
             _priorities[index] = cue.Priority;
             _startedAt[index] = now;

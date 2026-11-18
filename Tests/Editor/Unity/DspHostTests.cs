@@ -28,16 +28,31 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void AHostPassesABlockOfAnotherShapeThrough()
+        public void AHostRunsItsChainOnANarrowerBlock()
         {
             using MadeObjects made = new();
             AudioFilterHost host = Host(made, Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -6f, lookaheadSeconds: 0f))));
-            float[] block = FullScale(8);
+            float[] block = FullScale(32);
 
-            host.OnAudioFilterRead(block, host.ChannelCount + 1);
+            host.OnAudioFilterRead(block, 1);
 
-            Assert.That(block, Is.EqualTo(FullScale(8)), "an effect prepared for another channel count would index past its state");
+            Assert.That(Peak(block), Is.LessThanOrEqualTo(0.51f), "a mono filter block must not bypass the chain");
+            Assert.That(host.SkippedBlocks, Is.Zero);
+        }
+
+        [Test]
+        public void AHostSkipsAndCountsABlockWiderThanItsLayout()
+        {
+            using MadeObjects made = new();
+            AudioFilterHost host = Host(made, Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -6f, lookaheadSeconds: 0f))));
+            float[] block = FullScale(12);
+            int tooWide = host.ChannelCount + 1;
+
+            host.OnAudioFilterRead(block, tooWide);
+
+            Assert.That(block, Is.EqualTo(FullScale(12)), "a chain prepared for a narrower block would index past its state");
             Assert.That(host.GainReductionDecibels, Is.Zero);
+            Assert.That(host.SkippedBlocks, Is.EqualTo(1), "a block that never reached the chain must be visible, not silent");
         }
 
         [Test]
@@ -79,21 +94,46 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void AReusedVoiceClearsTheChainItsLastCueLeftBehind()
+        public void AReusedVoiceClearsTheChainItsLastPlayLeftBehind()
         {
             using MadeObjects made = new();
             DspChainAsset chain = Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -6f, lookaheadSeconds: 0f)));
+            DspChainAsset other = Chain(made, made.Track(DspBitCrusherAsset.Create(bits: 4)));
             SfxCue loud = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, priority: SfxPriority.Low, chain: chain));
-            SfxCue quiet = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, priority: SfxPriority.High, chain: chain));
-            SfxPlayer player = Player(made, SfxLibrary.Create(new[] { loud, quiet }, voiceCount: 1));
+            SfxCue silent = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, priority: SfxPriority.Medium));
+            SfxCue again = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, priority: SfxPriority.High, chain: other));
+            SfxPlayer player = Player(made, SfxLibrary.Create(new[] { loud, silent, again }, voiceCount: 1));
             Assert.That(player.Play(loud), Is.True);
             AudioFilterHost host = HostOf(player);
             host.OnAudioFilterRead(FullScale(host.ChannelCount * 64), host.ChannelCount);
             Assert.That(host.GainReductionDecibels, Is.LessThan(-4f), "the first cue drove the limiter down");
 
-            Assert.That(player.Play(quiet), Is.True, "the pool holds one voice, so this is the same voice");
+            Assert.That(player.Play(silent), Is.True, "the pool holds one voice, so this is the same voice");
+            Assert.That(host.LiveChain == null, Is.True, "a cue with no chain must not keep the last cue's chain");
 
-            Assert.That(host.GainReductionDecibels, Is.Zero, "a reused voice must not inherit the last cue's envelope");
+            Assert.That(player.Play(again), Is.True);
+            Assert.That(host.Chain == other);
+            Assert.That(host.GainReductionDecibels, Is.Zero, "a reused voice must not inherit the last play's envelope");
+        }
+
+        [Test]
+        public void ThePlayerBusRunsAfterTheCuesOwnChain()
+        {
+            using MadeObjects made = new();
+            DspChainAsset cueChain = Chain(made, made.Track(DspDistortionAsset.Create(drive: 30f)));
+            SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, chain: cueChain));
+            SfxPlayer player = Player(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
+            player.BusChain = Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -8f, lookaheadSeconds: 0f)));
+            Assert.That(player.Play(cue), Is.True);
+            AudioFilterHost host = HostOf(player);
+            Assert.That(host.LiveBusChain.Count, Is.EqualTo(1), "the bus reaches the voice");
+
+            float[] block = FullScale(host.ChannelCount * 64);
+            host.OnAudioFilterRead(block, host.ChannelCount);
+
+            Assert.That(Peak(block), Is.LessThanOrEqualTo(0.41f), "a bus limiter after the shaper holds the output, one before it would not");
+            Assert.That(host.GainReductionDecibels, Is.LessThan(-7f), "the bus's reduction is part of the reading");
+            Assert.That(host.SkippedBlocks, Is.Zero);
         }
 
         [Test]
@@ -117,13 +157,30 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void AMusicTrackRunsItsChainOnItsVoice()
+        public void EachVoiceHoldsItsOwnChainAndTheListedOnesArePrepared()
+        {
+            using MadeObjects made = new();
+            DspChainAsset chain = Chain(made, made.Track(DspCompressorAsset.Create()));
+            SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, minimumIntervalSeconds: 0f, chain: chain));
+            SfxPlayer player = Player(made, SfxLibrary.Create(new[] { cue }, voiceCount: 2));
+            IReadOnlyList<AudioFilterHost> hosts = player.GetComponentsInChildren<AudioFilterHost>();
+            Assert.That(hosts[0].IsPrepared(chain), Is.True, "a listed cue's chain is prepared with the pool, so its first play allocates nothing");
+
+            Assert.That(player.Play(cue), Is.True);
+            Assert.That(player.Play(cue), Is.True);
+
+            Assert.That(ReferenceEquals(hosts[0].LiveChain, hosts[1].LiveChain), Is.False, "two voices must not share delay lines");
+        }
+
+        [Test]
+        public void AMusicTrackRunsItsChainAndItsPlayerBus()
         {
             using MadeObjects made = new();
             DspChainAsset chain = Chain(made, made.Track(DspCompressorAsset.Create(thresholdDecibels: -20f)));
             MusicTrack track = made.Track(MusicTrack.Create(Clip(made), chain: chain));
             MusicPlayer player = made.Track(new GameObject("music")).AddComponent<MusicPlayer>();
             player.Library = made.Track(MusicLibrary.Create(new[] { track }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
+            player.BusChain = Chain(made, made.Track(DspLimiterAsset.Create()));
 
             player.Play(track);
 
@@ -131,6 +188,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(host != null);
             Assert.That(host.Chain == chain);
             Assert.That(host.LiveChain.Count, Is.EqualTo(1));
+            Assert.That(host.LiveBusChain.Count, Is.EqualTo(1), "the music bus reaches the voice");
         }
 
         private static DspChainAsset Chain(MadeObjects made, params DspEffectAsset[] effects)

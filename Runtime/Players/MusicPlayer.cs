@@ -411,9 +411,8 @@ namespace WallstopStudios.DxAudio
             source.outputAudioMixerGroup = _library != null ? _library.MixerGroup : null;
             if (voice.host != null)
             {
-                // The chain is cleared by the assignment: this voice is starting a track, not continuing one.
+                // The chain and the bus are cleared by the assignment: this voice is starting a new play.
                 voice.host.Chain = track.Chain;
-                voice.host.BusChain = _busChain;
             }
 
             voice.track = track;
