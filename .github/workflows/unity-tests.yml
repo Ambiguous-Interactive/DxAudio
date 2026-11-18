@@ -1,12 +1,12 @@
 name: Unity Tests
 
 # One workflow and one licensed job cover every editor that runs (#62). The job
-# matrix carries both supported editors and both states of the optional
-# DxMessaging integration. A pull request and a push validate the newest
-# editor; the nightly schedule and a manual dispatch add the oldest one. The
-# nightly editor is a column of this one licensed job, not a second licensed
-# lane, so the single "Unity CI Success" aggregate below still covers every run
-# that proves an editor.
+# matrix carries the supported editors; each leg runs the suite once per state of
+# the optional DxMessaging integration, so one job proves both. A pull request
+# and a push validate the newest editor; the nightly schedule and a manual
+# dispatch add the oldest one. The nightly editor is a column of this one
+# licensed job, not a second licensed lane, so the single "Unity CI Success"
+# aggregate below still covers every run that proves an editor.
 on:
   pull_request:
   push:
@@ -56,14 +56,10 @@ jobs:
           required-label-sets: '[["self-hosted","Windows","RAM-64GB"]]'
 
   unity-tests:
-    name: Unity ${{ matrix.unity-version }} EditMode (${{ matrix.lane }})
+    name: Unity ${{ matrix.unity-version }} EditMode
     needs: runner-preflight
     # Same guard as the preflight: fork and Dependabot pull requests cannot
     # read the organization Unity serial or build-lock App secrets.
-    #
-    # Every lane is paired with one state of the optional DxMessaging
-    # integration, so the guarded assembly is proven both skipped and compiled
-    # on each editor that runs.
     if: >-
       ${{
         github.event_name != 'pull_request' ||
@@ -86,9 +82,6 @@ jobs:
         unity-version:
           - 2021.3.45f1
           - 6000.5.2f1
-        lane:
-          - integration
-          - no-dependencies
         # A pull request and a push validate only the newest editor. The oldest
         # editor joins the nightly schedule and a manual dispatch. An exclusion
         # removes whole literal cells, so every surviving leg still names one
@@ -147,7 +140,7 @@ jobs:
         uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/acquire-build-lock@720ef47f9ab352fbc9403363ca63ae8c487a2442 # v1.18.1
         with:
           lock-name: wallstop-organization-builds
-          holder-id-suffix: ${{ matrix.unity-version }}-${{ matrix.lane }}-editmode
+          holder-id-suffix: ${{ matrix.unity-version }}-editmode
           require-resource-lifecycle: "true"
           minimum-release-cooldown-seconds: "0"
           runner-id: ${{ runner.name }}
@@ -179,8 +172,8 @@ jobs:
         shell: pwsh
         run: uv run --no-project scripts/sync_compiler_policy.py --verbose
 
-      - name: Run Unity EditMode tests
-        id: run_editmode
+      - name: Run EditMode tests without the optional integration
+        id: run_editmode_plain
         timeout-minutes: 45
         shell: pwsh
         env:
@@ -189,15 +182,43 @@ jobs:
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-          DXMESSAGING_VERSION: ${{ matrix.lane == 'integration' && '3.3.0' || '' }}
+          UNITY_TEST_LABEL: no-integration
+          DXMESSAGING_VERSION: ''
         run: ./scripts/unity/run-editmode-tests.ps1
 
-      - name: Report the Unity log tail
-        if: ${{ failure() && steps.run_editmode.outcome != 'skipped' }}
+      - name: Run EditMode tests with the optional integration
+        id: run_editmode_integration
+        timeout-minutes: 45
+        shell: pwsh
+        env:
+          UNITY_VERSION: ${{ matrix.unity-version }}
+          UNITY_EDITOR_PATH: ${{ steps.ensure_unity_editor.outputs.editor-path }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_TEST_LABEL: integration
+          DXMESSAGING_VERSION: "3.3.0"
+        run: ./scripts/unity/run-editmode-tests.ps1
+
+      - name: Report the log tail without the optional integration
+        if: ${{ failure() && steps.run_editmode_plain.outcome == 'failure' }}
         timeout-minutes: 2
         shell: pwsh
         env:
           UNITY_VERSION: ${{ matrix.unity-version }}
+          UNITY_TEST_LABEL: no-integration
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: ./scripts/unity/show-editmode-log-tail.ps1
+
+      - name: Report the log tail with the optional integration
+        if: ${{ failure() && steps.run_editmode_integration.outcome == 'failure' }}
+        timeout-minutes: 2
+        shell: pwsh
+        env:
+          UNITY_VERSION: ${{ matrix.unity-version }}
+          UNITY_TEST_LABEL: integration
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -234,7 +255,7 @@ jobs:
         uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/release-build-lock@720ef47f9ab352fbc9403363ca63ae8c487a2442 # v1.18.1
         with:
           lock-name: wallstop-organization-builds
-          holder-id-suffix: ${{ matrix.unity-version }}-${{ matrix.lane }}-editmode
+          holder-id-suffix: ${{ matrix.unity-version }}-editmode
           runner-id: ${{ runner.name }}
           resource-cleanup-status: ${{ steps.cleanup_classification.outputs.resource-cleanup-status }}
           resource-health: ${{ steps.cleanup_classification.outputs.resource-health }}

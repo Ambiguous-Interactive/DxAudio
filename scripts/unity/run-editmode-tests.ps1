@@ -7,13 +7,15 @@
 #
 # The DxMessaging integration is optional: leave -DxMessagingVersion empty to
 # prove the package compiles and its suite passes with the dependency absent, and
-# set it to compile and test the integration assembly in the same run.
+# set it to compile and test the integration assembly in the same run. One job
+# runs both states, so -Label keeps each run's project, results and log apart.
 [CmdletBinding()]
 param(
     [string]$UnityVersion = $env:UNITY_VERSION,
     [string]$UnityEditorPath = $env:UNITY_EDITOR_PATH,
     [string]$PackageRoot = $env:GITHUB_WORKSPACE,
-    [string]$DxMessagingVersion = $env:DXMESSAGING_VERSION
+    [string]$DxMessagingVersion = $env:DXMESSAGING_VERSION,
+    [string]$Label = $env:UNITY_TEST_LABEL
 )
 
 Set-StrictMode -Version Latest
@@ -38,7 +40,8 @@ foreach ($name in @('UNITY_SERIAL', 'UNITY_EMAIL', 'UNITY_PASSWORD')) {
     }
 }
 
-$projectPath = Join-Path $env:RUNNER_TEMP "dxaudio-unity-$UnityVersion"
+$runName = Get-EditModeRunName -UnityVersion $UnityVersion -Label $Label
+$projectPath = Join-Path $env:RUNNER_TEMP "dxaudio-unity-$runName"
 if (Test-Path -LiteralPath $projectPath) {
     Remove-Item -LiteralPath $projectPath -Recurse -Force
 }
@@ -76,7 +79,7 @@ Set-Content -LiteralPath (Join-Path $packagesPath 'manifest.json') -Value $manif
 Set-Content -LiteralPath (Join-Path $settingsPath 'ProjectVersion.txt') `
     -Value "m_EditorVersion: $UnityVersion" -Encoding utf8
 
-$artifactsPath = Join-Path $env:RUNNER_TEMP "dxaudio-results-$UnityVersion"
+$artifactsPath = Join-Path $env:RUNNER_TEMP "dxaudio-results-$runName"
 New-Item -ItemType Directory -Force -Path $artifactsPath | Out-Null
 $resultsPath = Join-Path $artifactsPath 'editmode-results.xml'
 $logPath = Join-Path $artifactsPath 'editmode.log'

@@ -1,23 +1,32 @@
 #Requires -Version 7.0
-# Print a redacted tail of the last EditMode log, then the NUnit failures. Run
-# under always() when the test step fails or times out; a timed-out step never
-# reaches its own failure handler, so this step is the only reader of the
+# Print a redacted tail of one EditMode run's log, then its NUnit failures. One
+# job runs the suite once per optional-integration state, so -Label selects the
+# run. Run under failure() when a test step fails or times out; a timed-out step
+# never reaches its own failure handler, so this step is the only reader of the
 # streamed log.
 [CmdletBinding()]
 param(
     [string]$UnityVersion = $env:UNITY_VERSION,
-    [string]$LogPath = $(if ($env:RUNNER_TEMP -and $UnityVersion) {
-            Join-Path $env:RUNNER_TEMP "dxaudio-results-$UnityVersion/editmode.log"
-        } else { '' }),
-    [string]$ResultsPath = $(if ($env:RUNNER_TEMP -and $UnityVersion) {
-            Join-Path $env:RUNNER_TEMP "dxaudio-results-$UnityVersion/editmode-results.xml"
-        } else { '' })
+    [string]$Label = $env:UNITY_TEST_LABEL,
+    [string]$LogPath = '',
+    [string]$ResultsPath = ''
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'unity-log.ps1')
+
+if ($env:RUNNER_TEMP -and $UnityVersion) {
+    $runName = Get-EditModeRunName -UnityVersion $UnityVersion -Label $Label
+    if ([string]::IsNullOrWhiteSpace($LogPath)) {
+        $LogPath = Join-Path $env:RUNNER_TEMP "dxaudio-results-$runName/editmode.log"
+    }
+    if ([string]::IsNullOrWhiteSpace($ResultsPath)) {
+        $ResultsPath = Join-Path $env:RUNNER_TEMP "dxaudio-results-$runName/editmode-results.xml"
+    }
+}
+
 Write-Host "Unity EditMode log tail (redacted):"
 Write-RedactedLogTail -Path $LogPath
 
