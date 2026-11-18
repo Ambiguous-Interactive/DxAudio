@@ -1,0 +1,173 @@
+namespace WallstopStudios.DxAudio
+{
+    using System;
+
+    /// <summary>Holds a signal under a ceiling by lowering its gain before the loudest sample arrives.</summary>
+    /// <remarks>
+    /// A limiter that reacts on the sample it hears is too late: the peak has already left for the output. So the
+    /// signal is delayed by the lookahead, the gain is lowered on the way in, and the loud sample reaches the
+    /// output already turned down. The delay is reported as <see cref="LatencySamples"/>.
+    ///
+    /// Attack is instant because the lookahead did the anticipation. Only the release is smoothed: a gain that
+    /// jumped back up between two peaks would pump the level audibly.
+    /// </remarks>
+    public sealed class DspLimiter : DspEffect
+    {
+        /// <summary>A ceiling that leaves room for inter-sample peaks, in dBFS.</summary>
+        public const float DefaultCeilingDecibels = -1f;
+
+        private const float QuietestCeiling = 0.0001f;
+
+        private float _ceiling;
+        private float _lookaheadSeconds;
+        private float _releaseSeconds;
+        private float[] _delay;
+        private int _delayFrames;
+        private int _delayIndex;
+        private int _channels;
+        private int _sampleRate;
+        private float _releaseCoefficient;
+        private float _gain;
+        private int _holdFrames;
+
+        public DspLimiter()
+        {
+            _ceiling = AudioMath.DecibelsToLinear(DefaultCeilingDecibels);
+            _lookaheadSeconds = 0.005f;
+            _releaseSeconds = 0.05f;
+            _delay = Array.Empty<float>();
+            _gain = 1f;
+        }
+
+        public override string DisplayName => "Limiter";
+
+        /// <summary>The loudest sample that leaves the limiter, as a linear gain.</summary>
+        public float Ceiling
+        {
+            get => _ceiling;
+            set => _ceiling = Math.Max(QuietestCeiling, value);
+        }
+
+        /// <summary>How far ahead the limiter lowers its gain, in seconds.</summary>
+        /// <remarks>It sizes the delay line, so a new value applies at the next <see cref="Prepare"/>.</remarks>
+        public float LookaheadSeconds
+        {
+            get => _lookaheadSeconds;
+            set => _lookaheadSeconds = Math.Max(0f, value);
+        }
+
+        /// <summary>How quickly the gain returns to unity after a peak, in seconds.</summary>
+        public float ReleaseSeconds
+        {
+            get => _releaseSeconds;
+            set
+            {
+                _releaseSeconds = Math.Max(0f, value);
+                _releaseCoefficient = AudioMath.OnePoleCoefficient(_releaseSeconds, _sampleRate);
+            }
+        }
+
+        public override int LatencySamples => _delayFrames;
+
+        /// <summary>How far the gain is currently held down, in decibels; zero is not limiting.</summary>
+        public float GainReductionDecibels => AudioMath.LinearToDecibels(_gain);
+
+        public override void Prepare(int sampleRate, int maxBlockSize, int channels)
+        {
+            if (sampleRate <= 0 || channels <= 0)
+            {
+                return;
+            }
+
+            _sampleRate = sampleRate;
+            _channels = channels;
+            _delayFrames = (int)Math.Round(_lookaheadSeconds * sampleRate);
+            _delay = 0 < _delayFrames ? new float[_delayFrames * channels] : Array.Empty<float>();
+            _releaseCoefficient = AudioMath.OnePoleCoefficient(_releaseSeconds, sampleRate);
+            Reset();
+        }
+
+        public override void Process(float[] buffer, int offset, int count, int channels)
+        {
+            if (buffer == null || channels != _channels || offset < 0 || count <= 0 || buffer.Length < offset + count)
+            {
+                return;
+            }
+
+            int stride = channels;
+
+            int frames = count / stride;
+            for (int frame = 0; frame < frames; frame++)
+            {
+                int frameStart = offset + (frame * stride);
+                float peak = 0f;
+                for (int channel = 0; channel < stride; channel++)
+                {
+                    float magnitude = Math.Abs(buffer[frameStart + channel]);
+                    if (peak < magnitude)
+                    {
+                        peak = magnitude;
+                    }
+                }
+
+                if (_ceiling < peak)
+                {
+                    float neededGain = _ceiling / peak;
+                    if (neededGain < _gain)
+                    {
+                        _gain = neededGain;
+                    }
+
+                    // The reduction is already in place for the sample that caused it, so it has to stay for the
+                    // whole lookahead; releasing now would let the delayed peak through above the ceiling.
+                    _holdFrames = _delayFrames;
+                }
+                else if (0 < _holdFrames)
+                {
+                    _holdFrames--;
+                }
+                else
+                {
+                    _gain += (1f - _gain) * _releaseCoefficient;
+                }
+
+                if (0 < _delayFrames)
+                {
+                    int slot = _delayIndex * stride;
+                    for (int channel = 0; channel < stride; channel++)
+                    {
+                        int index = frameStart + channel;
+                        float delayed = _delay[slot + channel];
+                        _delay[slot + channel] = buffer[index];
+                        buffer[index] = delayed * _gain;
+                    }
+
+                    _delayIndex++;
+                    if (_delayIndex == _delayFrames)
+                    {
+                        _delayIndex = 0;
+                    }
+                }
+                else
+                {
+                    for (int channel = 0; channel < stride; channel++)
+                    {
+                        int index = frameStart + channel;
+                        buffer[index] *= _gain;
+                    }
+                }
+            }
+        }
+
+        public override void Reset()
+        {
+            _gain = 1f;
+            _holdFrames = 0;
+            _delayIndex = 0;
+            if (_delay != null)
+            {
+                Array.Clear(_delay, 0, _delay.Length);
+            }
+        }
+    }
+}

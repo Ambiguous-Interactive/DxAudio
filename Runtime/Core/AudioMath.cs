@@ -61,5 +61,24 @@ namespace WallstopStudios.DxAudio
 
             return (float)Math.Pow(10.0, decibels / 20.0);
         }
+
+        /// <summary>
+        /// The per-sample coefficient of a one-pole smoother that closes about 63% of a step in
+        /// <paramref name="seconds"/>.
+        /// </summary>
+        /// <remarks>
+        /// A knob move that lands on the next block clicks; smoothing it per sample turns the step into a short
+        /// ramp. A zero time yields a coefficient of one, so the smoother lands on its target at once instead of
+        /// dividing by zero.
+        /// </remarks>
+        public static float OnePoleCoefficient(float seconds, int sampleRate)
+        {
+            if (seconds <= 0f || sampleRate <= 0)
+            {
+                return 1f;
+            }
+
+            return 1f - (float)Math.Exp(-1.0 / (seconds * sampleRate));
+        }
     }
 }
