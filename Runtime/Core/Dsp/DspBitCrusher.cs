@@ -127,7 +127,8 @@ namespace WallstopStudios.DxAudio
                 level = loudest;
             }
 
-            return -1f + (level * _step);
+            // Mono rounds the top level a hair above one, so the range is enforced, not assumed.
+            return AudioMath.Clamp(-1f + (level * _step), -1f, 1f);
         }
 
         private void Recompute()
