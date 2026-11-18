@@ -18,9 +18,14 @@ namespace WallstopStudios.DxAudio
 
         private const float MinimumToneHz = 20f;
 
+        private const float SmoothingSeconds = 0.01f;
+
         private float _drive;
         private float _toneHz;
         private float _toneCoefficient;
+        private float _activeDrive;
+        private float _activeToneCoefficient;
+        private float _smoothingCoefficient;
         private float[] _toneState;
         private int _sampleRate;
         private int _channels;
@@ -30,6 +35,9 @@ namespace WallstopStudios.DxAudio
             _drive = 1f;
             _toneHz = OpenToneHz;
             _toneCoefficient = 1f;
+            _activeDrive = 1f;
+            _activeToneCoefficient = 1f;
+            _smoothingCoefficient = 1f;
             _toneState = Array.Empty<float>();
         }
 
@@ -60,7 +68,7 @@ namespace WallstopStudios.DxAudio
                 }
 
                 _toneHz = Math.Max(MinimumToneHz, value);
-                _toneCoefficient = Coefficient(_toneHz, _sampleRate);
+                _toneCoefficient = Coefficient(CappedToneHz(_toneHz, _sampleRate), _sampleRate);
             }
         }
 
@@ -79,7 +87,8 @@ namespace WallstopStudios.DxAudio
             _sampleRate = sampleRate;
             _channels = channels;
             _toneState = new float[channels];
-            _toneCoefficient = Coefficient(Math.Min(_toneHz, MaxToneHz(sampleRate)), sampleRate);
+            _toneCoefficient = Coefficient(CappedToneHz(_toneHz, sampleRate), sampleRate);
+            _smoothingCoefficient = AudioMath.OnePoleCoefficient(SmoothingSeconds, sampleRate);
             Reset();
         }
 
@@ -93,16 +102,18 @@ namespace WallstopStudios.DxAudio
             int stride = channels;
 
             int frames = count / stride;
-            float drive = _drive;
-            float coefficient = _toneCoefficient;
             for (int frame = 0; frame < frames; frame++)
             {
+                // A knob move is a ramp, not a step: the block reads one drive and one tone, reached over
+                // SmoothingSeconds, so a sweep does not click.
+                _activeDrive += (_drive - _activeDrive) * _smoothingCoefficient;
+                _activeToneCoefficient += (_toneCoefficient - _activeToneCoefficient) * _smoothingCoefficient;
                 int frameStart = offset + (frame * stride);
                 for (int channel = 0; channel < stride; channel++)
                 {
                     int index = frameStart + channel;
-                    float shaped = (float)Math.Tanh(drive * buffer[index]);
-                    float filtered = _toneState[channel] + ((shaped - _toneState[channel]) * coefficient);
+                    float shaped = (float)Math.Tanh(_activeDrive * buffer[index]);
+                    float filtered = _toneState[channel] + ((shaped - _toneState[channel]) * _activeToneCoefficient);
                     _toneState[channel] = filtered;
                     buffer[index] = filtered;
                 }
@@ -111,6 +122,8 @@ namespace WallstopStudios.DxAudio
 
         public override void Reset()
         {
+            _activeDrive = _drive;
+            _activeToneCoefficient = _toneCoefficient;
             if (_toneState != null)
             {
                 Array.Clear(_toneState, 0, _toneState.Length);
@@ -120,6 +133,11 @@ namespace WallstopStudios.DxAudio
         private static float MaxToneHz(int sampleRate)
         {
             return 0.45f * sampleRate;
+        }
+
+        private static float CappedToneHz(float toneHz, int sampleRate)
+        {
+            return 0 < sampleRate ? Math.Min(toneHz, MaxToneHz(sampleRate)) : toneHz;
         }
 
         private static float Coefficient(float toneHz, int sampleRate)

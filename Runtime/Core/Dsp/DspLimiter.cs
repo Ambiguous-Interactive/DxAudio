@@ -127,13 +127,25 @@ namespace WallstopStudios.DxAudio
             for (int frame = 0; frame < frames; frame++)
             {
                 int frameStart = offset + (frame * stride);
+                int slot = _delayIndex * stride;
                 float peak = 0f;
                 for (int channel = 0; channel < stride; channel++)
                 {
-                    float magnitude = Math.Abs(buffer[frameStart + channel]);
-                    if (peak < magnitude)
+                    float incoming = Math.Abs(buffer[frameStart + channel]);
+                    if (peak < incoming)
                     {
-                        peak = magnitude;
+                        peak = incoming;
+                    }
+
+                    // The frame that leaves now was measured by an earlier block, so a ceiling lowered since
+                    // then has to be enforced against it as well.
+                    if (0 < _delayFrames)
+                    {
+                        float outgoing = Math.Abs(_delay[slot + channel]);
+                        if (peak < outgoing)
+                        {
+                            peak = outgoing;
+                        }
                     }
                 }
 
@@ -160,7 +172,6 @@ namespace WallstopStudios.DxAudio
 
                 if (0 < _delayFrames)
                 {
-                    int slot = _delayIndex * stride;
                     for (int channel = 0; channel < stride; channel++)
                     {
                         int index = frameStart + channel;

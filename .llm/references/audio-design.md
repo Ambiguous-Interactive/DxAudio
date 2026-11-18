@@ -152,8 +152,11 @@ loop-boundary read are not in this table; issue #46 carries that play-mode probe
 
 A chain is an ordered list of `DspEffect` stages, not a graph: order is the sound, and a general node graph needs fan-in
 and fan-out buffers plus per-branch latency before a second branch exists. Effects shape an interleaved block in place,
-so a stage needs no scratch buffer and a voice's audio path allocates nothing. Pitch shifting is the only proposed effect
-that would add latency, which is why `DspEffect.LatencySamples` exists from the first stage.
+so a stage needs no scratch buffer and a voice's audio path allocates nothing.
+
+`DspEffect.LatencySamples` is not zero for everything: the limiter reports its lookahead, and a future pitch shifter
+would report its delay line. A chain sums the figure so two branches that must stay aligned can be told how far apart
+they are.
 
 Rules for a new effect:
 
@@ -161,7 +164,8 @@ Rules for a new effect:
 - `Prepare` owns every allocation and must match the channel count the block arrives with. A stage that was never
   prepared, or that is handed another shape, passes the block through untouched.
 - `Reset` clears delay lines, envelopes and holds, because voices are pooled.
-- Parameters smooth inside the effect with `AudioMath.OnePoleCoefficient`, so a knob move is a short ramp.
+- Parameters smooth inside the effect with `AudioMath.OnePoleCoefficient`, so a knob move is a short ramp: the limiter's
+  release, the compressor's attack and release, and the distortion's drive and tone.
 
 The limiter holds its reduction for the whole lookahead after a sample crosses the ceiling and only then releases. A
 release that started at once would let the delayed peak through above the ceiling; measured with a full-scale 1 kHz sine

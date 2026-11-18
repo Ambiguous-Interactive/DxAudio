@@ -89,7 +89,9 @@ namespace WallstopStudios.DxAudio
                 return 1f;
             }
 
-            return 1f - (float)Math.Exp(-1.0 / (seconds * sampleRate));
+            // Subtract in double before the cast: for a long time the exponential rounds to exactly one as a
+            // float, which would hand back a coefficient of zero and a smoother that never moves.
+            return (float)(1.0 - Math.Exp(-1.0 / (seconds * sampleRate)));
         }
     }
 }

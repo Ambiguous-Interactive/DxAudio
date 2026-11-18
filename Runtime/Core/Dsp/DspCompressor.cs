@@ -166,15 +166,17 @@ namespace WallstopStudios.DxAudio
                 float targetDecibels = 0f;
                 if (_thresholdLinear < peak)
                 {
-                    float overDecibels = AudioMath.LinearToDecibels(peak) - _thresholdDecibels;
-                    targetDecibels = -overDecibels * slope;
+                    // Full-range decibels, not the mixer helpers: those floor a level at -80 dB, which would
+                    // turn a threshold below that into silence and reduce a signal under its own threshold.
+                    float levelDecibels = 20f * (float)Math.Log10(peak);
+                    targetDecibels = -(levelDecibels - _thresholdDecibels) * slope;
                 }
 
                 // The time constants are decibels, so the attack reaches its reduction in the time its name says.
                 // A linear gain would arrive at half of it, because 15 dB is not halfway toward a gain of zero.
                 float coefficient = targetDecibels < _gainDecibels ? _attackCoefficient : _releaseCoefficient;
                 _gainDecibels += (targetDecibels - _gainDecibels) * coefficient;
-                float gain = AudioMath.DecibelsToLinear(_gainDecibels) * _makeupLinear;
+                float gain = (float)Math.Pow(10.0, _gainDecibels / 20.0) * _makeupLinear;
                 for (int channel = 0; channel < stride; channel++)
                 {
                     int index = frameStart + channel;
@@ -190,7 +192,7 @@ namespace WallstopStudios.DxAudio
 
         private void Recompute()
         {
-            _thresholdLinear = AudioMath.DecibelsToLinear(_thresholdDecibels);
+            _thresholdLinear = (float)Math.Pow(10.0, _thresholdDecibels / 20.0);
             _makeupLinear = (float)Math.Pow(10.0, _makeupDecibels / 20.0);
             _attackCoefficient = AudioMath.OnePoleCoefficient(_attackSeconds, _sampleRate);
             _releaseCoefficient = AudioMath.OnePoleCoefficient(_releaseSeconds, _sampleRate);

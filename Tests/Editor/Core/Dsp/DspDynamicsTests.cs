@@ -9,6 +9,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private const int BlockFrames = 256;
 
         [Test]
+        public void AVeryLongTimeConstantStillMoves()
+        {
+            Assert.That(AudioMath.OnePoleCoefficient(1_000f, SampleRate), Is.GreaterThan(0f), "the subtraction happens before the cast to float");
+            Assert.That(AudioMath.OnePoleCoefficient(0.005f, SampleRate), Is.EqualTo(1f - (float)Math.Exp(-1.0 / 240.0)).Within(0.000001f));
+        }
+
+        [Test]
         public void TheLimiterPassesASignalBelowItsCeilingUntouched()
         {
             DspLimiter limiter = new() { Ceiling = 0.5f, LookaheadSeconds = 0.0015f };
@@ -65,6 +72,26 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float[] output = Render(limiter, source);
 
             Assert.That(Peak(output, 0), Is.LessThanOrEqualTo(0.1f), "a peak with nothing after it is still held under the ceiling");
+        }
+
+        [Test]
+        public void TheLimiterAppliesALoweredCeilingToADelayedSample()
+        {
+            DspLimiter limiter = new()
+            {
+                Ceiling = 1f,
+                LookaheadSeconds = 1f / SampleRate,
+                ReleaseSeconds = 0.05f,
+            };
+            Prepare(limiter);
+            float[] loud = new float[1];
+            loud[0] = 1f;
+            _ = Render(limiter, loud);
+
+            limiter.Ceiling = 0.5f;
+            float[] output = Render(limiter, new float[1]);
+
+            Assert.That(output[0], Is.EqualTo(0.5f).Within(0.001f), "the frame that leaves is measured against the ceiling of its own block");
         }
 
         [Test]
@@ -155,6 +182,19 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(output[output.Length - 1], Is.EqualTo(level).Within(0.0001f));
             Assert.That(compressor.GainReductionDecibels, Is.Zero.Within(0.001f));
+        }
+
+        [Test]
+        public void TheCompressorLeavesASignalBelowADeepThresholdAlone()
+        {
+            DspCompressor compressor = new() { ThresholdDecibels = -90f, Ratio = 4f };
+            float[] source = Constant(0.00001f, 4_800);
+
+            Prepare(compressor);
+            float[] output = Render(compressor, source);
+
+            Assert.That(compressor.GainReductionDecibels, Is.Zero.Within(0.001f), "-100 dBFS is under a -90 dB threshold");
+            Assert.That(output[output.Length - 1], Is.EqualTo(0.00001f).Within(0.000001f));
         }
 
         [Test]

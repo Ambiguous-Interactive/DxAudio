@@ -81,6 +81,10 @@ namespace WallstopStudios.DxAudio
 
             int stride = channels;
 
+            // One configuration for the whole block: a knob set on the main thread must not split a block
+            // between two steps.
+            float step = _step;
+            int levels = _levels;
             int frames = count / stride;
             for (int frame = 0; frame < frames; frame++)
             {
@@ -89,7 +93,7 @@ namespace WallstopStudios.DxAudio
                 {
                     for (int channel = 0; channel < stride; channel++)
                     {
-                        _held[channel] = Quantize(buffer[frameStart + channel]);
+                        _held[channel] = Quantize(buffer[frameStart + channel], step, levels);
                     }
 
                     _heldFor = _rateReduction;
@@ -113,22 +117,24 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        private float Quantize(float sample)
+        private static float Quantize(float sample, float step, int levels)
         {
-            int level = (int)Math.Round((sample + 1f) / _step);
+            // Bounded first: a wild sample would otherwise become a level index far outside the range of an int.
+            float bounded = AudioMath.Clamp(sample, -1f, 1f);
+            int level = (int)Math.Round((bounded + 1f) / step);
             if (level < 0)
             {
                 level = 0;
             }
 
-            int loudest = _levels - 1;
+            int loudest = levels - 1;
             if (loudest < level)
             {
                 level = loudest;
             }
 
             // Mono rounds the top level a hair above one, so the range is enforced, not assumed.
-            return AudioMath.Clamp(-1f + (level * _step), -1f, 1f);
+            return AudioMath.Clamp(-1f + (level * step), -1f, 1f);
         }
 
         private void Recompute()

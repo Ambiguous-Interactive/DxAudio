@@ -91,6 +91,52 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void TheBitCrusherKeepsAWildSampleInRange()
+        {
+            DspBitCrusher crusher = new() { Bits = 4 };
+            float[] source = { -1_000f, 0f, 1_000f, 3.4e38f };
+
+            float[] output = Render(crusher, source, 4);
+
+            Assert.That(Peak(output), Is.LessThanOrEqualTo(1f), "a sample outside the range is bounded before it becomes a level");
+        }
+
+        [Test]
+        public void TheDistortionRampsADriveChange()
+        {
+            DspDistortion distortion = new() { Drive = 1f, ToneHz = DspDistortion.OpenToneHz };
+            Prepare(distortion);
+            float[] steady = new float[256];
+            for (int frame = 0; frame < steady.Length; frame++)
+            {
+                steady[frame] = 0.5f;
+            }
+
+            // Process directly: Render would prepare again and snap the drive to its new value.
+            float[] before = (float[])steady.Clone();
+            distortion.Process(before, 0, before.Length, 1);
+            distortion.Drive = 20f;
+            float[] after = (float[])steady.Clone();
+            distortion.Process(after, 0, after.Length, 1);
+
+            Assert.That(after[0] - before[before.Length - 1], Is.LessThan(0.05f), "the first frame after a knob move is still near the old sound");
+            Assert.That(after[after.Length - 1], Is.GreaterThan(after[0] + 0.1f), "the drive reaches its new value over the following frames");
+        }
+
+        [Test]
+        public void TheDistortionToneIsCappedTheSameWayBeforeAndAfterPrepare()
+        {
+            float[] source = Sine(6_000f, 1f, 4_800);
+            DspDistortion before = new() { Drive = 4f, ToneHz = DspDistortion.OpenToneHz };
+            DspDistortion after = new() { Drive = 4f, ToneHz = DspDistortion.OpenToneHz };
+            before.Prepare(16_000, BlockFrames, 1);
+            after.Prepare(16_000, BlockFrames, 1);
+            after.ToneHz = DspDistortion.OpenToneHz;
+
+            Assert.That(Render(after, source), Is.EqualTo(Render(before, source)), "a 20 kHz tone is capped to the rate whichever way it was set");
+        }
+
+        [Test]
         public void TheBitCrusherHoldsAcrossABlockBoundary()
         {
             float[] source = Ramp(-0.9f, 0.9f, 4_096);
@@ -167,10 +213,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             _ = Render(distortion, loud);
             distortion.Reset();
 
+            // Process directly: Render would prepare again, which would pass even if Reset did nothing.
             float[] silence = new float[256];
-            float[] output = Render(distortion, silence);
+            distortion.Process(silence, 0, silence.Length, 1);
 
-            Assert.That(Peak(output), Is.Zero, "a reset clears the tone control's memory");
+            Assert.That(Peak(silence), Is.Zero, "a reset clears the tone control's memory");
         }
 
         private static void Prepare(DspEffect effect)
