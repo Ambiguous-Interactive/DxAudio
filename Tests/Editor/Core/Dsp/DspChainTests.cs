@@ -108,7 +108,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void AStageMayAddToTheChainFromItsProcess()
         {
             DspChain chain = new();
-            AddingEffect adder = new(chain, new DspBitCrusher()) { AddWhileProcessing = true };
+            AddingEffect adder = new(chain, new DspBitCrusher(), addWhileProcessing: true);
             chain.Add(adder);
             chain.Prepare(SampleRate, 256, 1);
             float[] block = Sine(440f, 0.5f, 256);
@@ -308,21 +308,21 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             private readonly DspChain _chain;
             private readonly DspEffect _stage;
+            private readonly bool _addWhileProcessing;
             private bool _added;
 
-            public AddingEffect(DspChain chain, DspEffect stage)
+            public AddingEffect(DspChain chain, DspEffect stage, bool addWhileProcessing = false)
             {
                 _chain = chain;
                 _stage = stage;
+                _addWhileProcessing = addWhileProcessing;
             }
 
             public override string DisplayName => "Adding";
 
-            public bool AddWhileProcessing { get; init; }
-
             public override void Prepare(int sampleRate, int maxBlockSize, int channels)
             {
-                if (!AddWhileProcessing && !_added)
+                if (!_addWhileProcessing && !_added)
                 {
                     _added = true;
                     _chain.Add(_stage);
@@ -331,7 +331,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             public override void Process(float[] buffer, int offset, int count, int channels)
             {
-                if (AddWhileProcessing && !_added)
+                if (_addWhileProcessing && !_added)
                 {
                     _added = true;
                     _chain.Add(_stage);
