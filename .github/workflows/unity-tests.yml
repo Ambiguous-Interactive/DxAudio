@@ -4,9 +4,9 @@ name: Unity Tests
 # matrix carries both supported editors and both states of the optional
 # DxMessaging integration. A pull request and a push validate the newest
 # editor; the nightly schedule and a manual dispatch add the oldest one. The
-# former nightly file (unity-tests-legacy.yml) is gone because the enrollment
-# contract gives one exact-shape aggregate per licensed job, so an extra editor
-# belongs to this job's matrix, never to a second workflow file.
+# nightly editor is a column of this one licensed job, not a second licensed
+# lane, so the single "Unity CI Success" aggregate below still covers every run
+# that proves an editor.
 on:
   pull_request:
   push:
