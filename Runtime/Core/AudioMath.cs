@@ -62,6 +62,17 @@ namespace WallstopStudios.DxAudio
             return (float)Math.Pow(10.0, decibels / 20.0);
         }
 
+        /// <summary>Whether <paramref name="value"/> is a real number, so a bad knob cannot poison a filter or envelope.</summary>
+        /// <remarks>
+        /// A serialized field can carry a NaN or an infinity. Every recursive stage keeps state, so one bad value
+        /// would not be a one-block glitch: the effect would stay dead until it is reset. Setters refuse one rather
+        /// than pass it on.
+        /// </remarks>
+        public static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+
         /// <summary>
         /// The per-sample coefficient of a one-pole smoother that closes about 63% of a step in
         /// <paramref name="seconds"/>.

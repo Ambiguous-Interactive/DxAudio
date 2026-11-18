@@ -39,7 +39,13 @@ namespace WallstopStudios.DxAudio
         public float Drive
         {
             get => _drive;
-            set => _drive = AudioMath.Clamp(value, 0.01f, 100f);
+            set
+            {
+                if (AudioMath.IsFinite(value))
+                {
+                    _drive = AudioMath.Clamp(value, 0.01f, 100f);
+                }
+            }
         }
 
         /// <summary>The corner of the tone control, in hertz.</summary>
@@ -48,6 +54,11 @@ namespace WallstopStudios.DxAudio
             get => _toneHz;
             set
             {
+                if (!AudioMath.IsFinite(value))
+                {
+                    return;
+                }
+
                 _toneHz = Math.Max(MinimumToneHz, value);
                 _toneCoefficient = Coefficient(_toneHz, _sampleRate);
             }
@@ -74,7 +85,7 @@ namespace WallstopStudios.DxAudio
 
         public override void Process(float[] buffer, int offset, int count, int channels)
         {
-            if (buffer == null || channels != _channels || offset < 0 || count <= 0 || buffer.Length < offset + count)
+            if (buffer == null || channels != _channels || offset < 0 || count <= 0 || count % channels != 0 || buffer.Length < offset + count)
             {
                 return;
             }

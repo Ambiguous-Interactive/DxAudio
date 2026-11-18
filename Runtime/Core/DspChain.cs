@@ -15,6 +15,9 @@ namespace WallstopStudios.DxAudio
     public sealed class DspChain
     {
         private readonly List<DspEffect> _effects;
+        private int _sampleRate;
+        private int _maxBlockSize;
+        private int _channels;
 
         public DspChain()
         {
@@ -41,11 +44,20 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>Appends <paramref name="effect"/> to the end of the chain.</summary>
+        /// <remarks>
+        /// A stage added after <see cref="Prepare"/> is prepared at once with the chain's layout. Otherwise it would
+        /// sit in the list doing nothing, and its latency would be missing from <see cref="LatencySamples"/>.
+        /// </remarks>
         public void Add(DspEffect effect)
         {
             if (effect == null)
             {
                 throw new ArgumentNullException(nameof(effect));
+            }
+
+            if (0 < _sampleRate)
+            {
+                effect.Prepare(_sampleRate, _maxBlockSize, _channels);
             }
 
             _effects.Add(effect);
@@ -81,6 +93,9 @@ namespace WallstopStudios.DxAudio
                 throw new ArgumentOutOfRangeException(nameof(channels));
             }
 
+            _sampleRate = sampleRate;
+            _maxBlockSize = maxBlockSize;
+            _channels = channels;
             for (int i = 0; i < _effects.Count; i++)
             {
                 _effects[i].Prepare(sampleRate, maxBlockSize, channels);

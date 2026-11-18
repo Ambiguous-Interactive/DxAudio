@@ -40,7 +40,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void TheDistortionToneControlCutsTheHarmonics()
+        public void TheDistortionToneControlCutsTheTop()
         {
             float[] source = Sine(6_000f, 1f, 9_600);
             DspDistortion bright = new() { Drive = 4f, ToneHz = DspDistortion.OpenToneHz };
@@ -74,6 +74,19 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
 
             Assert.That(Peak(output), Is.LessThanOrEqualTo(1f));
+        }
+
+        [Test]
+        public void TheBitCrusherHoldsAcrossABlockBoundary()
+        {
+            float[] source = Ramp(-0.9f, 0.9f, 4_096);
+            DspBitCrusher whole = new() { Bits = 6, RateReduction = 3 };
+            DspBitCrusher split = new() { Bits = 6, RateReduction = 3 };
+
+            float[] oneBlock = Render(whole, source, source.Length);
+            float[] manyBlocks = Render(split, source, 7);
+
+            Assert.That(manyBlocks, Is.EqualTo(oneBlock), "a hold that spans a block boundary must survive it");
         }
 
         [Test]
@@ -112,6 +125,25 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void ANonNumberParameterIsRefused()
+        {
+            DspDistortion distortion = new() { Drive = 2f, ToneHz = 500f };
+
+            distortion.Drive = float.NaN;
+            distortion.ToneHz = float.NaN;
+
+            Assert.That(distortion.Drive, Is.EqualTo(2f));
+            Assert.That(distortion.ToneHz, Is.EqualTo(500f));
+
+            Prepare(distortion);
+            float[] output = Render(distortion, Sine(1_000f, 1f, 1_024));
+            for (int frame = 0; frame < output.Length; frame++)
+            {
+                Assert.That(float.IsNaN(output[frame]), Is.False, $"frame {frame} is not a number");
+            }
+        }
+
+        [Test]
         public void AResumedVoiceDoesNotKeepTheLastCueToneState()
         {
             DspDistortion distortion = new() { Drive = 8f, ToneHz = 500f };
@@ -134,11 +166,17 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         private static float[] Render(DspEffect effect, float[] source)
         {
+            return Render(effect, source, BlockFrames);
+        }
+
+        private static float[] Render(DspEffect effect, float[] source, int blockFrames)
+        {
+            effect.Prepare(SampleRate, blockFrames, 1);
             float[] output = new float[source.Length];
             Array.Copy(source, output, source.Length);
-            for (int offset = 0; offset < output.Length; offset += BlockFrames)
+            for (int offset = 0; offset < output.Length; offset += blockFrames)
             {
-                int count = Math.Min(BlockFrames, output.Length - offset);
+                int count = Math.Min(blockFrames, output.Length - offset);
                 effect.Process(output, offset, count, 1);
             }
 

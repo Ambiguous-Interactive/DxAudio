@@ -17,6 +17,7 @@ namespace WallstopStudios.DxAudio
         public const float DefaultCeilingDecibels = -1f;
 
         private const float QuietestCeiling = 0.0001f;
+        private const float MaximumLookaheadSeconds = 1f;
 
         private float _ceiling;
         private float _lookaheadSeconds;
@@ -45,7 +46,13 @@ namespace WallstopStudios.DxAudio
         public float Ceiling
         {
             get => _ceiling;
-            set => _ceiling = Math.Max(QuietestCeiling, value);
+            set
+            {
+                if (AudioMath.IsFinite(value))
+                {
+                    _ceiling = AudioMath.Clamp(value, QuietestCeiling, 1f);
+                }
+            }
         }
 
         /// <summary>How far ahead the limiter lowers its gain, in seconds.</summary>
@@ -53,7 +60,13 @@ namespace WallstopStudios.DxAudio
         public float LookaheadSeconds
         {
             get => _lookaheadSeconds;
-            set => _lookaheadSeconds = Math.Max(0f, value);
+            set
+            {
+                if (AudioMath.IsFinite(value))
+                {
+                    _lookaheadSeconds = AudioMath.Clamp(value, 0f, MaximumLookaheadSeconds);
+                }
+            }
         }
 
         /// <summary>How quickly the gain returns to unity after a peak, in seconds.</summary>
@@ -62,6 +75,11 @@ namespace WallstopStudios.DxAudio
             get => _releaseSeconds;
             set
             {
+                if (!AudioMath.IsFinite(value))
+                {
+                    return;
+                }
+
                 _releaseSeconds = Math.Max(0f, value);
                 _releaseCoefficient = AudioMath.OnePoleCoefficient(_releaseSeconds, _sampleRate);
             }
@@ -94,7 +112,7 @@ namespace WallstopStudios.DxAudio
 
         public override void Process(float[] buffer, int offset, int count, int channels)
         {
-            if (buffer == null || channels != _channels || offset < 0 || count <= 0 || buffer.Length < offset + count)
+            if (buffer == null || channels != _channels || offset < 0 || count <= 0 || count % channels != 0 || buffer.Length < offset + count)
             {
                 return;
             }

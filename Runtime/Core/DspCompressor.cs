@@ -16,6 +16,9 @@ namespace WallstopStudios.DxAudio
         public const float DefaultThresholdDecibels = -24f;
         public const float DefaultRatio = 4f;
 
+        private const float MinimumMakeupDecibels = -60f;
+        private const float MaximumMakeupDecibels = 24f;
+
         private float _thresholdDecibels;
         private float _ratio;
         private float _attackSeconds;
@@ -27,7 +30,7 @@ namespace WallstopStudios.DxAudio
         private float _attackCoefficient;
         private float _releaseCoefficient;
         private int _channels;
-        private float _gain;
+        private float _gainDecibels;
 
         public DspCompressor()
         {
@@ -36,7 +39,6 @@ namespace WallstopStudios.DxAudio
             _attackSeconds = 0.005f;
             _releaseSeconds = 0.1f;
             _makeupDecibels = 0f;
-            _gain = 1f;
             Recompute();
         }
 
@@ -48,8 +50,11 @@ namespace WallstopStudios.DxAudio
             get => _thresholdDecibels;
             set
             {
-                _thresholdDecibels = value;
-                Recompute();
+                if (AudioMath.IsFinite(value))
+                {
+                    _thresholdDecibels = value;
+                    Recompute();
+                }
             }
         }
 
@@ -59,8 +64,11 @@ namespace WallstopStudios.DxAudio
             get => _ratio;
             set
             {
-                _ratio = Math.Max(1f, value);
-                Recompute();
+                if (AudioMath.IsFinite(value))
+                {
+                    _ratio = AudioMath.Clamp(value, 1f, 100f);
+                    Recompute();
+                }
             }
         }
 
@@ -70,8 +78,11 @@ namespace WallstopStudios.DxAudio
             get => _attackSeconds;
             set
             {
-                _attackSeconds = Math.Max(0f, value);
-                Recompute();
+                if (AudioMath.IsFinite(value))
+                {
+                    _attackSeconds = Math.Max(0f, value);
+                    Recompute();
+                }
             }
         }
 
@@ -81,8 +92,11 @@ namespace WallstopStudios.DxAudio
             get => _releaseSeconds;
             set
             {
-                _releaseSeconds = Math.Max(0f, value);
-                Recompute();
+                if (AudioMath.IsFinite(value))
+                {
+                    _releaseSeconds = Math.Max(0f, value);
+                    Recompute();
+                }
             }
         }
 
@@ -92,13 +106,16 @@ namespace WallstopStudios.DxAudio
             get => _makeupDecibels;
             set
             {
-                _makeupDecibels = value;
-                Recompute();
+                if (AudioMath.IsFinite(value))
+                {
+                    _makeupDecibels = AudioMath.Clamp(value, MinimumMakeupDecibels, MaximumMakeupDecibels);
+                    Recompute();
+                }
             }
         }
 
         /// <summary>How far the gain is currently held down, in decibels; zero is untouched.</summary>
-        public float GainReductionDecibels => AudioMath.LinearToDecibels(_gain);
+        public float GainReductionDecibels => _gainDecibels;
 
         public override void Prepare(int sampleRate, int maxBlockSize, int channels)
         {
@@ -120,7 +137,7 @@ namespace WallstopStudios.DxAudio
 
         public override void Process(float[] buffer, int offset, int count, int channels)
         {
-            if (buffer == null || channels != _channels || offset < 0 || count <= 0 || buffer.Length < offset + count)
+            if (buffer == null || channels != _channels || offset < 0 || count <= 0 || count % channels != 0 || buffer.Length < offset + count)
             {
                 return;
             }
@@ -142,16 +159,18 @@ namespace WallstopStudios.DxAudio
                     }
                 }
 
-                float targetGain = 1f;
+                float targetDecibels = 0f;
                 if (_thresholdLinear < peak)
                 {
                     float overDecibels = AudioMath.LinearToDecibels(peak) - _thresholdDecibels;
-                    targetGain = AudioMath.DecibelsToLinear(-overDecibels * slope);
+                    targetDecibels = -overDecibels * slope;
                 }
 
-                float coefficient = targetGain < _gain ? _attackCoefficient : _releaseCoefficient;
-                _gain += (targetGain - _gain) * coefficient;
-                float gain = _gain * _makeupLinear;
+                // The time constants are decibels, so the attack reaches its reduction in the time its name says.
+                // A linear gain would arrive at half of it, because 15 dB is not halfway toward a gain of zero.
+                float coefficient = targetDecibels < _gainDecibels ? _attackCoefficient : _releaseCoefficient;
+                _gainDecibels += (targetDecibels - _gainDecibels) * coefficient;
+                float gain = AudioMath.DecibelsToLinear(_gainDecibels) * _makeupLinear;
                 for (int channel = 0; channel < stride; channel++)
                 {
                     int index = frameStart + channel;
@@ -162,13 +181,13 @@ namespace WallstopStudios.DxAudio
 
         public override void Reset()
         {
-            _gain = 1f;
+            _gainDecibels = 0f;
         }
 
         private void Recompute()
         {
             _thresholdLinear = AudioMath.DecibelsToLinear(_thresholdDecibels);
-            _makeupLinear = AudioMath.DecibelsToLinear(_makeupDecibels);
+            _makeupLinear = (float)Math.Pow(10.0, _makeupDecibels / 20.0);
             _attackCoefficient = AudioMath.OnePoleCoefficient(_attackSeconds, _sampleRate);
             _releaseCoefficient = AudioMath.OnePoleCoefficient(_releaseSeconds, _sampleRate);
         }

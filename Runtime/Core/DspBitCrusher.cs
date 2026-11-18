@@ -72,7 +72,7 @@ namespace WallstopStudios.DxAudio
 
         public override void Process(float[] buffer, int offset, int count, int channels)
         {
-            if (buffer == null || channels != _channels || offset < 0 || count <= 0 || buffer.Length < offset + count)
+            if (buffer == null || channels != _channels || offset < 0 || count <= 0 || count % channels != 0 || buffer.Length < offset + count)
             {
                 return;
             }

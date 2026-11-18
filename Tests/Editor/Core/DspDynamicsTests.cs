@@ -50,6 +50,24 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void TheLimiterHoldsASparsePeakUnderTheCeiling()
+        {
+            DspLimiter limiter = new()
+            {
+                Ceiling = 0.1f,
+                LookaheadSeconds = 0.005f,
+                ReleaseSeconds = 0.05f,
+            };
+            float[] source = new float[9_600];
+            source[1_000] = 1f;
+
+            Prepare(limiter);
+            float[] output = Render(limiter, source);
+
+            Assert.That(Peak(output, 0), Is.LessThanOrEqualTo(0.1f), "a peak with nothing after it is still held under the ceiling");
+        }
+
+        [Test]
         public void TheLimiterWithoutLookaheadStillHoldsTheCeiling()
         {
             DspLimiter limiter = new() { Ceiling = 0.25f, LookaheadSeconds = 0f };
@@ -79,6 +97,28 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             _ = Render(limiter, quiet);
 
             Assert.That(limiter.GainReductionDecibels, Is.GreaterThan(-1f), "four release times bring the gain back to unity");
+        }
+
+        [Test]
+        public void TheLimiterReleaseTakesTheTimeItsNameSays()
+        {
+            DspLimiter limiter = new()
+            {
+                Ceiling = 0.5f,
+                LookaheadSeconds = 0f,
+                ReleaseSeconds = 0.05f,
+            };
+            float[] peak = new float[1];
+            peak[0] = 1f;
+
+            Prepare(limiter);
+            _ = Render(limiter, peak);
+            Assert.That(limiter.GainReductionDecibels, Is.EqualTo(-6.0206f).Within(0.001f), "the peak sets the gain to half");
+
+            _ = Render(limiter, new float[2_400]);
+
+            // One time constant leaves 1 - 0.5 / e: 0.816 of unity, which is -1.77 dB.
+            Assert.That(limiter.GainReductionDecibels, Is.EqualTo(-1.7660f).Within(0.1f));
         }
 
         [Test]
@@ -133,7 +173,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float[] output = Render(compressor, source);
 
             Assert.That(output[0], Is.GreaterThan(0.9f), "the first sample has not been turned down yet");
-            Assert.That(output[output.Length - 1], Is.EqualTo(AudioMath.DecibelsToLinear(-15f)).Within(0.01f), "ten attack times finish the reduction");
+            Assert.That(output[output.Length - 1], Is.EqualTo(AudioMath.DecibelsToLinear(-15f)).Within(0.01f), "twenty attack times finish the reduction");
         }
 
         [Test]
@@ -160,13 +200,113 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void TheCompressorAppliesMakeupGainAfterTheReduction()
         {
-            DspCompressor compressor = new() { ThresholdDecibels = -24f, MakeupDecibels = 6f };
-            float[] source = Constant(0.01f, 4_800);
+            DspCompressor compressor = new()
+            {
+                ThresholdDecibels = -20f,
+                Ratio = 4f,
+                AttackSeconds = 0.001f,
+                MakeupDecibels = 6f,
+            };
+            float[] source = Constant(1f, SampleRate);
 
             Prepare(compressor);
             float[] output = Render(compressor, source);
 
-            Assert.That(output[output.Length - 1], Is.EqualTo(0.01f * AudioMath.DecibelsToLinear(6f)).Within(0.0001f));
+            // Makeup lifts the reduced signal, and it is not in the detector: 0.1778 of the input, then a 6 dB lift.
+            float expected = AudioMath.DecibelsToLinear(-15f) * AudioMath.DecibelsToLinear(6f);
+            Assert.That(output[output.Length - 1], Is.EqualTo(expected).Within(expected * 0.05f));
+            Assert.That(compressor.GainReductionDecibels, Is.EqualTo(-15f).Within(0.5f), "makeup does not change the reduction");
+        }
+
+        [Test]
+        public void TheCompressorClampsItsMakeupInsteadOfMuting()
+        {
+            DspCompressor compressor = new() { MakeupDecibels = -80f };
+
+            Assert.That(compressor.MakeupDecibels, Is.EqualTo(-60f), "a gain stage never turns the signal off");
+        }
+
+        [Test]
+        public void TheCompressorAttackTakesTheTimeItsNameSays()
+        {
+            DspCompressor compressor = new()
+            {
+                ThresholdDecibels = -20f,
+                Ratio = 4f,
+                AttackSeconds = 0.05f,
+                ReleaseSeconds = 0.1f,
+            };
+
+            Prepare(compressor);
+            _ = Render(compressor, Constant(1f, 2_400));
+
+            // Fifteen decibels of target, one attack time constant in: 15 / e of it is left undone, so -9.48 dB.
+            Assert.That(compressor.GainReductionDecibels, Is.EqualTo(-9.4828f).Within(0.2f));
+        }
+
+        [Test]
+        public void TheCompressorReleaseTakesTheTimeItsNameSays()
+        {
+            DspCompressor compressor = new()
+            {
+                ThresholdDecibels = -20f,
+                Ratio = 4f,
+                AttackSeconds = 0.001f,
+                ReleaseSeconds = 0.05f,
+            };
+
+            Prepare(compressor);
+            _ = Render(compressor, Constant(1f, 9_600));
+            Assert.That(compressor.GainReductionDecibels, Is.EqualTo(-15f).Within(0.5f), "the curve is reached first");
+
+            _ = Render(compressor, Constant(0f, 2_400));
+
+            // One release time constant back toward unity leaves 15 / e decibels of the reduction: -5.52 dB.
+            Assert.That(compressor.GainReductionDecibels, Is.EqualTo(-5.5182f).Within(0.2f));
+        }
+
+        [Test]
+        public void TheCompressorClampsItsRatio()
+        {
+            DspCompressor compressor = new() { Ratio = 0.5f };
+            Assert.That(compressor.Ratio, Is.EqualTo(1f));
+
+            compressor.ThresholdDecibels = -20f;
+            Prepare(compressor);
+            float[] output = Render(compressor, Constant(1f, 4_800));
+
+            Assert.That(output[output.Length - 1], Is.EqualTo(1f).Within(0.0001f), "a ratio of one does not touch the signal");
+        }
+
+        [Test]
+        public void ANonNumberParameterIsRefused()
+        {
+            DspLimiter limiter = new();
+            DspCompressor compressor = new();
+            float ceiling = limiter.Ceiling;
+            float release = limiter.ReleaseSeconds;
+            float threshold = compressor.ThresholdDecibels;
+            float ratio = compressor.Ratio;
+
+            limiter.Ceiling = float.NaN;
+            limiter.LookaheadSeconds = float.PositiveInfinity;
+            limiter.ReleaseSeconds = float.NaN;
+            compressor.ThresholdDecibels = float.NaN;
+            compressor.Ratio = float.NegativeInfinity;
+            compressor.AttackSeconds = float.NaN;
+            compressor.MakeupDecibels = float.NaN;
+
+            Assert.That(limiter.Ceiling, Is.EqualTo(ceiling));
+            Assert.That(limiter.LookaheadSeconds, Is.EqualTo(0.005f));
+            Assert.That(limiter.ReleaseSeconds, Is.EqualTo(release));
+            Assert.That(compressor.ThresholdDecibels, Is.EqualTo(threshold));
+            Assert.That(compressor.Ratio, Is.EqualTo(ratio));
+            Assert.That(compressor.AttackSeconds, Is.EqualTo(0.005f));
+            Assert.That(compressor.MakeupDecibels, Is.Zero, "a bad knob keeps the value that was working");
+
+            Prepare(limiter);
+            float[] output = Render(limiter, Sine(1_000f, 1f, 1_024));
+            Assert.That(Peak(output, 0), Is.LessThanOrEqualTo(1f), "the output stays a number");
         }
 
         [Test]

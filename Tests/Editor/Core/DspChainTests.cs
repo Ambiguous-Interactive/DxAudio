@@ -150,7 +150,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void EveryEffectRefusesAnImpossibleLayout()
+        public void EveryEffectRefusesAZeroRateOrChannelCount()
         {
             DspEffect[] effects = { new DspLimiter(), new DspCompressor(), new DspDistortion(), new DspBitCrusher() };
 
@@ -160,6 +160,38 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 _ = Assert.Throws<ArgumentOutOfRangeException>(() => effect.Prepare(0, 256, 2), effect.DisplayName);
                 _ = Assert.Throws<ArgumentOutOfRangeException>(() => effect.Prepare(SampleRate, 256, 0), effect.DisplayName);
             }
+        }
+
+        [Test]
+        public void AStageAddedAfterPrepareRunsAndCountsItsLatency()
+        {
+            DspChain chain = new();
+            chain.Add(new DspCompressor());
+            chain.Prepare(SampleRate, 256, 1);
+
+            DspLimiter limiter = new() { LookaheadSeconds = 0.005f, Ceiling = 0.5f };
+            chain.Add(limiter);
+
+            Assert.That(chain.LatencySamples, Is.EqualTo(240), "a late stage still reports the delay it adds");
+
+            float[] block = Sine(1_000f, 1f, 1_024);
+            chain.Process(block, 0, block.Length, 1);
+
+            Assert.That(Peak(block), Is.LessThanOrEqualTo(0.5001f), "the late stage is prepared, so it actually runs");
+        }
+
+        [Test]
+        public void APartialFrameIsRefused()
+        {
+            DspLimiter limiter = new() { Ceiling = 0.5f };
+            limiter.Prepare(SampleRate, 16, 2);
+            float[] block = new float[10];
+            block[8] = 1f;
+            block[9] = 1f;
+
+            limiter.Process(block, 0, 9, 2);
+
+            Assert.That(block[8], Is.EqualTo(1f), "an odd sample count is not a whole stereo frame, so the block is refused");
         }
 
         private static void RunInBlocks(float[] block, int blockFrames)
@@ -189,6 +221,21 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             chain.Prepare(SampleRate, 256, 1);
             chain.Process(block, 0, block.Length, 1);
             return block;
+        }
+
+        private static float Peak(float[] samples)
+        {
+            float peak = 0f;
+            for (int i = 0; i < samples.Length; i++)
+            {
+                float magnitude = Math.Abs(samples[i]);
+                if (peak < magnitude)
+                {
+                    peak = magnitude;
+                }
+            }
+
+            return peak;
         }
 
         private static int DifferingSamples(float[] left, float[] right)
