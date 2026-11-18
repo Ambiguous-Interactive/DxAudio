@@ -49,7 +49,6 @@ namespace WallstopStudios.DxAudio
         private float _semitones;
         private float _windowSeconds;
         private float _ratio;
-        private bool _shifting;
         private int _channels;
         private int _windowFrames;
         private int _halfWindowFrames;
@@ -66,7 +65,6 @@ namespace WallstopStudios.DxAudio
             _semitones = 0f;
             _windowSeconds = DefaultWindowSeconds;
             _ratio = 1f;
-            _shifting = false;
             _line = Array.Empty<float>();
         }
 
@@ -84,8 +82,9 @@ namespace WallstopStudios.DxAudio
                 }
 
                 _semitones = AudioMath.Clamp(value, MinimumSemitones, MaximumSemitones);
-                _ratio = (float)Math.Pow(2.0, _semitones / 12.0);
-                _shifting = UnisonToleranceSemitones < Math.Abs(_semitones);
+                // One ratio is the whole setting: a block reads it once and gets both the mode and the speed from it,
+                // so a knob move cannot leave the two disagreeing inside a block.
+                _ratio = UnisonToleranceSemitones < Math.Abs(_semitones) ? (float)Math.Pow(2.0, _semitones / 12.0) : 1f;
             }
         }
 
@@ -165,8 +164,9 @@ namespace WallstopStudios.DxAudio
 
             // One setting for the whole block, so a knob set on the main thread cannot split a block between two
             // speeds. Every tap position advances per frame either way, so block size never changes the sound.
-            bool shifting = _shifting;
-            double step = shifting ? 1.0 - _ratio : 0.0;
+            float ratio = _ratio;
+            bool shifting = 1f != ratio;
+            double step = shifting ? 1.0 - ratio : 0.0;
             int frames = count / channels;
             int stride = channels;
             for (int frame = 0; frame < frames; frame++)

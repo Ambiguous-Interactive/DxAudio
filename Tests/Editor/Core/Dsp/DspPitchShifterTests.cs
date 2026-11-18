@@ -176,11 +176,16 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             float[] fine = Sine(440f, 0.5f, 8_192);
             float[] coarse = (float[])fine.Clone();
+            DspPitchShifter fineShifter = new() { Semitones = 7f };
+            DspPitchShifter coarseShifter = new() { Semitones = 7f };
+            fineShifter.Prepare(SampleRate, 64, 1);
+            coarseShifter.Prepare(SampleRate, 1_024, 1);
 
-            ProcessInBlocks(new DspPitchShifter { Semitones = 7f }, fine, 1, 64);
-            ProcessInBlocks(new DspPitchShifter { Semitones = 7f }, coarse, 1, 1_024);
+            ProcessInBlocks(fineShifter, fine, 1, 64);
+            ProcessInBlocks(coarseShifter, coarse, 1, 1_024);
 
             Assert.That(coarse, Is.EqualTo(fine), "a block boundary must not change the sweep");
+            Assert.That(fine, Is.Not.EqualTo(Sine(440f, 0.5f, 8_192)), "an unprepared stage would pass the block through unchanged");
         }
 
         [Test]

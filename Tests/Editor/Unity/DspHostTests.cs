@@ -60,7 +60,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             using MadeObjects made = new();
             AudioFilterHost host = Host(made, Chain(made, made.Track(DspLimiterAsset.Create(lookaheadSeconds: 0.005f))));
-            int expected = Mathf.RoundToInt(0.005f * AudioSettings.outputSampleRate);
+            int expected = Mathf.RoundToInt(0.005f * OutputSampleRate());
 
             Assert.That(host.LatencySamples, Is.EqualTo(expected));
         }
@@ -87,7 +87,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             using MadeObjects made = new();
             AudioFilterHost host = Host(made, Chain(made, made.Track(DspPitchShifterAsset.Create(semitones: 0f, windowSeconds: 0.005f))));
-            int window = Mathf.RoundToInt(0.005f * AudioSettings.outputSampleRate);
+            int window = Mathf.RoundToInt(0.005f * OutputSampleRate());
             if (window < 2)
             {
                 window = 2;
@@ -299,6 +299,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             AudioFilterHost host = made.Track(new GameObject("host")).AddComponent<AudioFilterHost>();
             host.Chain = chain;
             return host;
+        }
+
+        /// <summary>The rate a host prepares with: the device rate, or its 48 kHz fallback when the device reports none.</summary>
+        private static int OutputSampleRate()
+        {
+            return 0 < AudioSettings.outputSampleRate ? AudioSettings.outputSampleRate : 48_000;
         }
 
         private static AudioFilterHost HostOf(MonoBehaviour player)

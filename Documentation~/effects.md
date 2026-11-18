@@ -50,16 +50,17 @@ the first play of them allocates nothing. A cue played by reference can be prepa
 ## Pitch shifter
 
 The pitch shifter reads one delay line with two heads that travel at the rate the pitch asks for, crossfading with a
-triangular window so the head that jumps back is always silent. It is a granular shift, not a phase vocoder: transients
-stay intact and no library or FFT is needed, at the cost of some warble on a pure tone.
+triangular window so the head that jumps back is always silent. It is a granular shift, not a phase vocoder: no library
+or FFT is needed and a transient is not smeared across the window, at the cost of some warble on a pure tone; a sample
+that falls between two read positions is skipped.
 
 - **Semitones** moves the pitch from -24 to 24. At zero the sweep parks where one head is silent, so the sound passes
   through unchanged, only delayed. Turning the knob back to zero crossfades into that parked read over ten milliseconds,
   so the change does not click. On a sustained high tone that crossfade can dip for about two milliseconds, because the
   two reads are at different delays; a note or a transient hides it.
-- **Window** is how long each head sweeps. The delay is half of it: 50 ms costs about 25 ms at 48 kHz. A shorter window
-  lowers the delay and adds warble; a longer one smooths the tone. Set it before playback: the delay line is sized when
-  the chain is prepared, not when the field changes.
+- **Window** is how long each head sweeps. The delay is half the rounded window plus one frame: a 50 ms window at 48 kHz
+  delays 1,201 samples, about 25 ms. A shorter window lowers the delay and adds warble; a longer one smooths the tone. Set
+  it before playback: the delay line is sized when the chain is prepared, not when the field changes.
 
 ## Limits
 

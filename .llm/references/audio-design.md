@@ -179,8 +179,9 @@ the limiter last. The bit crusher keeps exactly `2^bits` levels with both ends o
 only `-1` and `1`.
 
 The pitch shifter resamples one delay line with two read heads half a window apart, each at a triangular gain, so the
-head that jumps back to the start of its sweep is always silent. It is a granular shift, not a phase vocoder: it keeps
-transients, needs no transform, and pays with some warble on a pure tone. A sweep wraps inside one window, and each tap
+head that jumps back to the start of its sweep is always silent. It is a granular shift, not a phase vocoder: it needs
+no transform and does not smear a transient across the window, though a sample that falls between two read positions is
+skipped, and a pure tone can warble. A sweep wraps inside one window, and each tap
 stays at least one frame behind the write, so linear interpolation never reads the future. At unison the two heads would
 comb the sound at their different delays, so the sweep parks at half a window, where one head is silent and the other
 reads at exactly `LatencySamples`; the signal then passes through unchanged, only delayed. That keeps one latency figure
