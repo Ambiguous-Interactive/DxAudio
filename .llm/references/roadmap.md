@@ -3,17 +3,11 @@
 Candidate milestones, ordered by user impact. Each needs an issue before work starts. This file is a scope reference,
 not a fixed queue.
 
-## 1. Run the Unity suites in CI
+## 1. Run the Unity suites in CI (delivered)
 
-**Problem:** CI runs only the engine-free core plus format and `.meta` checks. `Tests/Editor/Unity` has never run on a
-pull request.
-
-**Scope:** an EditMode job on the oldest and newest supported editors (2021.3 and 6000.x), behind the organization build
-lock.
-
-**Acceptance:** a planted failure in `PlayerTests` fails the job. Workflow guards match the organization audit.
-
-**Reference:** issue #1.
+One `Unity Tests` workflow runs the EditMode suite on 6000.5.2f1 for every pull request and push to `main`, and adds
+2021.3.45f1 on the nightly schedule and a manual dispatch, behind the organization build lock. A planted test failure
+fails its leg and the single `Unity CI Success` aggregate. See issues #1 and #62.
 
 ## 2. Editor authoring UX
 

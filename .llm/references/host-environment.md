@@ -6,14 +6,14 @@ days. Record it before blaming a change: a host crash costs the session its evid
 
 ## Hardware and software
 
-| Item       | Value                                                    |
-| ---------- | -------------------------------------------------------- |
-| CPU        | Snapdragon X Elite X1E80100 (ARM64), 12 cores, 65 GB RAM |
-| GPU        | Qualcomm Adreno X1-85, Direct3D 12 level 12.1            |
-| OS         | Windows 11 10.0.26300                                    |
-| Editor     | Unity 6000.6.7f1, native ARM64                           |
-| Audio      | Stereo output, 48 kHz                                    |
-| CI editors | 6000.5.2f1 on pull requests, 2021.3.45f1 nightly         |
+| Item       | Value                                                                    |
+| ---------- | ------------------------------------------------------------------------ |
+| CPU        | Snapdragon X Elite X1E80100 (ARM64), 12 cores, 65 GB RAM                 |
+| GPU        | Qualcomm Adreno X1-85, Direct3D 12 level 12.1                            |
+| OS         | Windows 11 10.0.26300                                                    |
+| Editor     | Unity 6000.6.7f1, native ARM64                                           |
+| Audio      | Stereo output, 48 kHz                                                    |
+| CI editors | 6000.5.2f1 on pull requests and main; 2021.3.45f1 and 6000.5.2f1 nightly |
 
 The editor version on this host is not one any CI lane proves. A local result can therefore differ from a lane result
 for a reason that is not the change, and a host crash cannot be a package defect until it reproduces elsewhere.

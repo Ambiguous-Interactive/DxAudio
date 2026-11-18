@@ -1,10 +1,20 @@
 name: Unity Tests
 
+# One workflow and one licensed job cover every editor that runs (#62). The job
+# matrix carries both supported editors and both states of the optional
+# DxMessaging integration. A pull request and a push validate the newest
+# editor; the nightly schedule and a manual dispatch add the oldest one. The
+# nightly editor is a column of this one licensed job, not a second licensed
+# lane, so the single "Unity CI Success" aggregate below still covers every run
+# that proves an editor.
 on:
   pull_request:
   push:
     branches:
       - main
+  schedule:
+    # Exactly one cron entry, at most daily, on the protected default branch.
+    - cron: "0 5 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -64,17 +74,27 @@ jobs:
     timeout-minutes: 420
     # Contract item 3: the audit proves the per-leg editor gate and the central
     # return pins only on a matrix it can enumerate, so every axis holds literal
-    # values. An include-based or generated matrix is refused. The oldest
-    # supported editor runs in unity-tests-legacy.yml (#25).
+    # values. An include-based or generated matrix is refused.
     strategy:
       fail-fast: false
-      max-parallel: 1
+      # No max-parallel. It makes only N legs *eligible*, so every completion
+      # waits for a fresh dispatch to a self-hosted runner, which is the slow
+      # part of this job. The runner pool and the organization lock already
+      # bound concurrency, and each leg keeps its own head guard and holder
+      # suffix, so parallel legs never share a seat or a license.
       matrix:
         unity-version:
+          - 2021.3.45f1
           - 6000.5.2f1
         lane:
           - integration
           - no-dependencies
+        # A pull request and a push validate only the newest editor. The oldest
+        # editor joins the nightly schedule and a manual dispatch. An exclusion
+        # removes whole literal cells, so every surviving leg still names one
+        # literal editor for the central editor gate and the return pins.
+        exclude:
+          - unity-version: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && '2021.3.45f1' || '' }}
     steps:
       - name: Require current PR head before setup
         timeout-minutes: 2
@@ -243,7 +263,8 @@ jobs:
           incident-id: ${{ steps.release_unity_lock.outputs.incident-id }}
 
   # One always-reporting context so the default-branch ruleset requires a single
-  # "Unity CI Success". A skipped required check counts as passing, so this job
+  # "Unity CI Success". It covers the one licensed job for every event, including
+  # the nightly matrix. A skipped required check counts as passing, so this job
   # uses a falsifiable job-level `if: always()` plus exact per-job result checks.
   unity-ci-success:
     name: Unity CI Success
