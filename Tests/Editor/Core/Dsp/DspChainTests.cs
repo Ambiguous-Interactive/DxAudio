@@ -125,15 +125,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void LatencyIsTheSumOfItsStages()
         {
             DspLimiter limiter = new() { LookaheadSeconds = 0.005f };
+            DspPitchShifter shifter = new() { WindowSeconds = 0.005f };
             DspChain chain = new();
             chain.Add(new DspCompressor());
             chain.Add(limiter);
             chain.Add(new DspBitCrusher());
+            chain.Add(shifter);
 
             chain.Prepare(SampleRate, 512, 1);
 
             Assert.That(limiter.LatencySamples, Is.EqualTo(240));
-            Assert.That(chain.LatencySamples, Is.EqualTo(240), "only the limiter delays the signal");
+            Assert.That(shifter.LatencySamples, Is.EqualTo(121));
+            Assert.That(chain.LatencySamples, Is.EqualTo(361), "the delay of every stage adds up");
         }
 
         [Test]
@@ -175,6 +178,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             chain.Add(new DspCompressor());
             chain.Add(new DspDistortion());
             chain.Add(new DspBitCrusher());
+            chain.Add(new DspPitchShifter());
 
             chain.Process(block, 0, block.Length, 1);
 
@@ -209,7 +213,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void EveryEffectRefusesAZeroRateOrChannelCount()
         {
-            DspEffect[] effects = { new DspLimiter(), new DspCompressor(), new DspDistortion(), new DspBitCrusher() };
+            DspEffect[] effects = { new DspLimiter(), new DspCompressor(), new DspDistortion(), new DspBitCrusher(), new DspPitchShifter() };
 
             for (int i = 0; i < effects.Length; i++)
             {
@@ -273,6 +277,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             chain.Add(new DspCompressor());
             chain.Add(new DspDistortion { Drive = 6f });
             chain.Add(new DspBitCrusher { Bits = 8, RateReduction = 2 });
+            chain.Add(new DspPitchShifter { Semitones = 7f });
             chain.Prepare(SampleRate, blockFrames, 1);
             for (int offset = 0; offset < block.Length; offset += blockFrames)
             {

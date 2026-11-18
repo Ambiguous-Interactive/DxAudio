@@ -155,9 +155,8 @@ A chain is an ordered list of `DspEffect` stages, not a graph: order is the soun
 and fan-out buffers plus per-branch latency before a second branch exists. Effects shape an interleaved block in place,
 so a stage needs no scratch buffer and a voice's audio path allocates nothing.
 
-`DspEffect.LatencySamples` is not zero for everything: the limiter reports its lookahead, and a future pitch shifter
-would report its delay line. A chain sums the figure so two branches that must stay aligned can be told how far apart
-they are.
+`DspEffect.LatencySamples` is not zero for everything: the limiter reports its lookahead, and the pitch shifter reports
+half its window. A chain sums the figure so two branches that must stay aligned can be told how far apart they are.
 
 Rules for a new effect:
 
@@ -179,19 +178,33 @@ Makeup is a gain stage: it can take a full-scale input above full scale, which i
 the limiter last. The bit crusher keeps exactly `2^bits` levels with both ends of the range included, so one bit keeps
 only `-1` and `1`.
 
-| Probe                                        | Result                                                 |
-| -------------------------------------------- | ------------------------------------------------------ |
-| Four-effect chain, 10,000 stereo blocks      | 0 bytes allocated                                      |
-| Same input in 64-frame and 1024-frame blocks | bit-identical output                                   |
-| Full-scale sine, limiter ceiling 0.5         | peak 0.4998 to 0.4999                                  |
-| Compressor, 0 dBFS, -20 dB threshold, 4:1    | 15 dB reduction, matches the static curve within 5%    |
-| Four-effect chain, 256 s of stereo audio     | 631 ms, about 400x realtime, 13 us per 256-frame block |
+The pitch shifter resamples one delay line with two read heads half a window apart, each at a triangular gain, so the
+head that jumps back to the start of its sweep is always silent. It is a granular shift, not a phase vocoder: it keeps
+transients, needs no transform, and pays with some warble on a pure tone. A sweep wraps inside one window, and each tap
+stays at least one frame behind the write, so linear interpolation never reads the future. At unison the two heads would
+comb the sound at their different delays, so they collapse onto one integer delay of exactly `LatencySamples`; the
+signal then passes through unchanged, only delayed. That keeps one latency figure for both settings and means a chain
+that runs the shifter at zero is not silent, merely late. Its line is allocated in `Prepare`, about 19 KiB per voice for
+50 ms of stereo at 48 kHz, so a pool that warms many chained cues pays for each voice separately. Measured at 48 kHz
+with a 50 ms window: a 440 Hz tone leaves at 880 Hz for +12 semitones, 659 Hz for +7, and 220 Hz for -12, at its
+original amplitude and within 1 Hz of the tempered target; the delay is 1,201 samples, half the window plus one.
 
-The time figure is from .NET 9 on the dev container, not from an editor or a player. It is why these four effects need no
-FFT, no SIMD intrinsic and no third-party library: a limiter, a compressor, a distortion and a bit crusher are per-sample
-work, and an FFT would add a window of latency and its own artefacts for nothing. Unity exposes no portable SIMD for a
-Mono/IL2CPP build without a dependency, and the package keeps none. A future pitch shifter is the one effect that would
-need a delay line and resampling, and that is where a library decision belongs.
+| Probe                                         | Result                                                 |
+| --------------------------------------------- | ------------------------------------------------------ |
+| Four-effect chain, 10,000 stereo blocks       | 0 bytes allocated                                      |
+| Pitch shifter, 10,000 stereo 256-frame blocks | 0 bytes allocated, 27 ms, about 2,100x realtime        |
+| Same input in 64-frame and 1024-frame blocks  | bit-identical output                                   |
+| Full-scale sine, limiter ceiling 0.5          | peak 0.4998 to 0.4999                                  |
+| Compressor, 0 dBFS, -20 dB threshold, 4:1     | 15 dB reduction, matches the static curve within 5%    |
+| Full-scale sine, pitch shifter at +12         | peak at or under the input peak                        |
+| Four-effect chain, 256 s of stereo audio      | 631 ms, about 400x realtime, 13 us per 256-frame block |
+
+The time figures are from .NET 9 on the dev container, not from an editor or a player. It is why these five effects need
+no FFT, no SIMD intrinsic and no third-party library: a limiter, a compressor, a distortion, a bit crusher and a
+delay-line pitch shifter are per-sample work, and an FFT would add a window of latency and its own artefacts for
+nothing. The pitch shifter is the one effect that needs a delay line and resampling, and it still needed no library:
+the two-head triangular crossfade is a dozen multiplies per frame. Unity exposes no portable SIMD for a Mono/IL2CPP
+build without a dependency, and the package keeps none.
 
 ## DSP attachment
 

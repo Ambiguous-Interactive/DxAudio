@@ -5,16 +5,18 @@ asset, like a cue or a track, so a designer changes the sound without a code cha
 
 ## What an effect is for
 
-| Effect      | Use it to                                                       |
-| ----------- | --------------------------------------------------------------- |
-| Limiter     | Hold the loudest sample under a ceiling, with a short lookahead |
-| Compressor  | Turn the loud part down and leave the quiet part where it is    |
-| Distortion  | Drive a sound into a shaper, then tame the top with a tone knob |
-| Bit Crusher | Drop a sound to fewer bits and a lower sample rate, for grit    |
+| Effect        | Use it to                                                       |
+| ------------- | --------------------------------------------------------------- |
+| Limiter       | Hold the loudest sample under a ceiling, with a short lookahead |
+| Compressor    | Turn the loud part down and leave the quiet part where it is    |
+| Distortion    | Drive a sound into a shaper, then tame the top with a tone knob |
+| Bit Crusher   | Drop a sound to fewer bits and a lower sample rate, for grit    |
+| Pitch Shifter | Move a sound up or down in pitch without changing its length    |
 
 ## Author a chain
 
-1. Create one asset per effect with **Create > DxAudio > DSP > Limiter** (or Compressor, Distortion, Bit Crusher).
+1. Create one asset per effect with **Create > DxAudio > DSP > Limiter** (or Compressor, Distortion, Bit Crusher, Pitch
+   Shifter).
 2. Create the list with **Create > DxAudio > DSP > Chain** and add the effects in the order the signal should meet
    them. Order is the sound: distortion before a compressor is driven and then controlled, and the reverse squashes the
    quiet part before the drive lifts it again.
@@ -45,10 +47,22 @@ A voice reads an asset once, the first time it meets it, and keeps those setting
 reaches the voices that have not met the asset yet. Chain assets a library lists are prepared with the voice pool, so
 the first play of them allocates nothing. A cue played by reference can be prepared ahead with `_sfx.Warm(cue)`.
 
+## Pitch shifter
+
+The pitch shifter reads one delay line with two heads that travel at the rate the pitch asks for, crossfading with a
+triangular window so the head that jumps back is always silent. It is a granular shift, not a phase vocoder: transients
+stay intact and no library or FFT is needed, at the cost of some warble on a pure tone.
+
+- **Semitones** moves the pitch from -24 to 24. At zero the heads collapse onto one delay and the sound passes through
+  unchanged, only delayed.
+- **Window** is how long each head sweeps. The delay is half of it: 50 ms costs about 25 ms at 48 kHz. A shorter window
+  lowers the delay and adds warble; a longer one smooths the tone.
+
 ## Limits
 
 - A chain runs on the audio thread. Effects allocate when they are prepared, never while they run.
-- A limiter delays the signal by its lookahead. Read the delay with `AudioFilterHost.LatencySamples`; the chain itself
-  does not compensate.
+- A limiter delays the signal by its lookahead, and a pitch shifter by half its window. Read the delay with
+  `AudioFilterHost.LatencySamples`; the chain itself does not compensate. A chain that runs in parallel needs branches
+  whose reported delays match.
 - A block whose shape no prepared chain matches passes through and counts in `AudioFilterHost.SkippedBlocks`, so a
   silent bypass is visible rather than guessed at.

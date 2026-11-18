@@ -66,6 +66,48 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void AChainAssetBuildsAPitchShifterFromItsFields()
+        {
+            using MadeObjects made = new();
+            DspPitchShifterAsset asset = made.Track(DspPitchShifterAsset.Create(semitones: 7f, windowSeconds: 0.01f));
+
+            DspPitchShifter shifter = (DspPitchShifter)asset.CreateEffect();
+
+            Assert.That(asset.Describe(), Does.Contain("7 st").And.Contain("10 ms"));
+            Assert.That(shifter.Semitones, Is.EqualTo(7f));
+            Assert.That(shifter.WindowSeconds, Is.EqualTo(0.01f));
+        }
+
+        [Test]
+        public void AHostRunsAPitchShifterAndReportsItsDelay()
+        {
+            using MadeObjects made = new();
+            AudioFilterHost host = Host(made, Chain(made, made.Track(DspPitchShifterAsset.Create(semitones: 0f, windowSeconds: 0.005f))));
+            int window = Mathf.RoundToInt(0.005f * AudioSettings.outputSampleRate);
+            if (window < 2)
+            {
+                window = 2;
+            }
+
+            if (0 < (window & 1))
+            {
+                window++;
+            }
+
+            int expected = (window / 2) + 1;
+            float[] block = new float[host.ChannelCount * (expected + 16)];
+            for (int channel = 0; channel < host.ChannelCount; ++channel)
+            {
+                block[channel] = 0.5f;
+            }
+
+            host.OnAudioFilterRead(block, host.ChannelCount);
+
+            Assert.That(host.LatencySamples, Is.EqualTo(expected));
+            Assert.That(block[expected * host.ChannelCount], Is.EqualTo(0.5f).Within(0.0001f), "unison delays the block by the reported figure");
+        }
+
+        [Test]
         public void AChainAssetBuildsOneEffectPerAuthoredStageInOrder()
         {
             using MadeObjects made = new();

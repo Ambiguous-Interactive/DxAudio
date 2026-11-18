@@ -128,9 +128,10 @@ _sfx.StopLoop(_humHandle); // a stale handle stops nothing
 ### Effects
 
 A cue or a music track can name a **DSP chain** (**Create > DxAudio > DSP > Chain**), a list of limiter, compressor,
-distortion and bit crusher stages in the order the signal meets them. Every pooled voice builds its own copy the first
-time it meets a chain, from the settings the asset holds then, so an edit reaches the voices that have not met it yet. A
-voice clears both its cue chain and the bus when it starts a play, so it never inherits the last sound's delay line.
+distortion, bit crusher and pitch shifter stages in the order the signal meets them. Every pooled voice builds its own
+copy the first time it meets a chain, from the settings the asset holds then, so an edit reaches the voices that have
+not met it yet. A voice clears both its cue chain and the bus when it starts a play, so it never inherits the last
+sound's delay line.
 
 ```csharp
 _sfx.BusChain = sfxBusChain;   // runs after each voice's own chain
