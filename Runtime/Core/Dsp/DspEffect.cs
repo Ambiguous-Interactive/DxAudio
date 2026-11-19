@@ -29,8 +29,10 @@ namespace WallstopStudios.DxAudio
 
         /// <summary>Reserves whatever the effect needs before it processes audio.</summary>
         /// <remarks>
-        /// Allocation belongs here, never in <see cref="Process"/>. A sample rate, block size or channel count the
-        /// stage cannot run is refused before anything is allocated, so a refused call changes nothing.
+        /// Allocation belongs here, never in <see cref="Process"/>. The only layout this refuses is one that is not
+        /// positive in every part, and it refuses it before anything is allocated. An effect that supports fewer
+        /// channels than a caller asks for is a different problem: it passes the wider block through, which counts in
+        /// the host's skipped blocks.
         /// </remarks>
         /// <returns><see langword="false"/> when the layout is not positive in every part.</returns>
         public bool TryPrepare(int sampleRate, int maxBlockSize, int channels)

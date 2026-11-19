@@ -231,14 +231,38 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             DspGraph graph = FanIn(ChainOf(new DelayEffect(100)), ChainOf(new DelayEffect(300)));
             graph.TryPrepare(SampleRate, 512, 1, 0, 3);
-            float[] block = Impulse(512, 1, 0, 1f);
+            float[] block = Impulse(200, 1, 0, 1f);
             graph.Process(block, 0, block.Length, 1);
             graph.Reset();
 
             float[] silence = new float[512];
             graph.Process(silence, 0, silence.Length, 1);
+            graph.Process(silence, 0, silence.Length, 1);
 
-            Assert.That(NonZeroCount(silence), Is.Zero, "the delay lines hold nothing from the last block");
+            Assert.That(NonZeroCount(silence), Is.Zero, "the impulse was still in a delay line when the reset ran");
+        }
+
+        [Test]
+        public void TheSameChainIsNotTwoNodes()
+        {
+            DspGraph graph = new();
+            DspChain shared = ChainOf(new DelayEffect(10));
+            Assert.That(graph.TryAddNode(shared, out int first), Is.True);
+
+            Assert.That(graph.TryAddNode(shared, out int second), Is.False, "a stateful chain belongs to one node");
+            Assert.That(second, Is.EqualTo(-1));
+            Assert.That(graph.NodeCount, Is.EqualTo(1));
+            Assert.That(first, Is.Zero);
+        }
+
+        [Test]
+        public void AnOversizedLayoutIsRefusedBeforeAChainPrepares()
+        {
+            DspLimiter limiter = new();
+            DspGraph graph = FanIn(ChainOf(limiter), ChainOf(new DelayEffect(0)));
+
+            Assert.That(graph.TryPrepare(SampleRate, 64, 20_000, 0, 3), Is.False);
+            Assert.That(limiter.LatencySamples, Is.Zero, "the graph refused the layout before a stage spent its memory");
         }
 
         [Test]

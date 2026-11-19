@@ -72,13 +72,29 @@ namespace WallstopStudios.DxAudio
         public int PreparedBytes { get; private set; }
 
         /// <summary>Adds a node that runs <paramref name="chain"/>, and answers its index.</summary>
-        /// <returns><see langword="false"/> for a null chain or a graph already at <see cref="MaximumNodes"/>.</returns>
+        /// <remarks>
+        /// Each node owns its chain. A chain is stateful, so a graph that ran one chain at two nodes would run the same
+        /// delay line twice in a block and corrupt it, and the second node would see what the first left behind.
+        /// </remarks>
+        /// <returns>
+        /// <see langword="false"/> for a null chain, a chain the graph already holds, or a graph already at
+        /// <see cref="MaximumNodes"/>.
+        /// </returns>
         public bool TryAddNode(DspChain chain, out int node)
         {
             if (chain == null || MaximumNodes <= NodeCount)
             {
                 node = -1;
                 return false;
+            }
+
+            for (int existing = 0; existing < NodeCount; existing++)
+            {
+                if (ReferenceEquals(_chains[existing], chain))
+                {
+                    node = -1;
+                    return false;
+                }
             }
 
             _chains[NodeCount] = chain;
@@ -129,6 +145,11 @@ namespace WallstopStudios.DxAudio
         /// The input node receives the caller's block, so an edge into it would be a cycle and
         /// <see cref="TryAddEdge"/> already refuses one. Every node has to be reachable from the input and able to
         /// reach the output; a node that fails either test is dead weight and is refused.
+        ///
+        /// The node buffers are budgeted before any chain is prepared, because a chain allocates from the layout too:
+        /// a channel count that cannot fit the graph is refused without the stages spending memory first. The edge
+        /// lines are budgeted once the chains report their delay. A chain's latency is read here, so a stage added to
+        /// a prepared chain afterwards leaves the graph's alignment stale; prepare the graph again after editing.
         /// </remarks>
         /// <returns>
         /// <see langword="false"/> for a layout that is not positive in every part, an index no node holds, a cycle,
@@ -149,6 +170,12 @@ namespace WallstopStudios.DxAudio
             }
 
             if (!OrderNodes() || !AllOnThePath(inputNode, outputNode))
+            {
+                return false;
+            }
+
+            long floats = (long)NodeCount * maxBlockSize * channels;
+            if (MaximumPreparedBytes < floats * sizeof(float))
             {
                 return false;
             }
@@ -178,7 +205,6 @@ namespace WallstopStudios.DxAudio
                 _age[node] = arrival + _chains[node].LatencySamples;
             }
 
-            long floats = (long)NodeCount * maxBlockSize * channels;
             for (int edge = 0; edge < EdgeCount; edge++)
             {
                 int destination = _edgeTo[edge];

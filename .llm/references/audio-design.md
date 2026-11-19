@@ -229,8 +229,9 @@ and a branch that needs no wait gets no buffer. Reporting the mismatch and leavi
 nothing else in the package can insert that delay, and a fan-in of mismatched branches is a comb.
 
 - A cycle is refused at the edge that would close it, and `TryPrepare` refuses a node off the path from input to output.
-- `TryPrepare` sizes every buffer and refuses a graph over 2 MiB or a layout that is not positive in every part, before
-  it allocates, by answering `false`; nothing on the prepare path throws.
+- `TryPrepare` budgets the node buffers before it prepares a chain, then the edge lines, and refuses a graph over 2 MiB
+  by answering `false`; nothing on the prepare path throws. A node owns its chain, because a shared chain would run one
+  delay line twice in a block.
 - Bounds are 16 nodes and 32 edges; `PreparedBytes` reports what the graph reserved, so a caller can budget a pool.
 
 | Probe                                                  | Result                               |
