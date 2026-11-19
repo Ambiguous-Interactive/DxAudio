@@ -15,6 +15,8 @@ namespace WallstopStudios.DxAudio.Editor
 
         private static AudioSource _previewSource;
         private static Object _previewOwner;
+        private static SceneView _enabledSceneAudio;
+        private static double _releaseCheckAfter;
 
         static SfxAudition()
         {
@@ -42,6 +44,15 @@ namespace WallstopStudios.DxAudio.Editor
         private static AudioSource PlayClip(Object owner, AudioClip clip, float volume, float start)
         {
             DspAuditionPanel.StopCurrent();
+            if (_enabledSceneAudio == null && DspAuditionPanel.TryEnableSceneAudio(out SceneView enabled) && enabled != null)
+            {
+                _enabledSceneAudio = enabled;
+                EditorApplication.update -= ReleaseEndedPreview;
+                EditorApplication.update += ReleaseEndedPreview;
+            }
+
+            // Allow Unity to start the source before treating it as finished.
+            _releaseCheckAfter = EditorApplication.timeSinceStartup + 0.25d;
             AudioSource source = Source();
             _previewOwner = owner;
             source.Stop();
@@ -62,11 +73,14 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 _previewSource.Stop();
             }
+
+            ReleaseSceneAudio();
         }
 
         /// <summary>Destroys the preview source, so it does not outlive a test or an editor session.</summary>
         public static void DestroyPreview()
         {
+            Stop();
             if (_previewSource != null)
             {
                 Object.DestroyImmediate(_previewSource.gameObject);
@@ -82,6 +96,25 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 DestroyPreview();
             }
+        }
+
+        private static void ReleaseEndedPreview()
+        {
+            if (_releaseCheckAfter <= EditorApplication.timeSinceStartup && (_previewSource == null || !_previewSource.isPlaying))
+            {
+                ReleaseSceneAudio();
+            }
+        }
+
+        private static void ReleaseSceneAudio()
+        {
+            EditorApplication.update -= ReleaseEndedPreview;
+            if (_enabledSceneAudio != null)
+            {
+                _enabledSceneAudio.audioPlay = false;
+            }
+
+            _enabledSceneAudio = null;
         }
 
         private static void OnPlayModeChanged(PlayModeStateChange change)

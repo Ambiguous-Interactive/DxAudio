@@ -363,18 +363,16 @@ namespace WallstopStudios.DxAudio.Editor
                 return false;
             }
 
-            if (!EditorApplication.isPlaying && !HasSceneAudio())
+            if (!TryEnableSceneAudio(out SceneView enabled))
             {
-                SceneView sceneView = SceneView.lastActiveSceneView;
-                if (sceneView == null)
-                {
-                    Stop();
-                    _status.text = "Open a Scene view or enter Play Mode to audition.";
-                    return false;
-                }
+                Stop();
+                _status.text = "Open a Scene view or enter Play Mode to audition.";
+                return false;
+            }
 
-                _enabledSceneAudio = sceneView;
-                sceneView.audioPlay = true;
+            if (enabled != null)
+            {
+                _enabledSceneAudio = enabled;
             }
 
             if (clip == null)
@@ -683,6 +681,24 @@ namespace WallstopStudios.DxAudio.Editor
         {
             _signalPath.Add(new Label("→") { pickingMode = PickingMode.Ignore });
             _signalPath.Add(stage);
+        }
+
+        internal static bool TryEnableSceneAudio(out SceneView enabled)
+        {
+            enabled = null;
+            if (EditorApplication.isPlaying || HasSceneAudio())
+            {
+                return true;
+            }
+
+            enabled = SceneView.lastActiveSceneView;
+            if (enabled == null)
+            {
+                return false;
+            }
+
+            enabled.audioPlay = true;
+            return true;
         }
 
         private static bool HasSceneAudio()

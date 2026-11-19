@@ -147,6 +147,50 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
         }
 
+        [Test]
+        public void RawTakeAuditionKeepsSceneAudioThroughACuePreviewHandoff()
+        {
+            using MadeObjects made = new();
+            SceneView active = FindOrCreateSceneView(made);
+            List<SceneView> enabledViews = new();
+            foreach (SceneView view in SceneView.sceneViews)
+            {
+                if (view != null && view.audioPlay)
+                {
+                    enabledViews.Add(view);
+                    view.audioPlay = false;
+                }
+            }
+
+            AudioClip clip = made.Track(AudioClip.Create("Audition take", 48_000, 1, 48_000, false));
+            SfxVariant take = new(clip);
+            SfxCue cue = made.Track(SfxCue.Create(new[] { take }));
+            DspAuditionPanel panel = new(_ => { }, () => { });
+            panel.SetTarget(cue);
+            try
+            {
+                Press(panel, "Play Cue");
+                Assert.That(active.audioPlay, Is.True);
+                AudioSource cuePreview = FindPreviewSource(clip);
+
+                AudioSource quickPreview = SfxAudition.Play(cue, take);
+                Assert.That(cuePreview == null, Is.True);
+                Assert.That(quickPreview != null, Is.True);
+                Assert.That(active.audioPlay, Is.True);
+                SfxAudition.Stop();
+                Assert.That(active.audioPlay, Is.False);
+            }
+            finally
+            {
+                panel.Stop();
+                SfxAudition.DestroyPreview();
+                foreach (SceneView view in enabledViews)
+                {
+                    view.audioPlay = true;
+                }
+            }
+        }
+
         private static SceneView FindOrCreateSceneView(MadeObjects made)
         {
             SceneView view = SceneView.lastActiveSceneView;
