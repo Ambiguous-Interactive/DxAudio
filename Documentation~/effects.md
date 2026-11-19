@@ -116,7 +116,20 @@ is -9.1 dB, the mirror the Peak mode does not give.
 
 ## Multiband equalizer
 
-Create one **Filter** asset per band and set its mode to **Bell**. Put the filters in a **Chain** so the signal passes
+To fit a drawn response, select a **DSP Chain** asset and open **Drawn EQ** in the Inspector.
+
+1. Select the output sample rate and a band limit. Drag across the plot in either direction or load one of the
+   example targets.
+2. Select **Fit target**. Compare the combined Bell response with the target on the 20 Hz to 20 kHz logarithmic
+   axis. The Inspector reports RMS error and the largest sampled error in dB. Compare different band limits and
+   use the one that meets your target.
+3. Select **Save new EQ chain**. The new asset contains its Bell stages as sub-assets. The drawing is temporary.
+
+The preview rate changes the filter response near the upper end of the plot. Match it to the game's output rate.
+The fitter measures the result on 2,049 log-spaced points and also checks the Bell centers for the maximum error.
+For sharp targets, inspect the fitted curve between draw points. A large difference there can also raise the output peak.
+
+You can also create one **Filter** asset per band and set its mode to **Bell**. Put the filters in a **Chain** so the signal passes
 through all bands in order. Assign the chain to a cue or track for local shaping, or use it on an [Audio Mix Bus](#a-mix-bus)
 for the listener mix. Inside a graph, put the whole chain in one node on the signal path.
 
@@ -147,6 +160,43 @@ at a time through each chain. The largest measured boost fell between two band c
 With two tones playing together, the dry peak was 0.693 on a scale where 1.0 is full scale. The seven-band chain
 raised that peak to 1.278, and the eleven-band chain raised it to 1.245. Lowering this input by 6 dB brought the peaks
 to 0.641 and 0.624. Check each sound's peak to choose its trim.
+
+### Drawn EQ fit error
+
+The table shows maximum sampled error / RMS error in dB over 20 Hz to 20 kHz in Unity 6000.6.7f1.
+The **Flat** target used zero stages with 0 dB error at every rate and band limit.
+
+| Target             | Preview rate (kHz) | 1 band        | 3 bands       | 7 bands       | 11 bands      |
+| ------------------ | ------------------ | ------------- | ------------- | ------------- | ------------- |
+| Broad low shelf    | 44.1               | 1.197 / 0.492 | 0.534 / 0.095 | 0.042 / 0.008 | 0.023 / 0.003 |
+| Narrow notch       | 44.1               | 1.934 / 0.270 | 1.341 / 0.121 | 0.823 / 0.047 | 0.713 / 0.038 |
+| Overlapping boosts | 44.1               | 1.342 / 0.553 | 0.464 / 0.167 | 0.091 / 0.025 | 0.020 / 0.007 |
+| Broad low shelf    | 48                 | 1.197 / 0.492 | 0.534 / 0.095 | 0.042 / 0.008 | 0.020 / 0.003 |
+| Narrow notch       | 48                 | 2.084 / 0.272 | 1.317 / 0.119 | 0.761 / 0.041 | 0.687 / 0.036 |
+| Overlapping boosts | 48                 | 1.335 / 0.554 | 0.455 / 0.168 | 0.061 / 0.021 | 0.021 / 0.007 |
+| Broad low shelf    | 96                 | 1.197 / 0.492 | 0.534 / 0.095 | 0.043 / 0.008 | 0.012 / 0.003 |
+| Narrow notch       | 96                 | 2.059 / 0.272 | 1.347 / 0.121 | 0.848 / 0.047 | 0.709 / 0.038 |
+| Overlapping boosts | 96                 | 1.335 / 0.555 | 0.462 / 0.171 | 0.069 / 0.023 | 0.020 / 0.007 |
+
+The narrow notch retained about 0.7 dB of peak error even at 11 bands. Its target changes sharply between points.
+
+### Drawn EQ in a standalone player
+
+A Unity 6000.6.7f1 release player used Windows x64 Mono on a Snapdragon X Elite X1E80100 with Windows 11.
+The native audio callback ran at 48 kHz with stereo blocks of 1,024 frames and four buffers. It processed exported
+**Overlapping boosts** chains and sine tones at 656.25 and 1,078.125 Hz. Each tone used 0.32 of full scale.
+For each band limit, the probe timed 240 blocks across two passes in reverse order, after 32 warm blocks per pass.
+
+| Bell stages | Median / p95 chain time (us) | Raw sample peak (dBFS) |
+| ----------- | ---------------------------- | ---------------------- |
+| 0           | 0.90 / 1.40                  | -3.895                 |
+| 3           | 278.60 / 357.30              | +4.927                 |
+| 7           | 740.95 / 834.60              | +5.108                 |
+| 11          | 1,084.55 / 1,283.40          | +5.137                 |
+
+The two tone gains matched the preview within 0.00001 dB for every chain. All fitted chains exceeded full scale
+before the probe applied its listening trim. Choose the band limit for the required fit and the cost on the target
+hardware. Check the peak with the actual audio before deciding how much input trim to apply.
 
 ## A node graph
 

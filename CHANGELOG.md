@@ -8,6 +8,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
+- Draw an EQ target in the DSP Chain inspector, compare the fitted response, and save a new chain of Bell filters ([#85](https://github.com/Ambiguous-Interactive/DxAudio/issues/85)).
 - Add a `DspFilter` effect and its asset: one state-variable core gives low pass, high pass, band pass, notch, peak and symmetric bell modes, a knob move is ramped rather than stepped, and it allocates nothing per block ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add an `AudioMixBus` for the object that carries the `AudioListener`: Unity hands it the sum of every source, so a chain there holds a master ceiling that no per-voice bus can see ([#74](https://github.com/Ambiguous-Interactive/DxAudio/issues/74)).
 - Add a `DspGraphAsset` and attach it to a cue or a music track: named nodes and edges author a parallel signal path, each voice builds its own graph, and the graph inspector shows each branch's delay ([#72](https://github.com/Ambiguous-Interactive/DxAudio/issues/72)).
