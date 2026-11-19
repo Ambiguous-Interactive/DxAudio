@@ -132,6 +132,48 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(follower.StartSeconds, Is.Zero);
         }
 
+        [Test]
+        public void APlayerUsesIndependentInjectedStreamsForPlayback()
+        {
+            const int Seed = 81;
+            using MadeObjects made = new();
+            SfxCue cue = made.Track(SfxCue.CreateWithVariation(new[] { Variant(made), Variant(made) }, new SfxVariation(true, -1200f, 1200f, -6f, 0f)));
+            SfxPlayer player = made.Track(new GameObject("variation player")).AddComponent<SfxPlayer>();
+            FixedRandom takeAndPitch = new(0.75);
+            FixedRandom level = new(0.0);
+            player.RandomFactory = seed => seed == Seed ? takeAndPitch : level;
+            player.Library = made.Track(SfxLibrary.Create(new[] { cue }, voiceCount: 1, drawSeed: Seed));
+
+            Assert.That(player.Play(cue), Is.True);
+            AudioSource voice = player.GetComponentInChildren<AudioSource>();
+            Assert.That(voice.clip == cue.Variants[1].Clip, Is.True);
+            Assert.That(voice.pitch, Is.EqualTo(1.414214f).Within(0.000001f));
+            Assert.That(voice.volume, Is.EqualTo(0.501187f).Within(0.000001f));
+            Assert.That(takeAndPitch.Draws, Is.EqualTo(2));
+            Assert.That(level.Draws, Is.EqualTo(1));
+            Assert.That(player.Play(cue), Is.False);
+            Assert.That(takeAndPitch.Draws, Is.EqualTo(2));
+            Assert.That(level.Draws, Is.EqualTo(1));
+        }
+
+        private sealed class FixedRandom : ISfxRandom
+        {
+            private readonly double _value;
+
+            internal FixedRandom(double value)
+            {
+                _value = value;
+            }
+
+            internal int Draws { get; private set; }
+
+            public double NextDouble()
+            {
+                Draws++;
+                return _value;
+            }
+        }
+
         private static SfxVariant Variant(MadeObjects made)
         {
             return new SfxVariant(Clip(made));

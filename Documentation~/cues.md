@@ -47,6 +47,10 @@ _sfx.Play("door/creak");               // by key, through the library
 
 `Play` returns `false` when nothing started. `CueDropped` reports the reason.
 
+To supply a custom random generator, set `SfxPlayer.RandomFactory` before assigning the library. Return a fresh
+`ISfxRandom` for each seed. The player requests independent streams for take and pitch, and for level. To use a
+unity-helpers generator, implement `ISfxRandom.NextDouble()` by forwarding to the generator's `IRandom.NextDouble()`.
+
 ## Loops
 
 A looping cue stands for a state. Whoever starts it stops it:

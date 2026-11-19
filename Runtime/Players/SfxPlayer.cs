@@ -66,6 +66,7 @@ namespace WallstopStudios.DxAudio
         private DspChainAsset _busChain;
 
         private bool _paused;
+        private Func<int, ISfxRandom> _randomFactory;
 
         private readonly SfxThrottle<SfxCue> _throttle = new();
         private readonly SfxPlaybackResolver _playback = new();
@@ -102,6 +103,26 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>The game's sound on/off setting. Muting keeps every voice's state, so loops resume on unmute.</summary>
+        /// <summary>Creates the random streams used to draw takes, pitch, and level.</summary>
+        /// <remarks>
+        /// Return a fresh, independently seeded generator for each seed. Set this before assigning the library,
+        /// or change it to restart both streams without clearing take history or interrupting voices.
+        /// A null factory, a null result, or a shared instance uses the default seeded generators instead.
+        /// </remarks>
+        public Func<int, ISfxRandom> RandomFactory
+        {
+            get => _randomFactory;
+            set
+            {
+                if (0 < _voices.Length)
+                {
+                    _playback.SetSeed(PlaybackSeed(), value);
+                }
+
+                _randomFactory = value;
+            }
+        }
+
         public bool Muted
         {
             get => _muted;
@@ -587,6 +608,11 @@ namespace WallstopStudios.DxAudio
             }
         }
 
+        private int PlaybackSeed()
+        {
+            return _library != null && _library.DrawSeed != 0 ? _library.DrawSeed : Environment.TickCount;
+        }
+
         private void BuildVoices()
         {
             DestroyVoices();
@@ -601,7 +627,11 @@ namespace WallstopStudios.DxAudio
             _leases = new int[count];
             _heldCount = 0;
             _roundRobin = 0;
-            _playback.SetSeed(_library != null && _library.DrawSeed != 0 ? _library.DrawSeed : Environment.TickCount);
+            if (0 < count)
+            {
+                _playback.SetSeed(PlaybackSeed(), _randomFactory);
+            }
+
             for (int index = 0; index < count; index++)
             {
                 // Never saved with a scene in edit mode. In Play mode the flag would hide the voices from

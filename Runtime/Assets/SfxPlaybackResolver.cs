@@ -6,8 +6,8 @@ namespace WallstopStudios.DxAudio
     internal sealed class SfxPlaybackResolver
     {
         private readonly SfxSelection<SfxCue> _selection = new();
-        private Random _takeAndPitch;
-        private Random _level;
+        private ISfxRandom _takeAndPitch;
+        private ISfxRandom _level;
 
         internal void Reset(int seed)
         {
@@ -15,10 +15,19 @@ namespace WallstopStudios.DxAudio
             ClearHistory();
         }
 
-        internal void SetSeed(int seed)
+        internal void SetSeed(int seed, Func<int, ISfxRandom> factory = null)
         {
-            _takeAndPitch = new Random(seed);
-            _level = new Random(seed ^ 0x51F0A7);
+            int levelSeed = seed ^ 0x51F0A7;
+            ISfxRandom takeAndPitch = factory?.Invoke(seed);
+            ISfxRandom level = factory?.Invoke(levelSeed);
+            if (takeAndPitch == null || level == null || ReferenceEquals(takeAndPitch, level))
+            {
+                takeAndPitch = new LegacyRandom(seed);
+                level = new LegacyRandom(levelSeed);
+            }
+
+            _takeAndPitch = takeAndPitch;
+            _level = level;
         }
 
         internal void ClearHistory()
@@ -36,7 +45,7 @@ namespace WallstopStudios.DxAudio
             }
 
             bool followed = _selection.TryFollow(cue, cue.FollowsTakeOf, count, out int index);
-            if (!followed && !_selection.TryNext(cue, count, (float)_takeAndPitch.NextDouble(), out index))
+            if (!followed && !_selection.TryNext(cue, count, Draw(_takeAndPitch), out index))
             {
                 play = default;
                 return false;
@@ -48,10 +57,28 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
-            float pitch = cue.PitchFor((float)_takeAndPitch.NextDouble());
-            float volume = cue.Variation.Volume(cue.Volume, (float)_level.NextDouble(), out float decibels);
+            float pitch = cue.PitchFor(Draw(_takeAndPitch));
+            float volume = cue.Variation.Volume(cue.Volume, Draw(_level), out float decibels);
             play = new SfxPlayback(variant, cue.PlaybackStartSecondsFor(variant), pitch, cue.Volume, volume, decibels, followed);
             return true;
+        }
+
+        private static float Draw(ISfxRandom source)
+        {
+            double draw = source.NextDouble();
+            return double.IsNaN(draw) ? 0.5f : (float)draw;
+        }
+
+        private sealed class LegacyRandom : ISfxRandom
+        {
+            private readonly Random _random;
+
+            internal LegacyRandom(int seed)
+            {
+                _random = new Random(seed);
+            }
+
+            public double NextDouble() => _random.NextDouble();
         }
     }
 }
