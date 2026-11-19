@@ -541,6 +541,9 @@
             if (node.Chain != null)
             {
                 _details.Add(new Button(() => SetTarget(node.Chain)) { text = "Open Chain" });
+                Foldout effects = new() { text = "Chain Effects", value = false };
+                effects.Add(new DspChainRack(node.Chain, showTitle: false));
+                _details.Add(effects);
             }
         }
 

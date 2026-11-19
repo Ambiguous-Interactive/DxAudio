@@ -235,7 +235,7 @@ Open **Tools > DxAudio > Authoring** to browse and edit audio assets. Open a sce
 - **DSP graphs.** Drag from an output port to connect nodes, or drop on empty space to choose a new node. Open a wire's
   context menu to insert a node. Use **Find Node** or select a validation finding to jump to the affected route.
   **Arrange Nodes** saves node positions with the asset.
-- **DSP chains.** Reorder effects in signal order. Effect edits apply to every chain that uses that effect.
+- **DSP chains.** Reorder effects in signal order. Open **Chain Effects** on a graph node to tune its chain during audition. Effect edits apply to every chain that uses that effect.
 - **DSP audition.** Choose a clip or use the test tone. Press **Play**, then toggle **Dry** to compare at the same monitor
   level. Valid routing and effect edits take effect during playback. An invalid draft keeps the last playable version
   audible. If Unity sends no Edit Mode audio, enter Play Mode and press **Play** again.

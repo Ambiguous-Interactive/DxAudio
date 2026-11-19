@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Editor
+﻿namespace WallstopStudios.DxAudio.Editor
 {
     using System;
     using System.Collections.Generic;
@@ -12,10 +12,13 @@ namespace WallstopStudios.DxAudio.Editor
         private readonly VisualElement _stages = new();
         private readonly List<DspEffectAsset> _shown = new();
 
-        internal DspChainRack(DspChainAsset chain)
+        internal DspChainRack(DspChainAsset chain, bool showTitle = true)
         {
             _chain = chain;
-            Add(new Label(chain.name));
+            if (showTitle)
+            {
+                Add(new Label(chain.name));
+            }
             Add(_stages);
 
             ObjectField addStage = new("Add Existing Effect") { objectType = typeof(DspEffectAsset), allowSceneObjects = false };
