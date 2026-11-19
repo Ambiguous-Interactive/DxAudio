@@ -23,13 +23,21 @@ namespace WallstopStudios.DxAudio.Tests
             chain.Add(new DspDistortion { Drive = 6f });
             chain.Add(new DspBitCrusher { Bits = 6, RateReduction = 2 });
             chain.Add(new DspPitchShifter { Semitones = 7f });
+            chain.Add(
+                new DspFilter
+                {
+                    Mode = DspFilterMode.BandPass,
+                    FrequencyHz = 1_200f,
+                    Quality = 2f,
+                }
+            );
             chain.TryPrepare(SampleRate, BlockFrames, Channels);
 
             float[] block = Sine();
             chain.Process(block, 0, block.Length, Channels);
 
             long allocated = AllocatedBy(chain, block);
-            Assert.That(allocated, Is.Zero, $"{Blocks} blocks through five effects allocated {allocated} bytes");
+            Assert.That(allocated, Is.Zero, $"{Blocks} blocks through six effects allocated {allocated} bytes");
         }
 
         [Test]

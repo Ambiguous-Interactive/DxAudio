@@ -12,11 +12,12 @@ asset, like a cue or a track, so a designer changes the sound without a code cha
 | Distortion    | Drive a sound into a shaper, then tame the top with a tone knob |
 | Bit Crusher   | Drop a sound to fewer bits and a lower sample rate, for grit    |
 | Pitch Shifter | Move a sound up or down in pitch without changing its length    |
+| Filter        | Muffle, thin, isolate or lift one band around a corner          |
 
 ## Author a chain
 
 1. Create one asset per effect with **Create > DxAudio > DSP > Limiter** (or Compressor, Distortion, Bit Crusher, Pitch
-   Shifter).
+   Shifter, Filter).
 2. Create the list with **Create > DxAudio > DSP > Chain** and add the effects in the order the signal should meet
    them. Order is the sound: distortion before a compressor is driven and then controlled, and the reverse squashes the
    quiet part before the drive lifts it again.
@@ -79,6 +80,34 @@ that falls between two read positions is skipped.
 - **Window** is how long each head sweeps. The delay is half the rounded window plus one frame: a 50 ms window at 48 kHz
   delays 1,201 samples, about 25 ms. A shorter window lowers the delay and adds warble; a longer one smooths the tone. Set
   it before playback: the delay line is sized when the chain is prepared, not when the field changes.
+
+## Filter
+
+The filter shapes one band around a corner. Every mode reads the same two-integrator core, so a mode change swaps the
+output the stage keeps and moves no poles. The output itself steps, so change the mode at a quiet moment.
+
+| Mode      | What leaves the stage                                      | A game use                         |
+| --------- | ---------------------------------------------------------- | ---------------------------------- |
+| Low Pass  | Below the corner, rolling off above it                     | Muffled, underwater, behind a wall |
+| High Pass | Above the corner, rolling off below it                     | Thin, distant, through a wall      |
+| Band Pass | A window around the corner                                 | Radio, telephone, a small speaker  |
+| Notch     | Everything except a window around the corner               | Remove a hum or a whistle          |
+| Peak      | The whole sound, with the band lifted by **Peak Decibels** | Add presence or air                |
+
+- **Frequency** is the corner, from 10 Hz to 20 kHz. The prepared rate caps it at 45% of the sample rate, so a corner
+  above Nyquist is a corner just under it rather than an unstable coefficient.
+- **Quality** is how narrow the band is. 0.71 is flat at the corner; a higher value narrows the band and lifts the
+  corner of a low pass or a high pass. A band pass stays at unity in its centre, and a notch stays a null, whatever the
+  quality; those two only narrow.
+- **Peak Decibels** moves only the Peak band, from -24 to 24 dB. A gain already at zero, as after preparation or a
+  reset, passes the block through sample for sample; a move from a nonzero gain ramps to zero. The peak's poles do not
+  move with the gain, so a deep cut is narrower than a large boost.
+- A knob moved while the sound plays is smoothed with a ten-millisecond time constant, so a sweep does not click. Set the
+  corner before playback when the exact first block matters.
+
+Measured at 48 kHz with a 1 kHz corner: a low pass leaves a 100 Hz tone at 0.0 dB and an 8 kHz tone at -37.8 dB, a
+high pass leaves 5 kHz at 0.0 dB and 125 Hz at -36.1 dB, a band pass with quality 2 leaves its centre at 0.0 dB and a
+tone an octave away at -10 dB, and a notch at quality 2 leaves its centre below -120 dB.
 
 ## A node graph
 
