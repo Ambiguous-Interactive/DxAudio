@@ -25,6 +25,10 @@ namespace WallstopStudios.DxAudio
         Notch = 4,
 
         /// <summary>Lift or cut a band around the corner by <see cref="DspFilter.PeakDecibels" />, with unity away from it.</summary>
+        /// <remarks>
+        /// The poles do not move with the gain, so a large boost has wider skirts than a deep cut. Use two stages when a
+        /// symmetric bell matters.
+        /// </remarks>
         Peak = 5,
     }
 }

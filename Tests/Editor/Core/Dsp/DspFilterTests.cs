@@ -106,12 +106,92 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             // Half at a corner that passes the tone, then the same filter at a corner far below it.
             filter.Process(whole, 0, 48_000, 1);
-            float lastBefore = whole[47_999];
             filter.FrequencyHz = 100f;
             filter.Process(whole, 48_000, 48_000, 1);
 
-            Assert.That(Math.Abs(whole[48_000] - lastBefore), Is.LessThan(0.2f), "the first frame after the move is still near the old sound");
+            // Two milliseconds after the move the old passband is still there; a coefficient step would have closed it
+            // in the first frames, which is what this reads.
+            Assert.That(Peak(whole, 48_096, 96), Is.GreaterThan(0.5f), "the corner ramps rather than jumping");
             Assert.That(Rms(whole, 91_200), Is.LessThan(0.05f), "a tenth of a second later the new corner has taken effect");
+        }
+
+        [Test]
+        public void TheFilterRunsEachChannelOnItsOwnState()
+        {
+            float[] left = Sine(1_000f, 0.5f, 4_608);
+            float[] right = Sine(3_000f, 0.25f, 4_608);
+            DspFilter monoLeft = new() { Mode = DspFilterMode.LowPass, FrequencyHz = 1_500f };
+            DspFilter monoRight = new() { Mode = DspFilterMode.LowPass, FrequencyHz = 1_500f };
+            float[] expectedLeft = Render(monoLeft, left);
+            float[] expectedRight = Render(monoRight, right);
+
+            DspFilter stereo = new() { Mode = DspFilterMode.LowPass, FrequencyHz = 1_500f };
+            stereo.TryPrepare(SampleRate, BlockFrames, 2);
+            float[] interleaved = new float[left.Length * 2];
+            for (int frame = 0; frame < left.Length; frame++)
+            {
+                interleaved[frame * 2] = left[frame];
+                interleaved[frame * 2 + 1] = right[frame];
+            }
+
+            for (int offset = 0; offset < interleaved.Length; offset += BlockFrames * 2)
+            {
+                int count = Math.Min(BlockFrames * 2, interleaved.Length - offset);
+                stereo.Process(interleaved, offset, count, 2);
+            }
+
+            for (int frame = 0; frame < left.Length; frame++)
+            {
+                Assert.That(interleaved[frame * 2], Is.EqualTo(expectedLeft[frame]).Within(0.000001f), "the left channel keeps its own state");
+                Assert.That(interleaved[frame * 2 + 1], Is.EqualTo(expectedRight[frame]).Within(0.000001f), "the right channel keeps its own state");
+            }
+        }
+
+        [Test]
+        public void TheFilterDoesNotDependOnTheBlockSize()
+        {
+            float[] source = Sine(1_000f, 1f, 8_192);
+            DspFilter narrow = new() { FrequencyHz = 1_000f, Quality = 2f };
+            DspFilter wide = new() { FrequencyHz = 1_000f, Quality = 2f };
+            narrow.TryPrepare(SampleRate, 1_024, 1);
+            wide.TryPrepare(SampleRate, 1_024, 1);
+
+            float[] small = (float[])source.Clone();
+            float[] large = (float[])source.Clone();
+            for (int offset = 0; offset < small.Length; offset += 64)
+            {
+                narrow.Process(small, offset, 64, 1);
+            }
+
+            for (int offset = 0; offset < large.Length; offset += 1_024)
+            {
+                wide.Process(large, offset, 1_024, 1);
+            }
+
+            Assert.That(small, Is.EqualTo(large), "the ramp moves once per frame, not once per call");
+        }
+
+        [TestCase(1_000f, DspFilterMode.LowPass, 0f, -3.00f)]
+        [TestCase(2_000f, DspFilterMode.LowPass, 0f, -12.37f)]
+        [TestCase(8_000f, DspFilterMode.LowPass, 0f, -37.80f)]
+        [TestCase(125f, DspFilterMode.HighPass, 0f, -36.11f)]
+        [TestCase(1_000f, DspFilterMode.BandPass, 0f, 0.00f)]
+        [TestCase(500f, DspFilterMode.BandPass, 0f, -10.02f)]
+        [TestCase(1_000f, DspFilterMode.Peak, 6f, 5.99f)]
+        public void TheResponseMatchesTheDesignRecord(float hertz, DspFilterMode mode, float peakDecibels, float expectedDecibels)
+        {
+            DspFilter filter = new()
+            {
+                Mode = mode,
+                FrequencyHz = 1_000f,
+                Quality = mode == DspFilterMode.LowPass || mode == DspFilterMode.HighPass ? DspFilter.DefaultQuality : 2f,
+                PeakDecibels = peakDecibels,
+            };
+
+            float amplitude = Amplitude(filter, hertz);
+            float decibels = 20f * (float)Math.Log10(amplitude);
+
+            Assert.That(decibels, Is.EqualTo(expectedDecibels).Within(0.5f), "the documented response is the measured one");
         }
 
         [TestCase(DspFilterMode.LowPass)]
@@ -150,13 +230,41 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             foreach (float sample in low)
             {
                 Assert.That(AudioMath.IsFinite(sample), Is.True, "a corner at the floor cannot poison the state");
-                Assert.That(Math.Abs(sample), Is.LessThan(100f));
+                Assert.That(Math.Abs(sample), Is.LessThan(40f), "a quality of twenty lifts the corner by at most 26 dB");
             }
 
             foreach (float sample in high)
             {
                 Assert.That(AudioMath.IsFinite(sample), Is.True, "a corner above Nyquist is capped, not a tangent to infinity");
-                Assert.That(Math.Abs(sample), Is.LessThan(100f));
+                Assert.That(Math.Abs(sample), Is.LessThan(40f));
+            }
+        }
+
+        [Test]
+        public void AMovingCornerAtMaximumQualityStaysStable()
+        {
+            DspFilter filter = new()
+            {
+                Mode = DspFilterMode.LowPass,
+                FrequencyHz = DspFilter.MinimumFrequencyHz,
+                Quality = DspFilter.MaximumQuality,
+                PeakDecibels = DspFilter.MaximumPeakDecibels,
+            };
+            filter.TryPrepare(SampleRate, BlockFrames, 1);
+            float[] source = Sine(1_000f, 1f, BlockFrames);
+
+            for (int pass = 0; pass < 200; pass++)
+            {
+                // A fresh copy every pass: the block is not fed back, so only the filter can make it grow.
+                float[] block = (float[])source.Clone();
+                filter.FrequencyHz = DspFilter.MinimumFrequencyHz + (pass * 100f);
+                filter.Process(block, 0, block.Length, 1);
+
+                foreach (float sample in block)
+                {
+                    Assert.That(AudioMath.IsFinite(sample), Is.True, $"a sweeping corner never produces a non-number at pass {pass}");
+                    Assert.That(Math.Abs(sample), Is.LessThan(40f), $"a sweeping corner never runs away at pass {pass}");
+                }
             }
         }
 
@@ -214,7 +322,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float[] silence = new float[256];
             filter.Process(silence, 0, silence.Length, 1);
 
-            Assert.That(Peak(silence), Is.Zero, "a reset clears both integrators");
+            Assert.That(Peak(silence, 0), Is.Zero, "a reset clears both integrators");
         }
 
         [Test]
@@ -302,10 +410,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             return output;
         }
 
-        private static float Peak(float[] samples)
+        private static float Peak(float[] samples, int from)
+        {
+            return Peak(samples, from, samples.Length - from);
+        }
+
+        private static float Peak(float[] samples, int from, int count)
         {
             float peak = 0f;
-            for (int index = 0; index < samples.Length; index++)
+            for (int index = from; index < from + count; index++)
             {
                 float magnitude = Math.Abs(samples[index]);
                 if (peak < magnitude)

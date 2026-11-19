@@ -84,7 +84,7 @@ that falls between two read positions is skipped.
 ## Filter
 
 The filter shapes one band around a corner. Every mode reads the same two-integrator core, so a mode change swaps the
-output the stage keeps and nothing else:
+output the stage keeps and moves no poles. The output itself steps, so change the mode at a quiet moment.
 
 | Mode      | What leaves the stage                                      | A game use                         |
 | --------- | ---------------------------------------------------------- | ---------------------------------- |
@@ -94,18 +94,19 @@ output the stage keeps and nothing else:
 | Notch     | Everything except a window around the corner               | Remove a hum or a whistle          |
 | Peak      | The whole sound, with the band lifted by **Peak Decibels** | Add presence or air                |
 
-- **Frequency** is the corner, from 10 Hz up. The prepared rate caps it at 45% of the sample rate, so a corner above
-  Nyquist is a corner just under it rather than an unstable coefficient.
-- **Quality** is how narrow the band is. 0.71 is flat at the corner; higher narrows it and lifts the corner for a low
-  pass or a band pass, and deepens a notch.
+- **Frequency** is the corner, from 10 Hz to 20 kHz. The prepared rate caps it at 45% of the sample rate, so a corner
+  above Nyquist is a corner just under it rather than an unstable coefficient.
+- **Quality** is how narrow the band is. 0.71 is flat at the corner; a higher value narrows the band and lifts the
+  corner of a low pass or a high pass. A band pass stays at unity in its centre, and a notch stays a null, whatever the
+  quality; those two only narrow.
 - **Peak Decibels** moves only the Peak band, from -24 to 24 dB. Zero decibels passes the block through sample for
-  sample.
-- A knob moved while the sound plays is reached over ten milliseconds, so a sweep does not click. Set the corner before
-  playback when the exact first block matters.
+  sample. The peak's poles do not move with the gain, so a deep cut is narrower than a large boost.
+- A knob moved while the sound plays is smoothed with a ten-millisecond time constant, so a sweep does not click. Set the
+  corner before playback when the exact first block matters.
 
-Measured at 48 kHz with a 1 kHz corner: a low pass leaves a 100 Hz tone at 0.0 dB and a 8 kHz tone at -37.8 dB, a high
-pass does the reverse, a band pass with quality 2 leaves its centre at 0.0 dB and a tone an octave away at -10 dB, and a
-notch at quality 2 leaves its centre at -127 dB.
+Measured at 48 kHz with a 1 kHz corner: a low pass leaves a 100 Hz tone at 0.0 dB and an 8 kHz tone at -37.8 dB, a
+high pass leaves 5 kHz at 0.0 dB and 125 Hz at -36.1 dB, a band pass with quality 2 leaves its centre at 0.0 dB and a
+tone an octave away at -10 dB, and a notch at quality 2 leaves its centre below -120 dB.
 
 ## A node graph
 

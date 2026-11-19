@@ -9,9 +9,11 @@ namespace WallstopStudios.DxAudio
     /// high pass does the reverse, a band pass keeps a window around the corner, a notch removes it, and a peak lifts or
     /// cuts it by <see cref="PeakDecibels" /> while leaving the rest alone.
     ///
-    /// <see cref="FrequencyHz" />, <see cref="Quality" /> and <see cref="PeakDecibels" /> are read once per block and
-    /// reached over <see cref="SmoothingSeconds" />, because a corner that jumps between blocks clicks. The mode is a
-    /// choice of output rather than a coefficient, so it changes at the block boundary with nothing to ramp.
+    /// <see cref="FrequencyHz" />, <see cref="Quality" /> and <see cref="PeakDecibels" /> are read every frame and
+    /// reached over a <see cref="SmoothingSeconds" /> time constant, because a corner that jumps clicks. The mode is a
+    /// choice of output rather than a coefficient: it is read once per block and moves no poles, but the output itself
+    /// steps, so switch it at a quiet moment. A non-finite sample latches both integrators until <see cref="Reset" />,
+    /// because the core feeds its own state back.
     /// </remarks>
     public sealed class DspFilter : DspEffect
     {
@@ -21,8 +23,8 @@ namespace WallstopStudios.DxAudio
         /// <summary>A quality that gives a flat passband and no lift at the corner, the usual starting point.</summary>
         public const float DefaultQuality = 0.7071f;
 
-        /// <summary>How long a knob move takes to reach its value, in seconds.</summary>
-        public const float SmoothingSeconds = 0.01f;
+        /// <summary>The highest corner an author may choose, in hertz; a lower rate caps it further.</summary>
+        public const float MaximumFrequencyHz = 20_000f;
 
         /// <summary>The lowest corner a filter accepts, in hertz.</summary>
         public const float MinimumFrequencyHz = 10f;
@@ -38,6 +40,9 @@ namespace WallstopStudios.DxAudio
 
         /// <summary>The highest peak gain a filter accepts, in decibels.</summary>
         public const float MaximumPeakDecibels = 24f;
+
+        /// <summary>How long a knob move takes to close about 63% of its step, in seconds.</summary>
+        private const float SmoothingSeconds = 0.01f;
 
         private DspFilterMode _mode;
         private float _frequencyHz;
@@ -96,8 +101,12 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>
-        /// How narrow the band is: higher keeps a sharper corner and a stronger lift, lower is wider and gentler.
+        /// How narrow the band is: higher narrows it and lifts the corner of a low pass or a high pass, lower is wider
+        /// and gentler.
         /// </summary>
+        /// <remarks>
+        /// A band pass stays at unity in its centre and a notch stays a null at every quality; those two only narrow.
+        /// </remarks>
         public float Quality
         {
             get => _quality;
