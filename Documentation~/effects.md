@@ -114,6 +114,40 @@ tone an octave away at -10 dB, and a notch at quality 2 leaves its centre below 
 6.0 dB for a +6 dB setting, 2.0 dB at 700 Hz and 0.6 dB at 2 kHz; at +24 dB its 700 Hz skirt is 9.1 dB and at -24 dB it
 is -9.1 dB, the mirror the Peak mode does not give.
 
+## Multiband equalizer
+
+Create one **Filter** asset per band and set its mode to **Bell**. Put the filters in a **Chain** so the signal passes
+through all bands in order. Assign the chain to a cue or track for local shaping, or use it on an [Audio Mix Bus](#a-mix-bus)
+for the listener mix. Inside a graph, put the whole chain in one node on the signal path.
+
+These starting points use **Quality** 1 on every band. Set **Peak Decibels** to 0 for a flat start and adjust the bands
+by ear. The same setup works with other band counts or center frequencies.
+
+| Bands | Center frequencies (Hz)                                           |
+| ----- | ----------------------------------------------------------------- |
+| 7     | 63, 125, 250, 500, 1,000, 2,000, 4,000                            |
+| 11    | 31, 63, 125, 250, 500, 1,000, 2,000, 4,000, 8,000, 12,000, 16,000 |
+
+Nearby bands overlap. At any given frequency, their gains add in decibels, including the response away from each
+band's center. Each Bell also passes the dry signal, so splitting the bands across parallel graph branches and summing
+them adds copies of the dry signal.
+
+Leave room for boosts. Lower the level before the EQ and check the output peak with your actual sounds. Use a limiter after
+the EQ if the output needs a sample ceiling, and allow for its lookahead delay. A ceiling on a cue or track applies
+to that voice. A ceiling on the listener mix applies to the summed output.
+
+For example, set the gains below in center-frequency order. Unity measured the combined response by feeding one tone
+at a time through each chain. The largest measured boost fell between two band centers in both examples.
+
+| Bands | Gains in frequency order (dB)          | Measured response (dB) |
+| ----- | -------------------------------------- | ---------------------- |
+| 7     | +3, 0, -3, -2, 0, +4, +3               | -3.37 to +4.79         |
+| 11    | 0, +3, 0, -3, -2, 0, +4, +3, -2, 0, +2 | -3.37 to +4.66         |
+
+With two tones playing together, the dry peak was 0.693 on a scale where 1.0 is full scale. The seven-band chain
+raised that peak to 1.278, and the eleven-band chain raised it to 1.245. Lowering this input by 6 dB brought the peaks
+to 0.641 and 0.624. Check each sound's peak to choose its trim.
+
 ## A node graph
 
 A chain runs its stages in series. A **graph** runs chains side by side: a **DSP Graph** asset holds named nodes, each

@@ -67,3 +67,44 @@ not comparable: this container measures Peak at 2.05 us in the same probe today.
   measures.
 - Do not feed a filter its own output: a stable filter with a gain above one still grows in a feedback loop, so a sweep
   test uses a fresh block each pass.
+
+## Multiband EQ
+
+Use a serial Bell chain for both band counts in the [authoring guide](../../Documentation~/effects.md#multiband-equalizer).
+A graph can use the same chain in one node. Each band has its own state, and the total response is the product of the
+band magnitudes. In decibels, add the full response of each band at the requested frequency. A parallel sum would add
+the dry signal from each band.
+
+Unity 6000.6.7f1 EditMode on Windows 11, Snapdragon X Elite X1E80100. The probe built both paths from the filter and
+graph assets at 48 kHz stereo with 256-frame blocks. It fed one second per integer tone at 0.125 amplitude and measured
+RMS over the last half second. The 49 log-spaced tones from 25 Hz to 18 kHz plus the band centers gave 56 and 60 distinct
+tones. Both paths produced identical samples. The maximum error against the ideal cascade rounded to 0.00002 dB.
+The right channel stayed silent. A separate run with every gain at zero passed the input samples through unchanged.
+
+For the reference response, let `r = tan(pi * f / fs) / tan(pi * fc / fs)`, where `f` is the tone frequency, `fc` is
+the band center and `fs` is the sample rate. With linear gain `G`, use `x = 1 - r^2` and `y = r / (Q * sqrt(G))`.
+The band response in decibels is `10 * log10((x^2 + G^2 * y^2) / (x^2 + y^2))`.
+
+Both examples reached their largest sampled boost at 2,303 Hz. For the peak test, the probe summed 2 kHz and 4 kHz sines
+at 0.4 amplitude each, with both starting at zero phase, and measured all samples from a reset. In a separate stress
+test, setting every band to +6 dB at the same 1 kHz center gave +42 dB for seven bands and +66 dB for eleven bands on a
+1 kHz tone. Those are measured tone gains. Mixed sources and transients need their own peak checks.
+
+### Managed block cost
+
+Median and p95 in microseconds per stereo block. After 400 warm-up blocks per path, the probe took 120 timing samples
+per path, each averaging 16 blocks. It alternated path order and copied a fresh 1.5 kHz stereo tone block before each
+call. The empty chain measures that copy and the call overhead.
+
+| Signal path        | 256 frames, median / p95 (us) | 1,024 frames, median / p95 (us) |
+| ------------------ | ----------------------------- | ------------------------------- |
+| Empty chain        | 0.26 / 0.42                   | 0.49 / 0.96                     |
+| 7 bands, chain     | 480.40 / 522.48               | 1,928.77 / 2,092.33             |
+| 11 bands, chain    | 753.51 / 831.59               | 3,029.54 / 3,296.64             |
+| 7 bands, one node  | 481.68 / 559.09               | 1,928.25 / 2,060.36             |
+| 11 bands, one node | 760.40 / 837.88               | 3,025.22 / 3,236.66             |
+
+Both paths report zero added latency. The graph reserves 2,048 bytes at 256 frames and 8,192 bytes at 1,024 frames for
+its node buffer. These timings cover one managed processing path on the Editor thread. The eleven-band chain p95
+of the averaged blocks was about 15% of a block period at both sizes. Budget per-voice use on the target device
+with the expected number of active voices.
