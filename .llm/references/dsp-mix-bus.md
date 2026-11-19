@@ -48,7 +48,7 @@ script on an `AudioListener`; issue #46 carries the play-mode probe.
 1. Create Music and SFX children under Master in one Unity Audio Mixer.
 2. Assign each child in the matching library's `MixerGroup` field. Use `SfxCue.MixerGroupOverride` for cue exceptions.
 3. Add Unity effects to each group's stack. A Music compressor then sees the music sum, including both crossfade voices.
-4. Use the mixer Master stack for that mixer's output. Use a listener `AudioMixBus` when the chain must cover the scene.
+4. Use the mixer Master stack for that mixer's output. For a scene-wide chain, put `AudioMixBus` on a listener object without an `AudioSource`.
 
 Unity mixes each group's inputs and processes its effect stack before sending the result to its parent.
 [Unity Audio Mixer overview](https://docs.unity3d.com/2021.3/Documentation/Manual/AudioMixerOverview.html)

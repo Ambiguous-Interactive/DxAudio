@@ -284,6 +284,5 @@ path, which is the invariant this package keeps.
 
 ## DSP mix bus
 
-Attach `AudioMixBus` to the `AudioListener` object for a scene-wide chain and ceiling. It processes one block from the
-listener at a time. Use Unity effects on Music and SFX mixer groups and keep composed ducks on each music voice. See the
+For a scene-wide chain and ceiling, attach `AudioMixBus` to an `AudioListener` object without an `AudioSource`. Use Unity effects on Music and SFX mixer groups and keep composed ducks on each music voice. See the
 [managed cost comparison and routing limits](./dsp-mix-bus.md#category-mixer-groups).
