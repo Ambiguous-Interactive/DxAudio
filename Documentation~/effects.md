@@ -127,8 +127,8 @@ To fit a drawn response, select a **DSP Chain** asset and open **Drawn EQ** in t
 
 The Inspector starts at Unity's reported output rate when it is available. The drawing always spans 20 Hz to 20 kHz.
 At lower rates, the shaded part of the plot lies above the fit range. Both curves keep their frequency positions.
-The fitter measures the covered range on 2,049 log-spaced points. It also checks the Bell centers for the maximum error.
-For sharp targets, inspect the fitted curve between draw points. A large difference there can also raise the output peak.
+The fitter scores points between draw samples and uses more points near the top of the fit range.
+It measures the result on 2,049 log-spaced points. The maximum error also includes Bell centers and visible draw points.
 
 You can also create one **Filter** asset per band and set its mode to **Bell**. Put the filters in a **Chain** so the signal passes
 through all bands in order. Assign the chain to a cue or track for local shaping, or use it on an [Audio Mix Bus](#a-mix-bus)
@@ -168,26 +168,33 @@ The table shows maximum sampled error / RMS error in dB in Unity 6000.6.7f1. The
 except at 32 kHz, where it ends at 15.68 kHz.
 The **Flat** target used zero stages with 0 dB error at every rate and band limit.
 
-| Target             | Preview rate (kHz) | 1 band        | 3 bands       | 7 bands       | 11 bands      |
-| ------------------ | ------------------ | ------------- | ------------- | ------------- | ------------- |
-| Broad low shelf    | 32                 | 1.204 / 0.501 | 0.513 / 0.093 | 0.041 / 0.008 | 0.009 / 0.003 |
-| Broad low shelf    | 44.1               | 1.197 / 0.492 | 0.534 / 0.095 | 0.042 / 0.008 | 0.023 / 0.003 |
-| Narrow notch       | 32                 | 1.820 / 0.272 | 0.904 / 0.113 | 0.494 / 0.044 | 0.267 / 0.021 |
-| Narrow notch       | 44.1               | 1.934 / 0.270 | 1.341 / 0.121 | 0.823 / 0.047 | 0.713 / 0.038 |
-| Overlapping boosts | 32                 | 1.340 / 0.561 | 0.439 / 0.167 | 0.097 / 0.028 | 0.024 / 0.008 |
-| Overlapping boosts | 44.1               | 1.342 / 0.553 | 0.464 / 0.167 | 0.091 / 0.025 | 0.020 / 0.007 |
-| Broad low shelf    | 48                 | 1.197 / 0.492 | 0.534 / 0.095 | 0.042 / 0.008 | 0.020 / 0.003 |
-| Narrow notch       | 48                 | 2.084 / 0.272 | 1.317 / 0.119 | 0.761 / 0.041 | 0.687 / 0.036 |
-| Overlapping boosts | 48                 | 1.335 / 0.554 | 0.455 / 0.168 | 0.061 / 0.021 | 0.021 / 0.007 |
-| Broad low shelf    | 96                 | 1.197 / 0.492 | 0.534 / 0.095 | 0.043 / 0.008 | 0.012 / 0.003 |
-| Narrow notch       | 96                 | 2.059 / 0.272 | 1.347 / 0.121 | 0.848 / 0.047 | 0.709 / 0.038 |
-| Overlapping boosts | 96                 | 1.335 / 0.555 | 0.462 / 0.171 | 0.069 / 0.023 | 0.020 / 0.007 |
+| Target             | Preview rate (kHz) | 1 band         | 3 bands        | 7 bands       | 11 bands      |
+| ------------------ | ------------------ | -------------- | -------------- | ------------- | ------------- |
+| 20 kHz spike       | 32                 | 0.000 / 0.000  | 0.000 / 0.000  | 0.000 / 0.000 | 0.000 / 0.000 |
+| Broad low shelf    | 32                 | 1.200 / 0.501  | 0.569 / 0.102  | 0.061 / 0.010 | 0.013 / 0.004 |
+| Narrow notch       | 32                 | 1.837 / 0.272  | 1.071 / 0.128  | 0.470 / 0.027 | 0.420 / 0.021 |
+| Overlapping boosts | 32                 | 1.336 / 0.562  | 0.487 / 0.179  | 0.064 / 0.024 | 0.033 / 0.011 |
+| 20 kHz spike       | 44.1               | 15.096 / 0.419 | 11.169 / 0.282 | 5.394 / 0.130 | 3.475 / 0.082 |
+| Broad low shelf    | 44.1               | 1.210 / 0.492  | 0.582 / 0.107  | 0.058 / 0.009 | 0.012 / 0.003 |
+| Narrow notch       | 44.1               | 1.901 / 0.268  | 1.024 / 0.118  | 0.474 / 0.027 | 0.405 / 0.022 |
+| Overlapping boosts | 44.1               | 1.335 / 0.553  | 0.522 / 0.182  | 0.072 / 0.023 | 0.031 / 0.009 |
+| 20 kHz spike       | 48                 | 7.480 / 0.268  | 2.826 / 0.145  | 0.598 / 0.026 | 0.356 / 0.013 |
+| Broad low shelf    | 48                 | 1.210 / 0.492  | 0.582 / 0.107  | 0.058 / 0.009 | 0.012 / 0.003 |
+| Narrow notch       | 48                 | 1.897 / 0.268  | 1.021 / 0.117  | 0.472 / 0.027 | 0.409 / 0.022 |
+| Overlapping boosts | 48                 | 1.335 / 0.554  | 0.522 / 0.182  | 0.072 / 0.023 | 0.033 / 0.009 |
+| 20 kHz spike       | 96                 | 8.131 / 0.397  | 2.300 / 0.114  | 1.525 / 0.050 | 1.495 / 0.049 |
+| Broad low shelf    | 96                 | 1.211 / 0.492  | 0.582 / 0.107  | 0.058 / 0.009 | 0.012 / 0.003 |
+| Narrow notch       | 96                 | 1.881 / 0.268  | 1.029 / 0.118  | 0.377 / 0.025 | 0.387 / 0.022 |
+| Overlapping boosts | 96                 | 1.334 / 0.555  | 0.523 / 0.181  | 0.085 / 0.026 | 0.036 / 0.010 |
 
-The narrow notch retained up to 0.71 dB of peak error even at 11 bands. Its target changes sharply between points.
+The last draw point is +24 dB in the **20 kHz spike** target. At 32 kHz it falls outside the fit range.
+At 44.1 kHz with 11 bands, its sampled peak response fell from +44.89 dB to +21.94 dB.
+With one band at that rate, RMS error decreased and maximum error increased. Compare both values when choosing the limit.
 
 ### Drawn EQ in a standalone player
 
 A Unity 6000.6.7f1 release player used Windows x64 Mono on a Snapdragon X Elite X1E80100 with Windows 11.
+This measurement used chains from the first version of the drawn EQ fitter.
 The native audio callback ran at 48 kHz with stereo blocks of 1,024 frames and four buffers. It processed exported
 **Overlapping boosts** chains and sine tones at 656.25 and 1,078.125 Hz. Each tone used 0.32 of full scale.
 For each band limit, the probe timed 240 blocks across two passes in reverse order, after 32 warm blocks per pass.

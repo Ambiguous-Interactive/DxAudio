@@ -11,7 +11,12 @@ namespace WallstopStudios.DxAudio.Editor
         internal const float MinimumFrequencyHz = 20f;
 
         private const int CenterStride = 4;
+        private const int FitSubdivisions = 2;
         private const int PreviewSubdivisions = 8;
+        private const int HighFrequencyIntervals = 16;
+        private const int HighFrequencyStart = SampleCount - 1 - HighFrequencyIntervals;
+        private const int HighFrequencyFitStart = HighFrequencyStart * FitSubdivisions;
+        private const int FitSampleCount = HighFrequencyFitStart + (HighFrequencyIntervals * PreviewSubdivisions) + 1;
         private const double MinimumSquaredImprovement = 1e-8;
         private static readonly float[] Qualities = { 0.1f, 0.2f, 0.4f, 0.8f, 1.6f, 3.2f, 6.4f, 12.8f, DspFilter.MaximumQuality };
 
@@ -73,19 +78,9 @@ namespace WallstopStudios.DxAudio.Editor
 
         internal static Result FitDrawing(IReadOnlyList<float> drawing, int sampleRate, int bandCount)
         {
-            return FitTarget(drawing, sampleRate, bandCount, true);
-        }
-
-        internal static Result Fit(IReadOnlyList<float> targetDecibels, int sampleRate, int bandCount)
-        {
-            return FitTarget(targetDecibels, sampleRate, bandCount, false);
-        }
-
-        private static Result FitTarget(IReadOnlyList<float> targetDecibels, int sampleRate, int bandCount, bool useFullDrawing)
-        {
-            if (targetDecibels == null || targetDecibels.Count != SampleCount)
+            if (drawing == null || drawing.Count != SampleCount)
             {
-                throw new ArgumentException($"Supply {SampleCount} target samples.", nameof(targetDecibels));
+                throw new ArgumentException($"Supply {SampleCount} target samples.", nameof(drawing));
             }
 
             if (GetMaximumFrequencyHz(sampleRate) <= MinimumFrequencyHz)
@@ -98,29 +93,41 @@ namespace WallstopStudios.DxAudio.Editor
                 throw new ArgumentOutOfRangeException(nameof(bandCount));
             }
 
-            float[] frequencies = new float[SampleCount];
-            double[] warped = new double[SampleCount];
-            double[] residual = new double[SampleCount];
-            double drawingWidth = useFullDrawing ? GetFitWidth(sampleRate) : 1d;
-            double squaredError = 0d;
             for (int index = 0; index < SampleCount; index++)
             {
-                if (!AudioMath.IsFinite(targetDecibels[index]))
+                if (!AudioMath.IsFinite(drawing[index]))
                 {
-                    throw new ArgumentException("Target samples must be finite.", nameof(targetDecibels));
+                    throw new ArgumentException("Target samples must be finite.", nameof(drawing));
                 }
+            }
 
-                double target = InterpolateTarget(targetDecibels, index * drawingWidth);
-                frequencies[index] = FrequencyAt(index, sampleRate);
+            float[] frequencies = new float[FitSampleCount];
+            double[] warped = new double[FitSampleCount];
+            double[] residual = new double[FitSampleCount];
+            double[] shape = new double[FitSampleCount];
+            double[] weights = new double[FitSampleCount];
+            double drawingWidth = GetFitWidth(sampleRate);
+            double span = GetMaximumFrequencyHz(sampleRate) / (double)MinimumFrequencyHz;
+            double squaredError = 0d;
+            // Near Nyquist, a Bell occupies fewer log-frequency samples. Use more points in the top range.
+            for (int index = 0; index < FitSampleCount; index++)
+            {
+                double position = FitPositionAt(index);
+                frequencies[index] = (float)(MinimumFrequencyHz * Math.Pow(span, position / (SampleCount - 1d)));
                 warped[index] = Warp(frequencies[index], sampleRate);
-                residual[index] = target;
-                squaredError += target * target;
+                residual[index] = InterpolateTarget(drawing, position * drawingWidth);
+                // Weight each sample by the log-frequency interval it represents.
+                int left = Math.Max(0, index - 1);
+                int right = Math.Min(index + 1, FitSampleCount - 1);
+                weights[index] = (FitPositionAt(right) - FitPositionAt(left)) * 0.5d;
+                squaredError += weights[index] * residual[index] * residual[index];
             }
 
             List<Band> bands = new List<Band>(bandCount);
             while (bands.Count < bandCount && MinimumSquaredImprovement < squaredError)
             {
-                Band candidate = FindBand(frequencies, warped, residual, sampleRate, squaredError, out double candidateError);
+                double candidateError = squaredError;
+                Band candidate = FindBand(frequencies, warped, residual, shape, weights, sampleRate, ref candidateError);
                 if (squaredError - candidateError <= MinimumSquaredImprovement)
                 {
                     break;
@@ -128,10 +135,10 @@ namespace WallstopStudios.DxAudio.Editor
 
                 bands.Add(candidate);
                 UpdateResidual(candidate, warped, residual, sampleRate, -1);
-                squaredError = RefineBands(bands, warped, residual, sampleRate, candidateError);
+                squaredError = RefineBands(bands, warped, residual, shape, weights, sampleRate, candidateError);
             }
 
-            return MeasureFit(targetDecibels, bands.ToArray(), sampleRate, drawingWidth);
+            return MeasureFit(drawing, bands.ToArray(), sampleRate, drawingWidth);
         }
 
         private static Result MeasureFit(IReadOnlyList<float> targetDecibels, Band[] bands, int sampleRate, double drawingWidth)
@@ -153,6 +160,18 @@ namespace WallstopStudios.DxAudio.Editor
                 double error = InterpolateTarget(targetDecibels, index * drawingWidth / PreviewSubdivisions) - preview[index];
                 maximumError = Math.Max(maximumError, Math.Abs(error));
                 squaredError += error * error;
+            }
+
+            // At cropped rates the preview grid can step over a corner in the original drawing.
+            if (drawingWidth < 1d)
+            {
+                double visibleIntervals = (SampleCount - 1) * drawingWidth;
+                for (int index = 1; index < visibleIntervals; index++)
+                {
+                    float frequencyHz = (float)(MinimumFrequencyHz * Math.Pow(span, index / visibleIntervals));
+                    double error = targetDecibels[index] - MeasureResponse(bands, frequencyHz, sampleRate);
+                    maximumError = Math.Max(maximumError, Math.Abs(error));
+                }
             }
 
             // Narrow high bands can peak between even the denser preview points. Include their centers in the max.
@@ -189,51 +208,75 @@ namespace WallstopStudios.DxAudio.Editor
             return (targetDecibels[left] * (1d - fraction)) + (targetDecibels[left + 1] * fraction);
         }
 
-        private static Band FindBand(float[] frequencies, double[] warped, double[] residual, int sampleRate, double squaredError, out double bestError)
+        private static double FitPositionAt(int index)
+        {
+            return index < HighFrequencyFitStart ? index / (double)FitSubdivisions : HighFrequencyStart + ((index - HighFrequencyFitStart) / (double)PreviewSubdivisions);
+        }
+
+        private static int DrawSampleToFitIndex(int index)
+        {
+            return index < HighFrequencyStart ? index * FitSubdivisions : HighFrequencyFitStart + ((index - HighFrequencyStart) * PreviewSubdivisions);
+        }
+
+        private static Band FindBand(float[] frequencies, double[] warped, double[] residual, double[] shape, double[] weights, int sampleRate, ref double bestError)
         {
             Band best = default;
-            bestError = squaredError;
             float maximumCenter = GetMaximumCenterHz(sampleRate);
-            double[] shape = new double[SampleCount];
-            TryCenter(DspFilter.MinimumFrequencyHz, sampleRate, warped, residual, shape, ref best, ref bestError);
-            for (int index = 0; index < SampleCount && frequencies[index] < maximumCenter; index++)
+            TryCenter(DspFilter.MinimumFrequencyHz, sampleRate, warped, residual, shape, weights, ref best, ref bestError);
+            // Keep the seed grid at the drawing resolution. Score each seed at the finer resolution.
+            for (int sample = 0; sample < SampleCount; sample++)
             {
-                // The coarse grid explores broad curves. Residual extrema also seed narrow bands between grid points.
-                bool isPeak =
-                    0 < index && index + 1 < SampleCount && Math.Abs(residual[index - 1]) < Math.Abs(residual[index]) && Math.Abs(residual[index + 1]) <= Math.Abs(residual[index]);
-                if (index % CenterStride == 0 || isPeak)
+                int index = DrawSampleToFitIndex(sample);
+                if (maximumCenter <= frequencies[index])
                 {
-                    TryCenter(frequencies[index], sampleRate, warped, residual, shape, ref best, ref bestError);
+                    break;
+                }
+
+                bool isPeak =
+                    0 < sample
+                    && sample + 1 < SampleCount
+                    && Math.Abs(residual[DrawSampleToFitIndex(sample - 1)]) < Math.Abs(residual[index])
+                    && Math.Abs(residual[DrawSampleToFitIndex(sample + 1)]) <= Math.Abs(residual[index]);
+                if (sample % CenterStride == 0 || isPeak)
+                {
+                    TryCenter(frequencies[index], sampleRate, warped, residual, shape, weights, ref best, ref bestError);
                 }
             }
 
-            TryCenter(maximumCenter, sampleRate, warped, residual, shape, ref best, ref bestError);
+            TryCenter(maximumCenter, sampleRate, warped, residual, shape, weights, ref best, ref bestError);
             return best;
         }
 
-        private static void TryCenter(float frequencyHz, int sampleRate, double[] warped, double[] residual, double[] shape, ref Band best, ref double bestError)
+        private static void TryCenter(float frequencyHz, int sampleRate, double[] warped, double[] residual, double[] shape, double[] weights, ref Band best, ref double bestError)
         {
             double center = Warp(frequencyHz, sampleRate);
+            for (int index = 0; index < FitSampleCount; index++)
+            {
+                shape[index] = GetBellOffset(warped[index], center);
+            }
+
             foreach (float quality in Qualities)
             {
                 double projection = 0d;
                 double basisEnergy = 0d;
-                for (int index = 0; index < SampleCount; index++)
+                for (int index = 0; index < FitSampleCount; index++)
                 {
-                    shape[index] = GetShape(warped[index], center, quality);
-                    double basis = 1d / (1d + shape[index]);
-                    projection += basis * residual[index];
-                    basisEnergy += basis * basis;
+                    double offset = quality * shape[index];
+                    double basis = 1d / (1d + (offset * offset));
+                    projection += weights[index] * basis * residual[index];
+                    basisEnergy += weights[index] * basis * basis;
                 }
 
                 // The small-signal response estimates gain. Score the full nonlinear response before accepting it.
                 float gainDb = AudioMath.Clamp((float)(projection / basisEnergy), DspFilter.MinimumPeakDecibels, DspFilter.MaximumPeakDecibels);
                 double gain = AudioMath.DecibelsToLinear(gainDb);
                 double error = 0d;
-                for (int index = 0; index < SampleCount; index++)
+                // Check the high-frequency samples first to reject poor fits for narrow peaks sooner.
+                for (int index = FitSampleCount - 1; 0 <= index && error < bestError; index--)
                 {
-                    double difference = residual[index] - GetResponse(shape[index], gain);
-                    error += difference * difference;
+                    double offset = quality * shape[index];
+                    double difference = residual[index] - GetResponse(offset * offset, gain);
+                    error += weights[index] * difference * difference;
                 }
 
                 if (error < bestError)
@@ -244,12 +287,11 @@ namespace WallstopStudios.DxAudio.Editor
             }
         }
 
-        private static double RefineBands(List<Band> bands, double[] warped, double[] residual, int sampleRate, double bestError)
+        private static double RefineBands(List<Band> bands, double[] warped, double[] residual, double[] shape, double[] weights, int sampleRate, double bestError)
         {
             float maximumCenter = GetMaximumCenterHz(sampleRate);
             // Refine all bands after adding one, so neighboring bands can trade overlapping gain.
-            double[] shape = new double[SampleCount];
-            for (int pass = 0; pass < 8; pass++)
+            for (int pass = 0; pass < 6; pass++)
             {
                 double step = Math.Pow(0.5d, pass);
                 float frequencyRatio = (float)Math.Pow(GetMaximumFrequencyHz(sampleRate) / MinimumFrequencyHz, CenterStride * step / (SampleCount - 1d));
@@ -260,7 +302,7 @@ namespace WallstopStudios.DxAudio.Editor
                     Band band = bands[index];
                     UpdateResidual(band, warped, residual, sampleRate, 1);
                     Band best = band;
-                    TryRefinement(band, warped, residual, shape, sampleRate, ref best, ref bestError);
+                    TryRefinement(band, warped, residual, shape, weights, sampleRate, ref best, ref bestError);
                     for (int direction = -1; direction <= 1; direction += 2)
                     {
                         float frequency = AudioMath.Clamp(
@@ -268,7 +310,10 @@ namespace WallstopStudios.DxAudio.Editor
                             DspFilter.MinimumFrequencyHz,
                             maximumCenter
                         );
-                        TryRefinement(new Band(frequency, band.Quality, band.GainDecibels), warped, residual, shape, sampleRate, ref best, ref bestError);
+                        if (frequency != band.FrequencyHz)
+                        {
+                            TryRefinement(new Band(frequency, band.Quality, band.GainDecibels), warped, residual, shape, weights, sampleRate, ref best, ref bestError);
+                        }
                     }
 
                     band = best;
@@ -279,7 +324,10 @@ namespace WallstopStudios.DxAudio.Editor
                             DspFilter.MinimumQuality,
                             DspFilter.MaximumQuality
                         );
-                        TryRefinement(new Band(band.FrequencyHz, quality, band.GainDecibels), warped, residual, shape, sampleRate, ref best, ref bestError);
+                        if (quality != band.Quality)
+                        {
+                            TryRefinement(new Band(band.FrequencyHz, quality, band.GainDecibels), warped, residual, shape, weights, sampleRate, ref best, ref bestError);
+                        }
                     }
 
                     bands[index] = best;
@@ -290,10 +338,10 @@ namespace WallstopStudios.DxAudio.Editor
             return bestError;
         }
 
-        private static void TryRefinement(Band candidate, double[] warped, double[] residual, double[] shape, int sampleRate, ref Band best, ref double bestError)
+        private static void TryRefinement(Band candidate, double[] warped, double[] residual, double[] shape, double[] weights, int sampleRate, ref Band best, ref double bestError)
         {
             double center = Warp(candidate.FrequencyHz, sampleRate);
-            for (int index = 0; index < SampleCount; index++)
+            for (int index = 0; index < FitSampleCount; index++)
             {
                 shape[index] = GetShape(warped[index], center, candidate.Quality);
             }
@@ -307,15 +355,15 @@ namespace WallstopStudios.DxAudio.Editor
                 double error = 0d;
                 double slopeProjection = 0d;
                 double slopeEnergy = 0d;
-                for (int index = 0; index < SampleCount; index++)
+                for (int index = 0; index < FitSampleCount; index++)
                 {
                     double peak = shape[index] + gain;
                     double trough = shape[index] + inverseGain;
                     double difference = residual[index] - (10d * Math.Log10(peak / trough));
                     double slope = 0.5d * ((gain / peak) + (inverseGain / trough));
-                    error += difference * difference;
-                    slopeProjection += difference * slope;
-                    slopeEnergy += slope * slope;
+                    error += weights[index] * difference * difference;
+                    slopeProjection += weights[index] * difference * slope;
+                    slopeEnergy += weights[index] * slope * slope;
                 }
 
                 if (error < bestError)
@@ -338,7 +386,7 @@ namespace WallstopStudios.DxAudio.Editor
         {
             double center = Warp(band.FrequencyHz, sampleRate);
             double gain = AudioMath.DecibelsToLinear(band.GainDecibels);
-            for (int index = 0; index < SampleCount; index++)
+            for (int index = 0; index < FitSampleCount; index++)
             {
                 residual[index] += sign * GetResponse(GetShape(warped[index], center, band.Quality), gain);
             }
@@ -356,9 +404,14 @@ namespace WallstopStudios.DxAudio.Editor
 
         private static double GetShape(double frequency, double center, float quality)
         {
-            double ratio = frequency / center;
-            double shape = quality * (ratio - (1d / ratio));
+            double shape = quality * GetBellOffset(frequency, center);
             return shape * shape;
+        }
+
+        private static double GetBellOffset(double frequency, double center)
+        {
+            double ratio = frequency / center;
+            return ratio - (1d / ratio);
         }
 
         private static double GetResponse(double shape, double gain)
