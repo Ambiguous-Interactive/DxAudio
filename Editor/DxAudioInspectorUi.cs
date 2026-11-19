@@ -193,7 +193,7 @@ namespace WallstopStudios.DxAudio.Editor
             return string.IsNullOrEmpty(effect.name) ? effect.GetType().Name : effect.name;
         }
 
-        /// <summary>The most restrictive live reduction per authored stage, across every running host that plays the chain.</summary>
+        /// <summary>The most restrictive live reduction per authored stage, across every running host or mix bus that plays the chain.</summary>
         /// <returns>
         /// <see langword="null" /> when nothing runs the chain, so no stage has a reading. An empty slot keeps its zero,
         /// because the built chain skips it and its stage number belongs to another row.
@@ -235,31 +235,48 @@ namespace WallstopStudios.DxAudio.Editor
                     chain = host.LiveBusChain;
                 }
 
-                if (chain == null || chain.Count != stages)
+                Accumulate(chain, stages, effects, ref reductions);
+            }
+
+            AudioMixBus[] buses = MixBuses();
+            for (int index = 0; index < buses.Length; ++index)
+            {
+                AudioMixBus bus = buses[index];
+                // A mix bus has no voice that starts or stops: it runs as long as the listener's object is enabled.
+                if (bus.isActiveAndEnabled && bus.Chain == asset)
                 {
-                    continue;
-                }
-
-                reductions ??= new float[effects.Count];
-                int stage = 0;
-                for (int authored = 0; authored < effects.Count; ++authored)
-                {
-                    if (effects[authored] == null)
-                    {
-                        continue;
-                    }
-
-                    float reduction = chain[stage].GainReductionDecibels;
-                    if (reduction < reductions[authored])
-                    {
-                        reductions[authored] = reduction;
-                    }
-
-                    ++stage;
+                    Accumulate(bus.LiveChain, stages, effects, ref reductions);
                 }
             }
 
             return reductions;
+        }
+
+        /// <summary>Keeps the most restrictive reading of <paramref name="chain" /> per authored stage.</summary>
+        private static void Accumulate(DspChain chain, int stages, IReadOnlyList<DspEffectAsset> effects, ref float[] reductions)
+        {
+            if (chain == null || chain.Count != stages)
+            {
+                return;
+            }
+
+            reductions ??= new float[effects.Count];
+            int stage = 0;
+            for (int authored = 0; authored < effects.Count; ++authored)
+            {
+                if (effects[authored] == null)
+                {
+                    continue;
+                }
+
+                float reduction = chain[stage].GainReductionDecibels;
+                if (reduction < reductions[authored])
+                {
+                    reductions[authored] = reduction;
+                }
+
+                ++stage;
+            }
         }
 
         /// <summary>Every host the running editor holds.</summary>
@@ -270,6 +287,12 @@ namespace WallstopStudios.DxAudio.Editor
         private static AudioFilterHost[] Hosts()
         {
             return Resources.FindObjectsOfTypeAll<AudioFilterHost>();
+        }
+
+        /// <summary>Every mix bus the running editor holds, found the same way as a host.</summary>
+        private static AudioMixBus[] MixBuses()
+        {
+            return Resources.FindObjectsOfTypeAll<AudioMixBus>();
         }
     }
 }
