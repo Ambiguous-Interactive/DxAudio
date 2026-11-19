@@ -300,6 +300,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             AudioFilterHost host = HostOf(player);
             Assert.That(host.Graph == graph);
             Assert.That(host.LiveGraph != null);
+            Assert.That(host.LiveGraph.IsPrepared, Is.True, "an unprepared graph would pass the block through");
 
             float[] block = Quiet(0.3f, host.ChannelCount * 4);
             host.OnAudioFilterRead(block, host.ChannelCount);
@@ -316,6 +317,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             host.Graph = Graph(made, made.Track(DspLimiterAsset.Create(lookaheadSeconds: 0.005f)));
 
             Assert.That(host.LiveGraph != null);
+            Assert.That(host.LiveGraph.IsPrepared, Is.True, "only a prepared graph reports a delay");
             Assert.That(host.LatencySamples, Is.EqualTo(Mathf.RoundToInt(0.005f * OutputSampleRate())));
         }
 
@@ -369,6 +371,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(player.Play(cue), Is.True);
             Assert.That(HostOf(player).LiveGraph != null);
+            Assert.That(HostOf(player).LiveGraph.IsPrepared, Is.True);
         }
 
         [Test]

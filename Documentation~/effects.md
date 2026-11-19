@@ -73,8 +73,8 @@ one, which is the fan-out, and a node with several incoming edges sums them, whi
    junction that passes its input on untouched, which is how a split or a join with no shaping of its own is authored.
 3. Add one edge per connection. Name the node the signal leaves and the node it enters.
 4. Set **Input Node** and **Output Node** to the names of the nodes that receive the voice's block and leave the graph.
-5. Assign the graph to a cue or a track. Its **Signal Path** section lists each node with the delay it adds, every
-   edge, and the graph's own delay.
+5. Assign the graph to a cue or a track. The graph's **Signal Path** section lists each node with the delay it adds,
+   every edge, and the graph's own delay.
 
 The graph runs after the cue's or track's chain and before the player's bus. A node's name is its identity because an
 edge names it, so two nodes may not share one, and an edge to a name no node holds is refused rather than guessed at.

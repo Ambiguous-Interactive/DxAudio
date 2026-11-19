@@ -281,7 +281,8 @@ namespace WallstopStudios.DxAudio
         /// <summary>Prepares <paramref name="cue" />'s chain and graph on every voice, so a play of a reference cue allocates nothing.</summary>
         /// <remarks>
         /// The pool prepares every cue its library lists. This covers a cue a game holds by reference and never lists,
-        /// because the player cannot know it in advance and would otherwise build its chain inside the play call.
+        /// because the player cannot know it in advance and would otherwise build its chain or graph inside the play
+        /// call.
         /// </remarks>
         /// <returns><see langword="false" /> when the player has no voices to prepare.</returns>
         public bool Warm(SfxCue cue)

@@ -130,8 +130,8 @@ _sfx.StopLoop(_humHandle); // a stale handle stops nothing
 A cue or a music track can name a **DSP chain** (**Create > DxAudio > DSP > Chain**), a list of limiter, compressor,
 distortion, bit crusher and pitch shifter stages in the order the signal meets them. Every pooled voice builds its own
 copy the first time it meets a chain, from the settings the asset holds then, so an edit reaches the voices that have
-not met it yet. A voice clears both its cue chain and the bus when it starts a play, so it never inherits the last
-sound's delay line.
+not met it yet. A voice clears its cue chain, its graph and the bus when it starts a play, so it never inherits the
+last sound's delay line.
 
 A cue or a track may also name a **DSP Graph** (**Create > DxAudio > DSP > Graph**), which runs chains side by side: a
 node holds a chain, an edge carries one node's signal into a later one, and a node that takes several edges sums them.

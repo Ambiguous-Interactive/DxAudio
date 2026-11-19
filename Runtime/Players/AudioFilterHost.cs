@@ -14,7 +14,7 @@ namespace WallstopStudios.DxAudio
     /// the device. A voice reads an asset once: it keeps the effect settings it built the first time it met that asset.
     /// A graph follows the same rule and runs its branches side by side, so it comes after the chain and before the bus.
     ///
-    /// The bus runs after the voice's own chain, on each voice separately. Unity gives a script no way to sum one
+    /// The bus runs after the voice's chain and graph, on each voice separately. Unity gives a script no way to sum one
     /// source into another, so every bus effect in this package acts on one voice at a time and never on the mixed
     /// output: two voices that each fit under a ceiling can still sum above it.
     /// </remarks>
@@ -502,14 +502,6 @@ namespace WallstopStudios.DxAudio
 
                 return _chains[channels - 1];
             }
-
-            public void Reset()
-            {
-                for (int index = 0; index < _chains.Length; index++)
-                {
-                    _chains[index].Reset();
-                }
-            }
         }
 
         /// <summary>One graph asset's graphs in one slot, one per block shape the output layout can produce.</summary>
@@ -564,14 +556,6 @@ namespace WallstopStudios.DxAudio
                 }
 
                 return _graphs[channels - 1];
-            }
-
-            public void Reset()
-            {
-                for (int index = 0; index < _graphs.Length; index++)
-                {
-                    _graphs[index].Reset();
-                }
             }
         }
     }

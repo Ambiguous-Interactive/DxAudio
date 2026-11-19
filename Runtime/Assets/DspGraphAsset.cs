@@ -80,8 +80,10 @@ namespace WallstopStudios.DxAudio
         /// Builds a graph that holds one fresh chain per node, ready for <see cref="DspGraph.TryPrepare" />.
         /// </summary>
         /// <remarks>
-        /// A refused asset answers <see langword="false" /> and leaves <paramref name="graph" /> null, so the caller can
-        /// pass the block through instead of running half a graph. <see cref="FindProblems" /> says which part failed.
+        /// This is prepare work, not play work: it allocates the graph and one fresh chain per node, so a voice calls it
+        /// from its warm-up or its first meet of the asset, never from the audio thread. A refused asset answers
+        /// <see langword="false" /> and leaves <paramref name="graph" /> null, so the caller passes the block through
+        /// instead of running half a graph. <see cref="FindProblems" /> says which part failed.
         /// </remarks>
         public bool TryCreateGraph(out DspGraph graph)
         {
@@ -129,7 +131,7 @@ namespace WallstopStudios.DxAudio
         /// <summary>What stops this asset from playing, as one line per problem; empty means it can be built.</summary>
         /// <remarks>
         /// This is authoring and diagnostics work, so it allocates and reads the same fields the inspector shows. The
-        /// audio path never calls it: <see cref="TryCreateGraph" /> is the allocation-free answer a voice uses.
+        /// audio path calls <see cref="TryCreateGraph" /> while it prepares a voice, never this.
         /// </remarks>
         public IReadOnlyList<string> FindProblems()
         {
@@ -138,6 +140,16 @@ namespace WallstopStudios.DxAudio
             {
                 problems.Add("The graph holds no nodes, so it cannot play.");
                 return problems;
+            }
+
+            if (DspGraph.MaximumNodes < _nodes.Count)
+            {
+                problems.Add($"The graph holds {_nodes.Count} nodes, but a graph plays at most {DspGraph.MaximumNodes}.");
+            }
+
+            if (DspGraph.MaximumEdges < _edges.Count)
+            {
+                problems.Add($"The graph holds {_edges.Count} edges, but a graph plays at most {DspGraph.MaximumEdges}.");
             }
 
             for (int index = 0; index < _nodes.Count; index++)
@@ -203,6 +215,11 @@ namespace WallstopStudios.DxAudio
                 AddCycleProblems(problems);
             }
 
+            if (problems.Count == 0)
+            {
+                AddPathProblems(problems, IndexOfNode(_inputNode), IndexOfNode(_outputNode));
+            }
+
             return problems;
         }
 
@@ -232,6 +249,49 @@ namespace WallstopStudios.DxAudio
                 if (!probe.TryAddEdge(IndexOfNode(edge.From), IndexOfNode(edge.To)))
                 {
                     problems.Add($"The edge from \"{edge.From}\" to \"{edge.To}\" repeats an edge or closes a cycle.");
+                }
+            }
+        }
+
+        /// <summary>Adds one problem per node that the input cannot reach or that cannot reach the output.</summary>
+        /// <remarks>
+        /// The graph prepares only a layout where every node lies on the path, so an orphan node refuses the whole graph
+        /// and the voice plays unshaped. This names the node, because the prepared graph does not.
+        /// </remarks>
+        private void AddPathProblems(List<string> problems, int input, int output)
+        {
+            bool[] reached = new bool[_nodes.Count];
+            bool[] reaches = new bool[_nodes.Count];
+            reached[input] = true;
+            reaches[output] = true;
+            bool grew = true;
+            while (grew)
+            {
+                grew = false;
+                for (int index = 0; index < _edges.Count; index++)
+                {
+                    DspGraphEdge edge = _edges[index];
+                    int from = IndexOfNode(edge.From);
+                    int to = IndexOfNode(edge.To);
+                    if (reached[from] && !reached[to])
+                    {
+                        reached[to] = true;
+                        grew = true;
+                    }
+
+                    if (reaches[to] && !reaches[from])
+                    {
+                        reaches[from] = true;
+                        grew = true;
+                    }
+                }
+            }
+
+            for (int index = 0; index < _nodes.Count; index++)
+            {
+                if (!reached[index] || !reaches[index])
+                {
+                    problems.Add($"The node \"{_nodes[index].Name}\" is off the path from the input to the output, so it would never run.");
                 }
             }
         }

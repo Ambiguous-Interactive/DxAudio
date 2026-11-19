@@ -64,6 +64,41 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void ANodeOffThePathIsReportedAndRefused()
+        {
+            using MadeObjects made = new();
+            DspGraphAsset asset = made.Track(
+                DspGraphAsset.Create(
+                    new[] { new DspGraphNode("in", null), new DspGraphNode("out", null), new DspGraphNode("orphan", null) },
+                    new[] { new DspGraphEdge("in", "out") },
+                    "in",
+                    "out"
+                )
+            );
+
+            Assert.That(asset.TryCreateGraph(out DspGraph graph), Is.True, "the shape builds; the prepare step is what refuses an orphan");
+            Assert.That(graph.TryPrepare(48_000, 64, 1, 0, 1), Is.False);
+            Assert.That(string.Join(" ", asset.FindProblems()), Does.Contain("orphan"), "the finding names the node that would never run");
+        }
+
+        [Test]
+        public void AGraphOverTheNodeLimitIsReported()
+        {
+            using MadeObjects made = new();
+            DspGraphNode[] nodes = new DspGraphNode[DspGraph.MaximumNodes + 1];
+            for (int index = 0; index < nodes.Length; ++index)
+            {
+                nodes[index] = new DspGraphNode($"n{index}", null);
+            }
+
+            DspGraphAsset asset = made.Track(DspGraphAsset.Create(nodes, new DspGraphEdge[0], "n0", $"n{DspGraph.MaximumNodes}"));
+
+            Assert.That(string.Join(" ", asset.FindProblems()), Does.Contain("at most"));
+            Assert.That(asset.TryCreateGraph(out DspGraph graph), Is.False, "a graph over the node limit cannot build");
+            Assert.That(graph == null, Is.True);
+        }
+
+        [Test]
         public void AReadyGraphHasNoProblems()
         {
             using MadeObjects made = new();
@@ -75,13 +110,16 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void AGraphAssetKeepsItsNodesAndEdgesInTheFile()
+        public void AGraphAssetKeepsItsNodesEdgesAndChainReferencesInTheFile()
         {
             string folder = AssetDatabase.GUIDToAssetPath(AssetDatabase.CreateFolder("Assets", "DxAudioGraphTest"));
             try
             {
+                DspChainAsset branch = ScriptableObject.CreateInstance<DspChainAsset>();
+                string branchPath = folder + "/Branch.asset";
+                AssetDatabase.CreateAsset(branch, branchPath);
                 DspGraphAsset authored = DspGraphAsset.Create(
-                    new[] { new DspGraphNode("in", null), new DspGraphNode("out", null) },
+                    new[] { new DspGraphNode("in", null), new DspGraphNode("out", branch) },
                     new[] { new DspGraphEdge("in", "out") },
                     "in",
                     "out"
@@ -90,14 +128,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 AssetDatabase.CreateAsset(authored, path);
                 AssetDatabase.SaveAssets();
                 // Dropping the object and reading the file back is what a domain reload does to an authored asset.
+                Resources.UnloadAsset(branch);
                 Resources.UnloadAsset(authored);
 
                 DspGraphAsset loaded = AssetDatabase.LoadAssetAtPath<DspGraphAsset>(path);
                 Assert.That(loaded != null);
+                Assert.That(loaded, Is.Not.SameAs(authored), "the file, not the object still in memory, is what a reload reads");
                 Assert.That(loaded.NodeCount, Is.EqualTo(2));
                 Assert.That(loaded.EdgeCount, Is.EqualTo(1));
                 Assert.That(loaded.InputNode, Is.EqualTo("in"));
                 Assert.That(loaded.OutputNode, Is.EqualTo("out"));
+                Assert.That(loaded.Nodes[1].Chain != null, Is.True, "a node's chain reference survives the file");
+                Assert.That(loaded.Nodes[1].Chain == AssetDatabase.LoadAssetAtPath<DspChainAsset>(branchPath));
                 Assert.That(loaded.TryCreateGraph(out DspGraph graph), Is.True);
                 Assert.That(graph.TryPrepare(48_000, 64, 1, loaded.IndexOfNode("in"), loaded.IndexOfNode("out")), Is.True);
             }
