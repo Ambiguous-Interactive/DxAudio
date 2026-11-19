@@ -16,16 +16,13 @@ namespace WallstopStudios.DxAudio
     ///
     /// The bus runs after the voice's chain and graph, on each voice separately. Unity gives a script no way to sum one
     /// source into another, so every bus effect in this package acts on one voice at a time and never on the mixed
-    /// output: two voices that each fit under a ceiling can still sum above it.
+    /// output: two voices that each fit under a ceiling can still sum above it. A ceiling over the sum belongs to
+    /// <see cref="AudioMixBus" />, which runs on the object that carries the listener.
     /// </remarks>
     [DisallowMultipleComponent]
     [AddComponentMenu("DxAudio/Audio Filter Host")]
     public sealed class AudioFilterHost : MonoBehaviour
     {
-        private const int FallbackSampleRate = 48_000;
-        private const int FallbackBlockSize = 1_024;
-        private const int FallbackChannels = 2;
-
         [SerializeField]
         [Tooltip("The chain this host runs on its source, when a game drives the host itself. A player sets this per play.")]
         private DspChainAsset _chain;
@@ -38,15 +35,13 @@ namespace WallstopStudios.DxAudio
         [Tooltip("A graph this host runs after its own chain. Its branches run in parallel, and it runs on one voice at a time.")]
         private DspGraphAsset _graph;
 
+        private readonly AudioLayout _layout = new();
         private readonly List<Instance> _instances = new();
         private readonly List<GraphInstance> _graphInstances = new();
         private Instance _running;
         private Instance _bus;
         private GraphInstance _runningGraph;
         private AudioSource _source;
-        private int _sampleRate;
-        private int _blockSize = FallbackBlockSize;
-        private int _outputChannels;
         private int _liveChannels;
         private int _skippedBlocks;
 
@@ -155,7 +150,7 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>The output channel count this host prepares for; every narrower block also runs.</summary>
-        public int ChannelCount => _outputChannels;
+        public int ChannelCount => _layout.Channels;
 
         /// <summary>How many blocks no prepared chain or graph ran. A diagnostic; zero is healthy.</summary>
         public int SkippedBlocks => _skippedBlocks;
@@ -311,7 +306,7 @@ namespace WallstopStudios.DxAudio
 
         private void Awake()
         {
-            EnsurePrepared();
+            _layout.Refresh();
             Chain = _chain;
             Graph = _graph;
             BusChain = _busChain;
@@ -334,7 +329,7 @@ namespace WallstopStudios.DxAudio
         /// </remarks>
         internal void OnAudioConfigurationChanged(bool deviceChanged)
         {
-            _sampleRate = 0;
+            _layout.Invalidate();
             _liveChannels = 0;
             _instances.Clear();
             _graphInstances.Clear();
@@ -358,7 +353,7 @@ namespace WallstopStudios.DxAudio
         {
             if (instance != null)
             {
-                instance.ClearGeneration++;
+                instance.slot.RequestClear();
             }
         }
 
@@ -371,22 +366,8 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        /// <summary>Reads the output rate, block size and channel count every chain on this host is prepared for.</summary>
-        private void EnsurePrepared()
-        {
-            if (0 < _sampleRate)
-            {
-                return;
-            }
-
-            _sampleRate = 0 < AudioSettings.outputSampleRate ? AudioSettings.outputSampleRate : FallbackSampleRate;
-            _outputChannels = ChannelCountOf(AudioSettings.speakerMode);
-            AudioSettings.GetDSPBufferSize(out int blockSize, out _);
-            _blockSize = 0 < blockSize ? blockSize : FallbackBlockSize;
-        }
-
         /// <summary>The block shape a reading describes: the last block run, or the output layout before any block.</summary>
-        private int ReadingChannels => 0 < _liveChannels ? _liveChannels : _outputChannels;
+        private int ReadingChannels => 0 < _liveChannels ? _liveChannels : _layout.Channels;
 
         /// <summary>The prepared chains for <paramref name="asset" /> in one slot, built the first time this voice meets it.</summary>
         private Instance InstanceFor(DspChainAsset asset, bool bus)
@@ -405,9 +386,9 @@ namespace WallstopStudios.DxAudio
                 }
             }
 
-            EnsurePrepared();
+            _layout.Refresh();
             Instance created = new(asset, bus);
-            created.Prepare(_sampleRate, _blockSize, _outputChannels);
+            created.Prepare(_layout.SampleRate, _layout.BlockSize, _layout.Channels);
             _instances.Add(created);
             return created;
         }
@@ -429,32 +410,11 @@ namespace WallstopStudios.DxAudio
                 }
             }
 
-            EnsurePrepared();
+            _layout.Refresh();
             GraphInstance created = new(asset);
-            created.Prepare(_sampleRate, _blockSize, _outputChannels);
+            created.Prepare(_layout.SampleRate, _layout.BlockSize, _layout.Channels);
             _graphInstances.Add(created);
             return created;
-        }
-
-        private static int ChannelCountOf(AudioSpeakerMode mode)
-        {
-            switch (mode)
-            {
-                case AudioSpeakerMode.Mono:
-                    return 1;
-                case AudioSpeakerMode.Quad:
-                    return 4;
-                case AudioSpeakerMode.Surround:
-                    return 5;
-                case AudioSpeakerMode.Mode5point1:
-                    return 6;
-                case AudioSpeakerMode.Mode7point1:
-                    return 8;
-                default:
-                    // Stereo, Prologic, and an uninitialised device all render two channels, which is what a 2D
-                    // source is mixed into.
-                    return FallbackChannels;
-            }
         }
 
         /// <summary>One asset's chains in one slot, one per block shape the output layout can produce.</summary>
@@ -467,71 +427,34 @@ namespace WallstopStudios.DxAudio
         {
             public readonly DspChainAsset asset;
             public readonly bool bus;
-            private DspChain[] _chains = Array.Empty<DspChain>();
+            public readonly DspChainSlot slot;
 
             public Instance(DspChainAsset asset, bool bus)
             {
                 this.asset = asset;
                 this.bus = bus;
+                slot = new DspChainSlot(asset);
             }
 
-            /// <summary>The play that last asked for a clear. Written on the main thread only.</summary>
-            public int ClearGeneration;
-
-            /// <summary>The generation this instance has already cleared for. Written on the audio thread only.</summary>
-            public int ClearedGeneration;
-
-            /// <summary>Whether a clear is owed to this instance, recording it as taken when one is.</summary>
-            /// <remarks>
-            /// A generation, not a flag: a block that reads a request must not spend a newer one that a swap wrote while
-            /// the block was running. A flag would write zero over that newer request and the next play would start on
-            /// the delay line the old one left.
-            /// </remarks>
             public bool ClearBeforeNextBlock()
             {
-                int requested = ClearGeneration;
-                if (ClearedGeneration == requested)
-                {
-                    return false;
-                }
-
-                ClearedGeneration = requested;
-                return true;
+                return slot.ClearBeforeNextBlock();
             }
 
             public void Prepare(int sampleRate, int blockSize, int shapes)
             {
-                _chains = new DspChain[shapes];
-                for (int index = 0; index < shapes; index++)
-                {
-                    DspChain chain = asset.CreateChain();
-                    _ = chain.TryPrepare(sampleRate, blockSize, index + 1);
-                    _chains[index] = chain;
-                }
+                slot.Prepare(sampleRate, blockSize, shapes);
             }
 
             /// <summary>The chain prepared for <paramref name="channels" />, or null when that shape is wider than the layout.</summary>
             public DspChain For(int channels)
             {
-                if (channels <= 0 || _chains.Length < channels)
-                {
-                    return null;
-                }
-
-                return _chains[channels - 1];
+                return slot.For(channels);
             }
 
-            /// <summary>Clears every block shape this asset prepared, so a reused voice starts silent at any width.</summary>
-            /// <remarks>
-            /// A voice can run one block at one width and the next play's first block at another. Resetting only the
-            /// width in front of the block would leave every other prepared shape holding the last play's delay line.
-            /// </remarks>
             public void Reset()
             {
-                for (int index = 0; index < _chains.Length; index++)
-                {
-                    _chains[index].Reset();
-                }
+                slot.Reset();
             }
         }
 
