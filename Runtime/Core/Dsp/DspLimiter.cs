@@ -58,7 +58,7 @@ namespace WallstopStudios.DxAudio
 
         /// <summary>How far ahead the limiter lowers its gain, in seconds.</summary>
         /// <remarks>
-        /// It sizes the delay line, so a new value applies at the next <see cref="Prepare"/>. It is clamped to one
+        /// It sizes the delay line, so a new value applies at the next <see cref="TryPrepare"/>. It is clamped to one
         /// second: a longer delay is a wrong setting, not a limiter.
         /// </remarks>
         public float LookaheadSeconds
@@ -94,18 +94,8 @@ namespace WallstopStudios.DxAudio
         /// <summary>How far the gain is currently held down, in decibels; zero is not limiting.</summary>
         public override float GainReductionDecibels => AudioMath.LinearToDecibels(_gain);
 
-        public override void Prepare(int sampleRate, int maxBlockSize, int channels)
+        protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
         {
-            if (sampleRate <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(sampleRate));
-            }
-
-            if (channels <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(channels));
-            }
-
             _sampleRate = sampleRate;
             _channels = channels;
             _delayFrames = (int)Math.Round(_lookaheadSeconds * sampleRate);

@@ -151,9 +151,9 @@ loop-boundary read are not in this table; issue #46 carries that play-mode probe
 
 ## DSP chain
 
-A chain is an ordered list of `DspEffect` stages, not a graph: order is the sound, and a general node graph needs fan-in
-and fan-out buffers plus per-branch latency before a second branch exists. Effects shape an interleaved block in place,
-so a stage needs no scratch buffer and a voice's audio path allocates nothing.
+A chain is an ordered list of `DspEffect` stages: order is the sound. Parallel paths are a `DspGraph` (below), which
+fans a chain out into branches and sums them back with their latency aligned. Effects shape an interleaved block in
+place, so a stage needs no scratch buffer and a voice's audio path allocates nothing.
 
 `DspEffect.LatencySamples` is not zero for everything: the limiter reports its lookahead, and the pitch shifter reports
 half its window. A chain sums the figure so two branches that must stay aligned can be told how far apart they are.
@@ -161,8 +161,9 @@ half its window. A chain sums the figure so two branches that must stay aligned 
 Rules for a new effect:
 
 - `Process` runs on the audio thread: no allocation, no log, no lock, no throw.
-- `Prepare` owns every allocation and must match the channel count the block arrives with. A stage that was never
-  prepared, or that is handed another shape, passes the block through untouched.
+- `TryPrepare` owns every allocation and must match the channel count the block arrives with. A stage that was never
+  prepared, or that is handed another shape, passes the block through untouched. A layout that is not positive in every
+  part, or that a stage cannot run, answers `false` rather than throwing, so game code reports it.
 - `Reset` clears delay lines, envelopes and holds, because voices are pooled.
 - Gain and shape move through `AudioMath.OnePoleCoefficient`, so a knob move is a short ramp: the limiter's release, the
   compressor's gain reduction, and the distortion's drive and tone. A compressor `AttackSeconds` or `ReleaseSeconds`
@@ -214,6 +215,35 @@ delay-line pitch shifter are per-sample work, and an FFT would add a window of l
 nothing. The pitch shifter is the one effect that needs a delay line and resampling, and it still needed no library:
 the two-head triangular crossfade is a dozen multiplies per frame. Unity exposes no portable SIMD for a Mono/IL2CPP
 build without a dependency, and the package keeps none.
+
+## DSP node graph
+
+`DspGraph` is engine-free and code-only: named nodes each hold a `DspChain`, an edge carries one node's block into a
+later node, and a node with several incoming edges sums them. Fan-out is a node with several outgoing edges; fan-in is a
+node that takes several. One node is the input, which receives the caller's block, and one is the output.
+
+Branches report different delay, so the graph aligns instead of only reporting the mismatch. A node arrives as late as
+its latest predecessor plus its own chain delay, `A[n] = L[n] + max(A[u])`, and an edge `u -> v` waits
+`A[v] - L[v] - A[u]` frames. Every path then reaches the output with the same age, `LatencySamples` is the longest path,
+and a branch that needs no wait gets no buffer. Reporting the mismatch and leaving alignment to a caller was rejected:
+nothing else in the package can insert that delay, and a fan-in of mismatched branches is a comb.
+
+- A cycle is refused at the edge that would close it, and `TryPrepare` refuses a node off the path from input to output.
+- `TryPrepare` budgets the node buffers before it prepares a chain, then the edge lines, and refuses a graph over 2 MiB
+  by answering `false`; nothing on the prepare path throws. A node owns its chain, because a shared chain would run one
+  delay line twice in a block.
+- Bounds are 16 nodes and 32 edges; `PreparedBytes` reports what the graph reserved, so a caller can budget a pool.
+
+| Probe                                                  | Result                               |
+| ------------------------------------------------------ | ------------------------------------ |
+| Two-branch graph, 10,000 stereo 256-frame blocks       | 0 bytes, 154 ms, about 350x realtime |
+| Shifter and limiter branches, 2,048-frame mono, 48 kHz | 44,804 bytes, latency 1,201          |
+| Same block, shifter 1,201 and limiter 240 of latency   | one impulse at 1,201, no comb        |
+
+A 0.25 impulse reaches the output once, at the shifter's delay, with twice the amplitude; without the edge delay the
+limiter branch would arrive 961 frames early and the two would not sum. The prepared figure counts four node buffers of
+2,048 mono floats and the 961-frame line the limiter branch waits on, and the same graph in 256-frame stereo blocks
+reserves 17,928 bytes.
 
 ## DSP attachment
 

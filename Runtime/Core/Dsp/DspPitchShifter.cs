@@ -90,7 +90,7 @@ namespace WallstopStudios.DxAudio
 
         /// <summary>How long each read head sweeps before it jumps back, in seconds.</summary>
         /// <remarks>
-        /// The delay line is sized at <see cref="Prepare"/> and not rebuilt here, because a setter can run on any thread
+        /// The delay line is sized at <see cref="TryPrepare"/> and not rebuilt here, because a setter can run on any thread
         /// while the audio thread is inside <see cref="Process"/>. The delay is half this window, which is why a short
         /// window is the only way to lower the latency.
         /// </remarks>
@@ -107,7 +107,7 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>
-        /// Half a window plus the nearest readable frame, in samples; zero before <see cref="Prepare"/>.
+        /// Half a window plus the nearest readable frame, in samples; zero before <see cref="TryPrepare"/>.
         /// </summary>
         /// <remarks>
         /// One figure covers both settings. At unison the signal is delayed by exactly this much. While shifting, the
@@ -115,23 +115,8 @@ namespace WallstopStudios.DxAudio
         /// </remarks>
         public override int LatencySamples => _latencyFrames;
 
-        public override void Prepare(int sampleRate, int maxBlockSize, int channels)
+        protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
         {
-            if (sampleRate <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(sampleRate));
-            }
-
-            if (maxBlockSize <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(maxBlockSize));
-            }
-
-            if (channels <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(channels));
-            }
-
             _channels = channels;
             // Two heads sit half a window apart, so an even window makes that gap a whole number of frames. The two
             // spare frames hold the write and the interpolated neighbour apart at the longest delay.

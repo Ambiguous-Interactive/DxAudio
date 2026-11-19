@@ -14,7 +14,7 @@ namespace WallstopStudios.DxAudio
         /// <summary>The settings this stage holds, as one line an inspector shows.</summary>
         public abstract string Describe();
 
-        /// <summary>Builds an effect carrying this asset's settings, ready for <see cref="DspEffect.Prepare" />.</summary>
+        /// <summary>Builds an effect carrying this asset's settings, ready for <see cref="DspEffect.TryPrepare" />.</summary>
         public abstract DspEffect CreateEffect();
     }
 }

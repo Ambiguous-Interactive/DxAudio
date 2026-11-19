@@ -62,11 +62,41 @@ that falls between two read positions is skipped.
   delays 1,201 samples, about 25 ms. A shorter window lowers the delay and adds warble; a longer one smooths the tone. Set
   it before playback: the delay line is sized when the chain is prepared, not when the field changes.
 
+## A node graph in code
+
+A chain runs its stages in series. A **graph** runs chains side by side: `DspGraph` holds named nodes, each with its own
+`DspChain`, and an edge carries one node's block into a later node. A node with several outgoing edges feeds every one,
+which is the fan-out, and a node with several incoming edges sums them, which is the fan-in.
+
+```csharp
+DspGraph graph = new();
+graph.TryAddNode(new DspChain(), out int input);
+graph.TryAddNode(roomChain, out int room);
+graph.TryAddNode(dryChain, out int dry);
+graph.TryAddNode(new DspChain(), out int output);
+graph.TryAddEdge(input, room);
+graph.TryAddEdge(input, dry);
+graph.TryAddEdge(room, output);
+graph.TryAddEdge(dry, output);
+graph.TryPrepare(AudioSettings.outputSampleRate, 1024, 2, input, output);
+graph.Process(buffer, 0, buffer.Length, 2);
+```
+
+- A branch that reports less delay is waited for: the graph delays that edge by the difference its chains report, so a
+  pitch shifter in one branch and a limiter in another arrive together and sum without a comb. Read the graph's own
+  delay with `LatencySamples`; it is the longest path.
+- `TryPrepare` refuses a cycle, a node the input cannot reach or one that cannot reach the output, a layout it cannot
+  run and a graph over its memory budget. It answers `false` and reserves nothing, so a bad graph never throws.
+- A graph holds up to 16 nodes and 32 edges, and `PreparedBytes` reports what it reserved. `Process` allocates nothing
+  once prepared: build the graph and prepare it before the first block.
+
 ## Limits
 
 - A chain runs on the audio thread. Effects allocate when they are prepared, never while they run.
 - A limiter delays the signal by its lookahead, and a pitch shifter by half its window. Read the delay with
-  `AudioFilterHost.LatencySamples`; the chain itself does not compensate. A chain that runs in parallel needs branches
-  whose reported delays match.
+  `AudioFilterHost.LatencySamples`; a chain does not compensate. Put the two in separate branches of a `DspGraph` and it
+  aligns them for you.
+- A graph is code-only: it has no asset and no inspector. Author the chains it holds as assets, then build the graph in
+  code.
 - A block whose shape no prepared chain matches passes through and counts in `AudioFilterHost.SkippedBlocks`, so a
   silent bypass is visible rather than guessed at.

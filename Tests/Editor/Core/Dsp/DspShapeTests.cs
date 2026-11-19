@@ -129,8 +129,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float[] source = Sine(6_000f, 1f, 4_800);
             DspDistortion before = new() { Drive = 4f, ToneHz = DspDistortion.OpenToneHz };
             DspDistortion after = new() { Drive = 4f, ToneHz = DspDistortion.OpenToneHz };
-            before.Prepare(16_000, BlockFrames, 1);
-            after.Prepare(16_000, BlockFrames, 1);
+            before.TryPrepare(16_000, BlockFrames, 1);
+            after.TryPrepare(16_000, BlockFrames, 1);
             after.ToneHz = DspDistortion.OpenToneHz;
 
             // Process directly: Render would prepare again at 48 kHz and overwrite the 16 kHz coefficient.
@@ -228,7 +228,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         private static void Prepare(DspEffect effect)
         {
-            effect.Prepare(SampleRate, BlockFrames, 1);
+            effect.TryPrepare(SampleRate, BlockFrames, 1);
         }
 
         private static float[] Render(DspEffect effect, float[] source)
@@ -238,7 +238,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         private static float[] Render(DspEffect effect, float[] source, int blockFrames)
         {
-            effect.Prepare(SampleRate, blockFrames, 1);
+            effect.TryPrepare(SampleRate, blockFrames, 1);
             float[] output = new float[source.Length];
             Array.Copy(source, output, source.Length);
             for (int offset = 0; offset < output.Length; offset += blockFrames)

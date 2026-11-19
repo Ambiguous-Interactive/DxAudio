@@ -18,6 +18,7 @@ namespace WallstopStudios.DxAudio
         private int _sampleRate;
         private int _maxBlockSize;
         private int _channels;
+        private bool _prepared;
 
         public DspChain()
         {
@@ -64,7 +65,7 @@ namespace WallstopStudios.DxAudio
 
         /// <summary>Appends <paramref name="effect"/> to the end of the chain.</summary>
         /// <remarks>
-        /// A stage added after <see cref="Prepare"/> is prepared at once with the chain's layout. Otherwise it would
+        /// A stage added after <see cref="TryPrepare"/> is prepared at once with the chain's layout. Otherwise it would
         /// sit in the list doing nothing, and its latency would be missing from <see cref="LatencySamples"/>.
         /// </remarks>
         public void Add(DspEffect effect)
@@ -76,7 +77,7 @@ namespace WallstopStudios.DxAudio
 
             if (0 < _sampleRate)
             {
-                effect.Prepare(_sampleRate, _maxBlockSize, _channels);
+                _ = effect.TryPrepare(_sampleRate, _maxBlockSize, _channels);
             }
 
             _effects.Add(effect);
@@ -95,21 +96,17 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>Prepares every effect for the same rate, block size and channel count.</summary>
-        public void Prepare(int sampleRate, int maxBlockSize, int channels)
+        /// <remarks>
+        /// A chain that refuses a layout, or that was never prepared, passes every block through. The effects may hold
+        /// buffers from an earlier prepare, so without this answer a refused chain would keep running on them.
+        /// </remarks>
+        /// <returns><see langword="false"/> when a part of the layout is not positive; the chain then runs nothing.</returns>
+        public bool TryPrepare(int sampleRate, int maxBlockSize, int channels)
         {
-            if (sampleRate <= 0)
+            _prepared = false;
+            if (sampleRate <= 0 || maxBlockSize <= 0 || channels <= 0)
             {
-                throw new ArgumentOutOfRangeException(nameof(sampleRate));
-            }
-
-            if (maxBlockSize <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(maxBlockSize));
-            }
-
-            if (channels <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(channels));
+                return false;
             }
 
             _sampleRate = sampleRate;
@@ -119,14 +116,23 @@ namespace WallstopStudios.DxAudio
             // throw; the count is read per pass so the appended stage is prepared too in the same call.
             for (int i = 0; i < _effects.Count; i++)
             {
-                _effects[i].Prepare(sampleRate, maxBlockSize, channels);
+                _ = _effects[i].TryPrepare(sampleRate, maxBlockSize, channels);
             }
+
+            _prepared = true;
+            return true;
         }
 
         /// <summary>Runs the block through every stage, in order.</summary>
+        /// <remarks>A chain that is not prepared passes the block through untouched.</remarks>
         public void Process(float[] buffer, int offset, int count, int channels)
         {
-            // Indexed for the same reason as Prepare: a stage that appends while processing must not make the
+            if (!_prepared)
+            {
+                return;
+            }
+
+            // Indexed for the same reason as TryPrepare: a stage that appends while processing must not make the
             // audio thread throw. The new stage runs in this block.
             for (int i = 0; i < _effects.Count; i++)
             {

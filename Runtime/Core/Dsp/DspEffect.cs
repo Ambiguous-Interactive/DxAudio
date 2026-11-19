@@ -9,6 +9,9 @@ namespace WallstopStudios.DxAudio
     /// A knob moved on the main thread arrives as a plain property read, so the worst a torn read can do is
     /// change one block's gain. <see cref="Reset"/> exists because voices are pooled: the next cue on a voice
     /// must not inherit the last cue's delay line or envelope.
+    ///
+    /// <see cref="TryPrepare"/> answers a refused layout with <see langword="false"/> rather than an exception, so
+    /// game code can report a bad layout instead of catching one.
     /// </remarks>
     public abstract class DspEffect
     {
@@ -25,12 +28,27 @@ namespace WallstopStudios.DxAudio
         public virtual float GainReductionDecibels => 0f;
 
         /// <summary>Reserves whatever the effect needs before it processes audio.</summary>
-        /// <remarks>Allocation belongs here, never in <see cref="Process"/>.</remarks>
-        public abstract void Prepare(int sampleRate, int maxBlockSize, int channels);
+        /// <remarks>
+        /// Allocation belongs here, never in <see cref="Process"/>. The only layout this refuses is one that is not
+        /// positive in every part, and it refuses it before anything is allocated. An effect that supports fewer
+        /// channels than a caller asks for is a different problem: it passes the wider block through, which counts in
+        /// the host's skipped blocks.
+        /// </remarks>
+        /// <returns><see langword="false"/> when the layout is not positive in every part.</returns>
+        public bool TryPrepare(int sampleRate, int maxBlockSize, int channels)
+        {
+            if (sampleRate <= 0 || maxBlockSize <= 0 || channels <= 0)
+            {
+                return false;
+            }
+
+            PrepareCore(sampleRate, maxBlockSize, channels);
+            return true;
+        }
 
         /// <summary>Shapes <paramref name="count"/> interleaved samples of <paramref name="buffer"/> in place.</summary>
         /// <remarks>
-        /// <paramref name="channels"/> has to match the count <see cref="Prepare"/> was given. An effect that keeps
+        /// <paramref name="channels"/> has to match the count <see cref="TryPrepare"/> was given. An effect that keeps
         /// per-channel state refuses a block of another shape and passes it through, rather than index past its
         /// buffers on the audio thread.
         /// </remarks>
@@ -38,5 +56,11 @@ namespace WallstopStudios.DxAudio
 
         /// <summary>Clears delay lines, envelopes and holds, so a reused voice starts silent.</summary>
         public virtual void Reset() { }
+
+        /// <summary>Reserves the stage's own storage for a layout that <see cref="TryPrepare"/> already accepted.</summary>
+        /// <remarks>
+        /// Every part is positive, so an override allocates and returns. Validation stays in <see cref="TryPrepare"/>.
+        /// </remarks>
+        protected abstract void PrepareCore(int sampleRate, int maxBlockSize, int channels);
     }
 }

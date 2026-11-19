@@ -14,7 +14,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float[] before = (float[])block.Clone();
 
             DspChain chain = new();
-            chain.Prepare(SampleRate, block.Length, 1);
+            chain.TryPrepare(SampleRate, block.Length, 1);
             chain.Process(block, 0, block.Length, 1);
 
             Assert.That(chain.Count, Is.Zero);
@@ -70,9 +70,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void PrepareRefusesAnImpossibleLayout(int sampleRate, int maxBlockSize, int channels)
         {
             DspChain chain = new();
-            chain.Add(new DspLimiter());
+            chain.Add(new DspBitCrusher { Bits = 1 });
+            Assert.That(chain.TryPrepare(SampleRate, 256, 1), Is.True);
+            float[] block = Sine(440f, 0.5f, 256);
+            float[] before = (float[])block.Clone();
 
-            _ = Assert.Throws<ArgumentOutOfRangeException>(() => chain.Prepare(sampleRate, maxBlockSize, channels));
+            Assert.That(chain.TryPrepare(sampleRate, maxBlockSize, channels), Is.False);
+            chain.Process(block, 0, block.Length, 1);
+
+            Assert.That(block, Is.EqualTo(before), "a refused chain keeps the buffers its stages hold and must not run them");
         }
 
         [Test]
@@ -84,7 +90,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             chain.Add(first);
             chain.Add(second);
 
-            chain.Prepare(SampleRate, 512, 2);
+            chain.TryPrepare(SampleRate, 512, 2);
             chain.Reset();
 
             Assert.That(first.PreparedAs, Is.EqualTo((SampleRate, 512, 2)));
@@ -99,7 +105,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             DspChain chain = new();
             chain.Add(new AddingEffect(chain, new DspBitCrusher()));
 
-            chain.Prepare(SampleRate, 256, 1);
+            chain.TryPrepare(SampleRate, 256, 1);
 
             Assert.That(chain.Count, Is.EqualTo(2), "the stage added itself without breaking the pass");
         }
@@ -111,7 +117,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             RecordingEffect appended = new();
             AddingEffect adder = new(chain, appended, addWhileProcessing: true);
             chain.Add(adder);
-            chain.Prepare(SampleRate, 256, 1);
+            chain.TryPrepare(SampleRate, 256, 1);
             float[] block = Sine(440f, 0.5f, 256);
 
             chain.Process(block, 0, block.Length, 1);
@@ -132,7 +138,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             chain.Add(new DspBitCrusher());
             chain.Add(shifter);
 
-            chain.Prepare(SampleRate, 512, 1);
+            chain.TryPrepare(SampleRate, 512, 1);
 
             Assert.That(limiter.LatencySamples, Is.EqualTo(240));
             Assert.That(shifter.LatencySamples, Is.EqualTo(121));
@@ -153,7 +159,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                     ReleaseSeconds = 0f,
                 }
             );
-            chain.Prepare(SampleRate, 256, 1);
+            chain.TryPrepare(SampleRate, 256, 1);
             float[] block = Sine(1_000f, 1f, 256);
 
             Assert.That(chain.GainReductionDecibels, Is.Zero, "nothing has run yet, so nothing holds the signal down");
@@ -191,7 +197,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float[] block = Sine(440f, 0.5f, 128);
             float[] before = (float[])block.Clone();
             DspBitCrusher crusher = new();
-            crusher.Prepare(SampleRate, 128, 2);
+            crusher.TryPrepare(SampleRate, 128, 2);
 
             crusher.Process(block, 0, block.Length, 1);
 
@@ -211,15 +217,16 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void EveryEffectRefusesAZeroRateOrChannelCount()
+        public void EveryEffectRefusesAZeroRateOrAChannelCount()
         {
             DspEffect[] effects = { new DspLimiter(), new DspCompressor(), new DspDistortion(), new DspBitCrusher(), new DspPitchShifter() };
 
             for (int i = 0; i < effects.Length; i++)
             {
                 DspEffect effect = effects[i];
-                _ = Assert.Throws<ArgumentOutOfRangeException>(() => effect.Prepare(0, 256, 2), effect.DisplayName);
-                _ = Assert.Throws<ArgumentOutOfRangeException>(() => effect.Prepare(SampleRate, 256, 0), effect.DisplayName);
+                Assert.That(effect.TryPrepare(0, 256, 2), Is.False, effect.DisplayName);
+                Assert.That(effect.TryPrepare(SampleRate, 256, 0), Is.False, effect.DisplayName);
+                Assert.That(effect.TryPrepare(SampleRate, 0, 2), Is.False, effect.DisplayName);
             }
         }
 
@@ -228,7 +235,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             DspChain chain = new();
             chain.Add(new DspCompressor());
-            chain.Prepare(SampleRate, 256, 1);
+            chain.TryPrepare(SampleRate, 256, 1);
 
             DspLimiter limiter = new() { LookaheadSeconds = 0.005f, Ceiling = 0.5f };
             chain.Add(limiter);
@@ -247,7 +254,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             DspLimiter unprepared = new();
             DspLimiter prepared = new();
-            prepared.Prepare(SampleRate, 8, 1);
+            prepared.TryPrepare(SampleRate, 8, 1);
             float[] block = new float[8];
 
             unprepared.Process(block, 0, block.Length, channels);
@@ -260,7 +267,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void APartialFrameIsRefused()
         {
             DspLimiter limiter = new() { Ceiling = 0.5f };
-            limiter.Prepare(SampleRate, 16, 2);
+            limiter.TryPrepare(SampleRate, 16, 2);
             float[] block = new float[10];
             block[8] = 1f;
             block[9] = 1f;
@@ -278,7 +285,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             chain.Add(new DspDistortion { Drive = 6f });
             chain.Add(new DspBitCrusher { Bits = 8, RateReduction = 2 });
             chain.Add(new DspPitchShifter { Semitones = 7f });
-            chain.Prepare(SampleRate, blockFrames, 1);
+            chain.TryPrepare(SampleRate, blockFrames, 1);
             for (int offset = 0; offset < block.Length; offset += blockFrames)
             {
                 int count = Math.Min(blockFrames, block.Length - offset);
@@ -295,7 +302,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 chain.Add(effects[i]);
             }
 
-            chain.Prepare(SampleRate, 256, 1);
+            chain.TryPrepare(SampleRate, 256, 1);
             chain.Process(block, 0, block.Length, 1);
             return block;
         }
@@ -357,7 +364,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             public override string DisplayName => "Adding";
 
-            public override void Prepare(int sampleRate, int maxBlockSize, int channels)
+            protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
             {
                 if (!_addWhileProcessing && !_added)
                 {
@@ -386,7 +393,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             public int Processed { get; private set; }
 
-            public override void Prepare(int sampleRate, int maxBlockSize, int channels)
+            protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
             {
                 PreparedAs = (sampleRate, maxBlockSize, channels);
             }
