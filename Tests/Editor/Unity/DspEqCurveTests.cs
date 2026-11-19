@@ -254,11 +254,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(peak, Is.LessThanOrEqualTo(Math.Abs(gain)), "response magnitude between drawing points");
         }
 
-        [TestCase(32_000, 12f, 4f, 0.25f)]
-        [TestCase(32_000, -12f, 4f, 0.25f)]
-        [TestCase(44_100, 12f, 0.6f, 0.17f)]
-        [TestCase(44_100, -12f, 0.6f, 0.17f)]
-        public void ThreeBellsFollowABroadRampToThePreviewEdge(int sampleRate, float gain, float errorLimit, float rmsLimit)
+        [TestCase(32_000, 12f, 3, 4f, 0.25f, 13f)]
+        [TestCase(32_000, -12f, 3, 4f, 0.25f, 13f)]
+        [TestCase(44_100, 12f, 3, 0.6f, 0.17f, 13f)]
+        [TestCase(44_100, -12f, 3, 0.6f, 0.17f, 13f)]
+        [TestCase(32_000, 12f, 11, 3.01f, 0.105f, 11.88f)]
+        [TestCase(32_000, -12f, 11, 3.01f, 0.105f, 11.88f)]
+        [TestCase(44_100, 12f, 11, 0.12f, 0.007f, 12.03f)]
+        [TestCase(44_100, -12f, 11, 0.12f, 0.007f, 12.03f)]
+        public void BellsFollowABroadRampToThePreviewEdge(int sampleRate, float gain, int bandLimit, float errorLimit, float rmsLimit, float peakLimit)
         {
             float[] target = new float[DspEqCurveFit.SampleCount];
             for (int index = 0; index < target.Length; index++)
@@ -266,10 +270,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 target[index] = gain * index / (target.Length - 1);
             }
 
-            DspEqCurveFit.Result fit = DspEqCurveFit.FitDrawing(target, sampleRate, 3);
+            DspEqCurveFit.Result fit = DspEqCurveFit.FitDrawing(target, sampleRate, bandLimit);
             float endpoint = gain * DspEqCurveFit.GetFitWidth(sampleRate);
             float endpointError = Math.Abs(endpoint - fit.PreviewDecibels[fit.PreviewDecibels.Length - 1]);
-            Assert.That(fit.Bands, Has.Length.EqualTo(3));
+            Assert.That(fit.Bands, Has.Length.EqualTo(bandLimit));
             Assert.That(endpointError, Is.LessThan(errorLimit), "error at the interpolated preview edge");
             Assert.That(fit.MaximumErrorDecibels, Is.LessThan(errorLimit));
             Assert.That(fit.RmsErrorDecibels, Is.LessThan(rmsLimit));
@@ -282,7 +286,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 Assert.That(band.GainDecibels, Is.InRange(DspFilter.MinimumPeakDecibels, DspFilter.MaximumPeakDecibels));
             }
 
-            Assert.That(MeasurePeakToNyquist(fit, sampleRate), Is.LessThan(13f));
+            Assert.That(MeasurePeakToNyquist(fit, sampleRate), Is.LessThan(peakLimit));
         }
 
         [Test]

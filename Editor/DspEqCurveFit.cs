@@ -22,6 +22,26 @@ namespace WallstopStudios.DxAudio.Editor
         private const double MaximumEdgeWeight = 8d;
         private static readonly float[] Qualities = { 0.1f, 0.2f, 0.4f, 0.8f, 1.6f, 3.2f, 6.4f, 12.8f, DspFilter.MaximumQuality };
 
+        private sealed class BandResponses
+        {
+            internal BandResponses(int bandCount)
+            {
+                Active = new double[bandCount][];
+                Candidate = new double[FitSampleCount];
+            }
+
+            internal double[][] Active { get; }
+            internal double[] Candidate { get; private set; }
+
+            internal void KeepCandidate(int bandIndex)
+            {
+                // Reuse the previous band's buffer for the next candidate.
+                double[] previous = Active[bandIndex];
+                Active[bandIndex] = Candidate;
+                Candidate = previous;
+            }
+        }
+
         internal readonly struct Band
         {
             internal Band(float frequencyHz, float quality, float gainDecibels)
@@ -141,6 +161,7 @@ namespace WallstopStudios.DxAudio.Editor
                 squaredError += weights[index] * residual[index] * residual[index];
             }
 
+            BandResponses responses = new BandResponses(bandCount);
             List<Band> bands = new List<Band>(bandCount);
             float maximumCenter = GetMaximumCenterHz(sampleRate);
             double endpoint = residual[FitSampleCount - 1];
@@ -149,7 +170,7 @@ namespace WallstopStudios.DxAudio.Editor
                     ? (double[])residual.Clone()
                     : null;
 
-            GrowBands(bands, bandCount, frequencies, warped, residual, shape, weights, sampleRate, squaredError);
+            GrowBands(bands, bandCount, frequencies, warped, residual, shape, weights, sampleRate, squaredError, responses);
             Result greedy = MeasureFit(drawing, bands.ToArray(), sampleRate);
             double endpointResidual = residual[FitSampleCount - 1];
             if (pairedResidual == null || endpoint * endpointResidual <= 0d || Math.Abs(endpointResidual) <= greedy.RmsErrorDecibels)
@@ -159,22 +180,19 @@ namespace WallstopStudios.DxAudio.Editor
 
             // Beyond the legal center, the wider Bell keeps its gain after the narrower Bell falls away.
             float gain = (float)Math.Min(DspFilter.MaximumPeakDecibels, 2d * Math.Abs(endpoint)) * Math.Sign(endpoint);
-            List<Band> pairedBands = new List<Band>(bandCount)
-            {
-                new Band(maximumCenter, DspFilter.MinimumQuality, gain),
-                new Band(maximumCenter, DspFilter.MinimumQuality * 2f, -gain),
-            };
-            UpdateResidual(pairedBands[0], warped, pairedResidual, sampleRate, -1);
-            UpdateResidual(pairedBands[1], warped, pairedResidual, sampleRate, -1);
+            // The greedy result holds its own bands, so this search can reuse the response buffers.
+            List<Band> pairedBands = new List<Band>(bandCount);
+            AddBand(pairedBands, new Band(maximumCenter, DspFilter.MinimumQuality, gain), warped, pairedResidual, sampleRate, responses);
+            AddBand(pairedBands, new Band(maximumCenter, DspFilter.MinimumQuality * 2f, -gain), warped, pairedResidual, sampleRate, responses);
             double pairedError = 0d;
             for (int index = 0; index < FitSampleCount; index++)
             {
                 pairedError += weights[index] * pairedResidual[index] * pairedResidual[index];
             }
 
-            pairedError = RefineBands(pairedBands, warped, pairedResidual, shape, weights, sampleRate, pairedError);
-            pairedError = GrowBands(pairedBands, bandCount, frequencies, warped, pairedResidual, shape, weights, sampleRate, pairedError);
-            RefineBands(pairedBands, warped, pairedResidual, shape, weights, sampleRate, pairedError);
+            pairedError = RefineBands(pairedBands, warped, pairedResidual, shape, weights, sampleRate, pairedError, responses);
+            pairedError = GrowBands(pairedBands, bandCount, frequencies, warped, pairedResidual, shape, weights, sampleRate, pairedError, responses);
+            RefineBands(pairedBands, warped, pairedResidual, shape, weights, sampleRate, pairedError, responses);
 
             Result paired = MeasureFit(drawing, pairedBands.ToArray(), sampleRate);
             if (
@@ -258,7 +276,8 @@ namespace WallstopStudios.DxAudio.Editor
             double[] shape,
             double[] weights,
             int sampleRate,
-            double squaredError
+            double squaredError,
+            BandResponses responses
         )
         {
             while (bands.Count < bandCount && MinimumSquaredImprovement < squaredError)
@@ -270,9 +289,8 @@ namespace WallstopStudios.DxAudio.Editor
                     break;
                 }
 
-                bands.Add(candidate);
-                UpdateResidual(candidate, warped, residual, sampleRate, -1);
-                squaredError = RefineBands(bands, warped, residual, shape, weights, sampleRate, candidateError);
+                AddBand(bands, candidate, warped, residual, sampleRate, responses);
+                squaredError = RefineBands(bands, warped, residual, shape, weights, sampleRate, candidateError, responses);
             }
 
             return squaredError;
@@ -409,12 +427,14 @@ namespace WallstopStudios.DxAudio.Editor
                 // The small-signal response estimates gain. Score the full nonlinear response before accepting it.
                 float gainDb = AudioMath.Clamp((float)(projection / basisEnergy), DspFilter.MinimumPeakDecibels, DspFilter.MaximumPeakDecibels);
                 double gain = AudioMath.DecibelsToLinear(gainDb);
+                double inverseGain = 1d / gain;
                 double error = 0d;
                 // Check the high-frequency samples first to reject poor fits for narrow peaks sooner.
                 for (int index = FitSampleCount - 1; 0 <= index && error < bestError; index--)
                 {
                     double offset = quality * shape[index];
-                    double difference = residual[index] - GetResponse(offset * offset, gain);
+                    double bellShape = offset * offset;
+                    double difference = residual[index] - (10d * Math.Log10((bellShape + gain) / (bellShape + inverseGain)));
                     error += weights[index] * difference * difference;
                 }
 
@@ -426,7 +446,16 @@ namespace WallstopStudios.DxAudio.Editor
             }
         }
 
-        private static double RefineBands(List<Band> bands, double[] warped, double[] residual, double[] shape, double[] weights, int sampleRate, double bestError)
+        private static double RefineBands(
+            List<Band> bands,
+            double[] warped,
+            double[] residual,
+            double[] shape,
+            double[] weights,
+            int sampleRate,
+            double bestError,
+            BandResponses responses
+        )
         {
             float maximumCenter = GetMaximumCenterHz(sampleRate);
             // Refine all bands after adding one, so neighboring bands can trade overlapping gain.
@@ -439,9 +468,9 @@ namespace WallstopStudios.DxAudio.Editor
                 for (int index = bands.Count - 1; 0 <= index; index--)
                 {
                     Band band = bands[index];
-                    UpdateResidual(band, warped, residual, sampleRate, 1);
+                    UpdateResidual(residual, responses.Active[index], 1);
                     Band best = band;
-                    TryRefinement(band, warped, residual, shape, weights, sampleRate, ref best, ref bestError);
+                    TryRefinement(band, warped, residual, shape, weights, sampleRate, responses, index, ref best, ref bestError);
                     for (int direction = -1; direction <= 1; direction += 2)
                     {
                         float frequency = AudioMath.Clamp(
@@ -451,7 +480,18 @@ namespace WallstopStudios.DxAudio.Editor
                         );
                         if (frequency != band.FrequencyHz)
                         {
-                            TryRefinement(new Band(frequency, band.Quality, band.GainDecibels), warped, residual, shape, weights, sampleRate, ref best, ref bestError);
+                            TryRefinement(
+                                new Band(frequency, band.Quality, band.GainDecibels),
+                                warped,
+                                residual,
+                                shape,
+                                weights,
+                                sampleRate,
+                                responses,
+                                index,
+                                ref best,
+                                ref bestError
+                            );
                         }
                     }
 
@@ -465,19 +505,41 @@ namespace WallstopStudios.DxAudio.Editor
                         );
                         if (quality != band.Quality)
                         {
-                            TryRefinement(new Band(band.FrequencyHz, quality, band.GainDecibels), warped, residual, shape, weights, sampleRate, ref best, ref bestError);
+                            TryRefinement(
+                                new Band(band.FrequencyHz, quality, band.GainDecibels),
+                                warped,
+                                residual,
+                                shape,
+                                weights,
+                                sampleRate,
+                                responses,
+                                index,
+                                ref best,
+                                ref bestError
+                            );
                         }
                     }
 
                     bands[index] = best;
-                    UpdateResidual(best, warped, residual, sampleRate, -1);
+                    UpdateResidual(residual, responses.Active[index], -1);
                 }
             }
 
             return bestError;
         }
 
-        private static void TryRefinement(Band candidate, double[] warped, double[] residual, double[] shape, double[] weights, int sampleRate, ref Band best, ref double bestError)
+        private static void TryRefinement(
+            Band candidate,
+            double[] warped,
+            double[] residual,
+            double[] shape,
+            double[] weights,
+            int sampleRate,
+            BandResponses responses,
+            int bandIndex,
+            ref Band best,
+            ref double bestError
+        )
         {
             double center = Warp(candidate.FrequencyHz, sampleRate);
             for (int index = 0; index < FitSampleCount; index++)
@@ -494,11 +556,14 @@ namespace WallstopStudios.DxAudio.Editor
                 double error = 0d;
                 double slopeProjection = 0d;
                 double slopeEnergy = 0d;
+                double[] candidateResponse = responses.Candidate;
                 for (int index = 0; index < FitSampleCount; index++)
                 {
                     double peak = shape[index] + gain;
                     double trough = shape[index] + inverseGain;
-                    double difference = residual[index] - (10d * Math.Log10(peak / trough));
+                    double response = 10d * Math.Log10(peak / trough);
+                    candidateResponse[index] = response;
+                    double difference = residual[index] - response;
                     double slope = 0.5d * ((gain / peak) + (inverseGain / trough));
                     error += weights[index] * difference * difference;
                     slopeProjection += weights[index] * difference * slope;
@@ -509,6 +574,7 @@ namespace WallstopStudios.DxAudio.Editor
                 {
                     bestError = error;
                     best = new Band(candidate.FrequencyHz, candidate.Quality, gainDb);
+                    responses.KeepCandidate(bandIndex);
                 }
 
                 float nextGain = AudioMath.Clamp(gainDb + (float)(slopeProjection / slopeEnergy), DspFilter.MinimumPeakDecibels, DspFilter.MaximumPeakDecibels);
@@ -521,13 +587,25 @@ namespace WallstopStudios.DxAudio.Editor
             }
         }
 
-        private static void UpdateResidual(Band band, double[] warped, double[] residual, int sampleRate, int sign)
+        private static void AddBand(List<Band> bands, Band band, double[] warped, double[] residual, int sampleRate, BandResponses responses)
         {
+            double[] response = responses.Active[bands.Count] ??= new double[FitSampleCount];
             double center = Warp(band.FrequencyHz, sampleRate);
             double gain = AudioMath.DecibelsToLinear(band.GainDecibels);
             for (int index = 0; index < FitSampleCount; index++)
             {
-                residual[index] += sign * GetResponse(GetShape(warped[index], center, band.Quality), gain);
+                response[index] = GetResponse(GetShape(warped[index], center, band.Quality), gain);
+            }
+
+            UpdateResidual(residual, response, -1);
+            bands.Add(band);
+        }
+
+        private static void UpdateResidual(double[] residual, double[] response, int sign)
+        {
+            for (int index = 0; index < FitSampleCount; index++)
+            {
+                residual[index] += sign * response[index];
             }
         }
 
