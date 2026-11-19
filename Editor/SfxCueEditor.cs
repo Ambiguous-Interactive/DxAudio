@@ -30,6 +30,7 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             SfxCue cue = (SfxCue)target;
+            DxAudioAssetDetails.AddWorkspaceButton(root, cue);
             VisualElement authoring = new VisualElement();
             root.Add(authoring);
             RebuildAuthoring(authoring, cue);
@@ -48,7 +49,12 @@ namespace WallstopStudios.DxAudio.Editor
             effects.Add(rows);
             DxAudioInspectorUi.AddChainRows(rows, cue.Chain);
             DxAudioInspectorUi.RefreshWhilePlaying(rows, cue.Chain);
-            DxAudioInspectorUi.AddSection(container, "Takes").Add(BuildTakes(cue));
+            VisualElement takes = DxAudioInspectorUi.AddSection(container, "Takes");
+            takes.Add(BuildTakes(cue));
+            if (cue.IsPlayable)
+            {
+                takes.Add(new Button(SfxAudition.Stop) { text = "Stop Audition" });
+            }
         }
 
         /// <summary>The take list the cue inspector shows.</summary>
@@ -105,8 +111,7 @@ namespace WallstopStudios.DxAudio.Editor
 
         private void OnDisable()
         {
-            // One source serves every cue inspector, so closing any of them ends the preview.
-            SfxAudition.DestroyPreview();
+            SfxAudition.DestroyPreview(target);
         }
     }
 }

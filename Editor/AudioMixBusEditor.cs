@@ -28,6 +28,7 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             AudioMixBus bus = (AudioMixBus)target;
+            DxAudioAssetDetails.AddWorkspaceButton(root, bus);
             if (!bus.IsOnListener)
             {
                 root.Insert(

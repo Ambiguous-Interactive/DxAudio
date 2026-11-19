@@ -35,6 +35,7 @@ namespace WallstopStudios.DxAudio.Editor
                 return root;
             }
 
+            DxAudioAssetDetails.AddWorkspaceButton(root, target);
             VisualElement section = DxAudioInspectorUi.AddSection(root, "Composed Preview");
             section.Add(new HelpBox("Add the ducks that can hold the music at the same time to see what they compose to.", HelpBoxMessageType.None));
             VisualElement preview = BuildComposedPreview((MusicDuck)target, out Action refresh);

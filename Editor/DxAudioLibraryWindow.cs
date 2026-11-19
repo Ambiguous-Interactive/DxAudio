@@ -77,7 +77,16 @@ namespace WallstopStudios.DxAudio.Editor
                     value = libraries[index],
                 };
                 field.SetEnabled(false);
-                scroll.Add(field);
+                field.style.flexGrow = 1;
+                VisualElement row = DxAudioInspectorUi.Row();
+                row.Add(field);
+                Object library = libraries[index];
+                if (library != null)
+                {
+                    row.Add(new Button(() => DxAudioAuthoringWindow.Open(library)) { text = "Open Library" });
+                }
+
+                scroll.Add(row);
 
                 List<string> findingsForLibrary = findings[index];
                 if (findingsForLibrary.Count == 0)

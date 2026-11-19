@@ -1,7 +1,9 @@
 namespace WallstopStudios.DxAudio.Tests
 {
     using System;
+    using System.Diagnostics;
     using NUnit.Framework;
+    using WallstopStudios.DxAudio.Editor;
 
     /// <summary>
     /// A DSP chain and a DSP graph run on the audio thread, so neither may allocate per block (DxAudio#27, DxAudio#69,
@@ -75,6 +77,92 @@ namespace WallstopStudios.DxAudio.Tests
 
             long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
             Assert.That(allocated, Is.Zero, $"{Blocks} blocks through two branches allocated {allocated} bytes");
+        }
+
+        [Test]
+        public void FullGraphAuditionSwapsWithoutAllocatingOnTheCallback()
+        {
+            const int PreviewFrames = 1_024;
+            const int Warmup = 32;
+            const int Samples = 120;
+            DspAuditionProcessor processor = new(SampleRate, PreviewFrames, Channels);
+            float[] input = new float[PreviewFrames * Channels];
+            float[] block = new float[input.Length];
+            for (int index = 0; index < input.Length; ++index)
+            {
+                input[index] = 0.05f * (float)Math.Sin(2d * Math.PI * 1_000 * (index / Channels) / SampleRate);
+            }
+
+            for (int index = 0; index < Warmup; ++index)
+            {
+                processor.Publish(FullGraphRevision(index + 1, PreviewFrames));
+                Array.Copy(input, block, input.Length);
+                processor.Process(block, Channels);
+            }
+
+            GC.Collect(2, GCCollectionMode.Forced, blocking: true);
+            GC.WaitForPendingFinalizers();
+            GC.Collect(2, GCCollectionMode.Forced, blocking: true);
+            long[] times = new long[Samples];
+            long allocated = 0;
+            for (int index = 0; index < Samples; ++index)
+            {
+                processor.Publish(FullGraphRevision(Warmup + index + 1, PreviewFrames));
+                Array.Copy(input, block, input.Length);
+                long start = Stopwatch.GetTimestamp();
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                processor.Process(block, Channels);
+                allocated += GC.GetAllocatedBytesForCurrentThread() - before;
+                times[index] = Stopwatch.GetTimestamp() - start;
+            }
+
+            long controlStart = GC.GetAllocatedBytesForCurrentThread();
+            GC.KeepAlive(new byte[32]);
+            long control = GC.GetAllocatedBytesForCurrentThread() - controlStart;
+            Assert.That(control, Is.GreaterThanOrEqualTo(32), "the allocation probe must detect a planted array");
+            Assert.That(allocated, Is.Zero, "the audition callback must allocate nothing during a graph swap");
+            Assert.That(processor.ActiveRevision, Is.EqualTo(Warmup + Samples));
+
+            Array.Sort(times);
+            double tickMilliseconds = 1_000d / Stopwatch.Frequency;
+            double p50 = times[Samples / 2] * tickMilliseconds;
+            double p95 = times[(int)Math.Ceiling(Samples * 0.95d) - 1] * tickMilliseconds;
+            TestContext.Out.WriteLine(
+                $"{Samples} warmed swaps at {SampleRate} Hz, {Channels} channels, {PreviewFrames} frames: "
+                    + $"p50 {p50:F3} ms, p95 {p95:F3} ms, callback allocations {allocated} bytes, planted allocation {control} bytes."
+            );
+        }
+
+        private static DspAuditionProcessor.Revision FullGraphRevision(int number, int blockFrames)
+        {
+            DspGraph graph = new();
+            for (int index = 0; index < DspGraph.MaximumNodes; ++index)
+            {
+                DspChain chain = new();
+                chain.Add(
+                    new DspFilter
+                    {
+                        Mode = DspFilterMode.Bell,
+                        FrequencyHz = 1_200f,
+                        PeakDecibels = number % 2 == 0 ? 4f : 5f,
+                    }
+                );
+                chain.Add(new DspCompressor());
+                chain.Add(new DspLimiter { LookaheadSeconds = 0f });
+                Assert.That(graph.TryAddNode(chain, out _), Is.True);
+            }
+
+            for (int distance = 1; graph.EdgeCount < DspGraph.MaximumEdges; ++distance)
+            {
+                for (int index = 0; index + distance < graph.NodeCount && graph.EdgeCount < DspGraph.MaximumEdges; ++index)
+                {
+                    Assert.That(graph.TryAddEdge(index, index + distance), Is.True);
+                }
+            }
+
+            Assert.That(graph.TryPrepare(SampleRate, blockFrames, Channels, 0, graph.NodeCount - 1), Is.True);
+            DspAuditionProcessor.Path[] shapes = { null, new DspAuditionProcessor.Path(blockFrames, Channels, null, graph) };
+            return new DspAuditionProcessor.Revision(number, shapes);
         }
 
         private static long AllocatedBy(DspChain chain, float[] block)

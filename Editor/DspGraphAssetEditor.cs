@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Editor
+﻿namespace WallstopStudios.DxAudio.Editor
 {
     using UnityEditor;
     using UnityEditor.UIElements;
@@ -26,6 +26,7 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             DspGraphAsset asset = (DspGraphAsset)target;
+            root.Add(new Button(() => DxAudioAuthoringWindow.Open(asset)) { text = "Open in DxAudio Authoring" });
             VisualElement section = DxAudioInspectorUi.AddSection(root, "Signal Path");
             VisualElement rows = new VisualElement();
             section.Add(rows);
