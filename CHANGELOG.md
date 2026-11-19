@@ -37,6 +37,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Fixed
 
+- Speed up drawn EQ fits with many Bells in the DSP Chain inspector while preserving the fitted response ([#100](https://github.com/Ambiguous-Interactive/DxAudio/issues/100)).
 - Fit broad drawn EQ ramps closer to the preview edge at low sample rates with a small Bell budget ([#96](https://github.com/Ambiguous-Interactive/DxAudio/issues/96)).
 - Improve drawn EQ cuts and boosts near the preview edge when the sample rate limits Bell centers ([#91](https://github.com/Ambiguous-Interactive/DxAudio/issues/91)).
 - Fit the response between draw points to reduce overshoot on narrow EQ targets ([#88](https://github.com/Ambiguous-Interactive/DxAudio/issues/88)).
