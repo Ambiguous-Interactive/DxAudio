@@ -254,6 +254,7 @@ one host on each pooled voice; `MusicPlayer` does the same for its three voices.
   another, so every bus effect acts on one voice at a time: two voices that each fit under a ceiling can still sum
   above it, which makes a bus a shared shaping stage rather than an output limiter.
 - `Chain`'s setter asks for a clear, and `ProcessBuffer` applies it at the next block boundary before the stages run.
+  The clear covers every block shape the asset prepared, because a play can begin at one width and continue at another.
   Resetting the effects on the main thread would race the block the audio thread is inside. The request is a generation
   counter per asset: a block records the generation it cleared for, so a request written while that block ran is still
   owed to the next one instead of being spent by it.

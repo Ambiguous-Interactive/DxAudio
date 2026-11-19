@@ -263,19 +263,21 @@ namespace WallstopStudios.DxAudio
             }
 
             _liveChannels = channels;
-            if (running != null && runningInstance.ClearBeforeNextBlock())
+            // A new play can arrive at any block shape, so every shape this asset prepared is cleared, not only the one
+            // this block happens to use. Otherwise a later block of another width would run the last play's delay line.
+            if (runningInstance != null && runningInstance.ClearBeforeNextBlock())
             {
-                running.Reset();
+                runningInstance.Reset();
             }
 
-            if (graph != null && graphInstance.ClearBeforeNextBlock())
+            if (graphInstance != null && graphInstance.ClearBeforeNextBlock())
             {
-                graph.Reset();
+                graphInstance.Reset();
             }
 
-            if (bus != null && busInstance.ClearBeforeNextBlock())
+            if (busInstance != null && busInstance.ClearBeforeNextBlock())
             {
-                bus.Reset();
+                busInstance.Reset();
             }
 
             if (running != null)
@@ -518,6 +520,19 @@ namespace WallstopStudios.DxAudio
 
                 return _chains[channels - 1];
             }
+
+            /// <summary>Clears every block shape this asset prepared, so a reused voice starts silent at any width.</summary>
+            /// <remarks>
+            /// A voice can run one block at one width and the next play's first block at another. Resetting only the
+            /// width in front of the block would leave every other prepared shape holding the last play's delay line.
+            /// </remarks>
+            public void Reset()
+            {
+                for (int index = 0; index < _chains.Length; index++)
+                {
+                    _chains[index].Reset();
+                }
+            }
         }
 
         /// <summary>One graph asset's graphs in one slot, one per block shape the output layout can produce.</summary>
@@ -581,6 +596,15 @@ namespace WallstopStudios.DxAudio
                 }
 
                 return _graphs[channels - 1];
+            }
+
+            /// <summary>Clears every block shape this asset prepared, so a reused voice starts silent at any width.</summary>
+            public void Reset()
+            {
+                for (int index = 0; index < _graphs.Length; index++)
+                {
+                    _graphs[index].Reset();
+                }
             }
         }
     }

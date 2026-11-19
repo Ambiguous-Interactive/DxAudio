@@ -115,7 +115,8 @@ namespace WallstopStudios.DxAudio
         /// <summary>Whether two tracks would sound the same, so switching between them is not a change.</summary>
         /// <remarks>
         /// By value, not reference: two contexts that share a clip should keep it playing across the switch
-        /// rather than restart it. The context is not compared, for the same reason.
+        /// rather than restart it. The context is not compared, for the same reason. The chain and the graph are
+        /// compared by asset, because a track that names a different one is heard differently even with the same clip.
         /// </remarks>
         public static bool SameMusic(MusicTrack first, MusicTrack second)
         {
@@ -132,7 +133,9 @@ namespace WallstopStudios.DxAudio
             return first._clip == second._clip
                 && first._loop == second._loop
                 && Mathf.Approximately(first._volumeScale, second._volumeScale)
-                && Mathf.Approximately(first._startTimeSeconds, second._startTimeSeconds);
+                && Mathf.Approximately(first._startTimeSeconds, second._startTimeSeconds)
+                && first._chain == second._chain
+                && first._graph == second._graph;
         }
 
         private void OnValidate()

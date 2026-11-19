@@ -191,6 +191,32 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
         }
 
+        [Test]
+        public void TwoTracksWithDifferentChainsOrGraphsAreNotTheSameSound()
+        {
+            using MadeObjects made = new();
+            AudioClip clip = Clip(made);
+            DspChainAsset firstChain = made.Track(DspChainAsset.Create(new DspEffectAsset[] { made.Track(DspDistortionAsset.Create(drive: 4f)) }));
+            DspChainAsset secondChain = made.Track(DspChainAsset.Create(new DspEffectAsset[] { made.Track(DspDistortionAsset.Create(drive: 12f)) }));
+            DspGraphAsset firstGraph = made.Track(
+                DspGraphAsset.Create(new[] { new DspGraphNode("in", null), new DspGraphNode("out", null) }, new[] { new DspGraphEdge("in", "out") }, "in", "out")
+            );
+            DspGraphAsset secondGraph = made.Track(
+                DspGraphAsset.Create(new[] { new DspGraphNode("in", null), new DspGraphNode("out", null) }, new[] { new DspGraphEdge("in", "out") }, "in", "out")
+            );
+            MusicTrack bare = made.Track(MusicTrack.Create(clip, context: "town"));
+            MusicTrack sameGraph = made.Track(MusicTrack.CreateWithGraph(clip, graph: firstGraph, context: "shop"));
+            MusicTrack alsoSameGraph = made.Track(MusicTrack.CreateWithGraph(clip, graph: firstGraph, context: "cave"));
+            MusicTrack otherGraph = made.Track(MusicTrack.CreateWithGraph(clip, graph: secondGraph, context: "den"));
+            MusicTrack firstChained = made.Track(MusicTrack.Create(clip, context: "a", chain: firstChain));
+            MusicTrack secondChained = made.Track(MusicTrack.Create(clip, context: "b", chain: secondChain));
+
+            Assert.That(MusicTrack.SameMusic(sameGraph, alsoSameGraph), Is.True, "two tracks with one graph keep it playing");
+            Assert.That(MusicTrack.SameMusic(bare, sameGraph), Is.False, "a graph where the other track has none is heard differently");
+            Assert.That(MusicTrack.SameMusic(sameGraph, otherGraph), Is.False, "a different graph is heard differently");
+            Assert.That(MusicTrack.SameMusic(firstChained, secondChained), Is.False, "a different chain is heard differently");
+        }
+
         private static AudioClip Clip(MadeObjects made)
         {
             return made.Track(AudioClip.Create("test clip", 400, 1, 8_000, stream: false));

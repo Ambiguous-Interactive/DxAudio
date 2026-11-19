@@ -410,6 +410,30 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(host.SkippedBlocks, Is.EqualTo(1), "a bypass nobody counts is the failure this package rejects");
         }
 
+        [Test]
+        public void ANewPlayClearsEveryBlockShapeItPrepared()
+        {
+            using MadeObjects made = new();
+            // A slow release keeps the last play's gain long enough to see it if the other prepared width survives.
+            DspEffectAsset held = made.Track(DspLimiterAsset.Create(ceilingDecibels: -6f, lookaheadSeconds: 0f, releaseSeconds: 10f));
+            DspChainAsset chain = Chain(made, held);
+            DspGraphAsset graph = Graph(made, held);
+            SfxCue cue = made.Track(SfxCue.CreateWithGraph(new[] { new SfxVariant(Clip(made)) }, graph: graph, minimumIntervalSeconds: 0f, chain: chain));
+            SfxPlayer player = Player(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
+            Assert.That(player.Play(cue), Is.True);
+            AudioFilterHost host = HostOf(player);
+            Assume.That(1 < host.ChannelCount, "the voice needs two prepared widths to show a stale one");
+
+            host.OnAudioFilterRead(FullScale(16), 1);
+            player.StopAll();
+            Assert.That(player.Play(cue), Is.True, "the pool holds one voice, so this is the same voice");
+            host.OnAudioFilterRead(Quiet(0.1f, host.ChannelCount * 16), host.ChannelCount);
+            float[] mono = Quiet(0.1f, 16);
+            host.OnAudioFilterRead(mono, 1);
+
+            Assert.That(Peak(mono), Is.EqualTo(0.1f).Within(0.001f), "a new play clears every width, not only the one its first block used");
+        }
+
         private static DspChainAsset Chain(MadeObjects made, params DspEffectAsset[] effects)
         {
             return made.Track(DspChainAsset.Create(effects));
