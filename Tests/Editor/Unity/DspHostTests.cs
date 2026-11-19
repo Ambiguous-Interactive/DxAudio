@@ -66,6 +66,25 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void AChainAssetBuildsAFilterFromItsFields()
+        {
+            using MadeObjects made = new();
+            DspFilterAsset asset = made.Track(DspFilterAsset.Create(DspFilterMode.BandPass, frequencyHz: 1_200f, quality: 2f));
+
+            DspFilter filter = (DspFilter)asset.CreateEffect();
+
+            Assert.That(asset.Describe(), Does.Contain("band pass").And.Contain("1200 Hz").And.Contain("Q 2"));
+            Assert.That(filter.Mode, Is.EqualTo(DspFilterMode.BandPass));
+            Assert.That(filter.FrequencyHz, Is.EqualTo(1_200f));
+            Assert.That(filter.Quality, Is.EqualTo(2f));
+
+            DspFilterAsset peak = made.Track(DspFilterAsset.Create(DspFilterMode.Peak, frequencyHz: float.NaN, quality: 0f, peakDecibels: 6f));
+            Assert.That(peak.Describe(), Does.Contain("+6 dB"), "a peak names its lift in the inspector");
+            Assert.That(peak.FrequencyHz, Is.EqualTo(DspFilter.DefaultFrequencyHz), "a non-number falls back rather than reaching the effect");
+            Assert.That(peak.Quality, Is.EqualTo(DspFilter.MinimumQuality));
+        }
+
+        [Test]
         public void AChainAssetBuildsAPitchShifterFromItsFields()
         {
             using MadeObjects made = new();

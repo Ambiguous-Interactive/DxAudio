@@ -179,6 +179,13 @@ Makeup is a gain stage: it can take a full-scale input above full scale, which i
 the limiter last. The bit crusher keeps exactly `2^bits` levels with both ends of the range included, so one bit keeps
 only `-1` and `1`.
 
+The filter is one topology-preserving state-variable core with five outputs: low pass, high pass, band pass, notch and
+peak. Two integrators per channel feed it, and its coefficients follow the corner each frame, so a moving corner never
+swaps one set of poles for another; corner, quality and peak gain are smoothed over ten milliseconds. Measured at 48 kHz
+with a 1 kHz corner and 0.71 quality, a low pass leaves 1 kHz at -3.00 dB and 8 kHz at -37.80 dB and a high pass mirrors
+it; a band pass at quality 2 is unity at its centre and -10.02 dB an octave below; a notch leaves its centre at -127 dB;
+a +6 dB peak reaches +5.99 dB. A corner is capped at 45% of the rate, so a tangent never runs away.
+
 The pitch shifter resamples one delay line with two read heads half a window apart, each at a triangular gain, so the
 head that jumps back to the start of its sweep is always silent. It is a granular shift, not a phase vocoder: it needs
 no transform and does not smear a transient across the window, though a sample that falls between two read positions is
@@ -199,15 +206,16 @@ by the setter, because the audio thread may be inside a block. Measured at 48 kH
 leaves at 880 Hz for +12 semitones, 659 Hz for +7, and 220 Hz for -12, at its original amplitude and within 1 Hz of the
 tempered target; the delay is 1,201 samples, half the window plus one.
 
-| Probe                                         | Result                                                 |
-| --------------------------------------------- | ------------------------------------------------------ |
-| Four-effect chain, 10,000 stereo blocks       | 0 bytes allocated                                      |
-| Pitch shifter, 10,000 stereo 256-frame blocks | 0 bytes allocated, 27 ms, about 2,100x realtime        |
-| Same input in 64-frame and 1024-frame blocks  | bit-identical output                                   |
-| Full-scale sine, limiter ceiling 0.5          | peak 0.4998 to 0.4999                                  |
-| Compressor, 0 dBFS, -20 dB threshold, 4:1     | 15 dB reduction, matches the static curve within 5%    |
-| Full-scale sine, pitch shifter at +12         | peak at or under the input peak                        |
-| Four-effect chain, 256 s of stereo audio      | 631 ms, about 400x realtime, 13 us per 256-frame block |
+| Probe                                         | Result                                                    |
+| --------------------------------------------- | --------------------------------------------------------- |
+| Four-effect chain, 10,000 stereo blocks       | 0 bytes allocated                                         |
+| Pitch shifter, 10,000 stereo 256-frame blocks | 0 bytes allocated, 27 ms, about 2,100x realtime           |
+| Same input in 64-frame and 1024-frame blocks  | bit-identical output                                      |
+| Full-scale sine, limiter ceiling 0.5          | peak 0.4998 to 0.4999                                     |
+| Compressor, 0 dBFS, -20 dB threshold, 4:1     | 15 dB reduction, matches the static curve within 5%       |
+| Full-scale sine, pitch shifter at +12         | peak at or under the input peak                           |
+| Filter, 20,000 stereo 256-frame blocks        | 0 bytes allocated, 5.87 us per block, about 900x realtime |
+| Four-effect chain, 256 s of stereo audio      | 631 ms, about 400x realtime, 13 us per 256-frame block    |
 
 The time figures are from .NET 9 on the dev container, not from an editor or a player. It is why these five effects need
 no FFT, no SIMD intrinsic and no third-party library: a limiter, a compressor, a distortion, a bit crusher and a
