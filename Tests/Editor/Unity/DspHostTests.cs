@@ -8,8 +8,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     /// Keeps the Unity attachment honest: a chain reaches its voice, and a reused voice starts clean.
     /// </summary>
     /// <remarks>
-    /// Every test drives <c>AudioFilterHost.OnAudioFilterRead</c> with a synthetic buffer, which is the call the engine
-    /// makes, so no test needs an audio device or play mode.
+    /// Synthetic blocks use the same processing path as Unity's audio thread. Only one caller can drive a host at a time.
     /// </remarks>
     public sealed class DspHostTests
     {
@@ -170,18 +169,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             DspChainAsset chain = Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -6f, lookaheadSeconds: 0f, releaseSeconds: 10f)));
             SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, minimumIntervalSeconds: 0f, chain: chain));
             SfxPlayer player = Player(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
+            AudioFilterHost host = SyntheticVoiceHost(player);
             Assert.That(player.Play(cue), Is.True);
-            AudioFilterHost host = HostOf(player);
-            host.OnAudioFilterRead(FullScale(host.ChannelCount * 16), host.ChannelCount);
+            host.ProcessBuffer(FullScale(host.ChannelCount * 16), host.ChannelCount);
             float[] held = Quiet(0.1f, host.ChannelCount * 16);
-            host.OnAudioFilterRead(held, host.ChannelCount);
+            host.ProcessBuffer(held, host.ChannelCount);
             Assert.That(Peak(held), Is.LessThan(0.06f), "the held gain stays down for the rest of this play");
 
             player.StopAll();
             Assert.That(player.Play(cue), Is.True, "the pool holds one voice, so this is the same voice");
 
             float[] fresh = Quiet(0.1f, host.ChannelCount * 16);
-            host.OnAudioFilterRead(fresh, host.ChannelCount);
+            host.ProcessBuffer(fresh, host.ChannelCount);
             Assert.That(Peak(fresh), Is.EqualTo(0.1f).Within(0.001f), "a new play must not inherit the last play's gain");
         }
 
@@ -209,12 +208,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, chain: cueChain));
             SfxPlayer player = Player(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
             player.BusChain = Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -8f, lookaheadSeconds: 0f)));
+            AudioFilterHost host = SyntheticVoiceHost(player);
             Assert.That(player.Play(cue), Is.True);
-            AudioFilterHost host = HostOf(player);
             Assert.That(host.LiveBusChain.Count, Is.EqualTo(1), "the bus reaches the voice");
 
             float[] block = FullScale(host.ChannelCount * 64);
-            host.OnAudioFilterRead(block, host.ChannelCount);
+            host.ProcessBuffer(block, host.ChannelCount);
 
             Assert.That(Peak(block), Is.LessThanOrEqualTo(0.41f), "a bus limiter after the shaper holds the output, one before it would not");
             Assert.That(host.GainReductionDecibels, Is.LessThan(-7f), "the bus's reduction is part of the reading");
@@ -228,15 +227,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }));
             SfxPlayer player = Player(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
             player.BusChain = Chain(made, made.Track(DspBitCrusherAsset.Create(bits: 1)));
+            AudioFilterHost host = SyntheticVoiceHost(player);
             Assert.That(player.Play(cue), Is.True);
-            AudioFilterHost host = HostOf(player);
             float[] block = new float[host.ChannelCount * 4];
             for (int index = 0; index < block.Length; ++index)
             {
                 block[index] = 0.3f;
             }
 
-            host.OnAudioFilterRead(block, host.ChannelCount);
+            host.ProcessBuffer(block, host.ChannelCount);
 
             Assert.That(Peak(block), Is.EqualTo(1f).Within(0.0001f), "one bit keeps only the ends of the range, so 0.3 leaves as 1");
         }
@@ -318,14 +317,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             DspGraphAsset graph = Graph(made, made.Track(DspBitCrusherAsset.Create(bits: 1)));
             SfxCue cue = made.Track(SfxCue.CreateWithGraph(new[] { new SfxVariant(Clip(made)) }, graph: graph));
             SfxPlayer player = Player(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
+            AudioFilterHost host = SyntheticVoiceHost(player);
             Assert.That(player.Play(cue), Is.True);
-            AudioFilterHost host = HostOf(player);
             Assert.That(host.Graph == graph);
             Assert.That(host.LiveGraph != null);
             Assert.That(host.LiveGraph.IsPrepared, Is.True, "an unprepared graph would pass the block through");
 
             float[] block = Quiet(0.3f, host.ChannelCount * 4);
-            host.OnAudioFilterRead(block, host.ChannelCount);
+            host.ProcessBuffer(block, host.ChannelCount);
 
             Assert.That(Peak(block), Is.EqualTo(1f).Within(0.0001f), "one bit keeps only the ends of the range, so 0.3 leaves as 1");
             Assert.That(host.SkippedBlocks, Is.Zero);
@@ -397,7 +396,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void AMusicTrackRunsItsGraphOnItsVoice()
+        public void AMusicTrackPreparesItsGraphOnItsVoice()
         {
             using MadeObjects made = new();
             DspGraphAsset graph = Graph(made, made.Track(DspBitCrusherAsset.Create(bits: 1)));
@@ -410,9 +409,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             AudioFilterHost host = player.GetComponentInChildren<AudioFilterHost>();
             Assert.That(host != null);
             Assert.That(host.Graph == graph);
-            float[] block = Quiet(0.3f, host.ChannelCount * 4);
-            host.OnAudioFilterRead(block, host.ChannelCount);
-            Assert.That(Peak(block), Is.EqualTo(1f).Within(0.0001f), "the track's graph reaches the music voice");
+            Assert.That(host.LiveGraph?.IsPrepared, Is.True, "the music voice prepares the selected graph");
+
+            // Music creates its hosts as it starts playback. Render its selected graph on a host without a source.
+            AudioFilterHost synthetic = Host(made, null);
+            synthetic.Graph = host.Graph;
+            float[] block = Quiet(0.3f, synthetic.ChannelCount * 4);
+            synthetic.ProcessBuffer(block, synthetic.ChannelCount);
+            Assert.That(Peak(block), Is.EqualTo(1f).Within(0.0001f), "the selected graph runs the track's effect");
         }
 
         [Test]
@@ -442,16 +446,16 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             DspGraphAsset graph = Graph(made, held);
             SfxCue cue = made.Track(SfxCue.CreateWithGraph(new[] { new SfxVariant(Clip(made)) }, graph: graph, minimumIntervalSeconds: 0f, chain: chain));
             SfxPlayer player = Player(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
+            AudioFilterHost host = SyntheticVoiceHost(player);
             Assert.That(player.Play(cue), Is.True);
-            AudioFilterHost host = HostOf(player);
             Assume.That(1 < host.ChannelCount, "the voice needs two prepared widths to show a stale one");
 
-            host.OnAudioFilterRead(FullScale(16), 1);
+            host.ProcessBuffer(FullScale(16), 1);
             player.StopAll();
             Assert.That(player.Play(cue), Is.True, "the pool holds one voice, so this is the same voice");
-            host.OnAudioFilterRead(Quiet(0.1f, host.ChannelCount * 16), host.ChannelCount);
+            host.ProcessBuffer(Quiet(0.1f, host.ChannelCount * 16), host.ChannelCount);
             float[] mono = Quiet(0.1f, 16);
-            host.OnAudioFilterRead(mono, 1);
+            host.ProcessBuffer(mono, 1);
 
             Assert.That(Peak(mono), Is.EqualTo(0.1f).Within(0.001f), "a new play clears every width, not only the one its first block used");
         }
@@ -493,6 +497,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             IReadOnlyList<AudioFilterHost> hosts = player.GetComponentsInChildren<AudioFilterHost>();
             Assert.That(hosts.Count, Is.GreaterThan(0), "a player builds one host per voice");
             return hosts[0];
+        }
+
+        private static AudioFilterHost SyntheticVoiceHost(SfxPlayer player)
+        {
+            AudioFilterHost host = HostOf(player);
+            // Disable before Play so Unity cannot start a callback on the host the test drives.
+            host.enabled = false;
+            return host;
         }
 
         private static SfxPlayer Player(MadeObjects made, SfxLibrary library)
