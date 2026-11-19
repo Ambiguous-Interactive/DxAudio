@@ -38,9 +38,11 @@ namespace WallstopStudios.DxAudio
         private readonly AudioLayout _layout = new();
         private readonly List<Instance> _instances = new();
         private readonly List<GraphInstance> _graphInstances = new();
-        private Instance _running;
-        private Instance _bus;
-        private GraphInstance _runningGraph;
+
+        // Written on the main thread, read on the audio thread. Volatile makes a swap visible to the next block.
+        private volatile Instance _running;
+        private volatile Instance _bus;
+        private volatile GraphInstance _runningGraph;
         private AudioSource _source;
         private int _liveChannels;
         private int _skippedBlocks;

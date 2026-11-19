@@ -26,7 +26,9 @@ namespace WallstopStudios.DxAudio
 
         private readonly AudioLayout _layout = new();
         private readonly List<DspChainSlot> _slots = new();
-        private DspChainSlot _running;
+
+        // Written on the main thread, read on the audio thread. Volatile makes a swap visible to the next block.
+        private volatile DspChainSlot _running;
         private int _liveChannels;
         private int _skippedBlocks;
 
