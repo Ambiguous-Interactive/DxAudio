@@ -3,7 +3,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     using System;
     using NUnit.Framework;
     using UnityEditor;
+    using UnityEditor.UIElements;
     using UnityEngine;
+    using UnityEngine.UIElements;
     using WallstopStudios.DxAudio.Editor;
 
     public sealed class DspEqCurveTests
@@ -95,13 +97,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float[] target = endpointSpike
                 ? CreateEndpointSpike(24f)
                 : SampleTarget(sampleRate, new DspEqCurveFit.Band(400f, 0.6f, 8f), new DspEqCurveFit.Band(1_350f, 1.2f, -12f));
-            DspEqCurveFit.Result fit = DspEqCurveFit.FitDrawing(target, sampleRate, endpointSpike ? DspEqCurveFit.MaximumBandCount : 3);
+            int bandLimit = endpointSpike ? DspEqCurveFit.MaximumBandCount : 3;
+            DspEqCurveFit.Result fit = DspEqCurveFit.FitDrawing(target, sampleRate, bandLimit);
             Assert.That(fit.Bands.Length, Is.GreaterThan(1));
 
             string path = AssetDatabase.GenerateUniqueAssetPath("Assets/DxAudioEqReloadTest.asset");
             try
             {
-                DspChainAsset authored = DspEqCurveAuthoring.SaveChain(path, fit);
+                DspChainAsset authored = DspEqCurveAsset.SaveChain(path, target, sampleRate, bandLimit, fit);
                 Assert.That(authored != null, Is.True);
                 for (int index = 0; index < authored.Count; ++index)
                 {
@@ -113,6 +116,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 Assert.That(loaded != null, Is.True);
                 Assert.That(loaded, Is.Not.SameAs(authored));
                 Assert.That(loaded.Count, Is.EqualTo(fit.Bands.Length));
+                DspChainAsset.DrawnEqSettings settings = DspEqCurveAsset.ReadSettings(loaded);
+                Assert.That(settings.Target, Is.EqualTo(target));
+                Assert.That(settings.SampleRate, Is.EqualTo(sampleRate));
+                Assert.That(settings.BandLimit, Is.EqualTo(bandLimit));
                 for (int index = 0; index < loaded.Count; ++index)
                 {
                     DspFilterAsset stage = loaded.Effects[index] as DspFilterAsset;
@@ -223,15 +230,157 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             string path = AssetDatabase.GenerateUniqueAssetPath("Assets/DxAudioEqCollisionTest.asset");
             try
             {
-                DspChainAsset authored = DspEqCurveAuthoring.SaveChain(path, fit);
+                DspChainAsset authored = DspEqCurveAsset.SaveChain(path, target, SampleRate, 1, fit);
 
-                Assert.Throws<ArgumentException>(() => DspEqCurveAuthoring.SaveChain(path, fit));
+                Assert.Throws<ArgumentException>(() => DspEqCurveAsset.SaveChain(path, target, SampleRate, 1, fit));
                 Assert.That(AssetDatabase.LoadAssetAtPath<DspChainAsset>(path) == authored, Is.True);
             }
             finally
             {
                 AssetDatabase.DeleteAsset(path);
             }
+        }
+
+        [Test]
+        public void AReopenedInspectorUsesTheSavedRateAndBandLimit()
+        {
+            const int CustomRate = 72_000;
+            float[] target = DspEqCurveAuthoring.CreateTarget(1, 48_000);
+            string path = AssetDatabase.GenerateUniqueAssetPath("Assets/DxAudioEqInspectorTest.asset");
+            try
+            {
+                DspChainAsset chain = DspEqCurveAsset.SaveChain(path, target, CustomRate, 1, DspEqCurveFit.FitDrawing(target, CustomRate, 1));
+                Resources.UnloadAsset(chain);
+                DspChainAsset loaded = AssetDatabase.LoadAssetAtPath<DspChainAsset>(path);
+                DspEqCurveAuthoring inspector = new(loaded);
+                Assert.That(inspector.Q<PopupField<int>>("dx-audio-eq-rate").value, Is.EqualTo(CustomRate));
+                Assert.That(inspector.Q<PopupField<int>>("dx-audio-eq-band-limit").value, Is.EqualTo(1));
+                Assert.That(inspector.Q<Button>("dx-audio-eq-apply").enabledSelf, Is.False);
+            }
+            finally
+            {
+                AssetDatabase.DeleteAsset(path);
+            }
+        }
+
+        [Test]
+        public void ARefitKeepsGeneratedFileIdsAndRestoresTheSettingsOnUndo()
+        {
+            const int InitialRate = 48_000;
+            const int UpdatedRate = 32_000;
+            string chainPath = AssetDatabase.GenerateUniqueAssetPath("Assets/DxAudioEqRefitTest.asset");
+            string otherPath = AssetDatabase.GenerateUniqueAssetPath("Assets/DxAudioEqReferenceTest.asset");
+            float[] original = SampleTarget(InitialRate, new DspEqCurveFit.Band(1_000f, 0.8f, 9f));
+            float[] updated = DspEqCurveAuthoring.CreateTarget(3, 48_000);
+            DspEqCurveFit.Result originalFit = DspEqCurveFit.FitDrawing(original, InitialRate, 1);
+            DspEqCurveFit.Result updatedFit = DspEqCurveFit.FitDrawing(updated, UpdatedRate, 3);
+            Assert.That(updatedFit.Bands.Length, Is.GreaterThan(1));
+
+            DspFilterAsset manual = DspFilterAsset.Create();
+            try
+            {
+                DspChainAsset chain = DspEqCurveAsset.SaveChain(chainPath, original, InitialRate, 1, originalFit);
+                DspFilterAsset first = (DspFilterAsset)chain.Effects[0];
+                long firstId = GetFileId(first);
+                DspChainAsset other = DspChainAsset.Create(new[] { first });
+                AssetDatabase.CreateAsset(other, otherPath);
+                AssetDatabase.AddObjectToAsset(manual, other);
+                using (SerializedObject serialized = new(chain))
+                {
+                    SerializedProperty effects = serialized.FindProperty("_effects");
+                    effects.arraySize = 2;
+                    effects.GetArrayElementAtIndex(1).objectReferenceValue = manual;
+                    serialized.ApplyModifiedPropertiesWithoutUndo();
+                }
+
+                DspEqCurveAsset.ApplyFit(chain, updated, UpdatedRate, 3, updatedFit);
+                int grownEffectCount = updatedFit.Bands.Length + 1;
+                Assert.That(chain.Count, Is.EqualTo(grownEffectCount));
+                Assert.That(GetFileId(chain.Effects[0]), Is.EqualTo(firstId));
+                Assert.That(chain.Effects[grownEffectCount - 1] == manual, Is.True);
+                Assert.That(other.Effects[0] == first, Is.True);
+                long secondId = GetFileId(chain.Effects[1]);
+                Assert.That(first.PeakDecibels, Is.EqualTo(updatedFit.Bands[0].GainDecibels));
+                Assert.That(DspEqCurveAsset.ReadSettings(chain).Target, Is.EqualTo(updated));
+
+                Undo.PerformUndo();
+                Assert.That(chain.Count, Is.EqualTo(2));
+                Assert.That(first.PeakDecibels, Is.EqualTo(originalFit.Bands[0].GainDecibels));
+                DspChainAsset.DrawnEqSettings restored = DspEqCurveAsset.ReadSettings(chain);
+                Assert.That(restored.Target, Is.EqualTo(original));
+                Assert.That(restored.SampleRate, Is.EqualTo(InitialRate));
+                Assert.That(restored.BandLimit, Is.EqualTo(1));
+
+                Undo.PerformRedo();
+                Assert.That(chain.Count, Is.EqualTo(grownEffectCount));
+                Assert.That(GetFileId(chain.Effects[1]), Is.EqualTo(secondId));
+                restored = DspEqCurveAsset.ReadSettings(chain);
+                Assert.That(restored.Target, Is.EqualTo(updated));
+                Assert.That(restored.SampleRate, Is.EqualTo(UpdatedRate));
+                Assert.That(restored.BandLimit, Is.EqualTo(3));
+                using (SerializedObject serialized = new(chain))
+                {
+                    SerializedProperty effects = serialized.FindProperty("_effects");
+                    effects.MoveArrayElement(grownEffectCount - 1, 1);
+                    serialized.ApplyModifiedPropertiesWithoutUndo();
+                }
+
+                AssetDatabase.SaveAssetIfDirty(chain);
+                AssetDatabase.ImportAsset(chainPath, ImportAssetOptions.ForceSynchronousImport);
+                Assert.That(GetFileId(chain.Effects[2]), Is.EqualTo(secondId));
+                Assert.That(AssetDatabase.GetAssetPath(chain.Effects[2]), Is.EqualTo(chainPath));
+
+                float[] flat = new float[DspEqCurveFit.SampleCount];
+                DspEqCurveAsset.ApplyFit(chain, flat, UpdatedRate, 1, DspEqCurveFit.FitDrawing(flat, UpdatedRate, 1));
+                Assert.That(chain.Count, Is.EqualTo(1));
+                Assert.That(chain.Effects[0] == manual, Is.True);
+                Assert.That(other.Effects[0] == first, Is.True);
+                Assert.That(first.PeakDecibels, Is.EqualTo(updatedFit.Bands[0].GainDecibels));
+                Assert.That(GetFileId(first), Is.EqualTo(firstId));
+
+                Undo.PerformUndo();
+                Assert.That(GetFileId(chain.Effects[2]), Is.EqualTo(secondId));
+                Assert.That(chain.Effects[1] == manual, Is.True);
+                Undo.PerformRedo();
+                DspEqCurveAsset.ApplyFit(chain, updated, UpdatedRate, 3, updatedFit);
+                Assert.That(GetFileId(chain.Effects[0]), Is.EqualTo(firstId));
+                Assert.That(chain.Effects[1] == manual, Is.True);
+                Assert.That(GetFileId(chain.Effects[2]), Is.EqualTo(secondId));
+            }
+            finally
+            {
+                foreach (UnityEngine.Object asset in AssetDatabase.LoadAllAssetsAtPath(chainPath))
+                {
+                    Undo.ClearUndo(asset);
+                }
+
+                AssetDatabase.DeleteAsset(chainPath);
+                AssetDatabase.DeleteAsset(otherPath);
+                if (manual != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(manual);
+                }
+            }
+        }
+
+        [Test]
+        public void AChainWithoutSavedSettingsKeepsItsExistingStages()
+        {
+            using MadeObjects made = new();
+            DspFilterAsset stage = made.Track(DspFilterAsset.Create());
+            DspChainAsset chain = made.Track(DspChainAsset.Create(new[] { stage }));
+            DspEqCurveAuthoring inspector = new(chain);
+            Assert.That(DspEqCurveAsset.ReadSettings(chain) == null, Is.True);
+            Assert.That(inspector.Q<PopupField<int>>("dx-audio-eq-band-limit").value, Is.Zero);
+            Assert.That(inspector.Q<Button>("dx-audio-eq-apply").style.display.value, Is.EqualTo(DisplayStyle.None));
+            Assert.That(chain.Effects[0] == stage, Is.True);
+        }
+
+        private static long GetFileId(DspEffectAsset asset)
+        {
+            Assert.That(asset != null, Is.True);
+            Assert.That(AssetDatabase.TryGetGUIDAndLocalFileIdentifier(asset, out string _, out long fileId), Is.True);
+            return fileId;
         }
 
         private static float[] CreateEndpointSpike(float gain)

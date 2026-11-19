@@ -8,6 +8,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
+- Reopen saved drawn EQ targets and apply new fits with Undo while keeping generated Bell references ([#89](https://github.com/Ambiguous-Interactive/DxAudio/issues/89)).
 - Draw an EQ target in the DSP Chain inspector, compare the fitted response, and save a new chain of Bell filters ([#85](https://github.com/Ambiguous-Interactive/DxAudio/issues/85)).
 - Add a `DspFilter` effect and its asset: one state-variable core gives low pass, high pass, band pass, notch, peak and symmetric bell modes, a knob move is ramped rather than stepped, and it allocates nothing per block ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add an `AudioMixBus` for the object that carries the `AudioListener`: Unity hands it the sum of every source, so a chain there holds a master ceiling that no per-voice bus can see ([#74](https://github.com/Ambiguous-Interactive/DxAudio/issues/74)).

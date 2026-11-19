@@ -123,7 +123,14 @@ To fit a drawn response, select a **DSP Chain** asset and open **Drawn EQ** in t
 2. Select **Fit target**. Compare the combined Bell response with the target on the 20 Hz to 20 kHz logarithmic
    axis. The Inspector reports RMS error and the largest sampled error in dB. Compare different band limits and
    use the one that meets your target.
-3. Select **Save new EQ chain**. The new asset contains its Bell stages as sub-assets. The drawing is temporary.
+3. Select **Save new EQ chain**. The asset saves the target, preview rate, and band limit with its generated Bell stages.
+4. Reopen the asset to compare the target with **Current generated Bells**. Change the target or settings and select
+   **Fit target**. Select **Apply fit to this chain** to save the changes. Unity Undo restores the previous settings
+   and Bell parameters in one step.
+
+Applying a fit updates generated Bells in place, including Bells shared with other assets. A fit with fewer bands
+removes surplus Bells from the signal path and keeps their sub-assets so existing references still work. Manually
+added stages remain in the chain. The plot shows the generated EQ section of the chain.
 
 The Inspector starts at Unity's reported output rate when it is available. The drawing always spans 20 Hz to 20 kHz.
 At lower rates, the shaded part of the plot lies above the fit range. Both curves keep their frequency positions.

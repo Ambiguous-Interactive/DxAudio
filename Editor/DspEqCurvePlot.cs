@@ -8,14 +8,17 @@ namespace WallstopStudios.DxAudio.Editor
     {
         internal static Color TargetColor => EditorGUIUtility.isProSkin ? new Color(0.38f, 0.80f, 1f) : new Color(0f, 0.32f, 0.57f);
         internal static Color FitColor => EditorGUIUtility.isProSkin ? new Color(1f, 0.73f, 0.39f) : new Color(0.58f, 0.23f, 0f);
+        internal static Color SavedColor => EditorGUIUtility.isProSkin ? new Color(0.60f, 0.93f, 0.66f) : new Color(0.12f, 0.39f, 0.18f);
 
         private const float PlotHeight = 196f;
         private const float TargetLimitDecibels = 24f;
         private static readonly float[] TickFrequencies = { 20f, 100f, 1_000f, 10_000f, 20_000f };
         private readonly Vector3[] _targetLine = new Vector3[DspEqCurveFit.SampleCount];
         private readonly Vector3[] _fitLine = new Vector3[DspEqCurveFit.PreviewSampleCount];
+        private readonly Vector3[] _savedLine = new Vector3[DspEqCurveFit.PreviewSampleCount];
         private float[] _target;
         private float[] _fit;
+        private float[] _saved;
         private float _fitWidth;
         private int _previousIndex;
         private float _previousDecibels;
@@ -31,21 +34,28 @@ namespace WallstopStudios.DxAudio.Editor
             onGUIHandler = Draw;
         }
 
-        internal void Show(float[] target, float[] fit, int sampleRate)
+        internal void Show(float[] target, float[] fit, float[] saved, int sampleRate)
         {
             _target = target;
             _fit = fit;
+            _saved = saved;
             _fitWidth = DspEqCurveFit.GetFitWidth(sampleRate);
             _plotLimitDecibels = TargetLimitDecibels;
-            if (fit != null)
+            ExpandScale(saved);
+            ExpandScale(fit);
+
+            MarkDirtyRepaint();
+        }
+
+        private void ExpandScale(float[] response)
+        {
+            if (response != null)
             {
-                foreach (float decibels in fit)
+                foreach (float decibels in response)
                 {
                     _plotLimitDecibels = Mathf.Max(_plotLimitDecibels, Mathf.Ceil(Mathf.Abs(decibels) / 12f) * 12f);
                 }
             }
-
-            MarkDirtyRepaint();
         }
 
         private void Draw()
@@ -82,9 +92,14 @@ namespace WallstopStudios.DxAudio.Editor
                     float limit = editing ? _strokeLimitDecibels : _plotLimitDecibels;
                     DrawAxes(plot, limit);
                     DrawCurve(plot, _target, _targetLine, limit, TargetColor, 3.5f);
+                    Rect fitted = new(plot.xMin, plot.yMin, plot.width * _fitWidth, plot.height);
+                    if (_saved != null)
+                    {
+                        DrawCurve(fitted, _saved, _savedLine, limit, SavedColor, 2.5f);
+                    }
+
                     if (_fit != null)
                     {
-                        Rect fitted = new(plot.xMin, plot.yMin, plot.width * _fitWidth, plot.height);
                         DrawCurve(fitted, _fit, _fitLine, limit, FitColor, 1.5f);
                     }
 

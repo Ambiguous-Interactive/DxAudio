@@ -138,11 +138,12 @@ namespace WallstopStudios.DxAudio.Editor
                 squaredError = RefineBands(bands, warped, residual, shape, weights, sampleRate, candidateError);
             }
 
-            return MeasureFit(drawing, bands.ToArray(), sampleRate, drawingWidth);
+            return MeasureFit(drawing, bands.ToArray(), sampleRate);
         }
 
-        private static Result MeasureFit(IReadOnlyList<float> targetDecibels, Band[] bands, int sampleRate, double drawingWidth)
+        internal static Result MeasureFit(IReadOnlyList<float> targetDecibels, Band[] bands, int sampleRate)
         {
+            double drawingWidth = GetFitWidth(sampleRate);
             float[] response = new float[SampleCount];
             float[] preview = new float[PreviewSampleCount];
             double span = GetMaximumFrequencyHz(sampleRate) / (double)MinimumFrequencyHz;
@@ -177,13 +178,14 @@ namespace WallstopStudios.DxAudio.Editor
             // Narrow high bands can peak between even the denser preview points. Include their centers in the max.
             foreach (Band band in bands)
             {
-                if (band.FrequencyHz < MinimumFrequencyHz)
+                float center = Math.Min(band.FrequencyHz, GetMaximumCenterHz(sampleRate));
+                if (center < MinimumFrequencyHz)
                 {
                     continue;
                 }
 
-                double position = (SampleCount - 1) * drawingWidth * Math.Log(band.FrequencyHz / (double)MinimumFrequencyHz, span);
-                double error = InterpolateTarget(targetDecibels, position) - MeasureResponse(bands, band.FrequencyHz, sampleRate);
+                double position = (SampleCount - 1) * drawingWidth * Math.Log(center / (double)MinimumFrequencyHz, span);
+                double error = InterpolateTarget(targetDecibels, position) - MeasureResponse(bands, center, sampleRate);
                 maximumError = Math.Max(maximumError, Math.Abs(error));
             }
 
