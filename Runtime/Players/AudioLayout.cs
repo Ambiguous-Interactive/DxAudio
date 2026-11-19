@@ -43,6 +43,26 @@ namespace WallstopStudios.DxAudio
             SampleRate = 0;
         }
 
+        /// <summary>Whether the prepared figures still match the device: rate, channel count and DSP buffer size.</summary>
+        /// <remarks>
+        /// A device can change its speaker layout without changing its rate, and a chain prepared for stereo passes a
+        /// 5.1 block through. A stage that is disabled across the change never hears the event, so it asks this on
+        /// enable.
+        /// </remarks>
+        public bool MatchesDevice()
+        {
+            if (SampleRate == 0)
+            {
+                return false;
+            }
+
+            int rate = 0 < AudioSettings.outputSampleRate ? AudioSettings.outputSampleRate : FallbackSampleRate;
+            int channels = ChannelCountOf(AudioSettings.speakerMode);
+            AudioSettings.GetDSPBufferSize(out int blockSize, out _);
+            int frames = 0 < blockSize ? blockSize : FallbackBlockSize;
+            return SampleRate == rate && Channels == channels && BlockSize == frames;
+        }
+
         private static int ChannelCountOf(AudioSpeakerMode mode)
         {
             switch (mode)

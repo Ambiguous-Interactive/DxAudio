@@ -162,6 +162,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void TheLayoutMatchesTheDeviceItRead()
+        {
+            AudioLayout layout = new();
+            Assert.That(layout.MatchesDevice(), Is.False, "nothing is prepared before the first read");
+
+            layout.Refresh();
+
+            Assert.That(layout.SampleRate, Is.GreaterThan(0));
+            Assert.That(layout.MatchesDevice(), Is.True, "an enable after no device change must not re-prepare a running chain");
+        }
+
+        [Test]
         public void AMixBusNamesTheListenerItNeeds()
         {
             using MadeObjects made = new();

@@ -170,10 +170,9 @@ namespace WallstopStudios.DxAudio
         private void OnEnable()
         {
             AudioSettings.OnAudioConfigurationChanged += OnAudioConfigurationChanged;
-            // A device change while this component was disabled never reached the handler. An unchanged rate leaves a
+            // A device change while this component was disabled never reached the handler. An unchanged layout leaves a
             // running release alone, so a plain enable does not restart it.
-            int deviceRate = AudioSettings.outputSampleRate;
-            if (0 < deviceRate && 0 < _layout.SampleRate && deviceRate != _layout.SampleRate)
+            if (!_layout.MatchesDevice())
             {
                 OnAudioConfigurationChanged(deviceChanged: true);
             }
