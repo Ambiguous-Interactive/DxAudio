@@ -98,6 +98,24 @@ Three differences do:
 project wants snapshot authoring strongly enough to accept an editor-side asset dependency. Any adopted design must keep
 the composed level readable for diagnostics.
 
+## A master bus is a listener filter, not a mixer asset
+
+**Decision:** a chain over several sources is an `AudioMixBus` on the object that carries the `AudioListener`. Unity sums
+every source and hands that object the mix, so one chain shapes the sum with no routing asset and no cross-voice buffer.
+The per-voice bus stays for shaping one player. This answers the mixer question in issue #74 with the smallest design
+that holds a ceiling over the sum.
+
+**Reason:** measured on the development host at 48 kHz: two voices each under a -6 dB limiter on their own sum to a
+1.0024 peak, so each one passes and the pair does not, while the same sum through a mix bus limiter returns to 0.5012.
+A listener filter costs one pass per block instead of one per voice, adds no delay of its own and allocates nothing. Two
+alternatives were rejected: a graph with several inputs needs a cross-voice buffer, a master clock and a rule for a
+source that stops mid-block, to reach the same result; an `AudioMixer` master group needs an editor-side asset and moves
+the behavior out of the engine-free suite.
+
+**Reopen if:** a game needs several independent group buses (Master, Music, SFX) with their own effect chains. One mix
+bus shapes one sum, not a routing tree. `AudioMixer` groups, through the libraries' `MixerGroup` fields and the cue
+override, already route a voice without a package dependency.
+
 ## Mute preserves state
 
 **Decision:** muting changes output, not timers or loops.

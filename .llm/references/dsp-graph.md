@@ -33,8 +33,10 @@ its latest predecessor plus its own chain delay, `A[n] = L[n] + max(A[u])`, and 
 and a branch that needs no wait gets no buffer. Reporting the mismatch and leaving alignment to a caller was rejected:
 nothing else in the package can insert that delay, and a fan-in of mismatched branches is a comb.
 
-A graph keeps one input. A voice is one source, so a second input inside it has no meaning; two sources that share
-effects are a mixer, whose gains and clocks need their own design, and this package has none.
+A graph keeps one input. A voice is one source, so a second input inside it has no meaning. Several sources that share
+effects are a mix bus: `AudioMixBus` sits on the object that carries the `AudioListener`, which Unity hands the sum of
+every source, and runs one chain over that sum (see [audio-design](./audio-design.md#dsp-mix-bus)). A graph inside a
+voice is not a mixer and cannot sum another voice's output.
 
 ## Rules
 

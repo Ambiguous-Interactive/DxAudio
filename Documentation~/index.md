@@ -10,15 +10,15 @@ Unity 2021.3 or newer.
 
 ## Pages
 
-| Page                                  | Read it to                                           |
-| ------------------------------------- | ---------------------------------------------------- |
-| [Install](install.md)                 | Add the package to a project                         |
-| [Quickstart](quickstart.md)           | Play a cue and start music in a few minutes          |
-| [Cues](cues.md)                       | Author sound effects and understand the pool         |
-| [Music](music.md)                     | Set up contexts, fades, overrides and mixer groups   |
-| [Effects](effects.md)                 | Shape a cue, a track or a whole player with a chain  |
-| [Ducks](ducks.md)                     | Hold the music down for dialogue, menus or cutscenes |
-| [Troubleshooting](troubleshooting.md) | Find why a sound did not play or stayed silent       |
+| Page                                  | Read it to                                                   |
+| ------------------------------------- | ------------------------------------------------------------ |
+| [Install](install.md)                 | Add the package to a project                                 |
+| [Quickstart](quickstart.md)           | Play a cue and start music in a few minutes                  |
+| [Cues](cues.md)                       | Author sound effects and understand the pool                 |
+| [Music](music.md)                     | Set up contexts, fades, overrides and mixer groups           |
+| [Effects](effects.md)                 | Shape a cue, a track, a player or the whole mix with a chain |
+| [Ducks](ducks.md)                     | Hold the music down for dialogue, menus or cutscenes         |
+| [Troubleshooting](troubleshooting.md) | Find why a sound did not play or stayed silent               |
 
 ## Sample
 
