@@ -221,6 +221,39 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(fit.RmsErrorDecibels, Is.LessThan(0.10f));
         }
 
+        [TestCase(24f)]
+        [TestCase(-24f)]
+        public void ABellChainFollowsASteepTargetAtTheCroppedPreviewEdge(float gain)
+        {
+            const int SampleRate = 32_000;
+            const int SpikeIndex = 247;
+            float[] target = new float[DspEqCurveFit.SampleCount];
+            target[SpikeIndex] = gain;
+            DspEqCurveFit.Result fit = DspEqCurveFit.FitDrawing(target, SampleRate, DspEqCurveFit.MaximumBandCount);
+            double endHz = DspEqCurveFit.GetMaximumFrequencyHz(SampleRate);
+            double endPosition = (target.Length - 1) * Math.Log(endHz / 20d, 1_000d);
+            double expectedEndpoint = gain * (1d - Math.Abs(SpikeIndex - endPosition));
+            double endpointError = Math.Abs(expectedEndpoint - fit.PreviewDecibels[fit.PreviewDecibels.Length - 1]);
+
+            Assert.That(endpointError, Is.LessThan(11f), "interpolated target at the cropped boundary");
+            Assert.That(fit.MaximumErrorDecibels, Is.LessThan(11f));
+            Assert.That(fit.RmsErrorDecibels, Is.LessThan(0.6f));
+
+            float peak = 0f;
+            for (float frequency = (float)endHz; 14_000f <= frequency; frequency -= 1f)
+            {
+                float response = 0f;
+                foreach (DspEqCurveFit.Band band in fit.Bands)
+                {
+                    response += band.GetResponseDecibels(frequency, SampleRate);
+                }
+
+                peak = Math.Max(peak, Math.Abs(response));
+            }
+
+            Assert.That(peak, Is.LessThanOrEqualTo(Math.Abs(gain)), "response magnitude between drawing points");
+        }
+
         [Test]
         public void ExportRefusesToReplaceAnExistingChain()
         {
