@@ -36,6 +36,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Fixed
 
+- Fit the response between draw points to reduce overshoot on narrow EQ targets ([#88](https://github.com/Ambiguous-Interactive/DxAudio/issues/88)).
 - Make `npm run check:fast` pass again, and run the assembly warning policy in the fast check, the gate, and CI. The policy fails a hidden warning: a `#pragma warning disable` in shipped code, an assembly response file or ruleset, or a missing warnings-as-errors setting in the engine-free build ([#37](https://github.com/Ambiguous-Interactive/DxAudio/issues/37)).
 - Free a voice whose clip audio data was unloaded or failed to load. `AudioClip.UnloadAudioData` and `Resources.UnloadAsset` leave the clip assigned, so a held loop kept its voice and its looping slot, and music reported playback it did not make ([#32](https://github.com/Ambiguous-Interactive/DxAudio/issues/32)).
 - Free a voice whose clip was destroyed. Unity keeps the source reporting playback with no clip, so a released loop held its voice and its looping slot for the session. A stranded voice hid idle ones, and music reported playback it did not make ([#15](https://github.com/Ambiguous-Interactive/DxAudio/issues/15)).
