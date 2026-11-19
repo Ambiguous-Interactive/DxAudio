@@ -82,6 +82,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(peak.Describe(), Does.Contain("+6 dB"), "a peak names its lift in the inspector");
             Assert.That(peak.FrequencyHz, Is.EqualTo(DspFilter.DefaultFrequencyHz), "a non-number falls back rather than reaching the effect");
             Assert.That(peak.Quality, Is.EqualTo(DspFilter.MinimumQuality));
+
+            DspFilterAsset bell = made.Track(DspFilterAsset.Create(DspFilterMode.Bell, peakDecibels: -9f));
+            Assert.That(bell.Describe(), Does.Contain("bell").And.Contain("-9 dB"), "a bell names its cut in the inspector");
         }
 
         [Test]

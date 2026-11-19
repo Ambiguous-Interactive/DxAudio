@@ -5,7 +5,8 @@ namespace WallstopStudios.DxAudio
     /// <summary>Which part of the spectrum a <see cref="DspFilter" /> keeps.</summary>
     /// <remarks>
     /// Every mode reads the same state-variable core, so a mode change swaps which combination of the low, band and high
-    /// outputs leaves the stage. It does not move a knob or rebuild the filter.
+    /// outputs leaves the stage. It does not move a knob or rebuild the filter, except that <see cref="Bell" /> also
+    /// scales its damping by the gain.
     /// </remarks>
     public enum DspFilterMode
     {
@@ -26,9 +27,17 @@ namespace WallstopStudios.DxAudio
 
         /// <summary>Lift or cut a band around the corner by <see cref="DspFilter.PeakDecibels" />, with unity away from it.</summary>
         /// <remarks>
-        /// The poles do not move with the gain, so a large boost has wider skirts than a deep cut. Use two stages when a
-        /// symmetric bell matters.
+        /// The poles do not move with the gain, so a large boost has wider skirts than a deep cut. <see cref="Bell" />
+        /// is the symmetric alternative.
         /// </remarks>
         Peak = 5,
+
+        /// <summary>Lift or cut a band around the corner by <see cref="DspFilter.PeakDecibels" />, with mirrored skirts.</summary>
+        /// <remarks>
+        /// The damping follows the gain, so a boost and a cut of the same size have the same width, which is what an
+        /// equalizer bell gives. The centre gain is exact, and at the same quality a boost is narrower than
+        /// <see cref="Peak" />'s and a cut is wider.
+        /// </remarks>
+        Bell = 6,
     }
 }

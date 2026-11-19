@@ -57,13 +57,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(away, Is.GreaterThan(0.8f), "a tone away from the notch stays");
         }
 
-        [TestCase(6f, 2f)]
-        [TestCase(-9f, 0.355f)]
-        public void APeakMovesItsCentreByItsGainAndLeavesTheRest(float decibels, float expectedGain)
+        [TestCase(DspFilterMode.Peak, 6f, 2f)]
+        [TestCase(DspFilterMode.Peak, -9f, 0.355f)]
+        [TestCase(DspFilterMode.Bell, 6f, 2f)]
+        [TestCase(DspFilterMode.Bell, -9f, 0.355f)]
+        public void AGainBandMovesItsCentreByItsGainAndLeavesTheRest(DspFilterMode mode, float decibels, float expectedGain)
         {
             DspFilter filter = new()
             {
-                Mode = DspFilterMode.Peak,
+                Mode = mode,
                 FrequencyHz = 1_000f,
                 Quality = 2f,
                 PeakDecibels = decibels,
@@ -77,12 +79,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(away, Is.EqualTo(1f).Within(0.05f), "a frequency away from the peak is untouched");
         }
 
-        [Test]
-        public void APeakWithNoGainPassesTheBlockThroughExactly()
+        [TestCase(DspFilterMode.Peak)]
+        [TestCase(DspFilterMode.Bell)]
+        public void AGainBandWithNoGainPassesTheBlockThroughExactly(DspFilterMode mode)
         {
             DspFilter filter = new()
             {
-                Mode = DspFilterMode.Peak,
+                Mode = mode,
                 FrequencyHz = 1_000f,
                 PeakDecibels = 0f,
             };
@@ -91,7 +94,27 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Prepare(filter);
             float[] output = Render(filter, source);
 
-            Assert.That(output, Is.EqualTo(source), "a peak of zero decibels is a gain of one, which changes no sample");
+            Assert.That(output, Is.EqualTo(source), "a gain of zero decibels is a gain of one, which changes no sample");
+        }
+
+        [TestCase(24f, 700f)]
+        [TestCase(24f, 2_000f)]
+        [TestCase(12f, 700f)]
+        [TestCase(6f, 2_000f)]
+        public void ABellMirrorsItsBoostAndCut(float decibels, float hertz)
+        {
+            float boost = Decibels(DspFilterMode.Bell, hertz, decibels);
+            float cut = Decibels(DspFilterMode.Bell, hertz, -decibels);
+
+            Assert.That(boost, Is.EqualTo(-cut).Within(0.2f), "an equally sized boost and cut have the same width");
+        }
+
+        [TestCase(24f, 19.1f, -1.7f)]
+        [TestCase(12f, 7.6f, -1.5f)]
+        public void APeakKeepsItsWiderBoostSkirt(float decibels, float boost, float cut)
+        {
+            Assert.That(Decibels(DspFilterMode.Peak, 700f, decibels), Is.EqualTo(boost).Within(0.2f), "the published boost skirt is unchanged");
+            Assert.That(Decibels(DspFilterMode.Peak, 700f, -decibels), Is.EqualTo(cut).Within(0.2f), "the published cut skirt is unchanged");
         }
 
         [Test]
@@ -178,18 +201,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TestCase(1_000f, DspFilterMode.BandPass, 0f, 0.00f)]
         [TestCase(500f, DspFilterMode.BandPass, 0f, -10.02f)]
         [TestCase(1_000f, DspFilterMode.Peak, 6f, 5.99f)]
+        [TestCase(700f, DspFilterMode.Bell, 6f, 2.00f)]
+        [TestCase(1_000f, DspFilterMode.Bell, 6f, 6.00f)]
+        [TestCase(2_000f, DspFilterMode.Bell, 6f, 0.60f)]
         public void TheResponseMatchesTheDesignRecord(float hertz, DspFilterMode mode, float peakDecibels, float expectedDecibels)
         {
-            DspFilter filter = new()
-            {
-                Mode = mode,
-                FrequencyHz = 1_000f,
-                Quality = mode == DspFilterMode.LowPass || mode == DspFilterMode.HighPass ? DspFilter.DefaultQuality : 2f,
-                PeakDecibels = peakDecibels,
-            };
-
-            float amplitude = Amplitude(filter, hertz);
-            float decibels = 20f * (float)Math.Log10(amplitude);
+            float decibels = Decibels(mode, hertz, peakDecibels);
 
             Assert.That(decibels, Is.EqualTo(expectedDecibels).Within(0.5f), "the documented response is the measured one");
         }
@@ -199,6 +216,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TestCase(DspFilterMode.BandPass)]
         [TestCase(DspFilterMode.Notch)]
         [TestCase(DspFilterMode.Peak)]
+        [TestCase(DspFilterMode.Bell)]
         public void ACrowdedOrEmptyBandStaysStableAndFinite(DspFilterMode mode)
         {
             float[] source = Sine(100f, 1f, 9_600);
@@ -386,6 +404,20 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             float[] output = Render(filter, Sine(hertz, 1f, 9_600));
             return Rms(output, 4_800) * (float)Math.Sqrt(2.0);
+        }
+
+        /// <summary>The response at one tone, for a filter at a 1 kHz corner and the quality its mode documents.</summary>
+        private static float Decibels(DspFilterMode mode, float hertz, float peakDecibels)
+        {
+            DspFilter filter = new()
+            {
+                Mode = mode,
+                FrequencyHz = 1_000f,
+                Quality = mode == DspFilterMode.LowPass || mode == DspFilterMode.HighPass ? DspFilter.DefaultQuality : 2f,
+                PeakDecibels = peakDecibels,
+            };
+
+            return 20f * (float)Math.Log10(Amplitude(filter, hertz));
         }
 
         private static void Prepare(DspEffect effect)

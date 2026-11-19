@@ -2,18 +2,18 @@ namespace WallstopStudios.DxAudio
 {
     using System;
 
-    /// <summary>Shapes the spectrum around one corner: a low pass, high pass, band pass, notch or peak.</summary>
+    /// <summary>Shapes the spectrum around one corner: a low pass, high pass, band pass, notch, peak or bell.</summary>
     /// <remarks>
     /// The core is a topology-preserving state-variable filter, so the same two integrators answer every mode and the
     /// filter stays stable while a knob moves. A low pass keeps everything below the corner and rolls off above it, a
-    /// high pass does the reverse, a band pass keeps a window around the corner, a notch removes it, and a peak lifts or
-    /// cuts it by <see cref="PeakDecibels" /> while leaving the rest alone.
+    /// high pass does the reverse, a band pass keeps a window around the corner, a notch removes it, and a peak or a
+    /// bell lifts or cuts it by <see cref="PeakDecibels" /> while leaving the rest alone.
     ///
     /// <see cref="FrequencyHz" />, <see cref="Quality" /> and <see cref="PeakDecibels" /> are read every frame and
-    /// reached over a <see cref="SmoothingSeconds" /> time constant, because a corner that jumps clicks. The mode is a
-    /// choice of output rather than a coefficient: it is read once per block and moves no poles, but the output itself
-    /// steps, so switch it at a quiet moment. A non-finite sample latches both integrators until <see cref="Reset" />,
-    /// because the core feeds its own state back.
+    /// reached over a <see cref="SmoothingSeconds" /> time constant, because a corner that jumps clicks. The mode is
+    /// read once per block and only swaps the output mix, except that <see cref="DspFilterMode.Bell" /> also moves its
+    /// damping with the gain; the output itself steps either way, so switch the mode at a quiet moment. A non-finite
+    /// sample latches both integrators until <see cref="Reset" />, because the core feeds its own state back.
     /// </remarks>
     public sealed class DspFilter : DspEffect
     {
@@ -120,7 +120,10 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        /// <summary>How far <see cref="DspFilterMode.Peak" /> lifts the band, in decibels; every other mode ignores it.</summary>
+        /// <summary>
+        /// How far <see cref="DspFilterMode.Peak" /> or <see cref="DspFilterMode.Bell" /> moves the band, in decibels;
+        /// every other mode ignores it.
+        /// </summary>
         public float PeakDecibels
         {
             get => _peakDecibels;
@@ -169,7 +172,10 @@ namespace WallstopStudios.DxAudio
 
                 // The integrator coefficients follow from the smoothed corner every frame, so a moving corner never
                 // jumps between two sets of poles.
-                float a1 = 1f / (1f + (g * (g + k)));
+                // A bell moves its damping with the gain, so an equally sized boost and cut have the same width. The
+                // gain is clamped to -24 dB, so its square root never reaches zero on the audio thread.
+                float damping = mode == DspFilterMode.Bell ? k / (float)Math.Sqrt(peakGain) : k;
+                float a1 = 1f / (1f + (g * (g + damping)));
                 float a2 = g * a1;
                 float a3 = g * a2;
 
@@ -183,7 +189,7 @@ namespace WallstopStudios.DxAudio
                     float low = _integratorTwo[channel] + (a2 * _integratorOne[channel]) + (a3 * v3);
                     _integratorOne[channel] = (2f * band) - _integratorOne[channel];
                     _integratorTwo[channel] = (2f * low) - _integratorTwo[channel];
-                    buffer[index] = Shape(mode, input, band, low, k, peakGain);
+                    buffer[index] = Shape(mode, input, band, low, damping, peakGain);
                 }
             }
 
@@ -208,21 +214,24 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        private static float Shape(DspFilterMode mode, float input, float band, float low, float k, float peakGain)
+        private static float Shape(DspFilterMode mode, float input, float band, float low, float damping, float peakGain)
         {
             switch (mode)
             {
                 case DspFilterMode.LowPass:
                     return low;
                 case DspFilterMode.HighPass:
-                    return input - (k * band) - low;
+                    return input - (damping * band) - low;
                 case DspFilterMode.BandPass:
                     // The band output of this core peaks at the quality; the damping turns that into unity.
-                    return k * band;
+                    return damping * band;
                 case DspFilterMode.Notch:
-                    return input - (k * band);
+                    return input - (damping * band);
                 case DspFilterMode.Peak:
-                    return input + ((peakGain - 1f) * k * band);
+                case DspFilterMode.Bell:
+                    // Both mix the band under the dry signal; a bell moves the damping with the gain, so the skirts
+                    // mirror. At the corner the band reads 1 / damping, which leaves exactly the gain for either mode.
+                    return input + ((peakGain - 1f) * damping * band);
                 default:
                     // An unset mode passes the block through rather than guessing a band the author did not ask for.
                     return input;
