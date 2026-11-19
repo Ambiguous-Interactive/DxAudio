@@ -21,6 +21,38 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(fit.RmsErrorDecibels, Is.EqualTo(0f));
         }
 
+        [Test]
+        public void LowerPreviewRatesKeepTheDrawingAtItsOriginalFrequencies()
+        {
+            float[] drawing = new float[DspEqCurveFit.SampleCount];
+            drawing[drawing.Length - 1] = 12f;
+
+            DspEqCurveFit.Result lowerRate = DspEqCurveFit.FitDrawing(drawing, 32_000, 1);
+            DspEqCurveFit.Result fullRange = DspEqCurveFit.FitDrawing(drawing, 48_000, 1);
+
+            Assert.That(lowerRate.Bands, Is.Empty);
+            Assert.That(lowerRate.MaximumErrorDecibels, Is.EqualTo(0f));
+            Assert.That(fullRange.Bands, Has.Length.EqualTo(1));
+        }
+
+        [Test]
+        public void LowerPreviewRatesMeasureErrorAgainstTheVisibleDrawing()
+        {
+            float[] drawing = new float[DspEqCurveFit.SampleCount];
+            for (int index = 0; index < drawing.Length; ++index)
+            {
+                drawing[index] = 12f * index / (drawing.Length - 1);
+            }
+
+            DspEqCurveFit.Result fit = DspEqCurveFit.FitDrawing(drawing, 32_000, 3);
+            double visibleFraction = Math.Log(15_680d / 20d, 20_000d / 20d);
+            (float maximum, float rms, _) = MeasureCurveError(drawing, fit.PreviewDecibels, visibleFraction);
+
+            Assert.That(fit.Bands, Is.Not.Empty);
+            Assert.That(fit.RmsErrorDecibels, Is.EqualTo(rms).Within(0.0001f));
+            Assert.That(fit.MaximumErrorDecibels, Is.GreaterThanOrEqualTo(maximum - 0.0001f));
+        }
+
         [TestCase(44_100, 1_000f, 0.8f, 9f)]
         [TestCase(48_000, 12_000f, 8f, -12f)]
         public void OneBellRecoversAKnownShapeAtTheSelectedRate(int sampleRate, float frequency, float quality, float gain)
@@ -178,14 +210,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             return chain;
         }
 
-        private static (float, float, int) MeasureCurveError(float[] reference, float[] response)
+        private static (float, float, int) MeasureCurveError(float[] reference, float[] response, double width = 1d)
         {
             double squaredError = 0d;
             double maximum = 0d;
             int maximumIndex = 0;
             for (int index = 0; index < response.Length; ++index)
             {
-                double position = index * (reference.Length - 1d) / (response.Length - 1d);
+                double position = index * width * (reference.Length - 1d) / (response.Length - 1d);
                 int left = (int)position;
                 int right = Math.Min(left + 1, reference.Length - 1);
                 double expected = reference[left] + ((position - left) * (reference[right] - reference[left]));

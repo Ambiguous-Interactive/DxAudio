@@ -125,8 +125,9 @@ To fit a drawn response, select a **DSP Chain** asset and open **Drawn EQ** in t
    use the one that meets your target.
 3. Select **Save new EQ chain**. The new asset contains its Bell stages as sub-assets. The drawing is temporary.
 
-The preview rate changes the filter response near the upper end of the plot. Match it to the game's output rate.
-The fitter measures the result on 2,049 log-spaced points and also checks the Bell centers for the maximum error.
+The Inspector starts at Unity's reported output rate when it is available. The drawing always spans 20 Hz to 20 kHz.
+At lower rates, the shaded part of the plot lies above the fit range. Both curves keep their frequency positions.
+The fitter measures the covered range on 2,049 log-spaced points. It also checks the Bell centers for the maximum error.
 For sharp targets, inspect the fitted curve between draw points. A large difference there can also raise the output peak.
 
 You can also create one **Filter** asset per band and set its mode to **Bell**. Put the filters in a **Chain** so the signal passes
@@ -163,13 +164,17 @@ to 0.641 and 0.624. Check each sound's peak to choose its trim.
 
 ### Drawn EQ fit error
 
-The table shows maximum sampled error / RMS error in dB over 20 Hz to 20 kHz in Unity 6000.6.7f1.
+The table shows maximum sampled error / RMS error in dB in Unity 6000.6.7f1. The fit covers 20 Hz to 20 kHz,
+except at 32 kHz, where it ends at 15.68 kHz.
 The **Flat** target used zero stages with 0 dB error at every rate and band limit.
 
 | Target             | Preview rate (kHz) | 1 band        | 3 bands       | 7 bands       | 11 bands      |
 | ------------------ | ------------------ | ------------- | ------------- | ------------- | ------------- |
+| Broad low shelf    | 32                 | 1.204 / 0.501 | 0.513 / 0.093 | 0.041 / 0.008 | 0.009 / 0.003 |
 | Broad low shelf    | 44.1               | 1.197 / 0.492 | 0.534 / 0.095 | 0.042 / 0.008 | 0.023 / 0.003 |
+| Narrow notch       | 32                 | 1.820 / 0.272 | 0.904 / 0.113 | 0.494 / 0.044 | 0.267 / 0.021 |
 | Narrow notch       | 44.1               | 1.934 / 0.270 | 1.341 / 0.121 | 0.823 / 0.047 | 0.713 / 0.038 |
+| Overlapping boosts | 32                 | 1.340 / 0.561 | 0.439 / 0.167 | 0.097 / 0.028 | 0.024 / 0.008 |
 | Overlapping boosts | 44.1               | 1.342 / 0.553 | 0.464 / 0.167 | 0.091 / 0.025 | 0.020 / 0.007 |
 | Broad low shelf    | 48                 | 1.197 / 0.492 | 0.534 / 0.095 | 0.042 / 0.008 | 0.020 / 0.003 |
 | Narrow notch       | 48                 | 2.084 / 0.272 | 1.317 / 0.119 | 0.761 / 0.041 | 0.687 / 0.036 |
@@ -178,7 +183,7 @@ The **Flat** target used zero stages with 0 dB error at every rate and band limi
 | Narrow notch       | 96                 | 2.059 / 0.272 | 1.347 / 0.121 | 0.848 / 0.047 | 0.709 / 0.038 |
 | Overlapping boosts | 96                 | 1.335 / 0.555 | 0.462 / 0.171 | 0.069 / 0.023 | 0.020 / 0.007 |
 
-The narrow notch retained about 0.7 dB of peak error even at 11 bands. Its target changes sharply between points.
+The narrow notch retained up to 0.71 dB of peak error even at 11 bands. Its target changes sharply between points.
 
 ### Drawn EQ in a standalone player
 

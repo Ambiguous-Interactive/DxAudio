@@ -22,8 +22,14 @@ namespace WallstopStudios.DxAudio.Editor
 
         internal DspEqCurveAuthoring()
         {
-            List<int> rates = new() { 44_100, 48_000, 96_000 };
+            List<int> rates = new() { 32_000, 44_100, 48_000, 96_000 };
             int outputRate = AudioSettings.outputSampleRate;
+            if (DspEqCurveFit.MinimumFrequencyHz < DspEqCurveFit.GetMaximumFrequencyHz(outputRate) && !rates.Contains(outputRate))
+            {
+                rates.Add(outputRate);
+                rates.Sort();
+            }
+
             _sampleRate = rates.Contains(outputRate) ? outputRate : DefaultSampleRate;
             PopupField<int> rate = new("Preview rate", rates, defaultValue: _sampleRate, FormatRate, FormatRate);
             rate.RegisterValueChangedCallback(evt =>
@@ -70,7 +76,7 @@ namespace WallstopStudios.DxAudio.Editor
             exampleRow.Add(
                 new Button(() =>
                 {
-                    _target = CreateTarget(Array.IndexOf(Presets, preset.value), _sampleRate);
+                    _target = CreateTarget(Array.IndexOf(Presets, preset.value), DefaultSampleRate);
                     InvalidateFit();
                 })
                 {
@@ -206,7 +212,7 @@ namespace WallstopStudios.DxAudio.Editor
 
         private static string FormatRate(int rate)
         {
-            return $"{rate / 1_000f:0.#} kHz";
+            return $"{rate / 1_000f:0.###} kHz";
         }
 
         private static string FormatBandLimit(int limit)
@@ -220,16 +226,29 @@ namespace WallstopStudios.DxAudio.Editor
             _plot.Show(_target, null, _sampleRate);
             _fitButton.SetEnabled(0 < _bandLimit);
             _saveButton.SetEnabled(false);
-            _status.text = string.Empty;
+            UpdateStatus();
         }
 
         private void Fit()
         {
-            _fit = DspEqCurveFit.Fit(_target, _sampleRate, _bandLimit);
+            _fit = DspEqCurveFit.FitDrawing(_target, _sampleRate, _bandLimit);
             _plot.Show(_target, _fit.PreviewDecibels, _sampleRate);
             _saveButton.SetEnabled(true);
+            UpdateStatus();
+        }
+
+        private void UpdateStatus()
+        {
+            float maximum = DspEqCurveFit.GetMaximumFrequencyHz(_sampleRate);
+            string coverage = maximum < DspFilter.MaximumFrequencyHz ? $"Fit covers 20 Hz to {maximum / 1_000f:0.###} kHz. " : string.Empty;
+            if (_fit == null)
+            {
+                _status.text = coverage.TrimEnd();
+                return;
+            }
+
             string stageLabel = _fit.Bands.Length == 1 ? "band" : "bands";
-            _status.text = $"{_fit.Bands.Length} {stageLabel} | RMS error {_fit.RmsErrorDecibels:0.00} dB | Sampled max error {_fit.MaximumErrorDecibels:0.00} dB";
+            _status.text = $"{coverage}{_fit.Bands.Length} {stageLabel} | RMS error {_fit.RmsErrorDecibels:0.00} dB | Sampled max error {_fit.MaximumErrorDecibels:0.00} dB";
         }
 
         private void Save()

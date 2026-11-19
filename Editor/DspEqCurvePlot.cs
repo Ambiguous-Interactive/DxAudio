@@ -16,7 +16,7 @@ namespace WallstopStudios.DxAudio.Editor
         private readonly Vector3[] _fitLine = new Vector3[DspEqCurveFit.PreviewSampleCount];
         private float[] _target;
         private float[] _fit;
-        private int _sampleRate;
+        private float _fitWidth;
         private int _previousIndex;
         private float _previousDecibels;
         private float _plotLimitDecibels = TargetLimitDecibels;
@@ -35,7 +35,7 @@ namespace WallstopStudios.DxAudio.Editor
         {
             _target = target;
             _fit = fit;
-            _sampleRate = sampleRate;
+            _fitWidth = DspEqCurveFit.GetFitWidth(sampleRate);
             _plotLimitDecibels = TargetLimitDecibels;
             if (fit != null)
             {
@@ -84,7 +84,8 @@ namespace WallstopStudios.DxAudio.Editor
                     DrawCurve(plot, _target, _targetLine, limit, TargetColor, 3.5f);
                     if (_fit != null)
                     {
-                        DrawCurve(plot, _fit, _fitLine, limit, FitColor, 1.5f);
+                        Rect fitted = new(plot.xMin, plot.yMin, plot.width * _fitWidth, plot.height);
+                        DrawCurve(fitted, _fit, _fitLine, limit, FitColor, 1.5f);
                     }
 
                     break;
@@ -118,6 +119,12 @@ namespace WallstopStudios.DxAudio.Editor
         {
             bool dark = EditorGUIUtility.isProSkin;
             EditorGUI.DrawRect(plot, dark ? new Color(0.14f, 0.14f, 0.14f) : new Color(0.91f, 0.91f, 0.91f));
+            if (_fitWidth < 1f)
+            {
+                float boundary = plot.xMin + (plot.width * _fitWidth);
+                EditorGUI.DrawRect(new Rect(boundary, plot.yMin, plot.xMax - boundary, plot.height), dark ? new Color(0.22f, 0.22f, 0.22f) : new Color(0.78f, 0.78f, 0.78f));
+            }
+
             Color grid = dark ? new Color(1f, 1f, 1f, 0.16f) : new Color(0f, 0f, 0f, 0.20f);
             for (int row = 0; row <= 4; ++row)
             {
@@ -128,13 +135,13 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             float minimum = DspEqCurveFit.MinimumFrequencyHz;
-            float maximum = DspEqCurveFit.GetMaximumFrequencyHz(_sampleRate);
+            const float Maximum = DspFilter.MaximumFrequencyHz;
             float previousLabel = plot.xMin - 45f;
             foreach (float frequency in TickFrequencies)
             {
-                float x = Mathf.Lerp(plot.xMin, plot.xMax, Mathf.Log(frequency / minimum) / Mathf.Log(maximum / minimum));
+                float x = Mathf.Lerp(plot.xMin, plot.xMax, Mathf.Log(frequency / minimum) / Mathf.Log(Maximum / minimum));
                 EditorGUI.DrawRect(new Rect(x, plot.yMin, 1f, plot.height), grid);
-                if (frequency < maximum && (x - previousLabel < 45f || (minimum < frequency && plot.xMax - x < 45f)))
+                if (frequency < Maximum && (x - previousLabel < 45f || (minimum < frequency && plot.xMax - x < 45f)))
                 {
                     continue;
                 }

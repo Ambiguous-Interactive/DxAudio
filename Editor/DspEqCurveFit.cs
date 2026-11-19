@@ -59,13 +59,29 @@ namespace WallstopStudios.DxAudio.Editor
             return Math.Min(DspFilter.MaximumFrequencyHz, 0.49f * sampleRate);
         }
 
+        internal static float GetFitWidth(int sampleRate)
+        {
+            double fullSpan = DspFilter.MaximumFrequencyHz / (double)MinimumFrequencyHz;
+            return (float)Math.Log(GetMaximumFrequencyHz(sampleRate) / (double)MinimumFrequencyHz, fullSpan);
+        }
+
         internal static float FrequencyAt(int index, int sampleRate)
         {
             double span = GetMaximumFrequencyHz(sampleRate) / (double)MinimumFrequencyHz;
             return (float)(MinimumFrequencyHz * Math.Pow(span, index / (SampleCount - 1d)));
         }
 
+        internal static Result FitDrawing(IReadOnlyList<float> drawing, int sampleRate, int bandCount)
+        {
+            return FitTarget(drawing, sampleRate, bandCount, true);
+        }
+
         internal static Result Fit(IReadOnlyList<float> targetDecibels, int sampleRate, int bandCount)
+        {
+            return FitTarget(targetDecibels, sampleRate, bandCount, false);
+        }
+
+        private static Result FitTarget(IReadOnlyList<float> targetDecibels, int sampleRate, int bandCount, bool useFullDrawing)
         {
             if (targetDecibels == null || targetDecibels.Count != SampleCount)
             {
@@ -85,19 +101,20 @@ namespace WallstopStudios.DxAudio.Editor
             float[] frequencies = new float[SampleCount];
             double[] warped = new double[SampleCount];
             double[] residual = new double[SampleCount];
+            double drawingWidth = useFullDrawing ? GetFitWidth(sampleRate) : 1d;
             double squaredError = 0d;
             for (int index = 0; index < SampleCount; index++)
             {
-                float target = targetDecibels[index];
-                if (!AudioMath.IsFinite(target))
+                if (!AudioMath.IsFinite(targetDecibels[index]))
                 {
                     throw new ArgumentException("Target samples must be finite.", nameof(targetDecibels));
                 }
 
+                double target = InterpolateTarget(targetDecibels, index * drawingWidth);
                 frequencies[index] = FrequencyAt(index, sampleRate);
                 warped[index] = Warp(frequencies[index], sampleRate);
                 residual[index] = target;
-                squaredError += (double)target * target;
+                squaredError += target * target;
             }
 
             List<Band> bands = new List<Band>(bandCount);
@@ -114,10 +131,10 @@ namespace WallstopStudios.DxAudio.Editor
                 squaredError = RefineBands(bands, warped, residual, sampleRate, candidateError);
             }
 
-            return MeasureFit(targetDecibels, bands.ToArray(), sampleRate);
+            return MeasureFit(targetDecibels, bands.ToArray(), sampleRate, drawingWidth);
         }
 
-        private static Result MeasureFit(IReadOnlyList<float> targetDecibels, Band[] bands, int sampleRate)
+        private static Result MeasureFit(IReadOnlyList<float> targetDecibels, Band[] bands, int sampleRate, double drawingWidth)
         {
             float[] response = new float[SampleCount];
             float[] preview = new float[PreviewSampleCount];
@@ -133,7 +150,7 @@ namespace WallstopStudios.DxAudio.Editor
                     response[index / PreviewSubdivisions] = preview[index];
                 }
 
-                double error = InterpolateTarget(targetDecibels, index / (double)PreviewSubdivisions) - preview[index];
+                double error = InterpolateTarget(targetDecibels, index * drawingWidth / PreviewSubdivisions) - preview[index];
                 maximumError = Math.Max(maximumError, Math.Abs(error));
                 squaredError += error * error;
             }
@@ -146,7 +163,7 @@ namespace WallstopStudios.DxAudio.Editor
                     continue;
                 }
 
-                double position = (SampleCount - 1) * Math.Log(band.FrequencyHz / (double)MinimumFrequencyHz, span);
+                double position = (SampleCount - 1) * drawingWidth * Math.Log(band.FrequencyHz / (double)MinimumFrequencyHz, span);
                 double error = InterpolateTarget(targetDecibels, position) - MeasureResponse(bands, band.FrequencyHz, sampleRate);
                 maximumError = Math.Max(maximumError, Math.Abs(error));
             }
