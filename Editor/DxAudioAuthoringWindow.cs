@@ -433,7 +433,7 @@
             AddEndpoint("Output", _graph.OutputNode, uniqueNames, false);
             if (0 <= _selectedNode && _selectedNode < _graph.NodeCount)
             {
-                BuildNodeDetails(_selectedNode);
+                BuildNodeDetails(_selectedNode, uniqueNames);
             }
 
             if (0 <= _selectedEdge && _selectedEdge < _graph.EdgeCount)
@@ -505,7 +505,7 @@
             return string.IsNullOrEmpty(name) ? "Unassigned" : name;
         }
 
-        private void BuildNodeDetails(int index)
+        private void BuildNodeDetails(int index, List<string> names)
         {
             DspGraphNode node = _graph.Nodes[index];
             if (node == null)
@@ -538,6 +538,43 @@
                 }
             });
             _details.Add(chain);
+
+            if (_edits.Resolve(node.Name) == index)
+            {
+                PopupField<string> destination = new("Connect To", names, 0, DisplayNodeName, DisplayNodeName);
+                _details.Add(destination);
+                Button connect = new(() =>
+                {
+                    if (!_edits.TryConnect(index, _edits.Resolve(destination.value), out string error))
+                    {
+                        Report(error);
+                    }
+                })
+                {
+                    text = "Connect",
+                };
+                connect.SetEnabled(false);
+                destination.RegisterValueChangedCallback(_ => connect.SetEnabled(0 < destination.index));
+                _details.Add(connect);
+            }
+
+            _details.Add(
+                new Button(() =>
+                {
+                    if (_edits.TryDelete(new[] { index }, Array.Empty<int>(), out string error))
+                    {
+                        _canvas.SelectNode(-1);
+                    }
+                    else
+                    {
+                        Report(error);
+                    }
+                })
+                {
+                    text = "Remove Node",
+                }
+            );
+
             if (node.Chain != null)
             {
                 _details.Add(new Button(() => SetTarget(node.Chain)) { text = "Open Chain" });
