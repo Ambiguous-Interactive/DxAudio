@@ -282,15 +282,7 @@ The warm cost is why a project should share a handful of chain assets rather tha
 one prepared chain per voice per asset per shape. Building on first play instead would put an allocation on the play
 path, which is the invariant this package keeps.
 
-## Open questions
-
-Mixer-group routing was measured against per-source writes for ducking and does not replace composing in package code;
-see [product-decisions](./product-decisions.md#ducks-compose-in-package-code). A sum over several sources is the mix bus
-below; separate group buses are still open.
-
 ## DSP mix bus
 
-`AudioMixBus` runs a chain on the object that carries the `AudioListener`, which Unity hands the sum of every source.
-It is the one stage that holds a ceiling over several voices, it shapes the whole scene rather than one player, and it
-costs one pass per block instead of one per voice. Group buses stay with `AudioMixer` groups. Authoring rules, the
-measured ceiling, the delay and the allocation probe are in [dsp-mix-bus](./dsp-mix-bus.md).
+For a scene-wide chain and ceiling, attach `AudioMixBus` to an `AudioListener` object without an `AudioSource`. Use Unity effects on Music and SFX mixer groups and keep composed ducks on each music voice. See the
+[managed cost comparison and routing limits](./dsp-mix-bus.md#category-mixer-groups).

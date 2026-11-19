@@ -112,9 +112,22 @@ alternatives were rejected: a graph with several inputs needs a cross-voice buff
 source that stops mid-block, to reach the same result; an `AudioMixer` master group needs an editor-side asset and moves
 the behavior out of the engine-free suite.
 
-**Reopen if:** a game needs several independent group buses (Master, Music, SFX) with their own effect chains. One mix
-bus shapes one sum, not a routing tree. `AudioMixer` groups, through the libraries' `MixerGroup` fields and the cue
-override, already route a voice without a package dependency.
+## Use Unity mixer effects on group sums
+
+**Decision:** author category effects on Unity's Music and SFX mixer groups. Keep a listener chain for the scene-wide
+sum. DxAudio does not provide a managed insert on those groups. This resolves
+[#76](https://github.com/Ambiguous-Interactive/DxAudio/issues/76).
+
+**Reason:** Unity owns the group sums and exposes a native plug-in interface for custom group DSP. A second
+`AudioMixBus` has no group input. A managed routing tree would need to mix and schedule voices itself or buffer
+intercepted audio. It would also need to preserve spatial output, streaming, and voice timing.
+
+**Evidence:** in Unity EditMode, one prepared DxAudio limiter took 242 us per pre-summed stereo block. The same
+limiter took 1,941 us across eight per-voice blocks. This measures the cost of the managed stages. See the
+[method, scope, and authoring steps](./dsp-mix-bus.md#category-mixer-groups).
+
+**Reopen if:** a game needs a specific DxAudio effect on a group sum and can validate an insertion path in a player.
+Test group isolation, downstream master processing, latency, and streaming before adopting that path.
 
 ## Mute preserves state
 
