@@ -149,6 +149,15 @@ another. Every bus effect, a limiter and a distortion included, therefore acts o
 each fit under a ceiling can still sum above it, so a bus is a shared shaping stage and not an output limiter. The
 chain, cue and track inspectors show each stage with its live gain reduction while audio plays.
 
+To hold a ceiling over the sum, put an **Audio Mix Bus** on the object that carries the `AudioListener` and give it a
+chain. Unity hands that object the mix of every source, so a limiter there holds two voices that each pass on their own,
+and it runs once per block rather than once per voice. It adds no buffering of its own: `LatencySamples` reports only the
+lookahead or window its chain asks for.
+
+```csharp
+_listenerObject.AddComponent<AudioMixBus>().Chain = masterChain;
+```
+
 ## Music
 
 1. Create tracks with **Create > DxAudio > Music Track** and give each a context, such as `title` or `level-1`.

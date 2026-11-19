@@ -35,7 +35,25 @@ _music.BusChain = musicBus;
 
 Unity gives a script no way to sum one source into another, so the bus runs once per voice rather than on the mixed
 output. Every bus effect, a limiter and a distortion included, acts on one voice at a time: two voices that each fit
-under a ceiling can still sum above it. A bus is a shared shaping stage, not an output limiter.
+under a ceiling can still sum above it. A bus is a shared shaping stage, not an output limiter. Use a mix bus for that.
+
+## A mix bus
+
+Unity sums every source before it calls an audio filter on the object that carries the `AudioListener`. An **Audio Mix
+Bus** on that object therefore shapes the whole mix, including sources this package does not play:
+
+```csharp
+_listenerObject.AddComponent<AudioMixBus>().Chain = masterChain;
+```
+
+- A limiter here holds a ceiling over the sum. Two voices that each leave their own bus at -6 dB leave this one at
+  -6 dB as well, instead of summing above it.
+- It runs once per block, not once per voice, so its cost does not grow with the pool.
+- It adds no buffer of its own. `LatencySamples` reports only what its chain asks for: a limiter's lookahead, a pitch
+  shifter's half window.
+- The component belongs on the listener's object. Anywhere else it receives no audio, and its inspector says so.
+- It shapes one sum, not a routing tree. Separate Master, Music and SFX groups with their own effects stay with
+  `AudioMixer` groups through the libraries' **Mixer Group** fields.
 
 ## What a voice keeps
 

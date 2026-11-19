@@ -252,7 +252,7 @@ one host on each pooled voice; `MusicPlayer` does the same for its three voices.
   first build off the play.
 - The bus runs inside each voice after the voice's own chain. Unity gives a script no way to sum one source into
   another, so every bus effect acts on one voice at a time: two voices that each fit under a ceiling can still sum
-  above it, which makes a bus a shared shaping stage rather than an output limiter.
+  above it, which makes a bus a shared shaping stage rather than an output limiter. The sum is the mix bus's job.
 - `Chain`'s setter asks for a clear, and `ProcessBuffer` applies it at the next block boundary before the stages run.
   The clear covers every block shape the asset prepared, because a play can begin at one width and continue at another.
   Resetting the effects on the main thread would race the block the audio thread is inside. The request is a generation
@@ -279,4 +279,12 @@ path, which is the invariant this package keeps.
 ## Open questions
 
 Mixer-group routing was measured against per-source writes for ducking and does not replace composing in package code;
-see [product-decisions](./product-decisions.md#ducks-compose-in-package-code).
+see [product-decisions](./product-decisions.md#ducks-compose-in-package-code). A sum over several sources is the mix bus
+below; separate group buses are still open.
+
+## DSP mix bus
+
+`AudioMixBus` runs a chain on the object that carries the `AudioListener`, which Unity hands the sum of every source.
+It is the one stage that holds a ceiling over several voices, it shapes the whole scene rather than one player, and it
+costs one pass per block instead of one per voice. Group buses stay with `AudioMixer` groups. Authoring rules, the
+measured ceiling, the delay and the allocation probe are in [dsp-mix-bus](./dsp-mix-bus.md).
