@@ -18,6 +18,7 @@ namespace WallstopStudios.DxAudio.Editor
         private const int HighFrequencyFitStart = HighFrequencyStart * FitSubdivisions;
         private const int FitSampleCount = HighFrequencyFitStart + (HighFrequencyIntervals * PreviewSubdivisions) + 1;
         private const double MinimumSquaredImprovement = 1e-8;
+        private const double MaximumEdgeWeight = 8d;
         private static readonly float[] Qualities = { 0.1f, 0.2f, 0.4f, 0.8f, 1.6f, 3.2f, 6.4f, 12.8f, DspFilter.MaximumQuality };
 
         internal readonly struct Band
@@ -107,19 +108,35 @@ namespace WallstopStudios.DxAudio.Editor
             double[] shape = new double[FitSampleCount];
             double[] weights = new double[FitSampleCount];
             double drawingWidth = GetFitWidth(sampleRate);
-            double span = GetMaximumFrequencyHz(sampleRate) / (double)MinimumFrequencyHz;
+            float maximumFrequencyHz = GetMaximumFrequencyHz(sampleRate);
+            double span = maximumFrequencyHz / (double)MinimumFrequencyHz;
+            double edge = (SampleCount - 1) * drawingWidth;
+            double edgeStart = Math.Max(0d, edge - 1d);
+            double edgeWeight = 0d;
+            // Beyond the last legal Bell center, a steep edge needs several bands. Emphasize that interval in the score.
+            if (1 < bandCount && GetMaximumCenterHz(sampleRate) < maximumFrequencyHz)
+            {
+                double startGain = InterpolateTarget(drawing, edgeStart);
+                double cornerGain = drawing[(int)edge];
+                double endGain = InterpolateTarget(drawing, edge);
+                double variation = Math.Abs(cornerGain - startGain) + Math.Abs(endGain - cornerGain);
+                edgeWeight = MaximumEdgeWeight * Math.Min(1d, variation / DspFilter.MaximumPeakDecibels);
+            }
+
             double squaredError = 0d;
             // Near Nyquist, a Bell occupies fewer log-frequency samples. Use more points in the top range.
             for (int index = 0; index < FitSampleCount; index++)
             {
                 double position = FitPositionAt(index);
+                double drawingPosition = position * drawingWidth;
                 frequencies[index] = (float)(MinimumFrequencyHz * Math.Pow(span, position / (SampleCount - 1d)));
                 warped[index] = Warp(frequencies[index], sampleRate);
-                residual[index] = InterpolateTarget(drawing, position * drawingWidth);
+                residual[index] = InterpolateTarget(drawing, drawingPosition);
                 // Weight each sample by the log-frequency interval it represents.
                 int left = Math.Max(0, index - 1);
                 int right = Math.Min(index + 1, FitSampleCount - 1);
-                weights[index] = (FitPositionAt(right) - FitPositionAt(left)) * 0.5d;
+                double edgeProgress = Math.Max(0d, drawingPosition - edgeStart);
+                weights[index] = (FitPositionAt(right) - FitPositionAt(left)) * 0.5d * (1d + (edgeWeight * edgeProgress));
                 squaredError += weights[index] * residual[index] * residual[index];
             }
 
