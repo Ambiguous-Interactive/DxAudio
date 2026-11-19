@@ -22,7 +22,7 @@ namespace WallstopStudios.DxAudio
 
         [Range(DspFilter.MinimumPeakDecibels, DspFilter.MaximumPeakDecibels)]
         [SerializeField]
-        [Tooltip("How far the Peak mode lifts its band, in decibels. Every other mode ignores it.")]
+        [Tooltip("How far the Peak or Bell mode moves its band, in decibels. Every other mode ignores it.")]
         private float _peakDecibels;
 
         /// <summary>The band this stage shapes.</summary>
@@ -34,7 +34,7 @@ namespace WallstopStudios.DxAudio
         /// <summary>How narrow the band is.</summary>
         public float Quality => _quality;
 
-        /// <summary>How far the Peak mode lifts its band, in decibels.</summary>
+        /// <summary>How far the Peak or Bell mode moves its band, in decibels.</summary>
         public float PeakDecibels => _peakDecibels;
 
         /// <summary>Builds a filter asset in code, for tests and for games that author audio at runtime.</summary>
@@ -58,7 +58,7 @@ namespace WallstopStudios.DxAudio
         public override string Describe()
         {
             string corner = $"{DescribeMode(_mode)} {_frequencyHz:0.#} Hz, Q {_quality:0.##}";
-            return _mode == DspFilterMode.Peak ? $"{corner}, {_peakDecibels:+0.#;-0.#;0} dB" : corner;
+            return _mode == DspFilterMode.Peak || _mode == DspFilterMode.Bell ? $"{corner}, {_peakDecibels:+0.#;-0.#;0} dB" : corner;
         }
 
         public override DspEffect CreateEffect()
@@ -86,6 +86,8 @@ namespace WallstopStudios.DxAudio
                     return "notch";
                 case DspFilterMode.Peak:
                     return "peak";
+                case DspFilterMode.Bell:
+                    return "bell";
                 default:
                     return "unset";
             }
