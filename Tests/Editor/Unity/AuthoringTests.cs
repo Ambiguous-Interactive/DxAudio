@@ -314,12 +314,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 matchedEditor = UnityEditor.Editor.CreateEditor(matched, typeof(MusicTrackEditor));
                 VisualElement view = mismatchEditor.CreateInspectorGUI();
                 VisualElement settled = matchedEditor.CreateInspectorGUI();
-                Button apply = view.Q<Button>();
+                Button apply = view.Q<Button>("DxAudioApplyClipImport");
 
                 Assert.That(view.Q<Label>("DxAudioClipImportStatus").text, Does.Contain("the track asks for Streaming"));
                 Assert.That(apply != null, Is.True);
                 Assert.That(apply.text, Does.Contain("Streaming"));
-                Assert.That(settled.Q<Button>() == null, Is.True, "a clip that follows its track needs no write");
+                Assert.That(settled.Q<Button>("DxAudioApplyClipImport") == null, Is.True, "a clip that follows its track needs no write");
             }
             finally
             {

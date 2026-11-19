@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
     using UnityEngine;
@@ -20,6 +20,18 @@ namespace WallstopStudios.DxAudio
         [SerializeField]
         [Tooltip("The chain this node runs. Empty makes it a junction that passes its input on untouched.")]
         private DspChainAsset _chain;
+
+#if UNITY_EDITOR
+        [SerializeField, HideInInspector]
+        private bool _hasEditorPosition = false;
+
+        [SerializeField, HideInInspector]
+        private Vector2 _editorPosition = Vector2.zero;
+
+        internal bool HasEditorPosition => _hasEditorPosition;
+
+        internal Vector2 EditorPosition => _editorPosition;
+#endif
 
         public DspGraphNode()
         {

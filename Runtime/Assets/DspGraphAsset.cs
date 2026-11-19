@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
     using System.Collections.Generic;
@@ -145,20 +145,38 @@ namespace WallstopStudios.DxAudio
         public IReadOnlyList<string> FindProblems()
         {
             List<string> problems = new();
+            CollectProblems(
+                (_, _, message) =>
+                {
+                    problems.Add(message);
+                }
+            );
+            return problems;
+        }
+
+        internal DspGraph CollectProblems(Action<int, int, string> report)
+        {
+            bool found = false;
+            void Add(int node, int edge, string message)
+            {
+                found = true;
+                report(node, edge, message);
+            }
+
             if (_nodes.Count == 0)
             {
-                problems.Add("The graph holds no nodes, so it cannot play.");
-                return problems;
+                Add(-1, -1, "The graph holds no nodes, so it cannot play.");
+                return null;
             }
 
             if (DspGraph.MaximumNodes < _nodes.Count)
             {
-                problems.Add($"The graph holds {_nodes.Count} nodes, but a graph plays at most {DspGraph.MaximumNodes}.");
+                Add(-1, -1, $"The graph holds {_nodes.Count} nodes, but a graph plays at most {DspGraph.MaximumNodes}.");
             }
 
             if (DspGraph.MaximumEdges < _edges.Count)
             {
-                problems.Add($"The graph holds {_edges.Count} edges, but a graph plays at most {DspGraph.MaximumEdges}.");
+                Add(-1, -1, $"The graph holds {_edges.Count} edges, but a graph plays at most {DspGraph.MaximumEdges}.");
             }
 
             for (int index = 0; index < _nodes.Count; index++)
@@ -166,30 +184,30 @@ namespace WallstopStudios.DxAudio
                 DspGraphNode node = _nodes[index];
                 if (node == null)
                 {
-                    problems.Add($"Node {index + 1} is empty.");
+                    Add(index, -1, $"Node {index + 1} is empty.");
                     continue;
                 }
 
                 if (string.IsNullOrWhiteSpace(node.Name))
                 {
-                    problems.Add($"Node {index + 1} has no name, so no edge can reach it.");
+                    Add(index, -1, $"Node {index + 1} has no name, so no edge can reach it.");
                     continue;
                 }
 
                 if (HasEarlierNodeNamed(index, node.Name))
                 {
-                    problems.Add($"More than one node is named \"{node.Name}\", so an edge to it is ambiguous.");
+                    Add(index, -1, $"More than one node is named \"{node.Name}\", so an edge to it is ambiguous.");
                 }
             }
 
             if (IndexOfNode(_inputNode) < 0)
             {
-                problems.Add(string.IsNullOrWhiteSpace(_inputNode) ? "The graph has no input node." : $"The input node \"{_inputNode}\" is no node in this graph.");
+                Add(-1, -1, string.IsNullOrWhiteSpace(_inputNode) ? "The graph has no input node." : $"The input node \"{_inputNode}\" is no node in this graph.");
             }
 
             if (IndexOfNode(_outputNode) < 0)
             {
-                problems.Add(string.IsNullOrWhiteSpace(_outputNode) ? "The graph has no output node." : $"The output node \"{_outputNode}\" is no node in this graph.");
+                Add(-1, -1, string.IsNullOrWhiteSpace(_outputNode) ? "The graph has no output node." : $"The output node \"{_outputNode}\" is no node in this graph.");
             }
 
             for (int index = 0; index < _edges.Count; index++)
@@ -197,7 +215,7 @@ namespace WallstopStudios.DxAudio
                 DspGraphEdge edge = _edges[index];
                 if (edge == null)
                 {
-                    problems.Add($"Edge {index + 1} is empty.");
+                    Add(-1, index, $"Edge {index + 1} is empty.");
                     continue;
                 }
 
@@ -205,36 +223,31 @@ namespace WallstopStudios.DxAudio
                 int to = IndexOfNode(edge.To);
                 if (from < 0)
                 {
-                    problems.Add($"An edge names \"{edge.From}\", which is no node in this graph.");
+                    Add(-1, index, $"An edge names \"{edge.From}\", which is no node in this graph.");
                 }
 
                 if (to < 0)
                 {
-                    problems.Add($"An edge names \"{edge.To}\", which is no node in this graph.");
+                    Add(-1, index, $"An edge names \"{edge.To}\", which is no node in this graph.");
                 }
 
                 if (0 <= from && from == to)
                 {
-                    problems.Add($"An edge joins \"{edge.From}\" to itself.");
+                    Add(-1, index, $"An edge joins \"{edge.From}\" to itself.");
                 }
             }
 
-            if (problems.Count == 0)
+            if (!found)
             {
-                AddCycleProblems(problems);
+                AddCycleProblems(Add);
             }
 
-            if (problems.Count == 0)
+            if (!found)
             {
-                AddPathProblems(problems, IndexOfNode(_inputNode), IndexOfNode(_outputNode));
+                AddPathProblems(Add, IndexOfNode(_inputNode), IndexOfNode(_outputNode));
             }
 
-            if (problems.Count == 0)
-            {
-                AddPreparationProblems(problems);
-            }
-
-            return problems;
+            return found ? null : PrepareForFindings(Add);
         }
 
         /// <summary>Builds a graph asset in code, for tests and for games that author audio at runtime.</summary>
@@ -249,12 +262,12 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>Adds one problem per edge the graph refuses after its ends are known to exist.</summary>
-        private void AddCycleProblems(List<string> problems)
+        private void AddCycleProblems(Action<int, int, string> report)
         {
             DspGraph probe = new();
             for (int index = 0; index < _nodes.Count; index++)
             {
-                _ = probe.TryAddNode(_nodes[index].CreateChain(), out _);
+                _ = probe.TryAddNode(new DspChain(), out _);
             }
 
             for (int index = 0; index < _edges.Count; index++)
@@ -262,7 +275,7 @@ namespace WallstopStudios.DxAudio
                 DspGraphEdge edge = _edges[index];
                 if (!probe.TryAddEdge(IndexOfNode(edge.From), IndexOfNode(edge.To)))
                 {
-                    problems.Add($"The edge from \"{edge.From}\" to \"{edge.To}\" repeats an edge or closes a cycle.");
+                    report(-1, index, $"The edge from \"{edge.From}\" to \"{edge.To}\" repeats an edge or closes a cycle.");
                 }
             }
         }
@@ -272,7 +285,7 @@ namespace WallstopStudios.DxAudio
         /// The graph prepares only a layout where every node lies on the path, so an orphan node refuses the whole graph
         /// and the voice plays unshaped. This names the node, because the prepared graph does not.
         /// </remarks>
-        private void AddPathProblems(List<string> problems, int input, int output)
+        private void AddPathProblems(Action<int, int, string> report, int input, int output)
         {
             bool[] reached = new bool[_nodes.Count];
             bool[] reaches = new bool[_nodes.Count];
@@ -305,7 +318,7 @@ namespace WallstopStudios.DxAudio
             {
                 if (!reached[index] || !reaches[index])
                 {
-                    problems.Add($"The node \"{_nodes[index].Name}\" is off the path from the input to the output, so it would never run.");
+                    report(index, -1, $"The node \"{_nodes[index].Name}\" is off the path from the input to the output, so it would never run.");
                 }
             }
         }
@@ -318,21 +331,26 @@ namespace WallstopStudios.DxAudio
         /// some device would bypass. A game prepares the graph itself on each device, so a refusal here is a warning
         /// about one layout, not a verdict about every layout.
         /// </remarks>
-        private void AddPreparationProblems(List<string> problems)
+        private DspGraph PrepareForFindings(Action<int, int, string> report)
         {
             if (!TryCreateGraph(out DspGraph graph))
             {
-                problems.Add("The graph cannot be built.");
-                return;
+                report(-1, -1, "The graph cannot be built.");
+                return null;
             }
 
             if (!graph.TryPrepare(ReferenceSampleRate, ReferenceBlockFrames, ReferenceChannels, IndexOfNode(_inputNode), IndexOfNode(_outputNode)))
             {
-                problems.Add(
+                report(
+                    -1,
+                    -1,
                     $"The graph cannot be prepared at {ReferenceSampleRate} Hz for {ReferenceChannels} channels and "
                         + $"{ReferenceBlockFrames}-frame blocks: a chain refused the layout, or the graph is over its {DspGraph.MaximumPreparedBytes / (1024 * 1024)} MiB budget."
                 );
+                return null;
             }
+
+            return graph;
         }
 
         /// <summary>Whether a node before <paramref name="index" /> already holds <paramref name="name" />.</summary>

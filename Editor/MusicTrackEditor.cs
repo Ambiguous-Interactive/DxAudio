@@ -32,6 +32,7 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             MusicTrack track = (MusicTrack)target;
+            DxAudioAssetDetails.AddWorkspaceButton(root, track);
             VisualElement import = new VisualElement();
             root.Add(import);
             Rebuild(import, track);
@@ -60,8 +61,16 @@ namespace WallstopStudios.DxAudio.Editor
             DxAudioInspectorUi.RefreshWhilePlaying(rows, track.Chain);
             if (clip == null)
             {
+                container.Add(new HelpBox("Assign a clip to audition this track.", HelpBoxMessageType.Info));
                 return;
             }
+
+            VisualElement transport = DxAudioInspectorUi.AddSection(container, "Clip Preview");
+            transport.Add(new Label($"Starts at {track.StartTimeSeconds:0.###}s of {clip.length:0.###}s."));
+            VisualElement controls = DxAudioInspectorUi.Row();
+            controls.Add(new Button(() => SfxAudition.Play(track)) { text = "Audition Clip" });
+            controls.Add(new Button(SfxAudition.Stop) { text = "Stop" });
+            transport.Add(controls);
 
             VisualElement section = DxAudioInspectorUi.AddSection(container, "Clip Import");
             section.Add(BuildClipImport(track, clip, container));
@@ -96,9 +105,14 @@ namespace WallstopStudios.DxAudio.Editor
                 return view;
             }
 
-            Button apply = new Button(() => Write(track, clip, container)) { text = $"Apply {resolved} to the clip" };
+            Button apply = new Button(() => Write(track, clip, container)) { text = $"Apply {resolved} to the clip", name = "DxAudioApplyClipImport" };
             view.Add(apply);
             return view;
+        }
+
+        private void OnDisable()
+        {
+            SfxAudition.DestroyPreview(target);
         }
 
         private void Write(MusicTrack track, AudioClip clip, VisualElement container)

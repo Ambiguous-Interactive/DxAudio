@@ -14,6 +14,7 @@ namespace WallstopStudios.DxAudio.Editor
         private const string PreviewName = "DxAudio Preview Source";
 
         private static AudioSource _previewSource;
+        private static Object _previewOwner;
 
         static SfxAudition()
         {
@@ -30,14 +31,25 @@ namespace WallstopStudios.DxAudio.Editor
                 return null;
             }
 
+            return PlayClip(cue, variant.Clip, cue.Volume, cue.PlaybackStartSecondsFor(variant));
+        }
+
+        internal static AudioSource Play(MusicTrack track)
+        {
+            return track == null || track.Clip == null ? null : PlayClip(track, track.Clip, track.VolumeScale, track.StartTimeSeconds);
+        }
+
+        private static AudioSource PlayClip(Object owner, AudioClip clip, float volume, float start)
+        {
             AudioSource source = Source();
+            _previewOwner = owner;
             source.Stop();
-            source.clip = variant.Clip;
+            source.clip = clip;
             source.loop = false;
-            source.volume = cue.Volume;
+            source.volume = volume;
             // Pitch jitter belongs to a voice draw, and a loop never restarts where the preview started.
             source.pitch = 1f;
-            source.time = cue.PlaybackStartSecondsFor(variant);
+            source.time = start;
             source.Play();
             return source;
         }
@@ -59,11 +71,21 @@ namespace WallstopStudios.DxAudio.Editor
                 Object.DestroyImmediate(_previewSource.gameObject);
                 _previewSource = null;
             }
+
+            _previewOwner = null;
+        }
+
+        internal static void DestroyPreview(Object owner)
+        {
+            if (owner != null && _previewOwner == owner)
+            {
+                DestroyPreview();
+            }
         }
 
         private static void OnPlayModeChanged(PlayModeStateChange change)
         {
-            if (change == PlayModeStateChange.ExitingEditMode)
+            if (change == PlayModeStateChange.ExitingEditMode || change == PlayModeStateChange.ExitingPlayMode)
             {
                 DestroyPreview();
             }
