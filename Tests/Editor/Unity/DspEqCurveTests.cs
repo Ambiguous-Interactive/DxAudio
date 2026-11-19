@@ -254,6 +254,51 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(peak, Is.LessThanOrEqualTo(Math.Abs(gain)), "response magnitude between drawing points");
         }
 
+        [TestCase(32_000, 12f, 4f, 0.25f)]
+        [TestCase(32_000, -12f, 4f, 0.25f)]
+        [TestCase(44_100, 12f, 0.6f, 0.17f)]
+        [TestCase(44_100, -12f, 0.6f, 0.17f)]
+        public void ThreeBellsFollowABroadRampToThePreviewEdge(int sampleRate, float gain, float errorLimit, float rmsLimit)
+        {
+            float[] target = new float[DspEqCurveFit.SampleCount];
+            for (int index = 0; index < target.Length; index++)
+            {
+                target[index] = gain * index / (target.Length - 1);
+            }
+
+            DspEqCurveFit.Result fit = DspEqCurveFit.FitDrawing(target, sampleRate, 3);
+            float endpoint = gain * DspEqCurveFit.GetFitWidth(sampleRate);
+            float endpointError = Math.Abs(endpoint - fit.PreviewDecibels[fit.PreviewDecibels.Length - 1]);
+            Assert.That(fit.Bands, Has.Length.EqualTo(3));
+            Assert.That(endpointError, Is.LessThan(errorLimit), "error at the interpolated preview edge");
+            Assert.That(fit.MaximumErrorDecibels, Is.LessThan(errorLimit));
+            Assert.That(fit.RmsErrorDecibels, Is.LessThan(rmsLimit));
+
+            float maximumCenter = Math.Min(DspFilter.MaximumFrequencyHz, 0.45f * sampleRate);
+            foreach (DspEqCurveFit.Band band in fit.Bands)
+            {
+                Assert.That(band.FrequencyHz, Is.InRange(DspFilter.MinimumFrequencyHz, maximumCenter));
+                Assert.That(band.Quality, Is.InRange(DspFilter.MinimumQuality, DspFilter.MaximumQuality));
+                Assert.That(band.GainDecibels, Is.InRange(DspFilter.MinimumPeakDecibels, DspFilter.MaximumPeakDecibels));
+            }
+
+            Assert.That(MeasurePeakToNyquist(fit, sampleRate), Is.LessThan(13f));
+        }
+
+        [Test]
+        public void ABroadEdgeFitKeepsThePeakWithinTheVisibleTarget()
+        {
+            const int SampleRate = 32_000;
+            float[] target = new float[DspEqCurveFit.SampleCount];
+            for (int index = 0; index < target.Length; index++)
+            {
+                target[index] = 12f * (float)Math.Pow(index / (target.Length - 1d), 24d);
+            }
+
+            DspEqCurveFit.Result fit = DspEqCurveFit.FitDrawing(target, SampleRate, 2);
+            Assert.That(MeasurePeakToNyquist(fit, SampleRate), Is.LessThan(5.2f), "the visible target peaks at 5.08 dB");
+        }
+
         [Test]
         public void ExportRefusesToReplaceAnExistingChain()
         {
@@ -414,6 +459,23 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(asset != null, Is.True);
             Assert.That(AssetDatabase.TryGetGUIDAndLocalFileIdentifier(asset, out string _, out long fileId), Is.True);
             return fileId;
+        }
+
+        private static float MeasurePeakToNyquist(DspEqCurveFit.Result fit, int sampleRate)
+        {
+            float peak = 0f;
+            for (int frequency = 1; frequency < sampleRate / 2; frequency++)
+            {
+                float response = 0f;
+                foreach (DspEqCurveFit.Band band in fit.Bands)
+                {
+                    response += band.GetResponseDecibels(frequency, sampleRate);
+                }
+
+                peak = Math.Max(peak, Math.Abs(response));
+            }
+
+            return peak;
         }
 
         private static float[] CreateEndpointSpike(float gain)

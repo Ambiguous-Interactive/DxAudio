@@ -37,6 +37,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Fixed
 
+- Fit broad drawn EQ ramps closer to the preview edge at low sample rates with a small Bell budget ([#96](https://github.com/Ambiguous-Interactive/DxAudio/issues/96)).
 - Improve drawn EQ cuts and boosts near the preview edge when the sample rate limits Bell centers ([#91](https://github.com/Ambiguous-Interactive/DxAudio/issues/91)).
 - Fit the response between draw points to reduce overshoot on narrow EQ targets ([#88](https://github.com/Ambiguous-Interactive/DxAudio/issues/88)).
 - Make `npm run check:fast` pass again, and run the assembly warning policy in the fast check, the gate, and CI. The policy fails a hidden warning: a `#pragma warning disable` in shipped code, an assembly response file or ruleset, or a missing warnings-as-errors setting in the engine-free build ([#37](https://github.com/Ambiguous-Interactive/DxAudio/issues/37)).

@@ -14,6 +14,7 @@ namespace WallstopStudios.DxAudio.Editor
         private const int FitSubdivisions = 2;
         private const int PreviewSubdivisions = 8;
         private const int HighFrequencyIntervals = 16;
+        private const int BroadEdgeIntervals = 4;
         private const int HighFrequencyStart = SampleCount - 1 - HighFrequencyIntervals;
         private const int HighFrequencyFitStart = HighFrequencyStart * FitSubdivisions;
         private const int FitSampleCount = HighFrequencyFitStart + (HighFrequencyIntervals * PreviewSubdivisions) + 1;
@@ -141,6 +142,125 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             List<Band> bands = new List<Band>(bandCount);
+            float maximumCenter = GetMaximumCenterHz(sampleRate);
+            double endpoint = residual[FitSampleCount - 1];
+            double[] pairedResidual =
+                1 < bandCount && MinimumSquaredImprovement < squaredError && maximumCenter < maximumFrequencyHz && HasBroadEdge(drawing, edge, endpoint)
+                    ? (double[])residual.Clone()
+                    : null;
+
+            GrowBands(bands, bandCount, frequencies, warped, residual, shape, weights, sampleRate, squaredError);
+            Result greedy = MeasureFit(drawing, bands.ToArray(), sampleRate);
+            double endpointResidual = residual[FitSampleCount - 1];
+            if (pairedResidual == null || endpoint * endpointResidual <= 0d || Math.Abs(endpointResidual) <= greedy.RmsErrorDecibels)
+            {
+                return greedy;
+            }
+
+            // Beyond the legal center, the wider Bell keeps its gain after the narrower Bell falls away.
+            float gain = (float)Math.Min(DspFilter.MaximumPeakDecibels, 2d * Math.Abs(endpoint)) * Math.Sign(endpoint);
+            List<Band> pairedBands = new List<Band>(bandCount)
+            {
+                new Band(maximumCenter, DspFilter.MinimumQuality, gain),
+                new Band(maximumCenter, DspFilter.MinimumQuality * 2f, -gain),
+            };
+            UpdateResidual(pairedBands[0], warped, pairedResidual, sampleRate, -1);
+            UpdateResidual(pairedBands[1], warped, pairedResidual, sampleRate, -1);
+            double pairedError = 0d;
+            for (int index = 0; index < FitSampleCount; index++)
+            {
+                pairedError += weights[index] * pairedResidual[index] * pairedResidual[index];
+            }
+
+            pairedError = RefineBands(pairedBands, warped, pairedResidual, shape, weights, sampleRate, pairedError);
+            pairedError = GrowBands(pairedBands, bandCount, frequencies, warped, pairedResidual, shape, weights, sampleRate, pairedError);
+            RefineBands(pairedBands, warped, pairedResidual, shape, weights, sampleRate, pairedError);
+
+            Result paired = MeasureFit(drawing, pairedBands.ToArray(), sampleRate);
+            if (
+                Math.Abs(pairedResidual[FitSampleCount - 1]) < Math.Abs(endpointResidual)
+                && paired.MaximumErrorDecibels < greedy.MaximumErrorDecibels
+                && paired.RmsErrorDecibels < greedy.RmsErrorDecibels
+                && IsPeakWithinRange(paired, greedy, drawing, edge, endpoint, sampleRate)
+            )
+            {
+                return paired;
+            }
+
+            return greedy;
+        }
+
+        private static bool HasBroadEdge(IReadOnlyList<float> drawing, double edge, double endpoint)
+        {
+            if (endpoint == 0d || edge < BroadEdgeIntervals)
+            {
+                return false;
+            }
+
+            // Leave isolated spikes to the edge-weighted search.
+            double minimumGain = Math.Abs(endpoint) * 0.5d;
+            int sign = Math.Sign(endpoint);
+            for (int index = (int)edge - BroadEdgeIntervals; index <= (int)edge; index++)
+            {
+                if (drawing[index] * sign < minimumGain)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool IsPeakWithinRange(Result paired, Result greedy, IReadOnlyList<float> drawing, double edge, double endpoint, int sampleRate)
+        {
+            double limit = Math.Abs(endpoint);
+            for (int index = 0; index <= (int)edge; index++)
+            {
+                limit = Math.Max(limit, Math.Abs(drawing[index]));
+            }
+
+            // An extra Bell can peak below the 20 Hz drawing or above the high-frequency edge.
+            return MeasurePeak(paired, sampleRate) <= Math.Max(limit, MeasurePeak(greedy, sampleRate));
+        }
+
+        private static float MeasurePeak(Result fit, int sampleRate)
+        {
+            float peak = 0f;
+            foreach (float gain in fit.PreviewDecibels)
+            {
+                peak = Math.Max(peak, Math.Abs(gain));
+            }
+
+            foreach (Band band in fit.Bands)
+            {
+                peak = Math.Max(peak, Math.Abs(MeasureResponse(fit.Bands, band.FrequencyHz, sampleRate)));
+            }
+
+            const int TailIntervals = 32;
+            float previewEnd = GetMaximumFrequencyHz(sampleRate);
+            float upperSpan = (sampleRate * 0.5f) - previewEnd;
+            for (int index = 1; index < TailIntervals; index++)
+            {
+                float fraction = index / (float)TailIntervals;
+                peak = Math.Max(peak, Math.Abs(MeasureResponse(fit.Bands, MinimumFrequencyHz * fraction, sampleRate)));
+                peak = Math.Max(peak, Math.Abs(MeasureResponse(fit.Bands, previewEnd + (upperSpan * fraction), sampleRate)));
+            }
+
+            return peak;
+        }
+
+        private static double GrowBands(
+            List<Band> bands,
+            int bandCount,
+            float[] frequencies,
+            double[] warped,
+            double[] residual,
+            double[] shape,
+            double[] weights,
+            int sampleRate,
+            double squaredError
+        )
+        {
             while (bands.Count < bandCount && MinimumSquaredImprovement < squaredError)
             {
                 double candidateError = squaredError;
@@ -155,7 +275,7 @@ namespace WallstopStudios.DxAudio.Editor
                 squaredError = RefineBands(bands, warped, residual, shape, weights, sampleRate, candidateError);
             }
 
-            return MeasureFit(drawing, bands.ToArray(), sampleRate);
+            return squaredError;
         }
 
         internal static Result MeasureFit(IReadOnlyList<float> targetDecibels, Band[] bands, int sampleRate)
