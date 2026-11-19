@@ -15,6 +15,9 @@ namespace WallstopStudios.DxAudio.Editor
         /// <summary>How often a live reading refreshes while audio plays, in milliseconds.</summary>
         private const long RefreshMilliseconds = 200;
 
+        /// <summary>The rate a graph is measured at when the editor reports no output device, in hertz.</summary>
+        private const int FallbackSampleRate = 48_000;
+
         /// <summary>Adds a spaced section under <paramref name="parent" /> and returns it.</summary>
         internal static VisualElement AddSection(VisualElement parent, string title)
         {
@@ -113,6 +116,75 @@ namespace WallstopStudios.DxAudio.Editor
                     }
                 })
                 .Every(RefreshMilliseconds);
+        }
+
+        /// <summary>Adds one row per node and per edge of <paramref name="asset" />, with what the graph delays each branch.</summary>
+        /// <remarks>
+        /// The latency is measured on a graph built from the asset at <see cref="DspGraphAsset.ReferenceSampleRate" />,
+        /// because the delay a chain reports is in samples at a rate and an inspector cannot show a live voice's figure
+        /// for an asset nothing plays yet. This is authoring work, so it may allocate.
+        /// </remarks>
+        internal static void AddGraphRows(VisualElement parent, DspGraphAsset asset)
+        {
+            if (asset == null)
+            {
+                parent.Add(new Label("No graph: voices run no parallel branches."));
+                return;
+            }
+
+            AddFindings(parent, asset.FindProblems(), "The graph is ready to play.");
+            if (!asset.TryCreateGraph(out DspGraph graph))
+            {
+                return;
+            }
+
+            int sampleRate = DspGraphAsset.ReferenceSampleRate;
+            bool prepared = graph.TryPrepare(
+                sampleRate,
+                DspGraphAsset.ReferenceBlockFrames,
+                DspGraphAsset.ReferenceChannels,
+                asset.IndexOfNode(asset.InputNode),
+                asset.IndexOfNode(asset.OutputNode)
+            );
+
+            IReadOnlyList<DspGraphNode> nodes = asset.Nodes;
+            for (int index = 0; index < nodes.Count; ++index)
+            {
+                DspGraphNode node = nodes[index];
+                VisualElement row = Row();
+                AddText(row, node == null ? $"Node {index + 1}: empty" : $"Node \"{node.Name}\": {Describe(node)}");
+                if (prepared && graph.TryGetNodeLatency(index, out int latency))
+                {
+                    AddText(row, $"{latency} samples");
+                }
+
+                parent.Add(row);
+            }
+
+            IReadOnlyList<DspGraphEdge> edges = asset.Edges;
+            for (int index = 0; index < edges.Count; ++index)
+            {
+                DspGraphEdge edge = edges[index];
+                parent.Add(new Label(edge == null ? $"Edge {index + 1}: empty" : $"\"{edge.From}\" -> \"{edge.To}\""));
+            }
+
+            if (prepared)
+            {
+                parent.Add(new Label($"The graph delays the signal {graph.LatencySamples} samples at {sampleRate} Hz."));
+            }
+        }
+
+        /// <summary>What a node runs, as one line: its chain, or that it is a junction.</summary>
+        private static string Describe(DspGraphNode node)
+        {
+            DspChainAsset chain = node.Chain;
+            if (chain == null)
+            {
+                return "junction, passes its input on";
+            }
+
+            string name = string.IsNullOrEmpty(chain.name) ? "unnamed chain" : chain.name;
+            return $"{name}, {chain.Count} stages";
         }
 
         /// <summary>The asset's name, or its type when an asset made in code was never given one.</summary>

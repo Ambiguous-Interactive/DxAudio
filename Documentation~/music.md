@@ -44,8 +44,8 @@ _music.Stop();                     // fades out
 ```
 
 Asking for the music that already plays does nothing, so a door trigger or a reload does not restart the track. Two
-tracks with the same clip, loop flag, trim and start offset count as the same music, so switching between their contexts
-keeps the playhead.
+tracks with the same clip, loop flag, trim, start offset, chain and graph count as the same music, so switching between
+their contexts keeps the playhead; a different chain or graph is a different sound and restarts it.
 
 ## Overrides
 

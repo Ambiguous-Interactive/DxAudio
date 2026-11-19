@@ -90,6 +90,31 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void PlayingACueWithAGraphDoesNotAllocate()
+        {
+            using MadeObjects made = new();
+            DspChainAsset branch = made.Track(DspChainAsset.Create(new DspEffectAsset[] { made.Track(DspLimiterAsset.Create()), made.Track(DspDistortionAsset.Create()) }));
+            DspGraphAsset graph = made.Track(
+                DspGraphAsset.Create(
+                    new[] { new DspGraphNode("in", null), new DspGraphNode("branch", branch), new DspGraphNode("out", null) },
+                    new[] { new DspGraphEdge("in", "branch"), new DspGraphEdge("branch", "out") },
+                    "in",
+                    "out"
+                )
+            );
+            SfxCue cue = made.Track(SfxCue.CreateWithGraph(new[] { new SfxVariant(Clip(made)) }, graph: graph, minimumIntervalSeconds: 0f));
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
+            for (int index = 0; index < WarmupPlays; index++)
+            {
+                player.Play(cue);
+            }
+
+            long growth = HeapGrowth(() => player.Play(cue), PlayCount);
+
+            Assert.That(growth, Is.LessThan(Ceiling), $"Play through a graph grew the heap by {growth} bytes over {PlayCount:N0} plays.");
+        }
+
+        [Test]
         public void TheHeapProbeSeesAPlantedAllocation()
         {
             Assert.That(_planted, Is.GreaterThan(Ceiling), $"a probe that cannot fail is not evidence; {PlayCount:N0} retained planted strings grew it by {_planted} bytes");

@@ -289,9 +289,168 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(player.Play(cue), Is.True);
         }
 
+        [Test]
+        public void ACueWithAGraphRunsItsBranchThroughItsVoice()
+        {
+            using MadeObjects made = new();
+            DspGraphAsset graph = Graph(made, made.Track(DspBitCrusherAsset.Create(bits: 1)));
+            SfxCue cue = made.Track(SfxCue.CreateWithGraph(new[] { new SfxVariant(Clip(made)) }, graph: graph));
+            SfxPlayer player = Player(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
+            Assert.That(player.Play(cue), Is.True);
+            AudioFilterHost host = HostOf(player);
+            Assert.That(host.Graph == graph);
+            Assert.That(host.LiveGraph != null);
+            Assert.That(host.LiveGraph.IsPrepared, Is.True, "an unprepared graph would pass the block through");
+
+            float[] block = Quiet(0.3f, host.ChannelCount * 4);
+            host.OnAudioFilterRead(block, host.ChannelCount);
+
+            Assert.That(Peak(block), Is.EqualTo(1f).Within(0.0001f), "one bit keeps only the ends of the range, so 0.3 leaves as 1");
+            Assert.That(host.SkippedBlocks, Is.Zero);
+        }
+
+        [Test]
+        public void AHostReportsTheDelayItsGraphAdds()
+        {
+            using MadeObjects made = new();
+            AudioFilterHost host = made.Track(new GameObject("host")).AddComponent<AudioFilterHost>();
+            host.Graph = Graph(made, made.Track(DspLimiterAsset.Create(lookaheadSeconds: 0.005f)));
+
+            Assert.That(host.LiveGraph != null);
+            Assert.That(host.LiveGraph.IsPrepared, Is.True, "only a prepared graph reports a delay");
+            Assert.That(host.LatencySamples, Is.EqualTo(Mathf.RoundToInt(0.005f * OutputSampleRate())));
+        }
+
+        [Test]
+        public void ACueWithNoGraphLeavesTheVoiceUnbranched()
+        {
+            using MadeObjects made = new();
+            DspGraphAsset graph = Graph(made, made.Track(DspDistortionAsset.Create()));
+            SfxCue branched = made.Track(SfxCue.CreateWithGraph(new[] { new SfxVariant(Clip(made)) }, graph: graph, priority: SfxPriority.Low));
+            SfxCue bare = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, priority: SfxPriority.High));
+            SfxPlayer player = Player(made, SfxLibrary.Create(new[] { branched, bare }, voiceCount: 1));
+            Assert.That(player.Play(branched), Is.True);
+            AudioFilterHost host = HostOf(player);
+
+            Assert.That(player.Play(bare), Is.True, "the higher cue takes the one voice");
+
+            Assert.That(host.LiveGraph == null, Is.True, "a cue with no graph must not keep the last cue's graph");
+        }
+
+        [Test]
+        public void EachVoiceHoldsItsOwnGraphAndTheListedOnesArePrepared()
+        {
+            using MadeObjects made = new();
+            DspGraphAsset graph = Graph(made, made.Track(DspBitCrusherAsset.Create(bits: 4)));
+            SfxCue cue = made.Track(SfxCue.CreateWithGraph(new[] { new SfxVariant(Clip(made)) }, graph: graph, minimumIntervalSeconds: 0f));
+            SfxPlayer player = Player(made, SfxLibrary.Create(new[] { cue }, voiceCount: 2));
+            IReadOnlyList<AudioFilterHost> hosts = player.GetComponentsInChildren<AudioFilterHost>();
+            Assert.That(hosts[0].IsPrepared(graph), Is.True, "a listed cue's graph is prepared with the pool, so its first play allocates nothing");
+
+            Assert.That(player.Play(cue), Is.True);
+            Assert.That(player.Play(cue), Is.True);
+
+            Assert.That(ReferenceEquals(hosts[0].LiveGraph, hosts[1].LiveGraph), Is.False, "two voices must not share a graph's buffers");
+        }
+
+        [Test]
+        public void AGameCanWarmAReferenceCuesGraphBeforePlayingIt()
+        {
+            using MadeObjects made = new();
+            DspGraphAsset graph = Graph(made, made.Track(DspDistortionAsset.Create(drive: 4f)));
+            SfxCue cue = made.Track(SfxCue.CreateWithGraph(new[] { new SfxVariant(Clip(made)) }, graph: graph));
+            SfxPlayer player = Player(made, SfxLibrary.Create(new SfxCue[0], voiceCount: 2));
+
+            Assert.That(player.Warm(cue), Is.True, "the pool warms what the library lists; a reference cue needs this call");
+
+            IReadOnlyList<AudioFilterHost> hosts = player.GetComponentsInChildren<AudioFilterHost>();
+            for (int index = 0; index < hosts.Count; ++index)
+            {
+                Assert.That(hosts[index].IsPrepared(graph), Is.True, "every voice is ready before the first play");
+            }
+
+            Assert.That(player.Play(cue), Is.True);
+            Assert.That(HostOf(player).LiveGraph != null);
+            Assert.That(HostOf(player).LiveGraph.IsPrepared, Is.True);
+        }
+
+        [Test]
+        public void AMusicTrackRunsItsGraphOnItsVoice()
+        {
+            using MadeObjects made = new();
+            DspGraphAsset graph = Graph(made, made.Track(DspBitCrusherAsset.Create(bits: 1)));
+            MusicTrack track = made.Track(MusicTrack.CreateWithGraph(Clip(made), graph: graph));
+            MusicPlayer player = made.Track(new GameObject("music")).AddComponent<MusicPlayer>();
+            player.Library = made.Track(MusicLibrary.Create(new[] { track }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
+
+            player.Play(track);
+
+            AudioFilterHost host = player.GetComponentInChildren<AudioFilterHost>();
+            Assert.That(host != null);
+            Assert.That(host.Graph == graph);
+            float[] block = Quiet(0.3f, host.ChannelCount * 4);
+            host.OnAudioFilterRead(block, host.ChannelCount);
+            Assert.That(Peak(block), Is.EqualTo(1f).Within(0.0001f), "the track's graph reaches the music voice");
+        }
+
+        [Test]
+        public void AHostCountsABlockNoPreparedGraphRan()
+        {
+            using MadeObjects made = new();
+            DspGraphAsset broken = made.Track(
+                DspGraphAsset.Create(new[] { new DspGraphNode("in", null), new DspGraphNode("out", null) }, new[] { new DspGraphEdge("in", "nowhere") }, "in", "out")
+            );
+            AudioFilterHost host = made.Track(new GameObject("host")).AddComponent<AudioFilterHost>();
+            host.Graph = broken;
+            float[] block = Quiet(0.3f, host.ChannelCount * 4);
+
+            host.OnAudioFilterRead(block, host.ChannelCount);
+
+            Assert.That(Peak(block), Is.EqualTo(0.3f).Within(0.0001f), "a graph that cannot build never touches the block");
+            Assert.That(host.SkippedBlocks, Is.EqualTo(1), "a bypass nobody counts is the failure this package rejects");
+        }
+
+        [Test]
+        public void ANewPlayClearsEveryBlockShapeItPrepared()
+        {
+            using MadeObjects made = new();
+            // A slow release keeps the last play's gain long enough to see it if the other prepared width survives.
+            DspEffectAsset held = made.Track(DspLimiterAsset.Create(ceilingDecibels: -6f, lookaheadSeconds: 0f, releaseSeconds: 10f));
+            DspChainAsset chain = Chain(made, held);
+            DspGraphAsset graph = Graph(made, held);
+            SfxCue cue = made.Track(SfxCue.CreateWithGraph(new[] { new SfxVariant(Clip(made)) }, graph: graph, minimumIntervalSeconds: 0f, chain: chain));
+            SfxPlayer player = Player(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
+            Assert.That(player.Play(cue), Is.True);
+            AudioFilterHost host = HostOf(player);
+            Assume.That(1 < host.ChannelCount, "the voice needs two prepared widths to show a stale one");
+
+            host.OnAudioFilterRead(FullScale(16), 1);
+            player.StopAll();
+            Assert.That(player.Play(cue), Is.True, "the pool holds one voice, so this is the same voice");
+            host.OnAudioFilterRead(Quiet(0.1f, host.ChannelCount * 16), host.ChannelCount);
+            float[] mono = Quiet(0.1f, 16);
+            host.OnAudioFilterRead(mono, 1);
+
+            Assert.That(Peak(mono), Is.EqualTo(0.1f).Within(0.001f), "a new play clears every width, not only the one its first block used");
+        }
+
         private static DspChainAsset Chain(MadeObjects made, params DspEffectAsset[] effects)
         {
             return made.Track(DspChainAsset.Create(effects));
+        }
+
+        /// <summary>A graph that runs one branch of <paramref name="effects" /> between an input and an output junction.</summary>
+        private static DspGraphAsset Graph(MadeObjects made, params DspEffectAsset[] effects)
+        {
+            DspChainAsset branch = Chain(made, effects);
+            return made.Track(
+                DspGraphAsset.Create(
+                    new[] { new DspGraphNode("in", null), new DspGraphNode("branch", branch), new DspGraphNode("out", null) },
+                    new[] { new DspGraphEdge("in", "branch"), new DspGraphEdge("branch", "out") },
+                    "in",
+                    "out"
+                )
+            );
         }
 
         private static AudioFilterHost Host(MadeObjects made, DspChainAsset chain)

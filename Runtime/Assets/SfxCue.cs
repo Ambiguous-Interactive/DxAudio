@@ -94,6 +94,13 @@ namespace WallstopStudios.DxAudio
         )]
         private DspChainAsset _chain;
 
+        [SerializeField]
+        [Tooltip(
+            "A graph this cue's voices run after the chain, with its branches side by side. Empty runs no graph. A "
+                + "voice builds its own copy, cleared at the start of every play."
+        )]
+        private DspGraphAsset _graph;
+
         public string Key => _key;
 
         public IReadOnlyList<SfxVariant> Variants => _variants;
@@ -132,6 +139,9 @@ namespace WallstopStudios.DxAudio
 
         /// <summary>The effects this cue's voices run, or null to play the take untouched.</summary>
         public DspChainAsset Chain => _chain;
+
+        /// <summary>The graph this cue's voices run after <see cref="Chain" />, or null to run none.</summary>
+        public DspGraphAsset Graph => _graph;
 
         /// <summary>How many variants hold a clip. Selection draws from this, so an empty slot is never picked.</summary>
         public int PlayableVariantCount
@@ -188,6 +198,51 @@ namespace WallstopStudios.DxAudio
             cue._ignoresListenerPause = ignoresListenerPause;
             cue._mixerGroupOverride = mixerGroupOverride;
             cue._chain = chain;
+            return cue;
+        }
+
+        /// <summary>Builds a cue that runs a graph after its chain, for tests and for games that author audio at runtime.</summary>
+        /// <remarks>
+        /// A distinct name, not one more overload: a second <c>Create</c> taking a graph would make an existing call that
+        /// passes a null key ambiguous, and a caller compiled against the published package would stop compiling.
+        /// </remarks>
+        public static SfxCue CreateWithGraph(
+            IEnumerable<SfxVariant> variants,
+            DspGraphAsset graph,
+            string key = null,
+            SfxPriority priority = SfxPriority.Medium,
+            float minimumIntervalSeconds = DefaultMinimumIntervalSeconds,
+            bool loop = false,
+            float volume = 1f,
+            float pitchJitter = 0f,
+            float spatialBlend = 0f,
+            float falloffStartUnits = 10f,
+            float falloffEndUnits = 40f,
+            bool heardCentred = false,
+            SfxCue followsTakeOf = null,
+            bool ignoresListenerPause = false,
+            AudioMixerGroup mixerGroupOverride = null,
+            DspChainAsset chain = null
+        )
+        {
+            SfxCue cue = Create(
+                variants,
+                key,
+                priority,
+                minimumIntervalSeconds,
+                loop,
+                volume,
+                pitchJitter,
+                spatialBlend,
+                falloffStartUnits,
+                falloffEndUnits,
+                heardCentred,
+                followsTakeOf,
+                ignoresListenerPause,
+                mixerGroupOverride,
+                chain
+            );
+            cue._graph = graph;
             return cue;
         }
 

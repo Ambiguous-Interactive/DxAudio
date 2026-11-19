@@ -40,6 +40,10 @@ namespace WallstopStudios.DxAudio
         [Tooltip("Effects this track's voice runs, in order. Empty plays the clip untouched. The voice clears them when the track starts.")]
         private DspChainAsset _chain;
 
+        [SerializeField]
+        [Tooltip("A graph this track's voice runs after the chain, with its branches side by side. Empty runs no graph.")]
+        private DspGraphAsset _graph;
+
         public string Context => _context;
 
         public AudioClip Clip => _clip;
@@ -50,6 +54,9 @@ namespace WallstopStudios.DxAudio
 
         /// <summary>The effects this track's voice runs, or null to play the clip untouched.</summary>
         public DspChainAsset Chain => _chain;
+
+        /// <summary>The graph this track's voice runs after <see cref="Chain" />, or null to run none.</summary>
+        public DspGraphAsset Graph => _graph;
 
         public bool IsPlayable => _clip != null;
 
@@ -84,10 +91,32 @@ namespace WallstopStudios.DxAudio
             return track;
         }
 
+        /// <summary>Builds a track that runs a graph after its chain, for tests and for games that author audio at runtime.</summary>
+        /// <remarks>
+        /// A distinct name, not one more overload: a second <c>Create</c> taking a graph would make an existing call that
+        /// passes a null context ambiguous, and a caller compiled against the published package would stop compiling.
+        /// </remarks>
+        public static MusicTrack CreateWithGraph(
+            AudioClip clip,
+            DspGraphAsset graph,
+            string context = null,
+            bool loop = true,
+            float volumeScale = 1f,
+            float startTimeSeconds = 0f,
+            MusicClipLoadType clipLoadType = MusicClipLoadType.Auto,
+            DspChainAsset chain = null
+        )
+        {
+            MusicTrack track = Create(clip, context, loop, volumeScale, startTimeSeconds, clipLoadType, chain);
+            track._graph = graph;
+            return track;
+        }
+
         /// <summary>Whether two tracks would sound the same, so switching between them is not a change.</summary>
         /// <remarks>
         /// By value, not reference: two contexts that share a clip should keep it playing across the switch
-        /// rather than restart it. The context is not compared, for the same reason.
+        /// rather than restart it. The context is not compared, for the same reason. The chain and the graph are
+        /// compared by asset, because a track that names a different one is heard differently even with the same clip.
         /// </remarks>
         public static bool SameMusic(MusicTrack first, MusicTrack second)
         {
@@ -104,7 +133,9 @@ namespace WallstopStudios.DxAudio
             return first._clip == second._clip
                 && first._loop == second._loop
                 && Mathf.Approximately(first._volumeScale, second._volumeScale)
-                && Mathf.Approximately(first._startTimeSeconds, second._startTimeSeconds);
+                && Mathf.Approximately(first._startTimeSeconds, second._startTimeSeconds)
+                && first._chain == second._chain
+                && first._graph == second._graph;
         }
 
         private void OnValidate()

@@ -71,6 +71,25 @@ namespace WallstopStudios.DxAudio
         /// <summary>How many bytes <see cref="TryPrepare"/> reserved; zero until prepared.</summary>
         public int PreparedBytes { get; private set; }
 
+        /// <summary>The delay of <paramref name="node"/> from the graph's input, in samples.</summary>
+        /// <remarks>
+        /// A node arrives as late as its own chain makes it plus the latest branch that feeds it, so this is the figure
+        /// an inspector shows beside one branch. A prepared graph answers <see cref="LatencySamples"/> for its output
+        /// node, because that is the longest path.
+        /// </remarks>
+        /// <returns><see langword="false"/> for a graph that is not prepared or an index no node holds.</returns>
+        public bool TryGetNodeLatency(int node, out int latencySamples)
+        {
+            if (!IsPrepared || node < 0 || NodeCount <= node)
+            {
+                latencySamples = 0;
+                return false;
+            }
+
+            latencySamples = _age[node];
+            return true;
+        }
+
         /// <summary>Adds a node that runs <paramref name="chain"/>, and answers its index.</summary>
         /// <remarks>
         /// Each node owns its chain. A chain is stateful, so a graph that ran one chain at two nodes would run the same

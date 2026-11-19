@@ -49,6 +49,8 @@ namespace WallstopStudios.DxAudio.Editor
                     findings.Add($"{name} loops, so its take start offsets are ignored; a loop restarts at zero.");
                 }
 
+                AddGraphFindings(findings, cue.Graph, name);
+
                 if (string.IsNullOrWhiteSpace(cue.Key))
                 {
                     findings.Add($"{name} has no key, so nothing can look it up in this library.");
@@ -110,6 +112,8 @@ namespace WallstopStudios.DxAudio.Editor
                     );
                 }
 
+                AddGraphFindings(findings, track.Graph, name);
+
                 if (string.IsNullOrWhiteSpace(track.Context))
                 {
                     findings.Add($"{name} names no context, so no lookup reaches it.");
@@ -160,7 +164,28 @@ namespace WallstopStudios.DxAudio.Editor
                 findings.Add("This cue loops, so its take start offsets are ignored; a loop restarts at zero.");
             }
 
+            AddGraphFindings(findings, cue.Graph, "This cue");
             return findings;
+        }
+
+        /// <summary>Adds one finding per problem that keeps the graph <paramref name="owner"/> names from playing.</summary>
+        /// <remarks>
+        /// A graph the runtime cannot build passes every block through, so the cue plays unshaped rather than failing
+        /// to play. That is silent at run time and easy to miss by ear, which is why the check is here.
+        /// </remarks>
+        private static void AddGraphFindings(List<string> findings, DspGraphAsset graph, string owner)
+        {
+            if (graph == null)
+            {
+                return;
+            }
+
+            string name = string.IsNullOrWhiteSpace(graph.name) ? "an unnamed graph" : $"the graph '{graph.name}'";
+            IReadOnlyList<string> problems = graph.FindProblems();
+            for (int index = 0; index < problems.Count; ++index)
+            {
+                findings.Add($"{owner} names {name}, which cannot play: {problems[index]}");
+            }
         }
 
         private static string CueName(SfxCue cue, int index)

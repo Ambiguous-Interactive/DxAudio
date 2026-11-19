@@ -62,29 +62,44 @@ that falls between two read positions is skipped.
   delays 1,201 samples, about 25 ms. A shorter window lowers the delay and adds warble; a longer one smooths the tone. Set
   it before playback: the delay line is sized when the chain is prepared, not when the field changes.
 
-## A node graph in code
+## A node graph
 
-A chain runs its stages in series. A **graph** runs chains side by side: `DspGraph` holds named nodes, each with its own
-`DspChain`, and an edge carries one node's block into a later node. A node with several outgoing edges feeds every one,
-which is the fan-out, and a node with several incoming edges sums them, which is the fan-in.
+A chain runs its stages in series. A **graph** runs chains side by side: a **DSP Graph** asset holds named nodes, each
+with a chain, and an edge carries one node's block into a later node. A node with several outgoing edges feeds every
+one, which is the fan-out, and a node with several incoming edges sums them, which is the fan-in.
+
+1. Create the graph with **Create > DxAudio > DSP > Graph**.
+2. Add one node per chain the graph runs. Give each node a unique name, then assign its chain. A node with no chain is a
+   junction that passes its input on untouched, which is how a split or a join with no shaping of its own is authored.
+3. Add one edge per connection. Name the node the signal leaves and the node it enters.
+4. Set **Input Node** and **Output Node** to the names of the nodes that receive the voice's block and leave the graph.
+5. Assign the graph to a cue or a track. The graph's **Signal Path** section lists each node with the delay it adds,
+   every edge, and the graph's own delay.
+
+The graph runs after the cue's or track's chain and before the player's bus. A node's name is its identity because an
+edge names it, so two nodes may not share one, and an edge to a name no node holds is refused rather than guessed at.
+The cue inspector and the library check report a graph the runtime cannot build, which would otherwise pass the sound
+through unshaped.
+
+A graph can also be built in code, for a path a game assembles at run time:
 
 ```csharp
 DspGraph graph = new();
-graph.TryAddNode(new DspChain(), out int input);
-graph.TryAddNode(roomChain, out int room);
-graph.TryAddNode(dryChain, out int dry);
-graph.TryAddNode(new DspChain(), out int output);
-graph.TryAddEdge(input, room);
-graph.TryAddEdge(input, dry);
-graph.TryAddEdge(room, output);
-graph.TryAddEdge(dry, output);
-graph.TryPrepare(AudioSettings.outputSampleRate, 1024, 2, input, output);
+_ = graph.TryAddNode(new DspChain(), out int input);
+_ = graph.TryAddNode(roomChain, out int room);
+_ = graph.TryAddNode(dryChain, out int dry);
+_ = graph.TryAddNode(new DspChain(), out int output);
+_ = graph.TryAddEdge(input, room);
+_ = graph.TryAddEdge(input, dry);
+_ = graph.TryAddEdge(room, output);
+_ = graph.TryAddEdge(dry, output);
+_ = graph.TryPrepare(AudioSettings.outputSampleRate, 1024, 2, input, output);
 graph.Process(buffer, 0, buffer.Length, 2);
 ```
 
 - A branch that reports less delay is waited for: the graph delays that edge by the difference its chains report, so a
   pitch shifter in one branch and a limiter in another arrive together and sum without a comb. Read the graph's own
-  delay with `LatencySamples`; it is the longest path.
+  delay with `LatencySamples`; it is the longest path, and `TryGetNodeLatency` reports one branch.
 - `TryPrepare` refuses a cycle, a node the input cannot reach or one that cannot reach the output, a layout it cannot
   run and a graph over its memory budget. It answers `false` and reserves nothing, so a bad graph never throws.
 - A graph holds up to 16 nodes and 32 edges, and `PreparedBytes` reports what it reserved. `Process` allocates nothing
@@ -94,9 +109,9 @@ graph.Process(buffer, 0, buffer.Length, 2);
 
 - A chain runs on the audio thread. Effects allocate when they are prepared, never while they run.
 - A limiter delays the signal by its lookahead, and a pitch shifter by half its window. Read the delay with
-  `AudioFilterHost.LatencySamples`; a chain does not compensate. Put the two in separate branches of a `DspGraph` and it
+  `AudioFilterHost.LatencySamples`; a chain does not compensate. Put the two in separate branches of a graph and it
   aligns them for you.
-- A graph is code-only: it has no asset and no inspector. Author the chains it holds as assets, then build the graph in
-  code.
+- A graph asset is a recipe like a chain: a voice builds its own copy, one per block shape, so two voices never share a
+  branch buffer. A cue or a track names at most one chain and one graph.
 - A block whose shape no prepared chain matches passes through and counts in `AudioFilterHost.SkippedBlocks`, so a
   silent bypass is visible rather than guessed at.
