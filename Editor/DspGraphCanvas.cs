@@ -869,7 +869,8 @@
 
         private void Draw(MeshGenerationContext context)
         {
-            Color wire = EditorGUIUtility.isProSkin ? new Color(0.46f, 0.57f, 0.62f) : new Color(0.35f, 0.44f, 0.50f);
+            bool dark = EditorGUIUtility.isProSkin;
+            Color wire = dark ? new Color(0.46f, 0.57f, 0.62f) : new Color(0.35f, 0.44f, 0.50f);
             for (int index = 0; index < _links.Length; index++)
             {
                 (int from, int to) = _links[index];
@@ -882,7 +883,8 @@
             if (0 <= _source)
             {
                 Vector2 end = 0 <= _target ? Port(_target, output: false) : _pointer;
-                Color candidate = 0 <= _target && !_validTarget ? new Color(0.85f, 0.32f, 0.30f) : _accent;
+                Color rejected = dark ? new Color(0.85f, 0.32f, 0.30f) : new Color(0.70f, 0.18f, 0.17f);
+                Color candidate = 0 <= _target && !_validTarget ? rejected : _accent;
                 DrawWire(context, Port(_source, output: true), end, candidate, 3f);
             }
 
