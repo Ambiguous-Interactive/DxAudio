@@ -115,6 +115,24 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void RenderingAMixBusBlockDoesNotAllocate()
+        {
+            using MadeObjects made = new();
+            DspChainAsset chain = made.Track(DspChainAsset.Create(new DspEffectAsset[] { made.Track(DspLimiterAsset.Create()), made.Track(DspCompressorAsset.Create()) }));
+            AudioMixBus bus = made.Track(new GameObject("mix bus")).AddComponent<AudioMixBus>();
+            bus.Chain = chain;
+            float[] block = new float[64];
+            for (int index = 0; index < block.Length; ++index)
+            {
+                block[index] = 0.5f;
+            }
+
+            long growth = HeapGrowth(() => bus.ProcessBuffer(block, 1), PlayCount);
+
+            Assert.That(growth, Is.LessThan(Ceiling), $"A mix bus block grew the heap by {growth} bytes over {PlayCount:N0} blocks.");
+        }
+
+        [Test]
         public void TheHeapProbeSeesAPlantedAllocation()
         {
             Assert.That(_planted, Is.GreaterThan(Ceiling), $"a probe that cannot fail is not evidence; {PlayCount:N0} retained planted strings grew it by {_planted} bytes");
