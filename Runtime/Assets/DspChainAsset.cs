@@ -16,6 +16,67 @@ namespace WallstopStudios.DxAudio
         [Tooltip("Effects in the order the signal meets them, first at the top. Empty slots are skipped, not silenced.")]
         private List<DspEffectAsset> _effects = new();
 
+#if UNITY_EDITOR
+        [System.Serializable]
+        internal struct DrawnEqStage
+        {
+            [SerializeField]
+            private DspFilterAsset _filter;
+
+            [SerializeField]
+            private int _precedingManualStages;
+
+            internal DrawnEqStage(DspFilterAsset filter, int precedingManualStages)
+            {
+                _filter = filter;
+                _precedingManualStages = precedingManualStages;
+            }
+
+            internal DspFilterAsset Filter => _filter;
+            internal int PrecedingManualStages => _precedingManualStages;
+        }
+
+        [System.Serializable]
+        internal sealed class DrawnEqSettings
+        {
+            [SerializeField]
+            private float[] _target;
+
+            [SerializeField]
+            private int _sampleRate;
+
+            [SerializeField]
+            private int _bandLimit;
+
+            [SerializeField]
+            private DrawnEqStage[] _generatedStages;
+
+            internal DrawnEqSettings(float[] target, int sampleRate, int bandLimit, DrawnEqStage[] generatedStages)
+            {
+                _target = (float[])target.Clone();
+                _sampleRate = sampleRate;
+                _bandLimit = bandLimit;
+                _generatedStages = generatedStages;
+            }
+
+            internal float[] Target => _target;
+            internal int SampleRate => _sampleRate;
+            internal int BandLimit => _bandLimit;
+            internal DrawnEqStage[] GeneratedStages => _generatedStages;
+        }
+
+        [SerializeField, HideInInspector]
+        private DrawnEqSettings _drawnEq;
+
+        internal DrawnEqSettings DrawnEq => _drawnEq;
+
+        internal void SetDrawnEq(DrawnEqSettings settings, List<DspEffectAsset> effects)
+        {
+            _drawnEq = settings;
+            _effects = effects;
+        }
+#endif
+
         public IReadOnlyList<DspEffectAsset> Effects => _effects;
 
         public int Count => _effects.Count;

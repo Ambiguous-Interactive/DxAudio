@@ -2,7 +2,6 @@ namespace WallstopStudios.DxAudio.Editor
 {
     using System;
     using System.Collections.Generic;
-    using System.IO;
     using UnityEditor;
     using UnityEngine;
     using UnityEngine.UIElements;
@@ -11,17 +10,25 @@ namespace WallstopStudios.DxAudio.Editor
     {
         private const int DefaultSampleRate = 48_000;
         private static readonly string[] Presets = { "Flat", "Broad low shelf", "Narrow notch", "Overlapping boosts" };
+        private readonly DspChainAsset _chain;
+        private readonly PopupField<int> _rateField;
+        private readonly PopupField<int> _bandField;
         private readonly DspEqCurvePlot _plot;
+        private readonly Label _savedLegend;
         private readonly Button _fitButton;
         private readonly Button _saveButton;
+        private readonly Button _applyButton;
         private readonly Label _status;
         private float[] _target = new float[DspEqCurveFit.SampleCount];
+        private DspChainAsset.DrawnEqSettings _loadedSettings;
+        private float[] _savedResponse;
         private DspEqCurveFit.Result _fit;
         private int _sampleRate;
         private int _bandLimit;
 
-        internal DspEqCurveAuthoring()
+        internal DspEqCurveAuthoring(DspChainAsset chain)
         {
+            _chain = chain;
             List<int> rates = new() { 32_000, 44_100, 48_000, 96_000 };
             int outputRate = AudioSettings.outputSampleRate;
             if (DspEqCurveFit.MinimumFrequencyHz < DspEqCurveFit.GetMaximumFrequencyHz(outputRate) && !rates.Contains(outputRate))
@@ -31,13 +38,14 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             _sampleRate = rates.Contains(outputRate) ? outputRate : DefaultSampleRate;
-            PopupField<int> rate = new("Preview rate", rates, defaultValue: _sampleRate, FormatRate, FormatRate);
-            rate.RegisterValueChangedCallback(evt =>
+            _rateField = new PopupField<int>("Preview rate", rates, defaultValue: _sampleRate, FormatRate, FormatRate) { name = "dx-audio-eq-rate" };
+            _rateField.RegisterValueChangedCallback(evt =>
             {
                 _sampleRate = evt.newValue;
+                RefreshCurrentResponse();
                 InvalidateFit();
             });
-            Add(rate);
+            Add(_rateField);
 
             List<int> limits = new();
             for (int limit = 0; limit <= DspEqCurveFit.MaximumBandCount; ++limit)
@@ -45,26 +53,29 @@ namespace WallstopStudios.DxAudio.Editor
                 limits.Add(limit);
             }
 
-            PopupField<int> bands = new("Band limit", limits, defaultValue: 0, FormatBandLimit, FormatBandLimit);
-            bands.RegisterValueChangedCallback(evt =>
+            _bandField = new PopupField<int>("Band limit", limits, defaultValue: 0, FormatBandLimit, FormatBandLimit) { name = "dx-audio-eq-band-limit" };
+            _bandField.RegisterValueChangedCallback(evt =>
             {
                 _bandLimit = evt.newValue;
                 InvalidateFit();
             });
-            Add(bands);
+            Add(_bandField);
 
             _plot = new DspEqCurvePlot();
             _plot.TargetChanged += InvalidateFit;
             Add(_plot);
 
             VisualElement legend = DxAudioInspectorUi.Row();
+            legend.style.flexWrap = Wrap.Wrap;
             Label targetLegend = DxAudioInspectorUi.AddText(legend, "Target");
             targetLegend.style.color = DspEqCurvePlot.TargetColor;
-            Label fitLegend = DxAudioInspectorUi.AddText(legend, "Fitted");
+            _savedLegend = DxAudioInspectorUi.AddText(legend, "Current generated Bells");
+            _savedLegend.style.color = DspEqCurvePlot.SavedColor;
+            Label fitLegend = DxAudioInspectorUi.AddText(legend, "Proposed fit");
             fitLegend.style.color = DspEqCurvePlot.FitColor;
             Add(legend);
 
-            Label instructions = new("Drag to draw the target or load an example. The drawing is temporary.");
+            Label instructions = new("Drag to draw the target or load an example. Fit the drawing before you save or apply it.");
             instructions.style.whiteSpace = WhiteSpace.Normal;
             Add(instructions);
 
@@ -86,16 +97,31 @@ namespace WallstopStudios.DxAudio.Editor
             Add(exampleRow);
 
             VisualElement actions = DxAudioInspectorUi.Row();
+            actions.style.flexWrap = Wrap.Wrap;
             _fitButton = new Button(Fit) { text = "Fit target" };
+            _applyButton = new Button(Apply) { text = "Apply fit to this chain", name = "dx-audio-eq-apply" };
             _saveButton = new Button(Save) { text = "Save new EQ chain" };
             actions.Add(_fitButton);
+            actions.Add(_applyButton);
             actions.Add(_saveButton);
             Add(actions);
 
             _status = new Label();
             _status.style.whiteSpace = WhiteSpace.Normal;
             Add(_status);
-            InvalidateFit();
+
+            RegisterCallback<AttachToPanelEvent>(_ =>
+            {
+                Undo.undoRedoPerformed += RefreshSavedAsset;
+                ObjectChangeEvents.changesPublished += OnAssetsChanged;
+                RefreshSavedAsset();
+            });
+            RegisterCallback<DetachFromPanelEvent>(_ =>
+            {
+                Undo.undoRedoPerformed -= RefreshSavedAsset;
+                ObjectChangeEvents.changesPublished -= OnAssetsChanged;
+            });
+            RefreshSavedAsset();
         }
 
         internal static float[] CreateTarget(int preset, int sampleRate)
@@ -121,89 +147,6 @@ namespace WallstopStudios.DxAudio.Editor
             return samples;
         }
 
-        internal static DspChainAsset SaveChain(string path, DspEqCurveFit.Result result)
-        {
-            if (
-                string.IsNullOrEmpty(path)
-                || !path.StartsWith("Assets/", StringComparison.Ordinal)
-                || !path.EndsWith(".asset", StringComparison.OrdinalIgnoreCase)
-                || !AssetDatabase.IsValidFolder(path.Substring(0, path.LastIndexOf('/')))
-                || File.Exists(path)
-                || AssetDatabase.LoadMainAssetAtPath(path) != null
-            )
-            {
-                throw new ArgumentException("Choose a new .asset file under Assets.", nameof(path));
-            }
-
-            List<DspEffectAsset> effects = new(result.Bands.Length);
-            DspChainAsset chain = null;
-            string createdGuid = null;
-            try
-            {
-                foreach (DspEqCurveFit.Band band in result.Bands)
-                {
-                    DspFilterAsset filter = DspFilterAsset.Create(DspFilterMode.Bell, band.FrequencyHz, band.Quality, band.GainDecibels);
-                    filter.name = $"Bell {effects.Count + 1}";
-                    effects.Add(filter);
-                }
-
-                chain = DspChainAsset.Create(effects);
-                AssetDatabase.CreateAsset(chain, path);
-                if (!AssetDatabase.Contains(chain))
-                {
-                    throw new InvalidOperationException("Unity could not create the EQ chain.");
-                }
-
-                createdGuid = AssetDatabase.AssetPathToGUID(path);
-                foreach (DspEffectAsset filter in effects)
-                {
-                    AssetDatabase.AddObjectToAsset(filter, chain);
-                }
-
-                EditorUtility.SetDirty(chain);
-                AssetDatabase.SaveAssetIfDirty(chain);
-                // Unity registers the sub-assets when it imports the saved file.
-                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
-                DspChainAsset saved = AssetDatabase.LoadAssetAtPath<DspChainAsset>(path);
-                if (saved == null || saved.Count != effects.Count)
-                {
-                    throw new InvalidOperationException("Unity could not save the EQ chain.");
-                }
-
-                for (int index = 0; index < saved.Count; ++index)
-                {
-                    if (saved.Effects[index] == null || !AssetDatabase.IsSubAsset(saved.Effects[index]))
-                    {
-                        throw new InvalidOperationException("Unity could not save an EQ band.");
-                    }
-                }
-
-                return saved;
-            }
-            catch
-            {
-                if (!string.IsNullOrEmpty(createdGuid) && AssetDatabase.AssetPathToGUID(path) == createdGuid)
-                {
-                    AssetDatabase.DeleteAsset(path);
-                }
-
-                foreach (DspEffectAsset filter in effects)
-                {
-                    if (filter != null && !AssetDatabase.Contains(filter))
-                    {
-                        UnityEngine.Object.DestroyImmediate(filter);
-                    }
-                }
-
-                if (chain != null && !AssetDatabase.Contains(chain))
-                {
-                    UnityEngine.Object.DestroyImmediate(chain);
-                }
-
-                throw;
-            }
-        }
-
         private static float Gaussian(float frequency, float center, float widthOctaves)
         {
             float offset = Mathf.Log(frequency / center, 2f) / widthOctaves;
@@ -220,20 +163,99 @@ namespace WallstopStudios.DxAudio.Editor
             return limit == 0 ? "Choose a limit" : limit.ToString();
         }
 
+        private void OnAssetsChanged(ref ObjectChangeEventStream stream)
+        {
+            if (_chain == null)
+            {
+                return;
+            }
+
+            string path = AssetDatabase.GetAssetPath(_chain);
+            if (string.IsNullOrEmpty(path))
+            {
+                return;
+            }
+
+            GUID guid = AssetDatabase.GUIDFromAssetPath(path);
+            for (int index = 0; index < stream.length; ++index)
+            {
+                if (stream.GetEventType(index) != ObjectChangeKind.ChangeAssetObjectProperties)
+                {
+                    continue;
+                }
+
+                stream.GetChangeAssetObjectPropertiesEvent(index, out ChangeAssetObjectPropertiesEventArgs change);
+                if (change.guid == guid)
+                {
+                    RefreshSavedAsset();
+                    return;
+                }
+            }
+        }
+
+        private void RefreshSavedAsset()
+        {
+            if (_chain == null)
+            {
+                return;
+            }
+
+            DspChainAsset.DrawnEqSettings saved = DspEqCurveAsset.ReadSettings(_chain);
+            if (
+                saved != null
+                && (
+                    _loadedSettings == null
+                    || _loadedSettings.SampleRate != saved.SampleRate
+                    || _loadedSettings.BandLimit != saved.BandLimit
+                    || !_loadedSettings.Target.AsSpan().SequenceEqual(saved.Target)
+                )
+            )
+            {
+                _target = (float[])saved.Target.Clone();
+                _sampleRate = saved.SampleRate;
+                _bandLimit = saved.BandLimit;
+                if (!_rateField.choices.Contains(_sampleRate))
+                {
+                    _rateField.choices.Add(_sampleRate);
+                    _rateField.choices.Sort();
+                }
+
+                _rateField.SetValueWithoutNotify(_sampleRate);
+                _bandField.SetValueWithoutNotify(_bandLimit);
+                _fit = null;
+            }
+
+            _loadedSettings = saved == null ? null : new DspChainAsset.DrawnEqSettings(saved.Target, saved.SampleRate, saved.BandLimit, saved.GeneratedStages);
+            RefreshCurrentResponse();
+            RefreshPreview();
+        }
+
+        private void RefreshCurrentResponse()
+        {
+            _savedResponse =
+                _loadedSettings == null ? null : DspEqCurveFit.MeasureFit(_target, DspEqCurveAsset.ReadCurrentBands(_chain, _loadedSettings), _sampleRate).PreviewDecibels;
+        }
+
         private void InvalidateFit()
         {
             _fit = null;
-            _plot.Show(_target, null, _sampleRate);
-            _fitButton.SetEnabled(0 < _bandLimit);
-            _saveButton.SetEnabled(false);
-            UpdateStatus();
+            RefreshPreview();
         }
 
         private void Fit()
         {
             _fit = DspEqCurveFit.FitDrawing(_target, _sampleRate, _bandLimit);
-            _plot.Show(_target, _fit.PreviewDecibels, _sampleRate);
-            _saveButton.SetEnabled(true);
+            RefreshPreview();
+        }
+
+        private void RefreshPreview()
+        {
+            _plot.Show(_target, _fit?.PreviewDecibels, _savedResponse, _sampleRate);
+            _savedLegend.style.display = _loadedSettings == null ? DisplayStyle.None : DisplayStyle.Flex;
+            _applyButton.style.display = _loadedSettings == null ? DisplayStyle.None : DisplayStyle.Flex;
+            _fitButton.SetEnabled(0 < _bandLimit);
+            _saveButton.SetEnabled(_fit != null);
+            _applyButton.SetEnabled(_fit != null);
             UpdateStatus();
         }
 
@@ -261,11 +283,25 @@ namespace WallstopStudios.DxAudio.Editor
 
             try
             {
-                EditorGUIUtility.PingObject(SaveChain(path, _fit));
+                EditorGUIUtility.PingObject(DspEqCurveAsset.SaveChain(path, _target, _sampleRate, _bandLimit, _fit));
             }
             catch (Exception exception)
             {
                 EditorUtility.DisplayDialog("Could not save EQ chain", exception.Message, "OK");
+            }
+        }
+
+        private void Apply()
+        {
+            try
+            {
+                DspEqCurveAsset.ApplyFit(_chain, _target, _sampleRate, _bandLimit, _fit);
+                _fit = null;
+                RefreshSavedAsset();
+            }
+            catch (Exception exception)
+            {
+                EditorUtility.DisplayDialog("Could not apply EQ fit", exception.Message, "OK");
             }
         }
     }
