@@ -15,6 +15,12 @@ ceiling over several voices, because it only ever holds one.
   that, and `SkippedBlocks` counts a block no prepared chain could run. `ProcessBuffer` is the path a test drives.
 - A mix bus is not a routing tree. One bus shapes one sum, and a game that needs Master, Music and SFX group buses with
   their own effect chains is a separate design.
+- Nothing registers with a mix bus and nothing is buffered. Unity has summed each block before the filter runs, so a
+  source that starts or stops mid-block is simply present or absent in the next block; there is no source list to keep,
+  no crossfade the bus owes, and no stolen voice to report.
+- Ducks are untouched. `MusicDuckStack` composes a gain and a filter pair per music voice, and the mix bus runs after
+  that, so a ducked voice arrives ducked. A "duck the whole mix" reason would be a new owner on the bus, not a change to
+  how ducks compose today.
 
 ## Measured
 
