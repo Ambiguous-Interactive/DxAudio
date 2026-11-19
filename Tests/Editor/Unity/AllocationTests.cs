@@ -102,7 +102,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                     "out"
                 )
             );
-            SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, minimumIntervalSeconds: 0f, graph: graph));
+            SfxCue cue = made.Track(SfxCue.CreateWithGraph(new[] { new SfxVariant(Clip(made)) }, graph: graph, minimumIntervalSeconds: 0f));
             SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
             for (int index = 0; index < WarmupPlays; index++)
             {

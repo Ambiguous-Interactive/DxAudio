@@ -203,10 +203,10 @@ namespace WallstopStudios.DxAudio
 
         /// <summary>Builds a cue that runs a graph after its chain, for tests and for games that author audio at runtime.</summary>
         /// <remarks>
-        /// This is a second factory rather than one more optional parameter on the first, because changing that
-        /// signature stops a caller compiled against the published package from binding.
+        /// A distinct name, not one more overload: a second <c>Create</c> taking a graph would make an existing call that
+        /// passes a null key ambiguous, and a caller compiled against the published package would stop compiling.
         /// </remarks>
-        public static SfxCue Create(
+        public static SfxCue CreateWithGraph(
             IEnumerable<SfxVariant> variants,
             DspGraphAsset graph,
             string key = null,

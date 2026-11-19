@@ -294,7 +294,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             using MadeObjects made = new();
             DspGraphAsset graph = Graph(made, made.Track(DspBitCrusherAsset.Create(bits: 1)));
-            SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, graph: graph));
+            SfxCue cue = made.Track(SfxCue.CreateWithGraph(new[] { new SfxVariant(Clip(made)) }, graph: graph));
             SfxPlayer player = Player(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
             Assert.That(player.Play(cue), Is.True);
             AudioFilterHost host = HostOf(player);
@@ -326,7 +326,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             using MadeObjects made = new();
             DspGraphAsset graph = Graph(made, made.Track(DspDistortionAsset.Create()));
-            SfxCue branched = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, priority: SfxPriority.Low, graph: graph));
+            SfxCue branched = made.Track(SfxCue.CreateWithGraph(new[] { new SfxVariant(Clip(made)) }, graph: graph, priority: SfxPriority.Low));
             SfxCue bare = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, priority: SfxPriority.High));
             SfxPlayer player = Player(made, SfxLibrary.Create(new[] { branched, bare }, voiceCount: 1));
             Assert.That(player.Play(branched), Is.True);
@@ -342,7 +342,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             using MadeObjects made = new();
             DspGraphAsset graph = Graph(made, made.Track(DspBitCrusherAsset.Create(bits: 4)));
-            SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, minimumIntervalSeconds: 0f, graph: graph));
+            SfxCue cue = made.Track(SfxCue.CreateWithGraph(new[] { new SfxVariant(Clip(made)) }, graph: graph, minimumIntervalSeconds: 0f));
             SfxPlayer player = Player(made, SfxLibrary.Create(new[] { cue }, voiceCount: 2));
             IReadOnlyList<AudioFilterHost> hosts = player.GetComponentsInChildren<AudioFilterHost>();
             Assert.That(hosts[0].IsPrepared(graph), Is.True, "a listed cue's graph is prepared with the pool, so its first play allocates nothing");
@@ -358,7 +358,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             using MadeObjects made = new();
             DspGraphAsset graph = Graph(made, made.Track(DspDistortionAsset.Create(drive: 4f)));
-            SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, graph: graph));
+            SfxCue cue = made.Track(SfxCue.CreateWithGraph(new[] { new SfxVariant(Clip(made)) }, graph: graph));
             SfxPlayer player = Player(made, SfxLibrary.Create(new SfxCue[0], voiceCount: 2));
 
             Assert.That(player.Warm(cue), Is.True, "the pool warms what the library lists; a reference cue needs this call");
@@ -379,7 +379,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             using MadeObjects made = new();
             DspGraphAsset graph = Graph(made, made.Track(DspBitCrusherAsset.Create(bits: 1)));
-            MusicTrack track = made.Track(MusicTrack.Create(Clip(made), graph: graph));
+            MusicTrack track = made.Track(MusicTrack.CreateWithGraph(Clip(made), graph: graph));
             MusicPlayer player = made.Track(new GameObject("music")).AddComponent<MusicPlayer>();
             player.Library = made.Track(MusicLibrary.Create(new[] { track }, fadeInSeconds: 0f, fadeOutSeconds: 0f));
 

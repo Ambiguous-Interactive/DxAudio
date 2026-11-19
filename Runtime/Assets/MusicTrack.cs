@@ -93,10 +93,10 @@ namespace WallstopStudios.DxAudio
 
         /// <summary>Builds a track that runs a graph after its chain, for tests and for games that author audio at runtime.</summary>
         /// <remarks>
-        /// This is a second factory rather than one more optional parameter on the first, because changing that
-        /// signature stops a caller compiled against the published package from binding.
+        /// A distinct name, not one more overload: a second <c>Create</c> taking a graph would make an existing call that
+        /// passes a null context ambiguous, and a caller compiled against the published package would stop compiling.
         /// </remarks>
-        public static MusicTrack Create(
+        public static MusicTrack CreateWithGraph(
             AudioClip clip,
             DspGraphAsset graph,
             string context = null,

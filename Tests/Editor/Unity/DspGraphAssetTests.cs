@@ -129,6 +129,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void ANullKeyAndANullContextStillBindToTheFirstFactory()
+        {
+            using MadeObjects made = new();
+            // The call shape that a second Create overload would have made ambiguous. It compiling is the assertion.
+            SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, null));
+            MusicTrack track = made.Track(MusicTrack.Create(Clip(made), null));
+
+            Assert.That(cue.Key == null, Is.True);
+            Assert.That(track.Context == null, Is.True);
+        }
+
+        [Test]
         public void AReadyGraphHasNoProblems()
         {
             using MadeObjects made = new();
@@ -177,6 +189,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             {
                 AssetDatabase.DeleteAsset(folder);
             }
+        }
+
+        private static AudioClip Clip(MadeObjects made)
+        {
+            return made.Track(AudioClip.Create("test clip", 400, 1, 8_000, stream: false));
         }
     }
 }
