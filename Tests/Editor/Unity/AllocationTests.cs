@@ -124,12 +124,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float[] block = new float[64];
             for (int index = 0; index < block.Length; ++index)
             {
-                block[index] = 0.5f;
+                block[index] = 1f;
             }
 
             long growth = HeapGrowth(() => bus.ProcessBuffer(block, 1), PlayCount);
 
             Assert.That(growth, Is.LessThan(Ceiling), $"A mix bus block grew the heap by {growth} bytes over {PlayCount:N0} blocks.");
+            Assert.That(bus.SkippedBlocks, Is.Zero, "a block that reached no chain would also grow nothing, so the probe must see it shape");
+            Assert.That(block[0], Is.LessThan(0.95f), "the limiter held the full-scale block, so the chain really ran");
         }
 
         [Test]

@@ -66,20 +66,21 @@ namespace WallstopStudios.DxAudio.Editor
         /// <summary>Adds one row per stage of <paramref name="asset" />, in order, with any live gain reduction.</summary>
         /// <remarks>
         /// Order is the sound, so the rows are the authored list, top first. A chain that a running voice plays also
-        /// shows how far each stage holds the signal down; that reading is diagnostics, so it may allocate.
+        /// shows how far each stage holds the signal down; that reading is diagnostics, so it may allocate. A mix bus
+        /// shapes the sum rather than a voice, so the copy names the mix.
         /// </remarks>
-        internal static void AddChainRows(VisualElement parent, DspChainAsset asset)
+        internal static void AddChainRows(VisualElement parent, DspChainAsset asset, bool mix = false)
         {
             if (asset == null)
             {
-                parent.Add(new Label("No chain: voices play their clip untouched."));
+                parent.Add(new Label(mix ? "No chain: the mix passes through untouched." : "No chain: voices play their clip untouched."));
                 return;
             }
 
             IReadOnlyList<DspEffectAsset> effects = asset.Effects;
             if (effects.Count == 0)
             {
-                parent.Add(new Label("The chain holds no effects, so it plays the clip untouched."));
+                parent.Add(new Label(mix ? "The chain holds no effects, so the mix passes through untouched." : "The chain holds no effects, so it plays the clip untouched."));
                 return;
             }
 
@@ -99,12 +100,12 @@ namespace WallstopStudios.DxAudio.Editor
 
             if (reductions == null)
             {
-                parent.Add(new Label("A running voice shows its live gain reduction beside each stage."));
+                parent.Add(new Label(mix ? "A running bus shows its live gain reduction beside each stage." : "A running voice shows its live gain reduction beside each stage."));
             }
         }
 
         /// <summary>Rebuilds <paramref name="rows" /> while audio plays, because a live reading moves with no edit.</summary>
-        internal static void RefreshWhilePlaying(VisualElement rows, DspChainAsset asset)
+        internal static void RefreshWhilePlaying(VisualElement rows, DspChainAsset asset, bool mix = false)
         {
             rows.schedule.Execute(() =>
                 {
@@ -112,7 +113,7 @@ namespace WallstopStudios.DxAudio.Editor
                     if (Application.isPlaying)
                     {
                         rows.Clear();
-                        AddChainRows(rows, asset);
+                        AddChainRows(rows, asset, mix);
                     }
                 })
                 .Every(RefreshMilliseconds);

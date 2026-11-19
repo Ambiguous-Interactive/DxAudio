@@ -47,12 +47,7 @@ namespace WallstopStudios.DxAudio
                 }
 
                 _chain = value;
-                DspChainSlot prepared = SlotFor(value);
-                _running = prepared;
-                if (prepared != null)
-                {
-                    prepared.RequestClear();
-                }
+                Select(value);
             }
         }
 
@@ -164,17 +159,37 @@ namespace WallstopStudios.DxAudio
         internal void Initialize()
         {
             _layout.Refresh();
-            DspChainSlot prepared = SlotFor(_chain);
-            _running = prepared;
-            if (prepared != null)
-            {
-                prepared.RequestClear();
-            }
+            Select(_chain);
         }
+
+        /// <summary>The sample rate every slot here was prepared with, for a test that checks a device change.</summary>
+        internal int PreparedSampleRate => _layout.SampleRate;
 
         private void OnEnable()
         {
             AudioSettings.OnAudioConfigurationChanged += OnAudioConfigurationChanged;
+            // A device change while this component was disabled never reached the handler. An unchanged rate leaves a
+            // running release alone, so a plain enable does not restart it.
+            int deviceRate = AudioSettings.outputSampleRate;
+            if (0 < deviceRate && 0 < _layout.SampleRate && deviceRate != _layout.SampleRate)
+            {
+                OnAudioConfigurationChanged(deviceChanged: true);
+            }
+        }
+
+        /// <summary>Re-selects the serialized chain when an inspector edit changes it in play mode.</summary>
+        /// <remarks>
+        /// A game assigns <see cref="Chain" />, but an edit to the serialized field does not pass through that setter.
+        /// Without this, the audio would keep the slot it already ran while the inspector named the new asset.
+        /// </remarks>
+        private void OnValidate()
+        {
+            if (!Application.isPlaying)
+            {
+                return;
+            }
+
+            Select(_chain);
         }
 
         private void OnDisable()
@@ -192,12 +207,19 @@ namespace WallstopStudios.DxAudio
             _layout.Invalidate();
             _liveChannels = 0;
             _slots.Clear();
-            DspChainSlot prepared = SlotFor(_chain);
-            _running = prepared;
+            Select(_chain);
+        }
+
+        /// <summary>Publishes the prepared slot for <paramref name="asset" />, owing it a clear first.</summary>
+        private void Select(DspChainAsset asset)
+        {
+            DspChainSlot prepared = SlotFor(asset);
             if (prepared != null)
             {
                 prepared.RequestClear();
             }
+
+            _running = prepared;
         }
 
         /// <summary>The block shape a reading describes: the last block run, or the output layout before any block.</summary>

@@ -44,7 +44,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             using MadeObjects made = new();
             AudioMixBus bus = Bus(made, Chain(made, made.Track(DspLimiterAsset.Create(lookaheadSeconds: 0.005f))));
-            int lookahead = Mathf.RoundToInt(0.005f * OutputSampleRate());
+            int lookahead = Mathf.RoundToInt(0.005f * bus.PreparedSampleRate);
             int channels = bus.ChannelCount;
             float[] block = new float[channels * (lookahead + 16)];
             for (int channel = 0; channel < channels; ++channel)
@@ -131,9 +131,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             AudioMixBus bus = Bus(made, Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -6f, lookaheadSeconds: 0f))));
             int channels = bus.ChannelCount;
             bus.ProcessBuffer(FullScale(channels * 64), channels);
+            DspChain before = bus.LiveChain;
 
             bus.OnAudioConfigurationChanged(deviceChanged: true);
 
+            Assert.That(bus.LiveChain, Is.Not.SameAs(before), "a chain sized for the old rate must not survive a device change");
             Assert.That(bus.LiveChain.Count, Is.EqualTo(1), "the chain is rebuilt for the new device instead of kept at the old rate");
             float[] block = FullScale(channels * 64);
             bus.ProcessBuffer(block, channels);
@@ -142,7 +144,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void AChainSavedOnTheComponentRunsWhenTheObjectLoads()
+        public void InitializePreparesTheSavedChain()
         {
             using MadeObjects made = new();
             DspChainAsset chain = Chain(made, made.Track(DspBitCrusherAsset.Create(bits: 1)));
@@ -204,12 +206,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             AudioMixBus bus = made.Track(new GameObject("mix bus")).AddComponent<AudioMixBus>();
             bus.Chain = chain;
             return bus;
-        }
-
-        /// <summary>The rate a bus prepares with: the device rate, or its 48 kHz fallback when the device reports none.</summary>
-        private static int OutputSampleRate()
-        {
-            return 0 < AudioSettings.outputSampleRate ? AudioSettings.outputSampleRate : 48_000;
         }
 
         private static float[] Sum(float[] left, float[] right)

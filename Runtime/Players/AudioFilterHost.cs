@@ -58,8 +58,10 @@ namespace WallstopStudios.DxAudio
             {
                 Instance prepared = InstanceFor(value, bus: false);
                 _chain = value;
-                _running = prepared;
+                // The clear is requested before the instance is published: a block that reads the new one in between
+                // must already be owed a reset, or it would run the last play's delay line for one block.
                 MarkCleared(prepared);
+                _running = prepared;
                 MarkCleared(_bus);
             }
         }
@@ -72,8 +74,8 @@ namespace WallstopStudios.DxAudio
             {
                 Instance prepared = InstanceFor(value, bus: true);
                 _busChain = value;
-                _bus = prepared;
                 MarkCleared(prepared);
+                _bus = prepared;
             }
         }
 
@@ -90,8 +92,8 @@ namespace WallstopStudios.DxAudio
             {
                 GraphInstance prepared = GraphInstanceFor(value);
                 _graph = value;
-                _runningGraph = prepared;
                 MarkCleared(prepared);
+                _runningGraph = prepared;
             }
         }
 
@@ -315,6 +317,13 @@ namespace WallstopStudios.DxAudio
         private void OnEnable()
         {
             AudioSettings.OnAudioConfigurationChanged += OnAudioConfigurationChanged;
+            // A device change while this host was disabled never reached the handler. An unchanged rate leaves a running
+            // release alone, so a plain enable does not restart it.
+            int deviceRate = AudioSettings.outputSampleRate;
+            if (0 < deviceRate && 0 < _layout.SampleRate && deviceRate != _layout.SampleRate)
+            {
+                OnAudioConfigurationChanged(deviceChanged: true);
+            }
         }
 
         private void OnDisable()
@@ -336,12 +345,12 @@ namespace WallstopStudios.DxAudio
             Instance running = InstanceFor(_chain, bus: false);
             Instance bus = InstanceFor(_busChain, bus: true);
             GraphInstance graph = GraphInstanceFor(_graph);
-            _running = running;
-            _bus = bus;
-            _runningGraph = graph;
             MarkCleared(running);
             MarkCleared(bus);
             MarkCleared(graph);
+            _running = running;
+            _bus = bus;
+            _runningGraph = graph;
         }
 
         /// <summary>Asks for <paramref name="instance" /> to be cleared before it next processes a block.</summary>
