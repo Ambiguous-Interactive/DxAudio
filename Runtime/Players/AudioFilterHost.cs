@@ -157,7 +157,7 @@ namespace WallstopStudios.DxAudio
         /// <summary>The output channel count this host prepares for; every narrower block also runs.</summary>
         public int ChannelCount => _outputChannels;
 
-        /// <summary>How many blocks were wider than any prepared chain. A diagnostic; zero is healthy.</summary>
+        /// <summary>How many blocks no prepared chain or graph ran. A diagnostic; zero is healthy.</summary>
         public int SkippedBlocks => _skippedBlocks;
 
         /// <summary>Whether the source on this object reports playback now, so a live reading belongs to it.</summary>
@@ -244,6 +244,13 @@ namespace WallstopStudios.DxAudio
             GraphInstance graphInstance = _runningGraph;
             DspChain running = runningInstance != null ? runningInstance.For(channels) : null;
             DspGraph graph = graphInstance != null ? graphInstance.For(channels) : null;
+            if (graph != null && !graph.IsPrepared)
+            {
+                // A graph its asset cannot build or prepare runs nothing. Dropping it here makes a block that no stage
+                // shaped count as skipped, rather than passing through invisibly.
+                graph = null;
+            }
+
             DspChain bus = busInstance != null ? busInstance.For(channels) : null;
             if (running == null && graph == null && bus == null)
             {

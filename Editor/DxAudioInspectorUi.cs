@@ -18,12 +18,6 @@ namespace WallstopStudios.DxAudio.Editor
         /// <summary>The rate a graph is measured at when the editor reports no output device, in hertz.</summary>
         private const int FallbackSampleRate = 48_000;
 
-        /// <summary>The block a graph is prepared with to read its latency; the delay does not depend on it.</summary>
-        private const int FallbackBlockFrames = 1_024;
-
-        /// <summary>The channel count a graph is prepared with to read its latency; the delay does not depend on it.</summary>
-        private const int FallbackChannels = 2;
-
         /// <summary>Adds a spaced section under <paramref name="parent" /> and returns it.</summary>
         internal static VisualElement AddSection(VisualElement parent, string title)
         {
@@ -126,9 +120,9 @@ namespace WallstopStudios.DxAudio.Editor
 
         /// <summary>Adds one row per node and per edge of <paramref name="asset" />, with what the graph delays each branch.</summary>
         /// <remarks>
-        /// The latency is measured on a graph built from the asset at the editor's output rate, because the delay a
-        /// chain reports is in samples at a rate: an inspector cannot show a live voice's figure for an asset nothing
-        /// plays yet. This is authoring work, so it may allocate.
+        /// The latency is measured on a graph built from the asset at <see cref="DspGraphAsset.ReferenceSampleRate" />,
+        /// because the delay a chain reports is in samples at a rate and an inspector cannot show a live voice's figure
+        /// for an asset nothing plays yet. This is authoring work, so it may allocate.
         /// </remarks>
         internal static void AddGraphRows(VisualElement parent, DspGraphAsset asset)
         {
@@ -144,17 +138,14 @@ namespace WallstopStudios.DxAudio.Editor
                 return;
             }
 
-            int sampleRate = 0 < AudioSettings.outputSampleRate ? AudioSettings.outputSampleRate : FallbackSampleRate;
-            bool prepared = graph.TryPrepare(sampleRate, FallbackBlockFrames, FallbackChannels, asset.IndexOfNode(asset.InputNode), asset.IndexOfNode(asset.OutputNode));
-            if (!prepared)
-            {
-                parent.Add(
-                    new HelpBox(
-                        "The graph cannot be prepared at the editor's output rate: a node is off the path from the input to the output, or the graph is over its 2 MiB budget.",
-                        HelpBoxMessageType.Warning
-                    )
-                );
-            }
+            int sampleRate = DspGraphAsset.ReferenceSampleRate;
+            bool prepared = graph.TryPrepare(
+                sampleRate,
+                DspGraphAsset.ReferenceBlockFrames,
+                DspGraphAsset.ReferenceChannels,
+                asset.IndexOfNode(asset.InputNode),
+                asset.IndexOfNode(asset.OutputNode)
+            );
 
             IReadOnlyList<DspGraphNode> nodes = asset.Nodes;
             for (int index = 0; index < nodes.Count; ++index)

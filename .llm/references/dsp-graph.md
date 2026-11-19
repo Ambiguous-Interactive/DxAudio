@@ -9,15 +9,18 @@ is the output.
 
 The asset stores nodes and edges by name, not by position, because a node added above another would otherwise move every
 edge that crosses it. An edge to a name no node holds is refused, as is a second node with a name already in use, and
-`FindProblems` names the node or edge a person has to fix. Two nodes may name one chain asset: each builds its own
-chain. A node with no chain is a junction that passes its input on, which is how a split or a join with no shaping of
-its own is authored. `TryCreateGraph` answers `false` and leaves no graph, so the audio path passes the block through
-instead of running half a graph.
+`FindProblems` names the node or edge a person has to fix. It also reports a node off the input-to-output path and a
+graph it cannot prepare at `ReferenceSampleRate` for stereo `ReferenceBlockFrames`-frame blocks, which is where the
+2 MiB budget is checked; another device can reserve a different figure. Two nodes may name one chain asset: each builds
+its own chain. A node with no chain is a junction that passes its input on, which is how a split or a join with no
+shaping of its own is authored. `TryCreateGraph` answers `false` and leaves no graph, so the audio path passes the block
+through instead of running half a graph.
 
 A cue (`SfxCue.Graph`) or a track (`MusicTrack.Graph`) runs its graph after the voice's chain and before the bus: a
 branch sees the shaped signal, and the bus still acts on the sum. A voice builds its own graph for each block shape, so
 two voices never share a branch buffer, and it keeps what it built the first time it met the asset. The cue inspector
-and the library check report a graph the runtime cannot build, because it would pass the sound through unshaped.
+and the library check report a graph the runtime cannot build, because it would pass the sound through unshaped; a host
+also counts a block that only such a graph would have shaped in `SkippedBlocks`.
 
 `TryGetNodeLatency` reports one branch's arrival, which is what the graph inspector shows beside each node, and
 `LatencySamples` is the longest path, which the graph inspector shows as its own total.

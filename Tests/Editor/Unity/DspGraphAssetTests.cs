@@ -99,6 +99,36 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void AGraphOverTheMemoryBudgetIsReported()
+        {
+            using MadeObjects made = new();
+            // Six branches of unequal length: every edge into the output waits for the longest one, so their lines
+            // together ask for more than the 2 MiB a prepared graph may reserve.
+            int[] stages = { 16, 12, 8, 4, 2, 1 };
+            DspGraphNode[] nodes = new DspGraphNode[stages.Length + 2];
+            DspGraphEdge[] edges = new DspGraphEdge[stages.Length * 2];
+            nodes[0] = new DspGraphNode("in", null);
+            for (int branch = 0; branch < stages.Length; ++branch)
+            {
+                DspEffectAsset[] effects = new DspEffectAsset[stages[branch]];
+                for (int index = 0; index < effects.Length; ++index)
+                {
+                    effects[index] = made.Track(DspPitchShifterAsset.Create(semitones: 0f, windowSeconds: 0.2f));
+                }
+
+                string name = $"branch{branch}";
+                nodes[branch + 1] = new DspGraphNode(name, made.Track(DspChainAsset.Create(effects)));
+                edges[branch * 2] = new DspGraphEdge("in", name);
+                edges[(branch * 2) + 1] = new DspGraphEdge(name, "out");
+            }
+
+            nodes[stages.Length + 1] = new DspGraphNode("out", null);
+            DspGraphAsset asset = made.Track(DspGraphAsset.Create(nodes, edges, "in", "out"));
+
+            Assert.That(string.Join(" ", asset.FindProblems()), Does.Contain("2 MiB"), "a graph no device layout this size can run is not ready");
+        }
+
+        [Test]
         public void AReadyGraphHasNoProblems()
         {
             using MadeObjects made = new();

@@ -179,8 +179,7 @@ namespace WallstopStudios.DxAudio
             SfxCue followsTakeOf = null,
             bool ignoresListenerPause = false,
             AudioMixerGroup mixerGroupOverride = null,
-            DspChainAsset chain = null,
-            DspGraphAsset graph = null
+            DspChainAsset chain = null
         )
         {
             SfxCue cue = CreateInstance<SfxCue>();
@@ -199,6 +198,50 @@ namespace WallstopStudios.DxAudio
             cue._ignoresListenerPause = ignoresListenerPause;
             cue._mixerGroupOverride = mixerGroupOverride;
             cue._chain = chain;
+            return cue;
+        }
+
+        /// <summary>Builds a cue that runs a graph after its chain, for tests and for games that author audio at runtime.</summary>
+        /// <remarks>
+        /// This is a second factory rather than one more optional parameter on the first, because changing that
+        /// signature stops a caller compiled against the published package from binding.
+        /// </remarks>
+        public static SfxCue Create(
+            IEnumerable<SfxVariant> variants,
+            DspGraphAsset graph,
+            string key = null,
+            SfxPriority priority = SfxPriority.Medium,
+            float minimumIntervalSeconds = DefaultMinimumIntervalSeconds,
+            bool loop = false,
+            float volume = 1f,
+            float pitchJitter = 0f,
+            float spatialBlend = 0f,
+            float falloffStartUnits = 10f,
+            float falloffEndUnits = 40f,
+            bool heardCentred = false,
+            SfxCue followsTakeOf = null,
+            bool ignoresListenerPause = false,
+            AudioMixerGroup mixerGroupOverride = null,
+            DspChainAsset chain = null
+        )
+        {
+            SfxCue cue = Create(
+                variants,
+                key,
+                priority,
+                minimumIntervalSeconds,
+                loop,
+                volume,
+                pitchJitter,
+                spatialBlend,
+                falloffStartUnits,
+                falloffEndUnits,
+                heardCentred,
+                followsTakeOf,
+                ignoresListenerPause,
+                mixerGroupOverride,
+                chain
+            );
             cue._graph = graph;
             return cue;
         }

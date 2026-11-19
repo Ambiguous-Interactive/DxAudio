@@ -18,6 +18,15 @@ namespace WallstopStudios.DxAudio
     [CreateAssetMenu(fileName = "DspGraph", menuName = "DxAudio/DSP/Graph")]
     public sealed class DspGraphAsset : ScriptableObject
     {
+        /// <summary>The rate <see cref="FindProblems" /> prepares at when it checks the memory budget.</summary>
+        public const int ReferenceSampleRate = 48_000;
+
+        /// <summary>The block size <see cref="FindProblems" /> prepares with when it checks the memory budget.</summary>
+        public const int ReferenceBlockFrames = 1_024;
+
+        /// <summary>The channel count <see cref="FindProblems" /> prepares with when it checks the memory budget.</summary>
+        public const int ReferenceChannels = 2;
+
         [SerializeField]
         [Tooltip("The nodes the signal can pass through. Each one runs a chain, or passes its input on when its chain is empty.")]
         private List<DspGraphNode> _nodes = new();
@@ -220,6 +229,11 @@ namespace WallstopStudios.DxAudio
                 AddPathProblems(problems, IndexOfNode(_inputNode), IndexOfNode(_outputNode));
             }
 
+            if (problems.Count == 0)
+            {
+                AddPreparationProblems(problems);
+            }
+
             return problems;
         }
 
@@ -293,6 +307,31 @@ namespace WallstopStudios.DxAudio
                 {
                     problems.Add($"The node \"{_nodes[index].Name}\" is off the path from the input to the output, so it would never run.");
                 }
+            }
+        }
+
+        /// <summary>Adds a finding when the graph cannot be prepared at a reference output layout.</summary>
+        /// <remarks>
+        /// The memory a graph reserves grows with the block size and the channel count, so no check settles every device.
+        /// This one prepares at <see cref="ReferenceSampleRate" /> Hz for <see cref="ReferenceChannels" /> channels and
+        /// <see cref="ReferenceBlockFrames" />-frame blocks, and reports a refusal instead of promising a graph that
+        /// some device would bypass. A game prepares the graph itself on each device, so a refusal here is a warning
+        /// about one layout, not a verdict about every layout.
+        /// </remarks>
+        private void AddPreparationProblems(List<string> problems)
+        {
+            if (!TryCreateGraph(out DspGraph graph))
+            {
+                problems.Add("The graph cannot be built.");
+                return;
+            }
+
+            if (!graph.TryPrepare(ReferenceSampleRate, ReferenceBlockFrames, ReferenceChannels, IndexOfNode(_inputNode), IndexOfNode(_outputNode)))
+            {
+                problems.Add(
+                    $"The graph cannot be prepared at {ReferenceSampleRate} Hz for {ReferenceChannels} channels and "
+                        + $"{ReferenceBlockFrames}-frame blocks: a chain refused the layout, or the graph is over its {DspGraph.MaximumPreparedBytes / (1024 * 1024)} MiB budget."
+                );
             }
         }
 

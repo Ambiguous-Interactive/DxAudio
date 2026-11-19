@@ -77,8 +77,7 @@ namespace WallstopStudios.DxAudio
             float volumeScale = 1f,
             float startTimeSeconds = 0f,
             MusicClipLoadType clipLoadType = MusicClipLoadType.Auto,
-            DspChainAsset chain = null,
-            DspGraphAsset graph = null
+            DspChainAsset chain = null
         )
         {
             MusicTrack track = CreateInstance<MusicTrack>();
@@ -89,6 +88,26 @@ namespace WallstopStudios.DxAudio
             track._startTimeSeconds = Mathf.Max(0f, startTimeSeconds);
             track._clipLoadType = clipLoadType;
             track._chain = chain;
+            return track;
+        }
+
+        /// <summary>Builds a track that runs a graph after its chain, for tests and for games that author audio at runtime.</summary>
+        /// <remarks>
+        /// This is a second factory rather than one more optional parameter on the first, because changing that
+        /// signature stops a caller compiled against the published package from binding.
+        /// </remarks>
+        public static MusicTrack Create(
+            AudioClip clip,
+            DspGraphAsset graph,
+            string context = null,
+            bool loop = true,
+            float volumeScale = 1f,
+            float startTimeSeconds = 0f,
+            MusicClipLoadType clipLoadType = MusicClipLoadType.Auto,
+            DspChainAsset chain = null
+        )
+        {
+            MusicTrack track = Create(clip, context, loop, volumeScale, startTimeSeconds, clipLoadType, chain);
             track._graph = graph;
             return track;
         }

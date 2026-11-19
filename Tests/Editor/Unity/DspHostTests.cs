@@ -393,6 +393,23 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(Peak(block), Is.EqualTo(1f).Within(0.0001f), "the track's graph reaches the music voice");
         }
 
+        [Test]
+        public void AHostCountsABlockNoPreparedGraphRan()
+        {
+            using MadeObjects made = new();
+            DspGraphAsset broken = made.Track(
+                DspGraphAsset.Create(new[] { new DspGraphNode("in", null), new DspGraphNode("out", null) }, new[] { new DspGraphEdge("in", "nowhere") }, "in", "out")
+            );
+            AudioFilterHost host = made.Track(new GameObject("host")).AddComponent<AudioFilterHost>();
+            host.Graph = broken;
+            float[] block = Quiet(0.3f, host.ChannelCount * 4);
+
+            host.OnAudioFilterRead(block, host.ChannelCount);
+
+            Assert.That(Peak(block), Is.EqualTo(0.3f).Within(0.0001f), "a graph that cannot build never touches the block");
+            Assert.That(host.SkippedBlocks, Is.EqualTo(1), "a bypass nobody counts is the failure this package rejects");
+        }
+
         private static DspChainAsset Chain(MadeObjects made, params DspEffectAsset[] effects)
         {
             return made.Track(DspChainAsset.Create(effects));
