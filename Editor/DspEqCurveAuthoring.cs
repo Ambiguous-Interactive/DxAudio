@@ -3,6 +3,7 @@ namespace WallstopStudios.DxAudio.Editor
     using System;
     using System.Collections.Generic;
     using UnityEditor;
+    using UnityEditor.UIElements;
     using UnityEngine;
     using UnityEngine.UIElements;
 
