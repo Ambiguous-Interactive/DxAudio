@@ -99,8 +99,9 @@ output the stage keeps and moves no poles. The output itself steps, so change th
 - **Quality** is how narrow the band is. 0.71 is flat at the corner; a higher value narrows the band and lifts the
   corner of a low pass or a high pass. A band pass stays at unity in its centre, and a notch stays a null, whatever the
   quality; those two only narrow.
-- **Peak Decibels** moves only the Peak band, from -24 to 24 dB. Zero decibels passes the block through sample for
-  sample. The peak's poles do not move with the gain, so a deep cut is narrower than a large boost.
+- **Peak Decibels** moves only the Peak band, from -24 to 24 dB. A gain already at zero, as after preparation or a
+  reset, passes the block through sample for sample; a move from a nonzero gain ramps to zero. The peak's poles do not
+  move with the gain, so a deep cut is narrower than a large boost.
 - A knob moved while the sound plays is smoothed with a ten-millisecond time constant, so a sweep does not click. Set the
   corner before playback when the exact first block matters.
 

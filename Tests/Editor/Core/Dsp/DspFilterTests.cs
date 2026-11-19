@@ -326,11 +326,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void TheCornerIsRaisedToItsFloor()
+        public void TheCornerIsClampedToItsRange()
         {
-            DspFilter filter = new() { FrequencyHz = 1f };
+            DspFilter low = new() { FrequencyHz = 1f };
+            DspFilter high = new() { FrequencyHz = 30_000f };
 
-            Assert.That(filter.FrequencyHz, Is.EqualTo(DspFilter.MinimumFrequencyHz));
+            Assert.That(low.FrequencyHz, Is.EqualTo(DspFilter.MinimumFrequencyHz));
+            Assert.That(high.FrequencyHz, Is.EqualTo(DspFilter.MaximumFrequencyHz), "a burst of speed does not give a corner the inspector cannot hold");
         }
 
         [TestCase(0f, DspFilter.MinimumQuality)]

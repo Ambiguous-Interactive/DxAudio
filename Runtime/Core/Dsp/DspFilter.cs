@@ -86,7 +86,7 @@ namespace WallstopStudios.DxAudio
             set => _mode = value;
         }
 
-        /// <summary>The corner of the band, in hertz, capped below the Nyquist rate of the prepared block.</summary>
+        /// <summary>The corner of the band, in hertz, clamped to the authored range and capped below the Nyquist rate of the prepared block.</summary>
         public float FrequencyHz
         {
             get => _frequencyHz;
@@ -94,7 +94,7 @@ namespace WallstopStudios.DxAudio
             {
                 if (AudioMath.IsFinite(value))
                 {
-                    _frequencyHz = Math.Max(MinimumFrequencyHz, value);
+                    _frequencyHz = AudioMath.Clamp(value, MinimumFrequencyHz, MaximumFrequencyHz);
                     RecomputeTargets();
                 }
             }
