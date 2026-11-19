@@ -356,7 +356,7 @@ namespace WallstopStudios.DxAudio
         {
             if (instance != null)
             {
-                instance.ClearRequested = 1;
+                instance.ClearGeneration++;
             }
         }
 
@@ -365,7 +365,7 @@ namespace WallstopStudios.DxAudio
         {
             if (instance != null)
             {
-                instance.ClearRequested = 1;
+                instance.ClearGeneration++;
             }
         }
 
@@ -473,18 +473,27 @@ namespace WallstopStudios.DxAudio
                 this.bus = bus;
             }
 
-            /// <summary>One when a new play has asked for a clear that no block has applied yet.</summary>
-            public int ClearRequested;
+            /// <summary>The play that last asked for a clear. Written on the main thread only.</summary>
+            public int ClearGeneration;
 
-            /// <summary>Whether a clear is owed to this instance, taking the request when it is.</summary>
+            /// <summary>The generation this instance has already cleared for. Written on the audio thread only.</summary>
+            public int ClearedGeneration;
+
+            /// <summary>Whether a clear is owed to this instance, recording it as taken when one is.</summary>
+            /// <remarks>
+            /// A generation, not a flag: a block that reads a request must not spend a newer one that a swap wrote while
+            /// the block was running. A flag would write zero over that newer request and the next play would start on
+            /// the delay line the old one left.
+            /// </remarks>
             public bool ClearBeforeNextBlock()
             {
-                if (0 == ClearRequested)
+                int requested = ClearGeneration;
+                if (ClearedGeneration == requested)
                 {
                     return false;
                 }
 
-                ClearRequested = 0;
+                ClearedGeneration = requested;
                 return true;
             }
 
@@ -526,18 +535,27 @@ namespace WallstopStudios.DxAudio
                 this.asset = asset;
             }
 
-            /// <summary>One when a new play has asked for a clear that no block has applied yet.</summary>
-            public int ClearRequested;
+            /// <summary>The play that last asked for a clear. Written on the main thread only.</summary>
+            public int ClearGeneration;
 
-            /// <summary>Whether a clear is owed to this instance, taking the request when it is.</summary>
+            /// <summary>The generation this instance has already cleared for. Written on the audio thread only.</summary>
+            public int ClearedGeneration;
+
+            /// <summary>Whether a clear is owed to this instance, recording it as taken when one is.</summary>
+            /// <remarks>
+            /// A generation, not a flag: a block that reads a request must not spend a newer one that a swap wrote while
+            /// the block was running. A flag would write zero over that newer request and the next play would start on
+            /// the delay line the old one left.
+            /// </remarks>
             public bool ClearBeforeNextBlock()
             {
-                if (0 == ClearRequested)
+                int requested = ClearGeneration;
+                if (ClearedGeneration == requested)
                 {
                     return false;
                 }
 
-                ClearRequested = 0;
+                ClearedGeneration = requested;
                 return true;
             }
 

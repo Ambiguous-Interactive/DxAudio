@@ -254,7 +254,9 @@ one host on each pooled voice; `MusicPlayer` does the same for its three voices.
   another, so every bus effect acts on one voice at a time: two voices that each fit under a ceiling can still sum
   above it, which makes a bus a shared shaping stage rather than an output limiter.
 - `Chain`'s setter asks for a clear, and `ProcessBuffer` applies it at the next block boundary before the stages run.
-  Resetting the effects on the main thread would race the block the audio thread is inside.
+  Resetting the effects on the main thread would race the block the audio thread is inside. The request is a generation
+  counter per asset: a block records the generation it cleared for, so a request written while that block ran is still
+  owed to the next one instead of being spent by it.
 - `DspChain.GainReductionDecibels` sums its stages, because stages in series add their decibels; makeup gain is not
   counted. The chain, cue and track inspectors show one row per stage in signal order with the live reading any running
   host reports. That reading is diagnostics, so it may allocate.
