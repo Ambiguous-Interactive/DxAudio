@@ -4,8 +4,9 @@ namespace WallstopStudios.DxAudio.Tests
     using NUnit.Framework;
 
     /// <summary>
-    /// A DSP chain and a DSP graph run on the audio thread, so neither may allocate per block (DxAudio#27, DxAudio#69).
-    /// Runs on .NET only: <c>GC.GetAllocatedBytesForCurrentThread</c> is not something every Unity runtime offers.
+    /// A DSP chain and a DSP graph run on the audio thread, so neither may allocate per block (DxAudio#27, DxAudio#69,
+    /// DxAudio#78). Runs on .NET only: <c>GC.GetAllocatedBytesForCurrentThread</c> is not something every Unity runtime
+    /// offers.
     /// </summary>
     public sealed class DspAllocationTests
     {
@@ -26,9 +27,11 @@ namespace WallstopStudios.DxAudio.Tests
             chain.Add(
                 new DspFilter
                 {
-                    Mode = DspFilterMode.BandPass,
+                    // The bell is the one mode that takes a square root each frame, so the probe must run it.
+                    Mode = DspFilterMode.Bell,
                     FrequencyHz = 1_200f,
                     Quality = 2f,
+                    PeakDecibels = 12f,
                 }
             );
             chain.TryPrepare(SampleRate, BlockFrames, Channels);

@@ -7,8 +7,8 @@ constant. A corner is capped at 45% of the sample rate, so a tangent never runs 
 both integrators until `Reset`, because the core feeds its own state back, and a per-frame guard would buy nothing.
 
 The mode reads once per block and is a choice of output, not a coefficient, except that a peak and a bell mix the band
-under the dry signal. With `v0` the input, `v1` the band output, `v2` the low output, `Q` the quality, `k = 1 / Q` and
-`G` the linear gain from `PeakDecibels`:
+under the dry signal, and a bell also scales its damping by the gain. With `v0` the input, `v1` the band output, `v2`
+the low output, `Q` the quality, `k = 1 / Q` and `G` the linear gain from `PeakDecibels`:
 
 | Mode      | Output                    | Damping             |
 | --------- | ------------------------- | ------------------- |
@@ -51,8 +51,8 @@ The skirt at quality 2, which is where the two gain modes differ:
 | -12 dB  |           -1.5 |           -4.1 |          -1.5 |
 | -24 dB  |           -1.7 |           -9.1 |          -4.3 |
 
-Bell's 2 kHz skirt mirrors its 700 Hz skirt, and Peak's does not: at -24 dB its 700 Hz reading is 1.7 dB down where its
-boost of the same size is 19.1 dB up.
+Bell's cut mirrors its boost at every frequency, and Peak's does not: at -24 dB its 700 Hz reading is 1.7 dB down where
+its boost of the same size is 19.1 dB up.
 
 ## Cost
 

@@ -79,12 +79,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(away, Is.EqualTo(1f).Within(0.05f), "a frequency away from the peak is untouched");
         }
 
-        [Test]
-        public void APeakWithNoGainPassesTheBlockThroughExactly()
+        [TestCase(DspFilterMode.Peak)]
+        [TestCase(DspFilterMode.Bell)]
+        public void AGainBandWithNoGainPassesTheBlockThroughExactly(DspFilterMode mode)
         {
             DspFilter filter = new()
             {
-                Mode = DspFilterMode.Peak,
+                Mode = mode,
                 FrequencyHz = 1_000f,
                 PeakDecibels = 0f,
             };
@@ -93,7 +94,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Prepare(filter);
             float[] output = Render(filter, source);
 
-            Assert.That(output, Is.EqualTo(source), "a peak of zero decibels is a gain of one, which changes no sample");
+            Assert.That(output, Is.EqualTo(source), "a gain of zero decibels is a gain of one, which changes no sample");
         }
 
         [TestCase(24f, 700f)]

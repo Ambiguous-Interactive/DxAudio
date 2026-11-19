@@ -5,7 +5,8 @@ namespace WallstopStudios.DxAudio
     /// <summary>Which part of the spectrum a <see cref="DspFilter" /> keeps.</summary>
     /// <remarks>
     /// Every mode reads the same state-variable core, so a mode change swaps which combination of the low, band and high
-    /// outputs leaves the stage. It does not move a knob or rebuild the filter.
+    /// outputs leaves the stage. It does not move a knob or rebuild the filter, except that <see cref="Bell" /> also
+    /// scales its damping by the gain.
     /// </remarks>
     public enum DspFilterMode
     {

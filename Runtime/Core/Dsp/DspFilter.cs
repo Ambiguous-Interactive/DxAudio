@@ -10,10 +10,10 @@ namespace WallstopStudios.DxAudio
     /// bell lifts or cuts it by <see cref="PeakDecibels" /> while leaving the rest alone.
     ///
     /// <see cref="FrequencyHz" />, <see cref="Quality" /> and <see cref="PeakDecibels" /> are read every frame and
-    /// reached over a <see cref="SmoothingSeconds" /> time constant, because a corner that jumps clicks. The mode is a
-    /// choice of output rather than a coefficient: it is read once per block and moves no poles, but the output itself
-    /// steps, so switch it at a quiet moment. A non-finite sample latches both integrators until <see cref="Reset" />,
-    /// because the core feeds its own state back.
+    /// reached over a <see cref="SmoothingSeconds" /> time constant, because a corner that jumps clicks. The mode is
+    /// read once per block and only swaps the output mix, except that <see cref="DspFilterMode.Bell" /> also moves its
+    /// damping with the gain; the output itself steps either way, so switch the mode at a quiet moment. A non-finite
+    /// sample latches both integrators until <see cref="Reset" />, because the core feeds its own state back.
     /// </remarks>
     public sealed class DspFilter : DspEffect
     {
