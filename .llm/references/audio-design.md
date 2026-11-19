@@ -218,32 +218,9 @@ build without a dependency, and the package keeps none.
 
 ## DSP node graph
 
-`DspGraph` is engine-free and code-only: named nodes each hold a `DspChain`, an edge carries one node's block into a
-later node, and a node with several incoming edges sums them. Fan-out is a node with several outgoing edges; fan-in is a
-node that takes several. One node is the input, which receives the caller's block, and one is the output.
-
-Branches report different delay, so the graph aligns instead of only reporting the mismatch. A node arrives as late as
-its latest predecessor plus its own chain delay, `A[n] = L[n] + max(A[u])`, and an edge `u -> v` waits
-`A[v] - L[v] - A[u]` frames. Every path then reaches the output with the same age, `LatencySamples` is the longest path,
-and a branch that needs no wait gets no buffer. Reporting the mismatch and leaving alignment to a caller was rejected:
-nothing else in the package can insert that delay, and a fan-in of mismatched branches is a comb.
-
-- A cycle is refused at the edge that would close it, and `TryPrepare` refuses a node off the path from input to output.
-- `TryPrepare` budgets the node buffers before it prepares a chain, then the edge lines, and refuses a graph over 2 MiB
-  by answering `false`; nothing on the prepare path throws. A node owns its chain, because a shared chain would run one
-  delay line twice in a block.
-- Bounds are 16 nodes and 32 edges; `PreparedBytes` reports what the graph reserved, so a caller can budget a pool.
-
-| Probe                                                  | Result                               |
-| ------------------------------------------------------ | ------------------------------------ |
-| Two-branch graph, 10,000 stereo 256-frame blocks       | 0 bytes, 154 ms, about 350x realtime |
-| Shifter and limiter branches, 2,048-frame mono, 48 kHz | 44,804 bytes, latency 1,201          |
-| Same block, shifter 1,201 and limiter 240 of latency   | one impulse at 1,201, no comb        |
-
-A 0.25 impulse reaches the output once, at the shifter's delay, with twice the amplitude; without the edge delay the
-limiter branch would arrive 961 frames early and the two would not sum. The prepared figure counts four node buffers of
-2,048 mono floats and the 961-frame line the limiter branch waits on, and the same graph in 256-frame stereo blocks
-reserves 17,928 bytes.
+`DspGraph` runs chains side by side and aligns their branches, and `DspGraphAsset` authors one as data and attaches it
+to a cue or a track. The authoring rules, the alignment arithmetic, the memory budget and the measured cost are in
+[dsp-graph](./dsp-graph.md).
 
 ## DSP attachment
 
@@ -254,6 +231,10 @@ one host on each pooled voice; `MusicPlayer` does the same for its three voices.
 - A cue (`SfxCue.Chain`) and a track (`MusicTrack.Chain`) name a `DspChainAsset`; each player (`SfxPlayer.BusChain`,
   `MusicPlayer.BusChain`) names one bus chain. Every voice builds its own effect instances from the asset, because a
   delay line or an envelope belongs to the voice that is playing.
+- A cue (`SfxCue.Graph`) and a track (`MusicTrack.Graph`) may also name a `DspGraphAsset`, which runs after the voice's
+  chain and before the bus: a branch sees the shaped signal, and the bus still acts on the sum. A voice builds its own
+  graph for each block shape, so two voices never share a branch buffer; the measured per-voice cost is in
+  [dsp-graph](./dsp-graph.md).
 - A host prepares every asset it meets for each block shape from one channel up to the output layout. Do not prepare
   only for the output layout: a filter block can arrive narrower than the device, and a chain of the wrong shape passes
   the block through, which is a bypass nothing else reports. A shape wider than the layout passes through and counts in
@@ -265,9 +246,10 @@ one host on each pooled voice; `MusicPlayer` does the same for its three voices.
   the voices that have not met the asset yet. This is why a live knob belongs on an effect instance, not on an asset.
 - A device change re-prepares the selected chains from `AudioSettings.OnAudioConfigurationChanged`, on the main thread.
   A chain's delay line is sized from the sample rate, so a prepared chain is wrong the moment the device moves.
-- `SfxPlayer.BuildVoices` warms the bus and every listed cue's chain on every voice, and `MusicPlayer.EnsureVoices` does
-  the same for its tracks. A cue played by reference that no library lists is built the first time a voice meets it,
-  which is the one allocation a chained play can make; `SfxPlayer.Warm(cue)` moves that first build off the play.
+- `SfxPlayer.BuildVoices` warms the bus and every listed cue's chain and graph on every voice, and
+  `MusicPlayer.EnsureVoices` does the same for its tracks. A cue played by reference that no library lists is built the
+  first time a voice meets it, which is the one allocation a chained play can make; `SfxPlayer.Warm(cue)` moves that
+  first build off the play.
 - The bus runs inside each voice after the voice's own chain. Unity gives a script no way to sum one source into
   another, so every bus effect acts on one voice at a time: two voices that each fit under a ceiling can still sum
   above it, which makes a bus a shared shaping stage rather than an output limiter.

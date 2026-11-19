@@ -94,6 +94,13 @@ namespace WallstopStudios.DxAudio
         )]
         private DspChainAsset _chain;
 
+        [SerializeField]
+        [Tooltip(
+            "A graph this cue's voices run after the chain, with its branches side by side. Empty runs no graph. A "
+                + "voice builds its own copy, cleared at the start of every play."
+        )]
+        private DspGraphAsset _graph;
+
         public string Key => _key;
 
         public IReadOnlyList<SfxVariant> Variants => _variants;
@@ -133,6 +140,9 @@ namespace WallstopStudios.DxAudio
         /// <summary>The effects this cue's voices run, or null to play the take untouched.</summary>
         public DspChainAsset Chain => _chain;
 
+        /// <summary>The graph this cue's voices run after <see cref="Chain" />, or null to run none.</summary>
+        public DspGraphAsset Graph => _graph;
+
         /// <summary>How many variants hold a clip. Selection draws from this, so an empty slot is never picked.</summary>
         public int PlayableVariantCount
         {
@@ -169,7 +179,8 @@ namespace WallstopStudios.DxAudio
             SfxCue followsTakeOf = null,
             bool ignoresListenerPause = false,
             AudioMixerGroup mixerGroupOverride = null,
-            DspChainAsset chain = null
+            DspChainAsset chain = null,
+            DspGraphAsset graph = null
         )
         {
             SfxCue cue = CreateInstance<SfxCue>();
@@ -188,6 +199,7 @@ namespace WallstopStudios.DxAudio
             cue._ignoresListenerPause = ignoresListenerPause;
             cue._mixerGroupOverride = mixerGroupOverride;
             cue._chain = chain;
+            cue._graph = graph;
             return cue;
         }
 

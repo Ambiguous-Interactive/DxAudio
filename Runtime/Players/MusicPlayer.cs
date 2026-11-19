@@ -411,8 +411,9 @@ namespace WallstopStudios.DxAudio
             source.outputAudioMixerGroup = _library != null ? _library.MixerGroup : null;
             if (voice.host != null)
             {
-                // The chain and the bus are cleared by the assignment: this voice is starting a new play.
+                // The chain, the graph and the bus are cleared by the assignment: this voice is starting a new play.
                 voice.host.Chain = track.Chain;
+                voice.host.Graph = track.Graph;
             }
 
             voice.track = track;
@@ -558,7 +559,7 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        /// <summary>Prepares the bus and every listed track's chain on <paramref name="host" />, so a play of them allocates nothing.</summary>
+        /// <summary>Prepares the bus and every listed track's chain and graph on <paramref name="host" />, so a play of them allocates nothing.</summary>
         private void WarmChains(AudioFilterHost host)
         {
             host.Warm(_busChain);
@@ -574,6 +575,7 @@ namespace WallstopStudios.DxAudio
                 if (track != null)
                 {
                     host.Warm(track.Chain);
+                    host.Warm(track.Graph);
                 }
             }
         }

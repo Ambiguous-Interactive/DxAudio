@@ -8,6 +8,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
+- Add a `DspGraphAsset` and attach it to a cue or a music track: named nodes and edges author a parallel signal path, each voice builds its own graph, and the graph inspector shows each branch's delay ([#72](https://github.com/Ambiguous-Interactive/DxAudio/issues/72)).
 - Add an engine-free `DspGraph`: each node holds a `DspChain`, an edge fans a node out and sums it back in, and the graph delays the shorter branch so parallel paths stay aligned. It refuses a cycle or an oversized graph before audio runs ([#69](https://github.com/Ambiguous-Interactive/DxAudio/issues/69)).
 - Add a delay-line `DspPitchShifter` effect and its asset: it moves a sound from -24 to 24 semitones with two crossfaded read heads, reports its delay in samples, and allocates nothing per block ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add the DSP host: a cue or music track names a `DspChainAsset`, each pooled voice runs its own prepared copy, a player-wide bus runs after it, and a chain or cue inspector shows the live gain reduction of every stage ([#59](https://github.com/Ambiguous-Interactive/DxAudio/issues/59)).

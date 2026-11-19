@@ -290,6 +290,37 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void EachNodeReportsTheDelayItWaitsFor()
+        {
+            DspGraph graph = FanIn(ChainOf(new DelayEffect(100)), ChainOf(new DelayEffect(300)));
+            graph.TryPrepare(SampleRate, 64, 1, 0, 3);
+
+            Assert.That(graph.TryGetNodeLatency(0, out int input), Is.True);
+            Assert.That(graph.TryGetNodeLatency(1, out int first), Is.True);
+            Assert.That(graph.TryGetNodeLatency(2, out int second), Is.True);
+            Assert.That(graph.TryGetNodeLatency(3, out int output), Is.True);
+            Assert.That(input, Is.Zero, "the input arrives with the block");
+            Assert.That(first, Is.EqualTo(100));
+            Assert.That(second, Is.EqualTo(300));
+            Assert.That(output, Is.EqualTo(graph.LatencySamples), "the output node holds the longest path");
+        }
+
+        [Test]
+        public void ANodeLatencyIsRefusedBeforePrepareAndOutsideTheGraph()
+        {
+            DspGraph graph = FanIn(ChainOf(new DelayEffect(100)), ChainOf(new DelayEffect(300)));
+            Assert.That(graph.TryGetNodeLatency(0, out int refused), Is.False, "an unprepared graph has no arrival");
+            Assert.That(refused, Is.Zero);
+
+            graph.TryPrepare(SampleRate, 64, 1, 0, 3);
+
+            Assert.That(graph.TryGetNodeLatency(-1, out int before), Is.False);
+            Assert.That(graph.TryGetNodeLatency(graph.NodeCount, out int after), Is.False);
+            Assert.That(before, Is.Zero);
+            Assert.That(after, Is.Zero);
+        }
+
+        [Test]
         public void TheNodeCountIsBounded()
         {
             DspGraph graph = new();

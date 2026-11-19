@@ -12,6 +12,7 @@ namespace WallstopStudios.DxAudio
     /// A chain keeps delay lines and envelopes, so it belongs to the voice that plays. Every chain asset this host has
     /// met stays prepared for each block shape up to the output layout, because a filter block can arrive narrower than
     /// the device. A voice reads an asset once: it keeps the effect settings it built the first time it met that asset.
+    /// A graph follows the same rule and runs its branches side by side, so it comes after the chain and before the bus.
     ///
     /// The bus runs after the voice's own chain, on each voice separately. Unity gives a script no way to sum one
     /// source into another, so every bus effect in this package acts on one voice at a time and never on the mixed
@@ -33,9 +34,15 @@ namespace WallstopStudios.DxAudio
         [Tooltip("A chain this host runs after its own, on one voice at a time, so a player's bus reaches every voice.")]
         private DspChainAsset _busChain;
 
+        [SerializeField]
+        [Tooltip("A graph this host runs after its own chain. Its branches run in parallel, and it runs on one voice at a time.")]
+        private DspGraphAsset _graph;
+
         private readonly List<Instance> _instances = new();
+        private readonly List<GraphInstance> _graphInstances = new();
         private Instance _running;
         private Instance _bus;
+        private GraphInstance _runningGraph;
         private AudioSource _source;
         private int _sampleRate;
         private int _blockSize = FallbackBlockSize;
@@ -47,7 +54,7 @@ namespace WallstopStudios.DxAudio
         /// <remarks>
         /// Assigning starts a new play. The chain and the bus are cleared at the next block that runs them, never here:
         /// the audio thread may be inside a block that is still playing, and a swap must not spend another chain's
-        /// clear.
+        /// clear. The graph is assigned separately, so a game that drives a host itself sets both on every play.
         /// </remarks>
         public DspChainAsset Chain
         {
@@ -75,13 +82,34 @@ namespace WallstopStudios.DxAudio
             }
         }
 
+        /// <summary>The graph run after <see cref="Chain" /> and before <see cref="BusChain" />, or null.</summary>
+        /// <remarks>
+        /// A graph runs its branches side by side, so it is the one stage that can follow two paths and sum them. A cue
+        /// or track names it, and a player sets it on every play, so a reused voice never inherits the last play's
+        /// graph. Assigning clears this graph at its next block, never here.
+        /// </remarks>
+        public DspGraphAsset Graph
+        {
+            get => _graph;
+            set
+            {
+                GraphInstance prepared = GraphInstanceFor(value);
+                _graph = value;
+                _runningGraph = prepared;
+                MarkCleared(prepared);
+            }
+        }
+
         /// <summary>The chain running now, for a test or an inspector reading a stage. Null is a pass-through.</summary>
         public DspChain LiveChain => _running != null ? _running.For(ReadingChannels) : null;
+
+        /// <summary>The graph running now. Null is a pass-through.</summary>
+        public DspGraph LiveGraph => _runningGraph != null ? _runningGraph.For(ReadingChannels) : null;
 
         /// <summary>The bus running now. Null is a pass-through.</summary>
         public DspChain LiveBusChain => _bus != null ? _bus.For(ReadingChannels) : null;
 
-        /// <summary>The delay the running chains add together, in samples.</summary>
+        /// <summary>The delay the running stages add together, in samples.</summary>
         public int LatencySamples
         {
             get
@@ -91,6 +119,12 @@ namespace WallstopStudios.DxAudio
                 if (running != null)
                 {
                     latency += running.LatencySamples;
+                }
+
+                DspGraph graph = LiveGraph;
+                if (graph != null)
+                {
+                    latency += graph.LatencySamples;
                 }
 
                 DspChain bus = LiveBusChain;
@@ -142,6 +176,12 @@ namespace WallstopStudios.DxAudio
             _ = InstanceFor(asset, bus: false);
         }
 
+        /// <summary>Prepares <paramref name="asset" />'s graph for this voice now, so the first play of it allocates nothing.</summary>
+        public void Warm(DspGraphAsset asset)
+        {
+            _ = GraphInstanceFor(asset);
+        }
+
         /// <summary>Whether a chain for <paramref name="asset" /> is already prepared here, so it cannot allocate.</summary>
         internal bool IsPrepared(DspChainAsset asset)
         {
@@ -153,6 +193,25 @@ namespace WallstopStudios.DxAudio
             for (int index = 0; index < _instances.Count; index++)
             {
                 if (_instances[index].asset == asset)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>Whether a graph for <paramref name="asset" /> is already prepared here, so it cannot allocate.</summary>
+        internal bool IsPrepared(DspGraphAsset asset)
+        {
+            if (asset == null)
+            {
+                return false;
+            }
+
+            for (int index = 0; index < _graphInstances.Count; index++)
+            {
+                if (_graphInstances[index].asset == asset)
                 {
                     return true;
                 }
@@ -182,11 +241,13 @@ namespace WallstopStudios.DxAudio
 
             Instance runningInstance = _running;
             Instance busInstance = _bus;
+            GraphInstance graphInstance = _runningGraph;
             DspChain running = runningInstance != null ? runningInstance.For(channels) : null;
+            DspGraph graph = graphInstance != null ? graphInstance.For(channels) : null;
             DspChain bus = busInstance != null ? busInstance.For(channels) : null;
-            if (running == null && bus == null)
+            if (running == null && graph == null && bus == null)
             {
-                if (runningInstance != null || busInstance != null)
+                if (runningInstance != null || graphInstance != null || busInstance != null)
                 {
                     _skippedBlocks++;
                 }
@@ -200,6 +261,11 @@ namespace WallstopStudios.DxAudio
                 running.Reset();
             }
 
+            if (graph != null && graphInstance.ClearBeforeNextBlock())
+            {
+                graph.Reset();
+            }
+
             if (bus != null && busInstance.ClearBeforeNextBlock())
             {
                 bus.Reset();
@@ -208,6 +274,11 @@ namespace WallstopStudios.DxAudio
             if (running != null)
             {
                 running.Process(buffer, 0, buffer.Length, channels);
+            }
+
+            if (graph != null)
+            {
+                graph.Process(buffer, 0, buffer.Length, channels);
             }
 
             if (bus != null)
@@ -233,6 +304,7 @@ namespace WallstopStudios.DxAudio
         {
             EnsurePrepared();
             Chain = _chain;
+            Graph = _graph;
             BusChain = _busChain;
         }
 
@@ -256,12 +328,16 @@ namespace WallstopStudios.DxAudio
             _sampleRate = 0;
             _liveChannels = 0;
             _instances.Clear();
+            _graphInstances.Clear();
             Instance running = InstanceFor(_chain, bus: false);
             Instance bus = InstanceFor(_busChain, bus: true);
+            GraphInstance graph = GraphInstanceFor(_graph);
             _running = running;
             _bus = bus;
+            _runningGraph = graph;
             MarkCleared(running);
             MarkCleared(bus);
+            MarkCleared(graph);
         }
 
         /// <summary>Asks for <paramref name="instance" /> to be cleared before it next processes a block.</summary>
@@ -270,6 +346,15 @@ namespace WallstopStudios.DxAudio
         /// could be spent on the chain the block is finishing instead of the one the next play selected.
         /// </remarks>
         private static void MarkCleared(Instance instance)
+        {
+            if (instance != null)
+            {
+                instance.ClearRequested = 1;
+            }
+        }
+
+        /// <summary>Asks for <paramref name="instance" /> to be cleared before it next processes a block.</summary>
+        private static void MarkCleared(GraphInstance instance)
         {
             if (instance != null)
             {
@@ -315,6 +400,30 @@ namespace WallstopStudios.DxAudio
             Instance created = new(asset, bus);
             created.Prepare(_sampleRate, _blockSize, _outputChannels);
             _instances.Add(created);
+            return created;
+        }
+
+        /// <summary>The prepared graphs for <paramref name="asset" /> in one slot, built the first time this voice meets it.</summary>
+        private GraphInstance GraphInstanceFor(DspGraphAsset asset)
+        {
+            if (asset == null)
+            {
+                return null;
+            }
+
+            for (int index = 0; index < _graphInstances.Count; index++)
+            {
+                GraphInstance met = _graphInstances[index];
+                if (met.asset == asset)
+                {
+                    return met;
+                }
+            }
+
+            EnsurePrepared();
+            GraphInstance created = new(asset);
+            created.Prepare(_sampleRate, _blockSize, _outputChannels);
+            _graphInstances.Add(created);
             return created;
         }
 
@@ -399,6 +508,69 @@ namespace WallstopStudios.DxAudio
                 for (int index = 0; index < _chains.Length; index++)
                 {
                     _chains[index].Reset();
+                }
+            }
+        }
+
+        /// <summary>One graph asset's graphs in one slot, one per block shape the output layout can produce.</summary>
+        /// <remarks>
+        /// A graph holds a buffer per node and a line per waiting edge, so it follows the same rule a chain does: it is
+        /// built once per voice and block shape, and a voice that met the asset keeps what it built.
+        /// </remarks>
+        private sealed class GraphInstance
+        {
+            public readonly DspGraphAsset asset;
+            private DspGraph[] _graphs = Array.Empty<DspGraph>();
+
+            public GraphInstance(DspGraphAsset asset)
+            {
+                this.asset = asset;
+            }
+
+            /// <summary>One when a new play has asked for a clear that no block has applied yet.</summary>
+            public int ClearRequested;
+
+            /// <summary>Whether a clear is owed to this instance, taking the request when it is.</summary>
+            public bool ClearBeforeNextBlock()
+            {
+                if (0 == ClearRequested)
+                {
+                    return false;
+                }
+
+                ClearRequested = 0;
+                return true;
+            }
+
+            public void Prepare(int sampleRate, int blockSize, int shapes)
+            {
+                _graphs = new DspGraph[shapes];
+                for (int index = 0; index < shapes; index++)
+                {
+                    // An asset that cannot be built leaves an unprepared graph, which passes every block through, the
+                    // same answer a chain that refuses its layout gives. The inspector reports why it was refused.
+                    DspGraph graph = asset.TryCreateGraph(out DspGraph built) ? built : new DspGraph();
+                    _ = graph.TryPrepare(sampleRate, blockSize, index + 1, asset.IndexOfNode(asset.InputNode), asset.IndexOfNode(asset.OutputNode));
+                    _graphs[index] = graph;
+                }
+            }
+
+            /// <summary>The graph prepared for <paramref name="channels" />, or null when that shape is wider than the layout.</summary>
+            public DspGraph For(int channels)
+            {
+                if (channels <= 0 || _graphs.Length < channels)
+                {
+                    return null;
+                }
+
+                return _graphs[channels - 1];
+            }
+
+            public void Reset()
+            {
+                for (int index = 0; index < _graphs.Length; index++)
+                {
+                    _graphs[index].Reset();
                 }
             }
         }

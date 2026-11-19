@@ -278,7 +278,7 @@ namespace WallstopStudios.DxAudio
             return true;
         }
 
-        /// <summary>Prepares <paramref name="cue" />'s chain on every voice, so a play of a reference cue allocates nothing.</summary>
+        /// <summary>Prepares <paramref name="cue" />'s chain and graph on every voice, so a play of a reference cue allocates nothing.</summary>
         /// <remarks>
         /// The pool prepares every cue its library lists. This covers a cue a game holds by reference and never lists,
         /// because the player cannot know it in advance and would otherwise build its chain inside the play call.
@@ -297,6 +297,7 @@ namespace WallstopStudios.DxAudio
                 if (host != null)
                 {
                     host.Warm(cue.Chain);
+                    host.Warm(cue.Graph);
                 }
             }
 
@@ -459,6 +460,7 @@ namespace WallstopStudios.DxAudio
                 // A cue the library does not list is built on this voice now, which is its first and only allocation;
                 // a game that plays such a cue by reference can call Warm(cue) to move that cost off the play.
                 host.Chain = cue.Chain;
+                host.Graph = cue.Graph;
             }
             _priorities[index] = cue.Priority;
             _startedAt[index] = now;
@@ -651,7 +653,7 @@ namespace WallstopStudios.DxAudio
             WarmChains();
         }
 
-        /// <summary>Prepares the bus and every listed cue's chain on every voice, so a play of them allocates nothing.</summary>
+        /// <summary>Prepares the bus and every listed cue's chain and graph on every voice, so a play of them allocates nothing.</summary>
         private void WarmChains()
         {
             IReadOnlyList<SfxCue> cues = _library != null ? _library.Cues : null;
@@ -675,6 +677,7 @@ namespace WallstopStudios.DxAudio
                     if (cue != null)
                     {
                         host.Warm(cue.Chain);
+                        host.Warm(cue.Graph);
                     }
                 }
             }

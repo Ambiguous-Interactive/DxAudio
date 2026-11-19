@@ -133,6 +133,11 @@ copy the first time it meets a chain, from the settings the asset holds then, so
 not met it yet. A voice clears both its cue chain and the bus when it starts a play, so it never inherits the last
 sound's delay line.
 
+A cue or a track may also name a **DSP Graph** (**Create > DxAudio > DSP > Graph**), which runs chains side by side: a
+node holds a chain, an edge carries one node's signal into a later one, and a node that takes several edges sums them.
+The graph delays the shorter branch so every path reaches its output together. It runs after the voice's chain and
+before the bus, and the graph inspector lists each node with the delay it adds.
+
 ```csharp
 _sfx.BusChain = sfxBusChain;   // runs after each voice's own chain
 _music.BusChain = musicBusChain;
