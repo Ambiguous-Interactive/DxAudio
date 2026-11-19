@@ -34,8 +34,11 @@ namespace WallstopStudios.DxAudio
 
         [Range(0f, 0.5f)]
         [SerializeField]
-        [Tooltip("Random pitch offset either side of 1. Small values (0.05-0.15) read as natural.")]
+        [Tooltip("Legacy random pitch offset either side of 1. Set Pitch in Cents overrides this range.")]
         private float _pitchJitter = 0.08f;
+
+        [SerializeField]
+        private SfxVariation _variation;
 
         [Min(0f)]
         [SerializeField]
@@ -108,6 +111,8 @@ namespace WallstopStudios.DxAudio
         public float Volume => _volume;
 
         public float PitchJitter => _pitchJitter;
+
+        public SfxVariation Variation => _variation;
 
         public float MinimumIntervalSeconds => _minimumIntervalSeconds;
 
@@ -246,10 +251,53 @@ namespace WallstopStudios.DxAudio
             return cue;
         }
 
+        /// <summary>Builds a cue with opt-in per-play variation and optional effects.</summary>
+        public static SfxCue CreateWithVariation(
+            IEnumerable<SfxVariant> variants,
+            SfxVariation variation,
+            string key = null,
+            SfxPriority priority = SfxPriority.Medium,
+            float minimumIntervalSeconds = DefaultMinimumIntervalSeconds,
+            bool loop = false,
+            float volume = 1f,
+            float pitchJitter = 0f,
+            float spatialBlend = 0f,
+            float falloffStartUnits = 10f,
+            float falloffEndUnits = 40f,
+            bool heardCentred = false,
+            SfxCue followsTakeOf = null,
+            bool ignoresListenerPause = false,
+            AudioMixerGroup mixerGroupOverride = null,
+            DspChainAsset chain = null,
+            DspGraphAsset graph = null
+        )
+        {
+            SfxCue cue = CreateWithGraph(
+                variants,
+                graph,
+                key,
+                priority,
+                minimumIntervalSeconds,
+                loop,
+                volume,
+                pitchJitter,
+                spatialBlend,
+                falloffStartUnits,
+                falloffEndUnits,
+                heardCentred,
+                followsTakeOf,
+                ignoresListenerPause,
+                mixerGroupOverride,
+                chain
+            );
+            cue._variation = variation;
+            return cue;
+        }
+
         /// <summary>The pitch for a draw of <paramref name="unitRandom"/> in [0, 1].</summary>
         public float PitchFor(float unitRandom)
         {
-            return 1f + Mathf.Lerp(-_pitchJitter, _pitchJitter, Mathf.Clamp01(unitRandom));
+            return _variation.Pitch(_pitchJitter, unitRandom);
         }
 
         /// <summary>The <paramref name="playableIndex"/>-th variant that holds a clip, counting only those.</summary>

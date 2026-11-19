@@ -78,6 +78,60 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(oneShot.PitchFor(0.5f), Is.EqualTo(1f));
         }
 
+        [Test]
+        public void ARejectedPlayLeavesTheSeededTakeAndPitchSequenceIntact()
+        {
+            const int Seed = 81;
+            const float Jitter = 0.08f;
+            using MadeObjects made = new();
+            SfxVariant[] variants = { Variant(made), new SfxVariant(), Variant(made), Variant(made) };
+            SfxCue empty = made.Track(SfxCue.Create(new[] { new SfxVariant() }));
+            SfxCue cue = made.Track(SfxCue.CreateWithVariation(variants, new SfxVariation(false, 0f, 0f, -12f, 0f), pitchJitter: Jitter, minimumIntervalSeconds: 0f));
+            SfxPlayer player = made.Track(new GameObject("variation player")).AddComponent<SfxPlayer>();
+            player.Library = made.Track(SfxLibrary.Create(new[] { cue }, voiceCount: 1, drawSeed: Seed));
+            AudioSource voice = player.GetComponentInChildren<AudioSource>();
+            SfxPlaybackResolver preview = new();
+            preview.Reset(Seed);
+            SfxSelection<SfxCue> legacy = new();
+            System.Random originalRandom = new(Seed);
+            for (int index = 0; index < 12; index++)
+            {
+                Assert.That(player.Play(empty), Is.False);
+                Assert.That(preview.TryResolve(empty, out _), Is.False);
+                Assert.That(player.Play(cue), Is.True);
+                Assert.That(preview.TryResolve(cue, out SfxPlayback play), Is.True);
+                Assert.That(legacy.TryNext(cue, 3, (float)originalRandom.NextDouble(), out int take), Is.True);
+                Assert.That(cue.TryGetPlayableVariant(take, out SfxVariant expected), Is.True);
+                float pitch = 1f + Mathf.Lerp(-Jitter, Jitter, (float)originalRandom.NextDouble());
+                Assert.That(voice.clip == expected.Clip, Is.True);
+                Assert.That(voice.clip == play.Variant.Clip, Is.True);
+                Assert.That(voice.pitch, Is.EqualTo(pitch).Within(0.000001f));
+                Assert.That(voice.pitch, Is.EqualTo(play.Pitch));
+                Assert.That(voice.volume, Is.EqualTo(play.Volume));
+                voice.Stop();
+            }
+        }
+
+        [Test]
+        public void ALoopFollowsTheLeaderWhenItsTakeIsKnown()
+        {
+            using MadeObjects made = new();
+            SfxVariant[] variants = { new(Clip(made), 0.1f), new(Clip(made), 0.2f) };
+            SfxCue lead = made.Track(SfxCue.Create(variants));
+            SfxCue loop = made.Track(SfxCue.Create(variants, loop: true, followsTakeOf: lead));
+            SfxPlaybackResolver resolver = new();
+            resolver.Reset(81);
+
+            Assert.That(resolver.TryResolve(loop, out SfxPlayback fallback), Is.True);
+            Assert.That(fallback.FollowedTake, Is.False);
+            Assert.That(resolver.TryResolve(lead, out SfxPlayback leader), Is.True);
+            Assert.That(resolver.TryResolve(loop, out SfxPlayback follower), Is.True);
+            Assert.That(follower.FollowedTake, Is.True);
+            Assert.That(follower.Variant, Is.SameAs(leader.Variant));
+            Assert.That(leader.StartSeconds, Is.EqualTo(leader.Variant.StartTimeSeconds));
+            Assert.That(follower.StartSeconds, Is.Zero);
+        }
+
         private static SfxVariant Variant(MadeObjects made)
         {
             return new SfxVariant(Clip(made));

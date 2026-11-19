@@ -8,6 +8,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
+- Add cue pitch and level variation, seeded series audition, and a visual path to the cue's DSP assets ([#81](https://github.com/Ambiguous-Interactive/DxAudio/issues/81)).
 - Add a DxAudio authoring window for audio assets, with a DSP node canvas, ordered effects, repair tools, and live dry/wet audition ([#86](https://github.com/Ambiguous-Interactive/DxAudio/issues/86)).
 - Reopen saved drawn EQ targets and apply new fits with Undo while keeping generated Bell references ([#89](https://github.com/Ambiguous-Interactive/DxAudio/issues/89)).
 - Draw an EQ target in the DSP Chain inspector, compare the fitted response, and save a new chain of Bell filters ([#85](https://github.com/Ambiguous-Interactive/DxAudio/issues/85)).

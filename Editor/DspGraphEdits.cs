@@ -130,6 +130,12 @@
 
         private bool CanConnect(int edge, int from, int to, out string error)
         {
+            if (IsReadOnly())
+            {
+                error = "The graph is read-only.";
+                return false;
+            }
+
             if (_asset.EdgeCount <= edge || !CanUseNode(from) || !CanUseNode(to))
             {
                 error = "Choose two nodes with unique names.";
@@ -454,7 +460,7 @@
 
         private bool Commit(string label, Action<SerializedObject> edit, out string error)
         {
-            if (AssetDatabase.Contains(_asset) && !AssetDatabase.IsOpenForEdit(_asset))
+            if (IsReadOnly())
             {
                 error = "The graph is read-only.";
                 return false;
@@ -474,6 +480,11 @@
 
             error = string.Empty;
             return true;
+        }
+
+        private bool IsReadOnly()
+        {
+            return AssetDatabase.Contains(_asset) && !AssetDatabase.IsOpenForEdit(_asset);
         }
 
         private static SerializedProperty Append(SerializedProperty array)

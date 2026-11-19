@@ -9,7 +9,9 @@ An `SfxCue` asset describes one sound effect. `SfxPlayer` plays it on a pool of 
 | **Key**                      | The name `Play(string)` looks up in the library. Optional for cues played by reference.                            |
 | **Variants**                 | The takes. One clip each, with its own start offset. A take is drawn at random, never the same one twice in a row. |
 | **Volume**                   | Gain for this cue, applied on the voice.                                                                           |
-| **Pitch Jitter**             | Random pitch either side of 1. Values from 0.05 to 0.15 read as natural.                                           |
+| **Pitch Jitter**             | Legacy random pitch around the recording's original pitch.                                                         |
+| **Pitch Range**              | Optional minimum and maximum detune, in cents. Playback rate also changes the duration.                            |
+| **Level Range**              | Random attenuation, in dB. The cue volume sets the maximum level.                                                  |
 | **Minimum Interval Seconds** | Rate limit. A play inside the interval is dropped as `Throttled`.                                                  |
 | **Priority**                 | `Low`, `Medium`, `High`. Decides which voice an incoming cue may take.                                             |
 | **Loop**                     | Marks the cue as a held state. Start it with `TryPlayLooping`.                                                     |
@@ -21,6 +23,19 @@ An `SfxCue` asset describes one sound effect. `SfxPlayer` plays it on a pool of 
 | **Follows Take Of**          | Plays the same take number as another cue, so two halves of one performance match.                                 |
 
 Note: an `AudioClip` carries no loop flag. Looping is a property of how the cue is started, not of the clip.
+
+## Author and audition variation
+
+1. Add two or more takes of the same sound. For a bell, record strikes at different points on the bell.
+2. Select **Apply Subtle Preset** to start with -50 to +50 cents and -1.5 to 0 dB. Use 0 dB at both ends for a fixed level.
+3. Open the cue in **Tools > DxAudio > Authoring**. Press **Play Cue** for one strike or **Play Series** for eight consecutive strikes.
+4. Check the take name, trim, pitch, and level after each strike. **Replay Last** keeps the same take and trim. Select **Bypass variation on replay** to compare it at the original pitch and cue volume.
+5. Enter a seed and use **Reset Seed** to repeat the series. For **Follows Take Of**, play the leader in the same window first.
+
+Open the chain or graph from the cue's signal path. The preview uses the cue's own effects and an isolated output.
+If your editor supplies no Edit Mode audio, enter Play Mode and audition again. Use a take's **Audition** button to check its trim at the original pitch.
+
+Select **Set Pitch in Cents** to use the pitch range in place of **Pitch Jitter**. The cents range accepts -1,200 to +1,200, and the level range accepts -24 to 0 dB. The player rolls the values once at each accepted play, including the start of a held loop. For code-authored cues, pass `SfxVariation` to `SfxCue.CreateWithVariation`.
 
 ## Playing
 

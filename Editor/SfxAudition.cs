@@ -41,6 +41,7 @@ namespace WallstopStudios.DxAudio.Editor
 
         private static AudioSource PlayClip(Object owner, AudioClip clip, float volume, float start)
         {
+            DspAuditionPanel.StopCurrent();
             AudioSource source = Source();
             _previewOwner = owner;
             source.Stop();

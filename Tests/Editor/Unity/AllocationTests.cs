@@ -40,11 +40,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             _plants.Clear();
         }
 
-        [Test]
-        public void PlayingACueOnAFullPoolDoesNotAllocate()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void PlayingACueOnAFullPoolDoesNotAllocate(bool varyPlayback)
         {
             using MadeObjects made = new();
-            SfxCue cue = Cue(made);
+            SfxCue cue = varyPlayback
+                ? made.Track(SfxCue.CreateWithVariation(new[] { new SfxVariant(Clip(made)) }, new SfxVariation(true, -50f, 50f, -1.5f, 0f), minimumIntervalSeconds: 0f))
+                : Cue(made);
             SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
             for (int index = 0; index < WarmupPlays; index++)
             {
