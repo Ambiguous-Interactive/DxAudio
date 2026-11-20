@@ -2,18 +2,28 @@ namespace WallstopStudios.DxAudio
 {
     using System;
 
-    /// <summary>Optional pitch and level variation applied once when a cue starts.</summary>
+    /// <summary>Optional take selection, pitch, level and brightness settings for cue playback.</summary>
     [Serializable]
     public struct SfxVariation
     {
         public const float PitchLimitCents = 1200f;
         public const float MinimumLevelDecibels = -24f;
+        public const float LowestLowPassHertz = 500f;
+        public const float HighestLowPassHertz = 20_000f;
 
         public bool UsePitchCents;
         public float MinimumPitchCents;
         public float MaximumPitchCents;
         public float MinimumAttenuationDecibels;
         public float MaximumAttenuationDecibels;
+
+        /// <summary>Use each playable take once per cycle when picking a take for this cue.</summary>
+        public bool UseShuffle;
+
+        /// <summary>Apply a low-pass filter before the cue's effects.</summary>
+        public bool UseLowPass;
+        public float MinimumLowPassHertz;
+        public float MaximumLowPassHertz;
 
         public SfxVariation(bool usePitchCents, float minimumPitchCents, float maximumPitchCents, float minimumLevelDecibels, float maximumLevelDecibels)
         {
@@ -22,11 +32,33 @@ namespace WallstopStudios.DxAudio
             MaximumPitchCents = maximumPitchCents;
             MinimumAttenuationDecibels = minimumLevelDecibels;
             MaximumAttenuationDecibels = maximumLevelDecibels;
+            UseShuffle = false;
+            UseLowPass = false;
+            MinimumLowPassHertz = 0f;
+            MaximumLowPassHertz = 0f;
         }
 
         public bool HasInvalidBounds =>
             (UsePitchCents && Invalid(MinimumPitchCents, MaximumPitchCents, -PitchLimitCents, PitchLimitCents))
-            || Invalid(MinimumAttenuationDecibels, MaximumAttenuationDecibels, MinimumLevelDecibels, 0f);
+            || Invalid(MinimumAttenuationDecibels, MaximumAttenuationDecibels, MinimumLevelDecibels, 0f)
+            || (UseLowPass && Invalid(MinimumLowPassHertz, MaximumLowPassHertz, LowestLowPassHertz, HighestLowPassHertz));
+
+        internal float LowPassHertz(float draw)
+        {
+            if (!UseLowPass || !AudioMath.IsFinite(MinimumLowPassHertz) || !AudioMath.IsFinite(MaximumLowPassHertz))
+            {
+                return 0f;
+            }
+
+            float lower = AudioMath.Clamp(Math.Min(MinimumLowPassHertz, MaximumLowPassHertz), LowestLowPassHertz, HighestLowPassHertz);
+            float upper = AudioMath.Clamp(Math.Max(MinimumLowPassHertz, MaximumLowPassHertz), LowestLowPassHertz, HighestLowPassHertz);
+            if (lower == upper || draw <= 0f)
+            {
+                return lower;
+            }
+
+            return 1f <= draw ? upper : (float)(lower * Math.Pow(upper / lower, draw));
+        }
 
         internal float Pitch(float legacyJitter, float draw)
         {

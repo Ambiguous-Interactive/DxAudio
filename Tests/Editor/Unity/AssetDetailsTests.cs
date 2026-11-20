@@ -148,6 +148,149 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void ComparisonReplaysTheCapturedSettingsAndKeepsTheLiveSequenceInPlace()
+        {
+            using MadeObjects made = new();
+            SceneView view = FindOrCreateSceneView(made);
+            bool sceneAudio = view.audioPlay;
+            AudioClip first = made.Track(AudioClip.Create("First comparison take", 48_000, 1, 48_000, false));
+            AudioClip second = made.Track(AudioClip.Create("Second comparison take", 48_000, 1, 48_000, false));
+            SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(first), new SfxVariant(second) }));
+            DspAuditionPanel panel = new(_ => { }, () => { });
+            panel.SetTarget(cue);
+            SfxPlaybackResolver expected = new();
+            expected.Reset(panel.Q<IntegerField>().value);
+            Assert.That(expected.TryResolve(cue, out SfxPlayback firstDraw), Is.True);
+            Assert.That(expected.TryResolve(cue, out SfxPlayback secondDraw), Is.True);
+
+            try
+            {
+                Press(panel, "Play Cue");
+                Press(panel, "Stop");
+                Press(panel, "Capture A");
+                SerializedObject edit = new(cue);
+                SerializedProperty variation = edit.FindProperty("_variation");
+                variation.FindPropertyRelative(nameof(SfxVariation.UsePitchCents)).boolValue = true;
+                variation.FindPropertyRelative(nameof(SfxVariation.MinimumPitchCents)).floatValue = 1200f;
+                variation.FindPropertyRelative(nameof(SfxVariation.MaximumPitchCents)).floatValue = 1200f;
+                edit.ApplyModifiedPropertiesWithoutUndo();
+
+                Press(panel, "Play A");
+                AssertPreview(firstDraw);
+                Press(panel, "Stop");
+                Press(panel, "Play B");
+                Assert.That(FindPreviewSource(firstDraw.Variant.Clip).pitch, Is.EqualTo(2f));
+                Press(panel, "Stop");
+                Press(panel, "Replay Last");
+                AssertPreview(firstDraw);
+                Press(panel, "Stop");
+                Press(panel, "Play Cue");
+                Assert.That(FindPreviewSource(secondDraw.Variant.Clip).pitch, Is.EqualTo(2f));
+            }
+            finally
+            {
+                panel.Stop();
+                view.audioPlay = sceneAudio;
+            }
+        }
+
+        [Test]
+        public void AddingSeveralClipsStartsEachTakeWithNeutralSettings()
+        {
+            using MadeObjects made = new();
+            AudioClip existing = made.Track(AudioClip.Create("Existing", 48_000, 1, 48_000, false));
+            AudioClip first = made.Track(AudioClip.Create("First addition", 48_000, 1, 48_000, false));
+            AudioClip second = made.Track(AudioClip.Create("Second addition", 48_000, 1, 48_000, false));
+            SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(existing, 0.2f, -6f) }));
+
+            Assert.That(SfxCueEditor.AppendTakes(new SerializedObject(cue), new Object[] { first, cue, second }), Is.True);
+            Assert.That(cue.Variants.Count, Is.EqualTo(3));
+            Assert.That(cue.Variants[0].AttenuationDecibels, Is.EqualTo(-6f));
+            Assert.That(cue.Variants[1].Clip == first, Is.True);
+            Assert.That(cue.Variants[2].Clip == second, Is.True);
+            for (int index = 1; index < cue.Variants.Count; ++index)
+            {
+                Assert.That(cue.Variants[index].StartTimeSeconds, Is.Zero);
+                Assert.That(cue.Variants[index].AttenuationDecibels, Is.Zero);
+            }
+        }
+
+        [TestCase("Pitch Stable", 0f, 0f)]
+        [TestCase("Subtle", 50f, -1.5f)]
+        public void ApplyingAPresetCanBeUndoneAndLeavesShuffleAndCutoffAlone(string preset, float pitch, float level)
+        {
+            using MadeObjects made = new();
+            SfxVariation original = new(false, 12f, 24f, -7f, -3f)
+            {
+                UseShuffle = true,
+                UseLowPass = true,
+                MinimumLowPassHertz = 4_000f,
+                MaximumLowPassHertz = 8_000f,
+            };
+            SfxCue cue = made.Track(SfxCue.CreateWithVariation(null, original));
+            SerializedObject asset = new(cue);
+            VisualElement view = new SfxVariationDrawer().CreatePropertyGUI(asset.FindProperty("_variation"));
+            Undo.IncrementCurrentGroup();
+            Press(view, preset);
+            Undo.FlushUndoRecordObjects();
+
+            Assert.That(cue.Variation.UsePitchCents, Is.True);
+            Assert.That(cue.Variation.MinimumPitchCents, Is.EqualTo(-pitch));
+            Assert.That(cue.Variation.MaximumPitchCents, Is.EqualTo(pitch));
+            Assert.That(cue.Variation.MinimumAttenuationDecibels, Is.EqualTo(level));
+            Assert.That(cue.Variation.MaximumAttenuationDecibels, Is.Zero);
+            Assert.That(cue.Variation.UseShuffle, Is.True);
+            Assert.That(cue.Variation.UseLowPass, Is.True);
+            Assert.That(cue.Variation.MinimumLowPassHertz, Is.EqualTo(4_000f));
+            Assert.That(cue.Variation.MaximumLowPassHertz, Is.EqualTo(8_000f));
+
+            Undo.PerformUndo();
+            Assert.That(cue.Variation, Is.EqualTo(original));
+        }
+
+        [Test]
+        public void EnablingLowPassOnSeveralCuesKeepsAuthoredCutoffs()
+        {
+            using MadeObjects made = new();
+            SfxVariation variation = new() { MinimumLowPassHertz = 4_000f, MaximumLowPassHertz = 12_000f };
+            SfxCue authored = made.Track(SfxCue.CreateWithVariation(null, variation));
+            SfxCue untouched = made.Track(SfxCue.Create(null));
+            SerializedObject edit = new(new Object[] { authored, untouched });
+            Undo.IncrementCurrentGroup();
+            SfxVariationDrawer.SetLowPass(edit, "_variation", true);
+
+            Assert.That(authored.Variation.UseLowPass, Is.True);
+            Assert.That(authored.Variation.MinimumLowPassHertz, Is.EqualTo(4_000f));
+            Assert.That(authored.Variation.MaximumLowPassHertz, Is.EqualTo(12_000f));
+            Assert.That(untouched.Variation.UseLowPass, Is.True);
+            Assert.That(untouched.Variation.MinimumLowPassHertz, Is.EqualTo(8_000f));
+            Assert.That(untouched.Variation.MaximumLowPassHertz, Is.EqualTo(16_000f));
+
+            Undo.PerformUndo();
+            Assert.That(authored.Variation, Is.EqualTo(variation));
+            Assert.That(untouched.Variation, Is.EqualTo(default(SfxVariation)));
+        }
+
+        [Test]
+        public void EditingATrimInvalidatesTheCapturedComparison()
+        {
+            using MadeObjects made = new();
+            AudioClip clip = made.Track(AudioClip.Create("Comparison trim", 48_000, 1, 48_000, false));
+            SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(clip) }));
+            DspAuditionPanel panel = new(_ => { }, () => { });
+            panel.SetTarget(cue);
+            Press(panel, "Capture A");
+
+            SerializedObject edit = new(cue);
+            edit.FindProperty("_variants").GetArrayElementAtIndex(0).FindPropertyRelative("_startTimeSeconds").floatValue = 0.1f;
+            edit.ApplyModifiedPropertiesWithoutUndo();
+            Press(panel, "Play A");
+
+            Assert.That(FindButton(panel, "Play A").enabledSelf, Is.False);
+            Assert.That(FindButton(panel, "Play B").enabledSelf, Is.False);
+        }
+
+        [Test]
         public void RawTakeAuditionKeepsSceneAudioThroughACuePreviewHandoff()
         {
             using MadeObjects made = new();

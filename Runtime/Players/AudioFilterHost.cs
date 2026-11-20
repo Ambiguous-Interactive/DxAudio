@@ -43,6 +43,8 @@ namespace WallstopStudios.DxAudio
         private volatile Instance _running;
         private volatile Instance _bus;
         private volatile GraphInstance _runningGraph;
+        private volatile SfxLowPass _cueLowPass;
+        private float _cueLowPassHertz;
         private AudioSource _source;
         private int _liveChannels;
         private int _skippedBlocks;
@@ -181,6 +183,26 @@ namespace WallstopStudios.DxAudio
             _ = GraphInstanceFor(asset);
         }
 
+        internal void PrepareCueLowPass()
+        {
+            _layout.Refresh();
+            // Source callbacks can use a clip's channel shape before downmixing to the output layout.
+            SfxLowPass stage = new(_layout.SampleRate, _layout.BlockSize, Math.Max(8, _layout.Channels));
+            stage.Begin(_cueLowPassHertz);
+            _cueLowPass = stage;
+        }
+
+        internal void SetCueLowPass(float cutoffHertz)
+        {
+            if (cutoffHertz == 0f && _cueLowPassHertz == 0f)
+            {
+                return;
+            }
+
+            _cueLowPassHertz = cutoffHertz;
+            _cueLowPass?.Begin(cutoffHertz);
+        }
+
         /// <summary>Whether a chain for <paramref name="asset" /> is already prepared here, so it cannot allocate.</summary>
         internal bool IsPrepared(DspChainAsset asset)
         {
@@ -237,6 +259,8 @@ namespace WallstopStudios.DxAudio
             {
                 return;
             }
+
+            _cueLowPass?.Process(buffer, channels);
 
             Instance runningInstance = _running;
             Instance busInstance = _bus;
@@ -352,6 +376,10 @@ namespace WallstopStudios.DxAudio
             _running = running;
             _bus = bus;
             _runningGraph = graph;
+            if (_cueLowPass != null)
+            {
+                PrepareCueLowPass();
+            }
         }
 
         /// <summary>Asks for <paramref name="instance" /> to be cleared before it next processes a block.</summary>

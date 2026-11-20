@@ -5,23 +5,46 @@ namespace WallstopStudios.DxAudio.Editor
     using UnityEditor.UIElements;
     using UnityEngine;
     using UnityEngine.UIElements;
+    using Object = UnityEngine.Object;
 
     /// <summary>Shows a cue's takes, where each begins, and plays one from the point the game would.</summary>
-    /// <remarks>
-    /// The default fields still author everything. This adds the two questions a cue raises by ear: is any take
-    /// playable, and where does playback actually start after the clip's lead-in is skipped. Audition uses a hidden,
-    /// unsaved source, so it adds nothing to the open scene.
-    /// </remarks>
     [CanEditMultipleObjects]
     [CustomEditor(typeof(SfxCue))]
     public sealed class SfxCueEditor : UnityEditor.Editor
     {
-        private const string AuditionName = "DxAudioAudition";
+        internal const string AuditionName = "DxAudioAudition";
 
         public override VisualElement CreateInspectorGUI()
         {
             VisualElement root = new VisualElement();
-            InspectorElement.FillDefaultInspector(root, serializedObject, this);
+            VisualElement settings = new();
+            root.Add(settings);
+
+            SerializedProperty script = serializedObject.FindProperty("m_Script");
+            PropertyField scriptField = new(script);
+            scriptField.SetEnabled(false);
+            settings.Add(scriptField);
+
+            VisualElement transport = new();
+            settings.Add(transport);
+            SerializedProperty takes = serializedObject.FindProperty("_variants");
+            if (targets.Length == 1)
+            {
+                settings.Add(BuildClipDrop(serializedObject));
+            }
+            settings.Add(new PropertyField(takes, "Takes"));
+            settings.Add(new PropertyField(serializedObject.FindProperty("_variation")));
+
+            SerializedProperty field = serializedObject.GetIterator();
+            bool enterChildren = true;
+            while (field.NextVisible(enterChildren))
+            {
+                enterChildren = false;
+                if (field.name is not ("m_Script" or "_variants" or "_pitchJitter" or "_variation"))
+                {
+                    settings.Add(new PropertyField(field.Copy()));
+                }
+            }
 
             // The take preview answers a question about one cue, so a mixed selection only edits fields.
             if (targets.Length != 1)
@@ -31,6 +54,15 @@ namespace WallstopStudios.DxAudio.Editor
 
             SfxCue cue = (SfxCue)target;
             DxAudioAssetDetails.AddWorkspaceButton(root, cue);
+            transport.RegisterCallback<AttachToPanelEvent>(evt =>
+            {
+                if (evt.target == transport && transport.childCount == 0 && transport.GetFirstAncestorOfType<DxAudioAssetDetails>() == null)
+                {
+                    DspAuditionPanel audition = new(DxAudioAuthoringWindow.Open, null);
+                    audition.SetTarget(cue);
+                    transport.Add(audition);
+                }
+            });
             VisualElement authoring = new VisualElement();
             root.Add(authoring);
             RebuildAuthoring(authoring, cue);
@@ -49,12 +81,60 @@ namespace WallstopStudios.DxAudio.Editor
             effects.Add(rows);
             DxAudioInspectorUi.AddChainRows(rows, cue.Chain);
             DxAudioInspectorUi.RefreshWhilePlaying(rows, cue.Chain);
-            VisualElement takes = DxAudioInspectorUi.AddSection(container, "Takes");
-            takes.Add(BuildTakes(cue));
-            if (cue.IsPlayable)
+        }
+
+        private static VisualElement BuildClipDrop(SerializedObject asset)
+        {
+            HelpBox drop = new("Drop AudioClips here to add takes.", HelpBoxMessageType.None) { name = "DxAudioTakeDrop" };
+            drop.RegisterCallback<DragUpdatedEvent>(evt =>
             {
-                takes.Add(new Button(SfxAudition.Stop) { text = "Stop Audition" });
+                foreach (Object item in DragAndDrop.objectReferences)
+                {
+                    if (item is AudioClip clip && clip != null)
+                    {
+                        DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
+                        evt.StopPropagation();
+                        return;
+                    }
+                }
+            });
+            drop.RegisterCallback<DragPerformEvent>(evt =>
+            {
+                if (AppendTakes(asset, DragAndDrop.objectReferences))
+                {
+                    DragAndDrop.AcceptDrag();
+                    evt.StopPropagation();
+                }
+            });
+            return drop;
+        }
+
+        internal static bool AppendTakes(SerializedObject asset, Object[] items)
+        {
+            asset.Update();
+            SerializedProperty takes = asset.FindProperty("_variants");
+            int count = takes.arraySize;
+            foreach (Object item in items)
+            {
+                if (item is AudioClip clip && clip != null)
+                {
+                    int index = takes.arraySize;
+                    takes.InsertArrayElementAtIndex(index);
+                    SerializedProperty take = takes.GetArrayElementAtIndex(index);
+                    take.FindPropertyRelative("_clip").objectReferenceValue = clip;
+                    take.FindPropertyRelative("_startTimeSeconds").floatValue = 0f;
+                    take.FindPropertyRelative("_attenuationDecibels").floatValue = 0f;
+                }
             }
+
+            if (count == takes.arraySize)
+            {
+                return false;
+            }
+
+            Undo.SetCurrentGroupName("Add Cue Takes");
+            takes.isExpanded = true;
+            return asset.ApplyModifiedProperties();
         }
 
         /// <summary>The take list the cue inspector shows.</summary>

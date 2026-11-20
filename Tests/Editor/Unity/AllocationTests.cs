@@ -45,8 +45,21 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void PlayingACueOnAFullPoolDoesNotAllocate(bool varyPlayback)
         {
             using MadeObjects made = new();
+            SfxVariation variation = new(true, -50f, 50f, -1.5f, 0f)
+            {
+                UseShuffle = true,
+                UseLowPass = true,
+                MinimumLowPassHertz = 4_000f,
+                MaximumLowPassHertz = 12_000f,
+            };
             SfxCue cue = varyPlayback
-                ? made.Track(SfxCue.CreateWithVariation(new[] { new SfxVariant(Clip(made)) }, new SfxVariation(true, -50f, 50f, -1.5f, 0f), minimumIntervalSeconds: 0f))
+                ? made.Track(
+                    SfxCue.CreateWithVariation(
+                        new[] { new SfxVariant(Clip(made), 0f, -3f), new SfxVariant(Clip(made)), new SfxVariant(Clip(made)) },
+                        variation,
+                        minimumIntervalSeconds: 0f
+                    )
+                )
                 : Cue(made);
             SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
             for (int index = 0; index < WarmupPlays; index++)

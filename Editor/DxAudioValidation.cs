@@ -166,7 +166,7 @@ namespace WallstopStudios.DxAudio.Editor
 
             if (cue.Variation.HasInvalidBounds)
             {
-                findings.Add("This cue has invalid playback variation bounds. Check the pitch and level ranges.");
+                findings.Add("This cue has invalid playback variation bounds. Check the pitch, level, and cutoff ranges.");
             }
 
             AddGraphFindings(findings, cue.Graph, "This cue");

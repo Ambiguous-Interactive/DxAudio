@@ -23,9 +23,7 @@ namespace WallstopStudios.DxAudio
         private string _key;
 
         [SerializeField]
-        [Tooltip(
-            "Interchangeable takes, picked at random and never the same one twice in a row. Each carries its " + "own start offset, because a lead-in belongs to the recording."
-        )]
+        [Tooltip("Interchangeable recordings. Each take has its own start offset and level.")]
         private List<SfxVariant> _variants = new();
 
         [Range(0f, 1f)]
@@ -103,6 +101,8 @@ namespace WallstopStudios.DxAudio
                 + "voice builds its own copy, cleared at the start of every play."
         )]
         private DspGraphAsset _graph;
+
+        internal int TakeRevision { get; private set; }
 
         public string Key => _key;
 
@@ -344,6 +344,7 @@ namespace WallstopStudios.DxAudio
 
         private void OnValidate()
         {
+            ++TakeRevision;
             SfxLibrary.ForgetEveryIndex();
         }
     }

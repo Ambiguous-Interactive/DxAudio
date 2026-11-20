@@ -133,11 +133,112 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void APlayerUsesIndependentInjectedStreamsForPlayback()
+        public void InterleavedShuffleCuesKeepTheirOwnTakeCycles()
+        {
+            using MadeObjects made = new();
+            SfxVariant[] variants = { Variant(made), null, Variant(made), Variant(made) };
+            SfxVariation shuffle = new() { UseShuffle = true };
+            SfxCue first = made.Track(SfxCue.CreateWithVariation(variants, shuffle));
+            SfxCue second = made.Track(SfxCue.CreateWithVariation(variants, shuffle));
+            SfxPlaybackResolver resolver = new();
+            resolver.Reset(81);
+            Assert.That(resolver.TryResolve(first, out SfxPlayback a), Is.True);
+            Assert.That(resolver.TryResolve(second, out SfxPlayback b), Is.True);
+            Assert.That(resolver.TryResolve(first, out SfxPlayback c), Is.True);
+            Assert.That(resolver.TryResolve(first, out SfxPlayback d), Is.True);
+            Assert.That(resolver.TryResolve(second, out SfxPlayback e), Is.True);
+            Assert.That(resolver.TryResolve(second, out SfxPlayback f), Is.True);
+            SfxVariant[] expected = { variants[0], variants[2], variants[3] };
+            Assert.That(new[] { a.Variant, c.Variant, d.Variant }, Is.EquivalentTo(expected));
+            Assert.That(new[] { b.Variant, e.Variant, f.Variant }, Is.EquivalentTo(expected));
+        }
+
+        [Test]
+        public void FollowingAValidTakeRestartsTheFallbackShuffle()
+        {
+            using MadeObjects made = new();
+            SfxVariant[] variants = { Variant(made), Variant(made), Variant(made), Variant(made) };
+            SfxVariation shuffle = new() { UseShuffle = true };
+            SfxCue leader = made.Track(SfxCue.Create(variants));
+            SfxCue follower = made.Track(SfxCue.CreateWithVariation(new[] { variants[0], variants[1], variants[2] }, shuffle, followsTakeOf: leader));
+            SfxPlaybackResolver resolver = new();
+            resolver.SetSeed(81, _ => new FixedRandom(0.99));
+            Assert.That(resolver.TryResolve(follower, out SfxPlayback fallback), Is.True);
+            Assert.That(fallback.FollowedTake, Is.False);
+            Assert.That(resolver.TryResolve(leader, out _), Is.True);
+            Assert.That(resolver.TryResolve(leader, out SfxPlayback matched), Is.True);
+            Assert.That(resolver.TryResolve(follower, out SfxPlayback followed), Is.True);
+            Assert.That(followed.FollowedTake, Is.True);
+            Assert.That(followed.Variant, Is.SameAs(matched.Variant));
+
+            Assert.That(resolver.TryResolve(leader, out _), Is.True);
+            Assert.That(resolver.TryResolve(follower, out SfxPlayback next), Is.True);
+            Assert.That(next.FollowedTake, Is.False);
+            Assert.That(next.Variant, Is.Not.SameAs(followed.Variant));
+        }
+
+        [Test]
+        public void AReusedVoiceAppliesTakeGainAndClearsThePreviousCutoff()
+        {
+            using MadeObjects made = new();
+            AudioClip clip = Clip(made);
+            SfxVariant take = new(clip, 0f, -6f);
+            SfxVariation variation = new(true, 0f, 0f, -3f, -3f)
+            {
+                UseLowPass = true,
+                MinimumLowPassHertz = 2_000f,
+                MaximumLowPassHertz = 2_000f,
+            };
+            SfxCue low = made.Track(SfxCue.CreateWithVariation(new[] { take }, variation, minimumIntervalSeconds: 0f, volume: 0.5f));
+            SfxCue dry = made.Track(SfxCue.Create(new[] { new SfxVariant(clip) }, minimumIntervalSeconds: 0f));
+            SfxPlayer player = made.Track(new GameObject("cue player")).AddComponent<SfxPlayer>();
+            player.Library = made.Track(SfxLibrary.Create(new[] { low, dry }, voiceCount: 1));
+            AudioSource voice = player.GetComponentInChildren<AudioSource>();
+            AudioFilterHost host = voice.GetComponent<AudioFilterHost>();
+            host.enabled = false;
+
+            Assert.That(player.Play(low), Is.True);
+            Assert.That(voice.volume, Is.EqualTo(0.1774067f).Within(0.000001f));
+            float[] impulse = { 1f, 0f, 0f, 0f };
+            host.ProcessBuffer(impulse, 1);
+            Assert.That(impulse[0], Is.InRange(0.001f, 0.1f));
+            voice.Stop();
+
+            Assert.That(player.Play(dry), Is.True);
+            Assert.That(voice.volume, Is.EqualTo(1f));
+            float[] dryImpulse = { 1f, 0f, 0f, 0f };
+            host.ProcessBuffer(dryImpulse, 1);
+            Assert.That(dryImpulse, Is.EqualTo(new[] { 1f, 0f, 0f, 0f }));
+            voice.Stop();
+        }
+
+        [Test]
+        public void OldCueAndTakeDataKeepTheirPlaybackDefaults()
+        {
+            using MadeObjects made = new();
+            SfxCue cue = made.Track(ScriptableObject.CreateInstance<SfxCue>());
+            JsonUtility.FromJsonOverwrite("{\"_pitchJitter\":0.08,\"_variation\":{\"UsePitchCents\":false}}", cue);
+            SfxVariant take = JsonUtility.FromJson<SfxVariant>("{\"_startTimeSeconds\":0.125}");
+            Assert.That(cue.Variation.UseShuffle, Is.False);
+            Assert.That(cue.Variation.UseLowPass, Is.False);
+            Assert.That(cue.PitchFor(0f), Is.EqualTo(0.92f));
+            Assert.That(take.StartTimeSeconds, Is.EqualTo(0.125f));
+            Assert.That(take.Gain, Is.EqualTo(1f));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void APlayerUsesIndependentInjectedStreamsForPlayback(bool lowPass)
         {
             const int Seed = 81;
             using MadeObjects made = new();
-            SfxCue cue = made.Track(SfxCue.CreateWithVariation(new[] { Variant(made), Variant(made) }, new SfxVariation(true, -1200f, 1200f, -6f, 0f)));
+            SfxVariation variation = new(true, -1200f, 1200f, -6f, 0f)
+            {
+                UseLowPass = lowPass,
+                MinimumLowPassHertz = 2_000f,
+                MaximumLowPassHertz = 8_000f,
+            };
+            SfxCue cue = made.Track(SfxCue.CreateWithVariation(new[] { Variant(made), Variant(made) }, variation));
             SfxPlayer player = made.Track(new GameObject("variation player")).AddComponent<SfxPlayer>();
             FixedRandom takeAndPitch = new(0.75);
             FixedRandom level = new(0.0);

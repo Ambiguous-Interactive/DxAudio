@@ -23,12 +23,21 @@ namespace WallstopStudios.DxAudio
         )]
         private float _startTimeSeconds;
 
+        [Range(SfxVariation.MinimumLevelDecibels, 0f)]
+        [SerializeField]
+        [Tooltip("Level reduction for this recording before cue variation.")]
+        private float _attenuationDecibels;
+
         public SfxVariant() { }
 
         public SfxVariant(AudioClip clip, float startTimeSeconds = 0f)
+            : this(clip, startTimeSeconds, 0f) { }
+
+        public SfxVariant(AudioClip clip, float startTimeSeconds, float attenuationDecibels)
         {
             _clip = clip;
             _startTimeSeconds = startTimeSeconds;
+            _attenuationDecibels = SafeLevel(attenuationDecibels);
         }
 
         public AudioClip Clip => _clip;
@@ -36,11 +45,28 @@ namespace WallstopStudios.DxAudio
         /// <summary>The authored offset, before it is clamped against the clip.</summary>
         public float StartTimeSeconds => _startTimeSeconds;
 
+        /// <summary>Level reduction applied before per-play variation, in decibels.</summary>
+        public float AttenuationDecibels => SafeLevel(_attenuationDecibels);
+
+        internal float Gain
+        {
+            get
+            {
+                float level = AttenuationDecibels;
+                return level == 0f ? 1f : AudioMath.DecibelsToLinear(level);
+            }
+        }
+
         /// <summary>Whether this slot holds a clip at all. An empty inspector slot does not.</summary>
         public bool IsPlayable => _clip != null;
 
         /// <summary>Where playback begins, clamped so it never starts at or past the clip's end.</summary>
         public float PlaybackStartSeconds => AudioClipStart.Clamped(_clip, _startTimeSeconds);
+
+        private static float SafeLevel(float decibels)
+        {
+            return AudioMath.IsFinite(decibels) ? AudioMath.Clamp(decibels, SfxVariation.MinimumLevelDecibels, 0f) : 0f;
+        }
     }
 
     /// <summary>Where playback of a clip begins, given what was authored for it.</summary>

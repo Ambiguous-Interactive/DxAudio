@@ -1,13 +1,16 @@
 namespace WallstopStudios.DxAudio
 {
     using System;
+    using System.Collections.Generic;
 
     /// <summary>Owns the random streams and take history for one player or audition session.</summary>
     internal sealed class SfxPlaybackResolver
     {
         private readonly SfxSelection<SfxCue> _selection = new();
+        private readonly Dictionary<SfxCue, SfxShuffleBag> _bags = new();
         private ISfxRandom _takeAndPitch;
         private ISfxRandom _level;
+        private ISfxRandom _brightness;
 
         internal void Reset(int seed)
         {
@@ -28,14 +31,38 @@ namespace WallstopStudios.DxAudio
 
             _takeAndPitch = takeAndPitch;
             _level = level;
+            _brightness = new LegacyRandom(seed ^ 0x3BE9C9);
+        }
+
+        internal void Warm(SfxCue cue)
+        {
+            if (cue != null && cue.Variation.UseShuffle)
+            {
+                BagFor(cue).Reserve(cue.Variants.Count);
+            }
         }
 
         internal void ClearHistory()
         {
             _selection.Clear();
+            foreach (SfxShuffleBag bag in _bags.Values)
+            {
+                bag.Restart();
+            }
         }
 
         internal bool TryResolve(SfxCue cue, out SfxPlayback play)
+        {
+            if (cue == null)
+            {
+                play = default;
+                return false;
+            }
+
+            return TryResolve(cue, cue.Variation, cue.PitchJitter, cue.Volume, null, out play);
+        }
+
+        internal bool TryResolve(SfxCue cue, SfxVariation variation, float legacyJitter, float cueVolume, float[] takeGains, out SfxPlayback play)
         {
             int count = cue == null ? 0 : cue.PlayableVariantCount;
             if (count == 0)
@@ -45,10 +72,20 @@ namespace WallstopStudios.DxAudio
             }
 
             bool followed = _selection.TryFollow(cue, cue.FollowsTakeOf, count, out int index);
-            if (!followed && !_selection.TryNext(cue, count, Draw(_takeAndPitch), out index))
+            if (followed)
             {
-                play = default;
-                return false;
+                RestartBag(cue);
+            }
+            else if (variation.UseShuffle)
+            {
+                int previous = _selection.TryGetLast(cue, out int last) ? last : -1;
+                index = BagFor(cue).Next(count, cue.TakeRevision, previous, Draw(_takeAndPitch));
+                _selection.Remember(cue, index);
+            }
+            else
+            {
+                RestartBag(cue);
+                _ = _selection.TryNext(cue, count, Draw(_takeAndPitch), out index);
             }
 
             if (!cue.TryGetPlayableVariant(index, out SfxVariant variant))
@@ -57,10 +94,31 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
-            float pitch = cue.PitchFor(Draw(_takeAndPitch));
-            float volume = cue.Variation.Volume(cue.Volume, Draw(_level), out float decibels);
-            play = new SfxPlayback(variant, cue.PlaybackStartSecondsFor(variant), pitch, cue.Volume, volume, decibels, followed);
+            float pitch = variation.Pitch(legacyJitter, Draw(_takeAndPitch));
+            float baseVolume = cueVolume * (takeGains == null ? variant.Gain : takeGains[index]);
+            float volume = variation.Volume(baseVolume, Draw(_level), out float decibels);
+            float cutoff = variation.UseLowPass ? variation.LowPassHertz(Draw(_brightness)) : 0f;
+            play = new SfxPlayback(variant, cue.PlaybackStartSecondsFor(variant), pitch, baseVolume, volume, decibels, cutoff, followed);
             return true;
+        }
+
+        private SfxShuffleBag BagFor(SfxCue cue)
+        {
+            if (!_bags.TryGetValue(cue, out SfxShuffleBag bag))
+            {
+                bag = new SfxShuffleBag();
+                _bags.Add(cue, bag);
+            }
+
+            return bag;
+        }
+
+        private void RestartBag(SfxCue cue)
+        {
+            if (0 < _bags.Count && _bags.TryGetValue(cue, out SfxShuffleBag bag))
+            {
+                bag.Restart();
+            }
         }
 
         private static float Draw(ISfxRandom source)

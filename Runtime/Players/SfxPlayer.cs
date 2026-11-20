@@ -298,11 +298,10 @@ namespace WallstopStudios.DxAudio
             return true;
         }
 
-        /// <summary>Prepares <paramref name="cue" />'s chain and graph on every voice, so a play of a reference cue allocates nothing.</summary>
+        /// <summary>Prepares shuffle storage and effects for a reference cue before it plays.</summary>
         /// <remarks>
-        /// The pool prepares every cue its library lists. This covers a cue a game holds by reference and never lists,
-        /// because the player cannot know it in advance and would otherwise build its chain or graph inside the play
-        /// call.
+        /// The pool prepares every cue its library lists. Call this for cues held by reference to move their first-use
+        /// preparation out of the play call.
         /// </remarks>
         /// <returns><see langword="false" /> when the player has no voices to prepare.</returns>
         public bool Warm(SfxCue cue)
@@ -312,6 +311,7 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
+            _playback.Warm(cue);
             for (int index = 0; index < _hosts.Length; index++)
             {
                 AudioFilterHost host = _hosts[index];
@@ -476,6 +476,7 @@ namespace WallstopStudios.DxAudio
             AudioFilterHost host = _hosts[index];
             if (host != null)
             {
+                host.SetCueLowPass(play.LowPassHertz);
                 // The chain is cleared here, not at stop: a voice is about to start a new play, and it must not
                 // inherit the last one's delay line or envelope. The bus is cleared by the same assignment.
                 // A cue the library does not list is built on this voice now, which is its first and only allocation;
@@ -650,6 +651,7 @@ namespace WallstopStudios.DxAudio
                 // One host per voice, so a cue's chain shapes that source alone.
                 AudioFilterHost host = child.AddComponent<AudioFilterHost>();
                 host.BusChain = _busChain;
+                host.PrepareCueLowPass();
                 _hosts[index] = host;
             }
 
@@ -660,6 +662,14 @@ namespace WallstopStudios.DxAudio
         private void WarmChains()
         {
             IReadOnlyList<SfxCue> cues = _library != null ? _library.Cues : null;
+            if (cues != null)
+            {
+                for (int index = 0; index < cues.Count; ++index)
+                {
+                    _playback.Warm(cues[index]);
+                }
+            }
+
             for (int index = 0; index < _hosts.Length; index++)
             {
                 AudioFilterHost host = _hosts[index];

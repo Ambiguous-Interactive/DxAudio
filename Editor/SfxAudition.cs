@@ -24,7 +24,7 @@ namespace WallstopStudios.DxAudio.Editor
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
         }
 
-        /// <summary>Plays <paramref name="variant" /> at <paramref name="cue" />'s volume and returns the source it used.</summary>
+        /// <summary>Plays <paramref name="variant" /> with its authored trim and level at original pitch.</summary>
         /// <returns>The preview source, or null when the take has no clip to play.</returns>
         public static AudioSource Play(SfxCue cue, SfxVariant variant)
         {
@@ -33,8 +33,10 @@ namespace WallstopStudios.DxAudio.Editor
                 return null;
             }
 
-            return PlayClip(cue, variant.Clip, cue.Volume, cue.PlaybackStartSecondsFor(variant));
+            return PlayClip(cue, variant.Clip, cue.Volume * variant.Gain, cue.PlaybackStartSecondsFor(variant));
         }
+
+        internal static bool IsPlaying(Object owner) => owner != null && _previewOwner == owner && _previewSource != null && _previewSource.isPlaying;
 
         internal static AudioSource Play(MusicTrack track)
         {
