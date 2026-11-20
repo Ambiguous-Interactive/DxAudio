@@ -55,16 +55,16 @@ def run_bridge_editmode(env: Dict[str, str]) -> int:
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
-    def rpc(method: str, params: JsonObject, identifier: Optional[int] = None, timeout: float = 30) -> JsonObject:
+    def rpc(method: str, params: JsonObject, identifier: Optional[int] = None, timeout: Optional[float] = None) -> JsonObject:
         payload: JsonObject = {"jsonrpc": "2.0", "method": method, "params": params}
         if identifier is not None:
             payload["id"] = identifier
-        response = request_json(endpoint, headers, payload, timeout=timeout)
+        response = request_json(endpoint, headers, payload, timeout=bridge_seconds if timeout is None else timeout)
         if "error" in response:
             raise ValueError(f"{method}: {response['error']}")
         return object_value(response.get("result"))
 
-    def tool(name: str, arguments: JsonObject, identifier: int, timeout: float = 30) -> Json:
+    def tool(name: str, arguments: JsonObject, identifier: int, timeout: Optional[float] = None) -> Json:
         response = rpc("tools/call", {"name": name, "arguments": arguments}, identifier, timeout)
         content = response.get("content")
         raw = object_value(content[0]).get("text") if isinstance(content, list) and content else None

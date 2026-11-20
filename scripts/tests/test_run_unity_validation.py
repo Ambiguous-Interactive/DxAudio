@@ -225,7 +225,7 @@ def case_container_runs_the_pinned_editor_and_reports_its_result() -> None:
         "UNITY_MCP_HTTP_URL": endpoint + "/",
         "UNITY_MCP_PROJECT": r"c:\code\dxaudio",
         "UNITY_MCP_TOKEN": "fixture-token",
-        "UNITY_MCP_TIMEOUT_MS": "180000.0",
+        "UNITY_MCP_TIMEOUT_MS": "45000.0",
     }
     for project, failed, expected_calls in [
         ("C:/Code/DxAudio", 0, 4),
@@ -255,10 +255,14 @@ def case_container_runs_the_pinned_editor_and_reports_its_result() -> None:
             code = unity_tests([])
         assert_true(request.call_count == expected_calls, str(request.call_args_list))
         assert_true(all(call.args[0] == endpoint for call in request.call_args_list), "wrong MCP endpoint")
+        timeouts = [call.kwargs["timeout"] for call in request.call_args_list]
+        expected_timeouts = [45, 45, 45, 50] if expected_calls == 4 else [45, 45, 45]
+        assert_true(timeouts == expected_timeouts, f"requests must honor the bridge timeout: {timeouts}")
         assert_true(request.call_args.args[1]["Authorization"] == "Bearer fixture-token", "missing token")
         if expected_calls == 4:
             arguments = request.call_args.args[2]["params"]
             assert_true(arguments["name"] == "test_run" and arguments["arguments"]["mode"] == "editor", str(arguments))
+            assert_true(arguments["arguments"]["timeout"] == 44, str(arguments))
             assert_true(code == failed, f"wrong test exit code: {code}")
             summary = f"{2 - failed}/4 passed, {failed} failed, 1 skipped, 1 inconclusive"
             assert_true(summary in output.getvalue(), output.getvalue())
