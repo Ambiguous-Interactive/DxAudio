@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       expected_sha:
-        description: Merged commit from the weekly release workflow
+        description: Validated commit from the weekly release workflow
         type: string
         default: ""
 

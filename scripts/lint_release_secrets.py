@@ -7,9 +7,8 @@ Typed Python port of ``lint-release-secrets.js`` (issue #171): the same
 documented-block parsing, YAML comment masking, and fail-closed drift
 report, driven by the standard library.
 
-The release chain uses a GitHub App, GitHub's built-in token, and npm OIDC. This guard detects undocumented credentials if a
-future workflow introduces them, and stale credential instructions in the
-runbook.
+The release chain uses GitHub's built-in token and npm OIDC. This guard
+detects undocumented credentials and stale instructions in the runbook.
 
 The documented set is read from the ``release-secrets`` block in
 ``.llm/references/RELEASING.md``, so prose elsewhere in the reference is

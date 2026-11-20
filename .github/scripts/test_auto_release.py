@@ -11,7 +11,7 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
-from auto_release import WORKFLOWS, WorkflowRun, classify, dispatch, rotate, tag_release
+from auto_release import WORKFLOWS, WorkflowRun, classify, dispatch, promote, rotate
 from release_assets import build_unitypackage, npm_integrity, publish_npm, read_member
 
 
@@ -46,7 +46,8 @@ class ReleaseDecisionTests(unittest.TestCase):
 class PromotionTests(unittest.TestCase):
     repository = "Ambiguous-Interactive/DxAudio"
     sha = "a" * 40
-    branch = "release-verify/v0.4.0"
+    base = "b" * 40
+    branch = f"release-verify/v0.4.0-{base}"
 
     def run_data(self, conclusion: str | None) -> WorkflowRun:
         return {
@@ -83,16 +84,22 @@ class PromotionTests(unittest.TestCase):
                         "os.environ",
                         {"GITHUB_REPOSITORY": self.repository, "AUTO_RELEASE_VALIDATE_ONLY": ""},
                     ),
-                    patch("auto_release.find_release_pr", return_value={"number": 3}),
+                    patch("auto_release.verify_edits"),
                     patch("auto_release.read_version", return_value="0.4.0"),
-                    patch("auto_release.ref_sha", side_effect=[self.sha, None]),
+                    patch("auto_release.ref_sha", side_effect=[self.sha, self.base, None]),
+                    patch("auto_release.git", return_value=f"{self.sha} {self.base}"),
                     patch("auto_release.validation_runs", return_value=checks),
                     patch("auto_release.api", return_value={"workflow_runs": []}) as api,
                     patch("auto_release.dispatch") as dispatch,
                     patch("auto_release.summary"),
                 ):
-                    tag_release("0.4.0", self.sha, "release-app", retry=False)
+                    promote(self.branch, self.sha, retry=False)
                 if conclusion == "success":
+                    api.assert_any_call(
+                        "git/refs/heads/main",
+                        method="PATCH",
+                        body={"sha": self.sha, "force": False},
+                    )
                     api.assert_any_call(
                         "git/refs", method="POST", body={"ref": "refs/tags/v0.4.0", "sha": self.sha}
                     )
@@ -110,10 +117,10 @@ class PromotionTests(unittest.TestCase):
                 "os.environ",
                 {"GITHUB_REPOSITORY": self.repository, "AUTO_RELEASE_VALIDATE_ONLY": ""},
             ),
-            patch("auto_release.find_release_pr", return_value={"number": 3}),
+            patch("auto_release.verify_edits"),
             patch("auto_release.read_version", return_value="0.4.0"),
             patch("auto_release.ref_sha", return_value=self.sha),
-            patch("auto_release.git", return_value=self.sha),
+            patch("auto_release.git", side_effect=[f"{self.sha} {self.base}", self.sha, self.sha]),
             patch("auto_release.validation_runs", return_value=checks),
             patch(
                 "auto_release.api",
@@ -124,7 +131,7 @@ class PromotionTests(unittest.TestCase):
             patch("auto_release.dispatch") as dispatch,
             patch("auto_release.summary"),
         ):
-            tag_release("0.4.0", self.sha, "release-app", retry=True)
+            promote(self.branch, self.sha, retry=True)
             api.assert_called_once()
             dispatch.assert_not_called()
 

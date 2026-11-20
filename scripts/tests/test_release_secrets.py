@@ -308,7 +308,7 @@ def case_passes_against_the_repository_itself() -> None:
     )
     assert_exit_code(0, f"the repository must satisfy its own contract: {output}", exit_code)
     assert_true(
-        re.search(r"Release credential contract in sync: 1 secret", output, re.IGNORECASE) is not None,
+        re.search(r"Release credential contract in sync: 0 secret", output, re.IGNORECASE) is not None,
         f"verbose output must report the compared set: {output}",
     )
 
