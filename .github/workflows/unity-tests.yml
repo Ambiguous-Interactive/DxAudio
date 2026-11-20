@@ -16,6 +16,11 @@ on:
     # Exactly one cron entry, at most daily, on the protected default branch.
     - cron: "0 5 * * *"
   workflow_dispatch:
+    inputs:
+      unitypackage_smoke:
+        description: Rehearse the Unity import archive in both editors
+        type: boolean
+        default: false
 
 concurrency:
   # The organization enrollment contract (build-lock #274) requires literal
@@ -68,7 +73,7 @@ jobs:
       }}
     runs-on: [self-hosted, Windows, RAM-64GB]
     # Leave time for license return and lock release after the maximum wait and both validation modes.
-    timeout-minutes: 480
+    timeout-minutes: 490
     # Contract item 3: the audit proves the per-leg editor gate and the central
     # return pins only on a matrix it can enumerate, so every axis holds literal
     # values. An include-based or generated matrix is refused.
@@ -140,8 +145,13 @@ jobs:
         shell: pwsh
         env:
           UNITY_VERSION: ${{ matrix.unity-version }}
+          RELEASE_VALIDATION: ${{ inputs.unitypackage_smoke || startsWith(github.ref, 'refs/heads/release-verify/v') }}
         run: |
           $output = Join-Path $env:RUNNER_TEMP "dxaudio-archive-$env:UNITY_VERSION"
+          if ($env:RELEASE_VALIDATION -eq 'true') {
+            npm install --global --ignore-scripts npm@12.2.2
+            if ($LASTEXITCODE -ne 0) { throw 'Could not install the release npm version.' }
+          }
           uv run --no-project .github/scripts/package_check.py --out $output
 
       - name: Validate Unity license secrets
@@ -238,7 +248,7 @@ jobs:
 
       - name: Verify standalone player scripts with and without the optional integration
         if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
-        timeout-minutes: 20
+        timeout-minutes: 25
         shell: pwsh
         env:
           UNITY_VERSION: ${{ matrix.unity-version }}
@@ -249,9 +259,16 @@ jobs:
           UNITY_TEST_LABEL: consumer-archive
           DXMESSAGING_VERSION: ""
           DXAUDIO_CONSUMER_ARCHIVE: ${{ steps.pack.outputs.tarball }}
+          RELEASE_VALIDATION: ${{ inputs.unitypackage_smoke || startsWith(github.ref, 'refs/heads/release-verify/v') }}
         run: |
           ./scripts/unity/run-editmode-tests.ps1 -ArchiveSmoke
           ./scripts/unity/run-editmode-tests.ps1 -IntegrationPlayerSmoke -Label consumer-archive-integration -DxMessagingVersion "3.3.0"
+          if ($env:RELEASE_VALIDATION -eq 'true') {
+            uv run --no-project .github/scripts/release_assets.py build $env:DXAUDIO_CONSUMER_ARCHIVE
+            if ($LASTEXITCODE -ne 0) { throw 'Could not build the Unity import archive.' }
+            $archive = [IO.Path]::ChangeExtension($env:DXAUDIO_CONSUMER_ARCHIVE, '.unitypackage')
+            ./scripts/unity/run-editmode-tests.ps1 -UnityImportArchive $archive -Label unitypackage-import
+          }
 
       - name: Require current PR head after Unity validation
         if: ${{ github.event_name == 'pull_request' }}

@@ -122,7 +122,7 @@ or `Feature`. Bodies stay under 300 lines; bulk material moves to `.llm/referenc
 12. Never ship development files in the npm tarball. `package.json` `files` lists `Runtime`, `Editor`, `Tests`, and
     package metadata only; `tooling~`-style paths are not used here.
 13. Keep the public API additive where possible. Removing or renaming a public member is a breaking change and needs a
-    major version plus a migration note.
+    migration note. Bump the minor version during 0.x and the major version from 1.0.0.
 14. Audio callbacks and per-frame code must not allocate, box, or log in the steady state. Measure with the allocation
     probe before claiming a fix.
 15. Never hide a compiler warning. Every assembly compiles with warnings as errors: Unity feeds the generated

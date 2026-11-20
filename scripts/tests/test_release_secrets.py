@@ -61,7 +61,8 @@ def write_release_workflows(root: Path, prep: str, tag: str, publish: str) -> No
     publication. The scanner reads their combined credential references from
     one release file.
     """
-    write_fixture_file(root, "workflows/release.yml", prep + "\n" + tag + "\n" + publish)
+    write_fixture_file(root, "workflows/auto-release.yml", prep)
+    write_fixture_file(root, "workflows/release.yml", tag + "\n" + publish)
 
 
 def invoke_fixture_lint(root: Path, lint_arguments: Sequence[str] = ()) -> Tuple[str, int]:
