@@ -30,6 +30,7 @@ LEVELS = {
 RELEASE_FILES = ("package.json", "CHANGELOG.md", ".llm/context.md")
 PRODUCT_PATHS = (*PACKAGE_DIRS, "Samples~", "Documentation~", "package.json", "LICENSE.md")
 WORKFLOWS = ("ci.yml", "unity-tests.yml", "llm-lint.yml", "doc-links.yml")
+REQUIRED_JOBS = {"ci.yml": "Build and package safety", "unity-tests.yml": "Unity CI Success"}
 VERIFY_PREFIX = "release-verify/"
 
 
@@ -58,6 +59,17 @@ class WorkflowRun(TypedDict):
 
 class RunList(TypedDict):
     workflow_runs: list[WorkflowRun]
+
+
+class WorkflowJob(TypedDict):
+    name: str
+    head_sha: str
+    conclusion: str | None
+    html_url: str
+
+
+class JobList(TypedDict):
+    jobs: list[WorkflowJob]
 
 
 class PageLink(TypedDict):
@@ -164,6 +176,23 @@ def validation_runs(branch: str, sha: str) -> dict[str, WorkflowRun | None]:
     }
 
 
+def required_statuses(runs: dict[str, WorkflowRun | None], sha: str) -> dict[str, str]:
+    verified: dict[str, str] = {}
+    for workflow, context in REQUIRED_JOBS.items():
+        check = runs[workflow]
+        if check is None:
+            raise ValueError(f"{workflow} has no validation run")
+        pages = cast(
+            "list[JobList]",
+            api(f"actions/runs/{check['id']}/jobs?filter=latest&per_page=100", paginate=True),
+        )
+        jobs = [job for page in pages for job in page["jobs"] if job["name"] == context]
+        if len(jobs) != 1 or jobs[0]["head_sha"] != sha or jobs[0]["conclusion"] != "success":
+            raise ValueError(f"{workflow} has no successful {context} job on {sha}")
+        verified[context] = jobs[0]["html_url"]
+    return verified
+
+
 def candidate_branch(version: str, base: str) -> str:
     return f"{VERIFY_PREFIX}v{version}-{base}"
 
@@ -212,15 +241,24 @@ def promote(branch: str, sha: str, *, retry: bool) -> None:
                 api(f"actions/runs/{check['id']}/rerun", method="POST")
     if not ready:
         return
+    tag_sha = ref_sha(f"tags/{tag}")
+    if tag_sha is not None and tag_sha != sha and git("rev-parse", f"{tag}^{{commit}}") != sha:
+        raise ValueError(f"{tag} points to a different commit")
+    statuses = required_statuses(runs, sha) if main == base else {}
     if os.getenv("AUTO_RELEASE_VALIDATE_ONLY") == "true":
         summary(
             f"All validation passed for {tag} at {sha}. Publication is disabled for this rehearsal."
         )
         return
-    tag_sha = ref_sha(f"tags/{tag}")
-    if tag_sha is not None and tag_sha != sha and git("rev-parse", f"{tag}^{{commit}}") != sha:
-        raise ValueError(f"{tag} points to a different commit")
     if main == base:
+        # Rulesets exclude job checks from workflow_dispatch. Report the verified
+        # results as commit statuses from the same GitHub Actions integration.
+        for context, url in statuses.items():
+            api(
+                f"statuses/{sha}",
+                method="POST",
+                body={"context": context, "state": "success", "target_url": url},
+            )
         api("git/refs/heads/main", method="PATCH", body={"sha": sha, "force": False})
         summary(f"Advanced main to the validated release commit {sha}.")
     if tag_sha is None:

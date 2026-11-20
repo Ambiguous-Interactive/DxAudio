@@ -11,7 +11,15 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
-from auto_release import WORKFLOWS, WorkflowRun, classify, dispatch, promote, rotate
+from auto_release import (
+    WORKFLOWS,
+    WorkflowRun,
+    classify,
+    dispatch,
+    promote,
+    required_statuses,
+    rotate,
+)
 from release_assets import build_unitypackage, npm_integrity, publish_npm, read_member
 
 
@@ -61,6 +69,23 @@ class PromotionTests(unittest.TestCase):
             "html_url": "https://example.com/run",
         }
 
+    def api_response(self, path: str, **_kwargs: object) -> object:
+        if path.startswith("actions/runs/"):
+            return [
+                {
+                    "jobs": [
+                        {
+                            "name": context,
+                            "head_sha": self.sha,
+                            "conclusion": "success",
+                            "html_url": "https://example.com/gate",
+                        }
+                        for context in ("Build and package safety", "Unity CI Success")
+                    ]
+                }
+            ]
+        return {"workflow_runs": []}
+
     def test_dispatch_accepts_a_response_without_a_run_url(self) -> None:
         with (
             patch("auto_release.api", return_value=None) as api,
@@ -89,12 +114,21 @@ class PromotionTests(unittest.TestCase):
                     patch("auto_release.ref_sha", side_effect=[self.sha, self.base, None]),
                     patch("auto_release.git", return_value=f"{self.sha} {self.base}"),
                     patch("auto_release.validation_runs", return_value=checks),
-                    patch("auto_release.api", return_value={"workflow_runs": []}) as api,
+                    patch("auto_release.api", side_effect=self.api_response) as api,
                     patch("auto_release.dispatch") as dispatch,
                     patch("auto_release.summary"),
                 ):
                     promote(self.branch, self.sha, retry=False)
                 if conclusion == "success":
+                    api.assert_any_call(
+                        f"statuses/{self.sha}",
+                        method="POST",
+                        body={
+                            "context": "Build and package safety",
+                            "state": "success",
+                            "target_url": "https://example.com/gate",
+                        },
+                    )
                     api.assert_any_call(
                         "git/refs/heads/main",
                         method="PATCH",
@@ -109,6 +143,22 @@ class PromotionTests(unittest.TestCase):
                 else:
                     api.assert_not_called()
                     dispatch.assert_not_called()
+
+    def test_required_job_must_succeed_on_the_candidate_sha(self) -> None:
+        runs: dict[str, WorkflowRun | None] = dict.fromkeys(WORKFLOWS, self.run_data("success"))
+        for job_sha, conclusion in ((self.base, "success"), (self.sha, "skipped")):
+            with self.subTest(sha=job_sha, conclusion=conclusion):
+                job = {
+                    "name": "Build and package safety",
+                    "head_sha": job_sha,
+                    "conclusion": conclusion,
+                    "html_url": "https://example.com/gate",
+                }
+                with (
+                    patch("auto_release.api", return_value=[{"jobs": [job]}]),
+                    self.assertRaisesRegex(ValueError, "no successful Build and package safety"),
+                ):
+                    required_statuses(runs, self.sha)
 
     def test_conflicting_tag_blocks_the_main_update(self) -> None:
         checks = dict.fromkeys(WORKFLOWS, self.run_data("success"))

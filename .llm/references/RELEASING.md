@@ -43,7 +43,9 @@ CI, Unity Tests, LLM Instructions Lint, and External documentation links
 run on the candidate SHA. Unity checks both editors and both archive formats.
 
 After validation, the workflow fast-forwards `main` to the checked commit.
-GitHub still enforces Build and package safety and Unity CI Success.
+The workflow verifies the Build and package safety and Unity CI Success
+jobs on that SHA and reports their outcomes as GitHub Actions commit
+statuses. GitHub enforces both statuses when the workflow updates `main`.
 If `main` advances during CI, the workflow leaves that candidate untagged.
 The next weekly run or manual `prepare` starts from the new base.
 
