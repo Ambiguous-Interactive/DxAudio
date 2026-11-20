@@ -67,8 +67,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         /// <summary>The smallest heap growth of <see cref="Windows"/> runs of <paramref name="count"/> calls.</summary>
         /// <remarks>
-        /// The same probe as <c>AllocationTests</c>: a collection at the end would reclaim the churn this looks for,
-        /// so the raw heap is read, and the smallest window wins because Mono commits segments in coarse steps.
+        /// A collection could reclaim the churn before the final reading. The raw heap includes other threads,
+        /// so this takes the smallest window to reduce noise from Mono heap segment commits.
         /// </remarks>
         private static long HeapGrowth(Action emit, int count)
         {

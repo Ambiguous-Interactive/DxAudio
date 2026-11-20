@@ -27,13 +27,13 @@ ceiling over several voices, because it only ever holds one.
 
 On the 6000.6.7f1 host editor at 48 kHz stereo, Mono with no optimizations:
 
-| Probe                                                  | Result                                                    |
-| ------------------------------------------------------ | --------------------------------------------------------- |
-| Two voices, a -6 dB limiter on each                    | peaks 0.5012, sum 1.0024                                  |
-| The same sum through a mix bus limiter at -6 dB        | peak 0.5012                                               |
-| Mix bus with a 5 ms lookahead limiter                  | 240 samples of delay, no more                             |
-| Limiter, compressor, limiter; 1,024-frame stereo block | 778 us per block, 27x realtime                            |
-| A mix bus block, 64-frame mono, limiter and compressor | no growth in 3 windows of 100,000 blocks (512 KB ceiling) |
+| Probe                                                  | Result                                          |
+| ------------------------------------------------------ | ----------------------------------------------- |
+| Two voices, a -6 dB limiter on each                    | peaks 0.5012, sum 1.0024                        |
+| The same sum through a mix bus limiter at -6 dB        | peak 0.5012                                     |
+| Mix bus with a 5 ms lookahead limiter                  | 240 samples of delay, no more                   |
+| Limiter, compressor, limiter; 1,024-frame stereo block | 778 us per block, 27x realtime                  |
+| A mix bus block, 64-frame mono, limiter and compressor | 0 managed allocation events over 100,000 blocks |
 
 Two voices that each leave their own bus under the ceiling still sum 6 dB above it, which is the case no per-voice stage
 can fix. The mix bus runs once per block, so its cost does not grow with the pool; the chain above is the same work a

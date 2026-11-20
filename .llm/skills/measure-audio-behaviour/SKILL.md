@@ -1,6 +1,6 @@
 ---
 name: measure-audio-behaviour
-description: Measure DxAudio behavior with warmed allocation probes, timing windows and applied output gain - GC.GetAllocatedBytesForCurrentThread, NUnit AllocatingGCMemory, heap growth, sample counts, statistics, noise control, and the editor probe for voice and mixer group gain. Use when writing or debugging an allocation test, a benchmark, an output-gain or duck measurement, or a performance claim in an issue or PR.
+description: Measure DxAudio behavior with warmed allocation probes, timing windows and applied output gain - GC.GetAllocatedBytesForCurrentThread, Unity ProfilerRecorder, heap growth, sample counts, statistics, noise control, and the editor probe for voice and mixer group gain. Use when writing or debugging an allocation test, a benchmark, an output-gain or duck measurement, or a performance claim in an issue or PR.
 metadata:
   category: Feature
 ---
@@ -36,16 +36,14 @@ long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
   `Tests/Editor/Unity/DiagnosticsTests.cs` (`HeapGrowth`) is the worked example.
 - To prove a path does nothing at all, assert the observable state it must not change, such as an empty report or an idle
   voice. That check fails deterministically; a byte ceiling only fails once its slack is spent.
-- For a path that must allocate nothing per call, run 100,000 calls and read `GC.GetTotalMemory(forceFullCollection:
-  false)` at both ends, taking the smallest of three windows. Measured on 6000.6.7f1: `SfxPlayer.Play` grew the heap by
-  0 to 29 KB, a planted 16-byte allocation per call grew it by 3.4 MB, and one window in a full-suite run committed a
-  segment of about 300 KB. A 256 KB ceiling sits between them. `Tests/Editor/Unity/AllocationTests.cs` is the example.
-- Unity's NUnit (3.5) has no `Is.AllocatingGCMemory` constraint; it does not compile. Do not use it in `Tests/Editor`.
-- In Unity EditMode, warm the subject and the probe path first. Unwarmed probes false-positive on first-call JIT for
-  string comparisons, dictionary adds, and other BCL paths.
-- Warm at least 8 iterations. 32 is safer for paths that touch more BCL code.
-- Run the same probe on a deliberate allocation to prove the probe can see one: 20 MB of arrays moved the heap by 21 MB
-  on this host, while 500 small strings moved it by 4 KB. A probe that cannot fail is not evidence.
+- For a Unity path that must allocate nothing, record `GC.Alloc` with `ProfilerRecorder`. Use
+  `SumAllSamplesInFrame | CollectOnlyOnCurrentThread` around a warmed, synchronous loop. Stop the recorder before
+  reading `GetSample(0).Count`. The sample value is time. Use the count to assert zero events.
+  `Tests/Editor/Unity/AllocationTests.cs` checks the recorder with one transient allocation.
+- Warm the subject and the delegate before recording. Use at least eight calls. If a state transition must also allocate
+  nothing, recreate that state after warming the code path. Keep inputs representative throughout the loop.
+- A process-wide heap reading includes other editor threads. It can fail an allocation-free callback or miss allocations
+  that the collector reclaims. Use heap readings for retained memory, such as diagnostics reports.
 
 ## Output gain probe
 
@@ -125,12 +123,12 @@ float VoiceGainDb(AudioSource voice) {
 
 | Claim                          | Probe                                                       |
 | ------------------------------ | ----------------------------------------------------------- |
-| Play allocates nothing         | 100,000 plays on a full pool, heap growth, smallest of 3    |
+| Play allocates nothing         | 100,000 plays on a full pool, current-thread allocation events    |
 | Stealing allocates nothing     | Same, with priority inversion on every play                 |
 | Duck compose allocates nothing | Hold 1 and 8 ducks, compose per frame for 1000 frames       |
 | Music crossfade cost           | 100 context changes, measure the per-change allocation and time |
 | Loop handle safety             | Start, stop, reuse the voice, stop the stale handle         |
-| Released-clip sweep allocation | Destroy a playing clip, run 500 frame sweeps, read heap growth |
+| Released-clip sweep allocation | Destroy a playing clip, run 500 frame sweeps, record current-thread allocation events |
 
 ## Recording
 
