@@ -392,7 +392,7 @@ Then, in the container or the host:
 
 ```bash
 npm run check:gate      # format, lints, harness self-tests, npm payload
-npm run unity:tests     # EditMode suite through the local editor
+npm run unity:tests     # EditMode via the host bridge in a container, or batch mode on the host
 npm run check:analysis  # C# 9 compatibility, static analysis, and Core tests
 npm run check:upstream  # pinned unity-helpers checks and analyzer fixtures
 ```

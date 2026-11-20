@@ -28,8 +28,12 @@ The host project must declare `com.unity.pipeline` in `Packages/manifest.json`. 
 | `npm run mcp:sync`             | either    | Writes the six frontend configs, idempotent                  |
 | `npm run mcp:doctor`           | either    | Credentials, config flavor, endpoint and stdio checks        |
 | `npm run unity:mcp:doctor`     | either    | Project pin, pipeline package, tool roundtrip                |
-| `npm run unity:tests`          | host      | EditMode tests in a separate batchmode editor                |
+| `npm run unity:tests`          | either    | Host bridge from container. Batchmode on host.              |
 | `npm run unity:mcp:host -- --stop` | host  | Stop the bridge                                              |
+
+The container wrapper reports NUnit totals from the open host editor. It reads the bridge URL, port, token, timeout,
+and project pin from process variables or workspace `.env.local`. Local batchmode writes the NUnit XML and editor log
+outside the package. Pass `--host-project`, `--unity-executable`, or `--output-directory` to select local batchmode.
 
 ## Play mode
 
@@ -89,7 +93,7 @@ Read from the environment, falling back to the gitignored `.env.local`:
 | `UNITY_MCP_PROJECT`    | Project root (contains `ProjectSettings/ProjectVersion.txt`)    |
 | `UNITY_PROJECT_PATH`   | Alias honored by the Unity CLI                                  |
 | `UNITY_MCP_HTTP_PORT`  | Bridge port, default 9020; busy ports move to the next free one  |
-| `UNITY_MCP_HTTP_URL`   | Endpoint override read by sync and both doctors                 |
+| `UNITY_MCP_HTTP_URL`   | Endpoint override for sync, doctors, and container tests        |
 | `UNITY_MCP_TOKEN`      | Optional bearer token                                           |
 | `UNITY_MCP_TIMEOUT_MS` | Per-request timeout, default 180000                             |
 | `UNITY_MCP_ALLOW_PLAY_MODE` | `1` lets the bridge forward play-mode calls; unset refuses them |
