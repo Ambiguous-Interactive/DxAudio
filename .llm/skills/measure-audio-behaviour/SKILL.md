@@ -37,8 +37,8 @@ long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 - To prove a path does nothing at all, assert the observable state it must not change, such as an empty report or an idle
   voice. That check fails deterministically; a byte ceiling only fails once its slack is spent.
 - For a Unity path that must allocate nothing, record `GC.Alloc` with `ProfilerRecorder`. Use
-  `SumAllSamplesInFrame | CollectOnlyOnCurrentThread` around a warmed, synchronous loop. Stop the recorder before
-  reading `GetSample(0).Count`. The sample value is time. Use the count to assert zero events.
+  `SumAllSamplesInFrame | CollectOnlyOnCurrentThread` around a warmed, synchronous loop. Check that the recorder is valid.
+  Stop it before reading. An empty recorder reports zero events. Otherwise, read the event count from `GetSample(0).Count`.
   `Tests/Editor/Unity/AllocationTests.cs` checks the recorder with one transient allocation.
 - Warm the subject and the delegate before recording. Use at least eight calls. If a state transition must also allocate
   nothing, recreate that state after warming the code path. Keep inputs representative throughout the loop.

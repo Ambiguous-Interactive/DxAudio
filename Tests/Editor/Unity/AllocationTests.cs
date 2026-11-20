@@ -153,7 +153,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float[] block = new float[64];
             void Render()
             {
-                for (int index = 0; index < block.Length; ++index)
+                for (int index = 0, blockLength = block.Length; index < blockLength; ++index)
                 {
                     block[index] = 1f;
                 }
