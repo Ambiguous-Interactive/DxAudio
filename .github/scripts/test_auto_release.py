@@ -16,6 +16,7 @@ from auto_release import (
     WorkflowRun,
     classify,
     dispatch,
+    prepare,
     promote,
     required_statuses,
     rotate,
@@ -102,6 +103,27 @@ class PromotionTests(unittest.TestCase):
             "actions/workflows/ci.yml/dispatches", method="POST", body={"ref": self.branch}
         )
         summary.assert_called_once_with(f"Dispatched ci.yml on {self.branch}.")
+
+    def test_reconciliation_uses_only_an_existing_candidate(self) -> None:
+        for existing in (None, self.sha):
+            with (
+                self.subTest(candidate=existing),
+                patch("auto_release.plan", return_value=("0.4.0", "Minor bump", "notes")),
+                patch("auto_release.release_edits", return_value={}),
+                patch("auto_release.ref_sha", side_effect=[None, existing]),
+                patch("auto_release.registry", return_value=None),
+                patch("auto_release.git") as git,
+                patch("auto_release.summary"),
+                patch("auto_release.promote") as promote,
+            ):
+                prepare(self.base, "0.3.0", preview=False, create=False, retry=False)
+            git.assert_not_called()
+            if existing:
+                promote.assert_called_once_with(
+                    self.branch, existing, retry=False, dispatch_missing=True
+                )
+            else:
+                promote.assert_not_called()
 
     def test_cannot_tag_until_every_check_passes(self) -> None:
         for conclusion in (None, "failure", "cancelled", "skipped", "success"):

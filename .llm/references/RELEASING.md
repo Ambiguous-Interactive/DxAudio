@@ -55,7 +55,11 @@ on a draft. It verifies the tarball on npm before publishing the draft.
 Stable versions use `latest`. Prereleases use `next`.
 
 Use `resume` to retry failed validation or finish a pending publication.
-The next weekly run also attempts recovery before preparing a new version.
+GitHub can suppress completion callbacks for checks dispatched by its built-in
+token. The Sunday run prepares the candidate at 4 a.m. Pacific time.
+Reconciliation checks it at :20 and :50 through Sunday and at 4:20 a.m.
+Monday through Saturday. It can start missing checks and publish once all
+checks pass. It leaves failed checks for `resume` or the next weekly run.
 Check run summaries for the exact commit, the validation run links, and
 the archive digests. If a tag or digest disagrees, resolve the conflict
 before retrying. A published version can be corrected with a new release.

@@ -4,12 +4,16 @@ on:
   schedule:
     - cron: "0 4 * * 0"
       timezone: America/Los_Angeles
+    - cron: "20,50 4-23 * * 0"
+      timezone: America/Los_Angeles
+    - cron: "20 4 * * 1-6"
+      timezone: America/Los_Angeles
   workflow_dispatch:
     inputs:
       operation:
         description: Release operation
         type: choice
-        options: [preview, prepare, resume]
+        options: [preview, prepare, resume, reconcile]
         default: preview
   workflow_run:
     workflows: [CI, Unity Tests, LLM Instructions Lint, External documentation links]
@@ -27,7 +31,7 @@ jobs:
   preview:
     if: >-
       github.ref == 'refs/heads/main' &&
-      (inputs.operation == 'preview' || (github.event_name == 'schedule' && vars.AUTO_RELEASE_PAUSED == 'true'))
+      (inputs.operation == 'preview' || (github.event.schedule == '0 4 * * 0' && vars.AUTO_RELEASE_PAUSED == 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -40,7 +44,7 @@ jobs:
   release:
     if: >-
       vars.AUTO_RELEASE_PAUSED != 'true' && github.ref == 'refs/heads/main' &&
-      (github.event_name == 'schedule' || inputs.operation == 'prepare' || inputs.operation == 'resume' ||
+      (github.event_name == 'schedule' || inputs.operation == 'prepare' || inputs.operation == 'resume' || inputs.operation == 'reconcile' ||
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.event == 'workflow_dispatch' &&
        github.event.workflow_run.head_repository.full_name == github.repository))
@@ -63,7 +67,12 @@ jobs:
           VALIDATION_SHA: ${{ github.event.workflow_run.head_sha }}
           VALIDATION_BRANCH: ${{ github.event.workflow_run.head_branch }}
           OPERATION: ${{ inputs.operation }}
+          WEEKLY_START: ${{ github.event.schedule == '0 4 * * 0' }}
         run: |
           operation="${OPERATION:-prepare}"
-          if [ "$GITHUB_EVENT_NAME" = workflow_run ]; then operation=completed; fi
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ]; then
+            operation=completed
+          elif [ "$GITHUB_EVENT_NAME" = schedule ] && [ "$WEEKLY_START" != true ]; then
+            operation=reconcile
+          fi
           python3 .github/scripts/auto_release.py "$operation"
