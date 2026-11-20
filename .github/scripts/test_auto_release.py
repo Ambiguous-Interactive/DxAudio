@@ -20,7 +20,13 @@ from auto_release import (
     required_statuses,
     rotate,
 )
-from release_assets import build_unitypackage, npm_integrity, publish_npm, read_member
+from release_assets import (
+    build_unitypackage,
+    github_release,
+    npm_integrity,
+    publish_npm,
+    read_member,
+)
 
 
 class ReleaseDecisionTests(unittest.TestCase):
@@ -206,6 +212,26 @@ class PromotionTests(unittest.TestCase):
 
 
 class ArchiveTests(unittest.TestCase):
+    def test_new_draft_uploads_to_the_returned_release_id(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            folder = Path(scratch)
+            tarball = folder / "example.tgz"
+            (folder / "notes.md").write_text("Release notes", encoding="utf-8")
+            for suffix in (".tgz", ".tgz.sha256", ".unitypackage", ".unitypackage.sha256"):
+                tarball.with_suffix(suffix).write_bytes(b"archive bytes")
+            with (
+                patch(
+                    "release_assets.api",
+                    side_effect=[[], {"id": 42, "tag_name": "v0.4.0", "draft": True}, []],
+                ) as api,
+                patch("release_assets.upload_asset") as upload,
+                patch("release_assets.verify_asset"),
+            ):
+                github_release("stage", "v0.4.0", tarball, False)
+            assert [call.args[0] for call in upload.call_args_list] == [42, 42, 42, 42]
+            api.assert_any_call("releases/42/assets?per_page=100", paginate=True)
+            assert api.call_count == 3
+
     def test_existing_npm_version_requires_matching_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as scratch:
             archive = Path(scratch) / "archive.tgz"
