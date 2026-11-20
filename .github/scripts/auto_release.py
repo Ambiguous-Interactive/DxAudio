@@ -197,7 +197,7 @@ def candidate_branch(version: str, base: str) -> str:
     return f"{VERIFY_PREFIX}v{version}-{base}"
 
 
-def promote(branch: str, sha: str, *, retry: bool) -> None:
+def promote(branch: str, sha: str, *, retry: bool, dispatch_missing: bool = False) -> None:
     current = ref_sha(f"heads/{branch}")
     if current is None and not retry:
         return
@@ -222,7 +222,7 @@ def promote(branch: str, sha: str, *, retry: bool) -> None:
     ready = True
     for workflow, check in runs.items():
         if check is None:
-            if retry:
+            if retry or dispatch_missing:
                 dispatch(workflow, branch)
             ready = False
             continue
@@ -322,7 +322,9 @@ def verify_edits(base: str, sha: str, version: str) -> None:
             raise ValueError(f"Candidate contains unexpected changes in {path}")
 
 
-def prepare(base: str, version: str, *, preview: bool, create: bool = True) -> None:
+def prepare(
+    base: str, version: str, *, preview: bool, create: bool = True, retry: bool = True
+) -> None:
     changes = plan(base, version, datetime.now(ZoneInfo("America/Los_Angeles")).date())
     if changes is None:
         return
@@ -371,12 +373,14 @@ def prepare(base: str, version: str, *, preview: bool, create: bool = True) -> N
             f"HEAD:refs/heads/{branch}",
         )
         head = git("rev-parse", "HEAD")
-    promote(branch, head, retry=True)
+    promote(branch, head, retry=retry, dispatch_missing=True)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("preview", "prepare", "resume", "completed"))
+    parser.add_argument(
+        "operation", choices=("preview", "prepare", "resume", "reconcile", "completed")
+    )
     args = parser.parse_args()
     base = git("rev-parse", "origin/main")
     version = read_version(base)
@@ -387,6 +391,7 @@ def main() -> None:
         promote(os.environ["VALIDATION_BRANCH"], os.environ["VALIDATION_SHA"], retry=False)
         return
 
+    retry = args.operation != "reconcile"
     current_tag = ref_sha(f"tags/v{version}")
     published = cast("ReleaseState | None", api(f"releases/tags/v{version}", missing=True))
     release_commit = git(
@@ -399,7 +404,7 @@ def main() -> None:
             raise ValueError(
                 f"Resolve pending version {version} through the manual release workflow"
             )
-        promote(previous_branch, release_commit, retry=True)
+        promote(previous_branch, release_commit, retry=retry, dispatch_missing=True)
         return
     if previous == release_commit:
         api(f"git/refs/heads/{previous_branch}", method="DELETE")
@@ -410,7 +415,7 @@ def main() -> None:
         or git("merge-base", "--is-ancestor", f"v{version}^{{commit}}", base) != ""
     ):
         raise ValueError("Current version, main ancestry and npm latest must agree")
-    prepare(base, version, preview=False, create=args.operation != "resume")
+    prepare(base, version, preview=False, create=args.operation == "prepare", retry=retry)
 
 
 if __name__ == "__main__":
