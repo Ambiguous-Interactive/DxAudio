@@ -1,6 +1,7 @@
 namespace WallstopStudios.DxAudio.Editor
 {
     using System;
+    using System.Buffers;
     using System.Collections.Generic;
     using UnityEngine;
 
@@ -17,14 +18,15 @@ namespace WallstopStudios.DxAudio.Editor
         {
             float[] attenuation = new float[clips.Count];
             float[] levels = new float[clips.Count];
+            ArrayPool<float> buffers = ArrayPool<float>.Create(MaximumSamples, maxArraysPerBucket: 1);
             float targetLevel = float.PositiveInfinity;
             for (int index = 0; index < clips.Count; ++index)
             {
-                if (TryMeasure(clips[index], out float level, out float peak))
+                if (TryMeasure(clips[index], buffers, out float level, out float peak))
                 {
                     levels[index] = level;
-                    targetLevel = Math.Min(targetLevel, level);
                     attenuation[index] = Math.Min(0f, AudioLoudness.DefaultPeakCeilingDbfs - peak);
+                    targetLevel = Math.Min(targetLevel, level + attenuation[index]);
                 }
                 else
                 {
@@ -44,7 +46,7 @@ namespace WallstopStudios.DxAudio.Editor
             return attenuation;
         }
 
-        private static bool TryMeasure(AudioClip clip, out float level, out float peak)
+        private static bool TryMeasure(AudioClip clip, ArrayPool<float> buffers, out float level, out float peak)
         {
             if (clip == null || clip.loadType != AudioClipLoadType.DecompressOnLoad || clip.loadState != AudioDataLoadState.Loaded)
             {
@@ -63,20 +65,34 @@ namespace WallstopStudios.DxAudio.Editor
                 return false;
             }
 
-            float[] samples = new float[(int)count];
-            if (!clip.GetData(samples, 0))
+            int sampleCount = (int)count;
+            float[] samples = buffers.Rent(sampleCount);
+            try
             {
-                level = default;
-                peak = default;
-                return false;
-            }
+                if (!clip.GetData(samples, 0))
+                {
+                    level = default;
+                    peak = default;
+                    return false;
+                }
 
+                // GetData wraps if the buffer is longer than the clip. Measure only the original samples.
+                int window = Math.Min(Math.Max(1, frequency / WindowsPerSecond) * channels, sampleCount);
+                return TryMeasureSamples(samples, sampleCount, window, out level, out peak);
+            }
+            finally
+            {
+                buffers.Return(samples);
+            }
+        }
+
+        private static bool TryMeasureSamples(float[] samples, int count, int window, out float level, out float peak)
+        {
             // The loudest 50 ms of energy measures the strike without letting the tail or lead-in set its level.
-            int window = Math.Min(Math.Max(1, frequency / WindowsPerSecond) * channels, samples.Length);
             double energy = 0d;
             double loudest = 0d;
             float highest = 0f;
-            for (int index = 0; index < samples.Length; ++index)
+            for (int index = 0; index < count; ++index)
             {
                 float sample = samples[index];
                 highest = Math.Max(highest, Math.Abs(sample));

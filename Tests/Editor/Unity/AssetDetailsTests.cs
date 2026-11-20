@@ -338,6 +338,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void ClipDefaultsBalanceAgainstTheTakeAfterPeakReduction()
+        {
+            using MadeObjects made = new();
+            AudioClip transient = ConstantTake(made, 0.2f);
+            Assert.That(transient.SetData(new[] { 1f }, 0), Is.True);
+            AudioClip steady = ConstantTake(made, 0.25f);
+            float[] levels = SfxCueClipDefaults.AttenuationsFor(new[] { transient, steady });
+            Assert.That(levels[0], Is.EqualTo(-3f).Within(0.001f));
+            Assert.That(levels[1], Is.EqualTo(-4.685f).Within(0.001f));
+        }
+
+        [Test]
         public void CreatingACueFromClipsUsesStablePitchAndUniqueOrderedTakes()
         {
             using MadeObjects made = new();
