@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Run the DxAudio Unity EditMode suite on the development host.
+"""Run the DxAudio Unity tests on the development host.
 
-Resolves the enclosing Unity project, the editor version it declares, and the
-editor executable, then delegates to ``run_unity_validation.py`` with an output
-directory outside the package repository. Prints the NUnit totals on success.
+In a devcontainer, the default EditMode suite runs through the host Unity MCP
+bridge. On the host, during PlayMode runs, or with explicit local batchmode
+options, the command writes artifacts through ``run_unity_validation.py``.
 
 Example:
     npm run unity:tests
@@ -13,11 +13,17 @@ Example:
 from __future__ import annotations
 
 import argparse
+import json
+import math
+import ntpath
 import os
 import re
 import sys
 from pathlib import Path
 from typing import Dict, Optional, Sequence
+
+from unity_mcp_doctor import Json, JsonObject, object_value, request_json
+from unity_mcp_settings import credential_values, read_env_file, redact_credentials
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_DIRECTORY = REPO_ROOT
@@ -25,23 +31,102 @@ VALIDATION_SCRIPT = REPO_ROOT / "scripts" / "run_unity_validation.py"
 DEFAULT_OUTPUT = Path(os.environ.get("TEMP") or "/tmp") / "dxaudio-validation"
 
 
-def read_env_local(path: Path) -> Dict[str, str]:
-    """Parse a dotenv file as data; never execute it."""
-    values: Dict[str, str] = {}
-    if not path.is_file():
-        return values
-    for raw_line in path.read_text(encoding="utf-8-sig", errors="replace").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        key = key.strip()
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
-            value = value[1:-1]
-        if key:
-            values[key] = value
-    return values
+def in_container() -> bool:
+    flag = os.environ.get("DXAUDIO_IN_CONTAINER")
+    if flag is not None:
+        return flag == "1"
+    return Path("/.dockerenv").exists() or Path("/run/.containerenv").exists()
+
+
+def run_bridge_editmode(env: Dict[str, str]) -> int:
+    def setting(name: str, default: str = "") -> str:
+        return os.environ.get(name) or env.get(name) or default
+
+    pin = next(
+        (value.strip() for source in (os.environ, env)
+         for name in ("UNITY_MCP_PROJECT", "UNITY_PROJECT_PATH")
+         if (value := source.get(name)) and value.strip()),
+        "",
+    )
+    port = setting("UNITY_MCP_HTTP_PORT", "9020")
+    endpoint = setting("UNITY_MCP_HTTP_URL", f"http://host.docker.internal:{port}/mcp").rstrip("/")
+    headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+    token = setting("UNITY_MCP_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    def rpc(method: str, params: JsonObject, identifier: Optional[int] = None, timeout: Optional[float] = None) -> JsonObject:
+        payload: JsonObject = {"jsonrpc": "2.0", "method": method, "params": params}
+        if identifier is not None:
+            payload["id"] = identifier
+        response = request_json(endpoint, headers, payload, timeout=bridge_seconds if timeout is None else timeout)
+        if "error" in response:
+            raise ValueError(f"{method}: {response['error']}")
+        return object_value(response.get("result"))
+
+    def tool(name: str, arguments: JsonObject, identifier: int, timeout: Optional[float] = None) -> Json:
+        response = rpc("tools/call", {"name": name, "arguments": arguments}, identifier, timeout)
+        content = response.get("content")
+        raw = object_value(content[0]).get("text") if isinstance(content, list) and content else None
+        if response.get("isError") or not isinstance(raw, str):
+            raise ValueError(f"{name}: {raw or 'missing tool result'}")
+        result: Json = json.loads(raw)
+        return result
+
+    try:
+        if not pin:
+            raise ValueError("Set UNITY_MCP_PROJECT to the host Unity project root before running EditMode.")
+        bridge_seconds = float(setting("UNITY_MCP_TIMEOUT_MS", "180000")) / 1000
+        if not math.isfinite(bridge_seconds) or bridge_seconds < 2:
+            raise ValueError("Set UNITY_MCP_TIMEOUT_MS to a finite value of at least 2000.")
+        server = rpc("initialize", {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {},
+            "clientInfo": {"name": "dxaudio-unity-tests", "version": "0.1.0"},
+        }, 1)
+        if not server.get("serverInfo"):
+            raise ValueError("MCP initialize returned no server information.")
+        rpc("notifications/initialized", {})
+        editor = object_value(tool("editor_status", {}, 2))
+        project = editor.get("projectPath")
+        if not isinstance(project, str) or not project:
+            raise ValueError("The bridge did not identify its Unity project.")
+        path_rules = ntpath if ntpath.splitdrive(project)[0] else os.path
+        if path_rules.normcase(path_rules.normpath(project)) != path_rules.normcase(path_rules.normpath(pin)):
+            raise ValueError(f"Editor project {project!r} differs from pin {pin!r}. Check UNITY_MCP_PROJECT.")
+        if editor.get("status") != "ready" or editor.get("playMode") != "stopped":
+            raise ValueError(f"Wait for the host editor to be ready in EditMode: {editor}.")
+
+        # Request this run's result directly. test_status has no run identifier.
+        results = tool("test_run", {"mode": "editor", "timeout": int(bridge_seconds) - 1}, 3, bridge_seconds + 5)
+        if not isinstance(results, list) or not results:
+            raise ValueError(f"EditMode returned no NUnit results: {results}.")
+        counts = {"Passed": 0, "Failed": 0, "Skipped": 0, "Inconclusive": 0}
+        failures = []
+        for entry in results:
+            row = object_value(entry)
+            name, status = row.get("fullName"), row.get("status")
+            if not isinstance(name, str) or not isinstance(status, str) or status not in counts:
+                raise ValueError(f"Invalid NUnit test result for {name!r}: {status!r}.")
+            counts[status] += 1
+            if status == "Failed":
+                failures.append(f"{name}: {row.get('message') or 'Open the host Unity Test Runner for details.'}")
+        print(
+            f"Unity tests: {counts['Passed']}/{len(results)} passed, {counts['Failed']} failed, "
+            f"{counts['Skipped']} skipped, {counts['Inconclusive']} inconclusive."
+        )
+        credentials = credential_values((os.environ, env))
+        for failure in failures:
+            print(redact_credentials(failure, credentials), file=sys.stderr)
+        return 1 if failures else 0
+    except (OSError, ValueError) as error:
+        message = (
+            f"Unity MCP EditMode failed at {endpoint}: {error}\n"
+            "Check the open host project and bridge settings with npm run unity:mcp:doctor. "
+            "Start the bridge on the host with npm run unity:mcp:host."
+        )
+        print(redact_credentials(message, credential_values((os.environ, env))), file=sys.stderr)
+        return 1
 
 
 def resolve_project(explicit: Optional[str], env: Dict[str, str]) -> Path:
@@ -99,7 +184,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--suite", choices=("editmode", "playmode"), default="editmode")
     parser.add_argument("--host-project", default=None, help="Unity project root; default: enclosing project or .env.local")
     parser.add_argument("--unity-executable", default=None, help="Editor executable; default: UNITY_EDITOR_PATH or the Hub path")
-    parser.add_argument("--output-directory", default=str(DEFAULT_OUTPUT), help="Evidence directory outside the package")
+    parser.add_argument("--output-directory", help="Local batchmode evidence directory outside the package")
     return parser
 
 
@@ -117,11 +202,18 @@ def totalling(results_path: Path) -> str:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     options = build_parser().parse_args(argv)
-    env = read_env_local(REPO_ROOT / ".env.local")
+    env = read_env_file(REPO_ROOT / ".env.local")
+    if (
+        options.suite == "editmode"
+        and in_container()
+        and not (options.host_project or options.unity_executable or options.output_directory)
+    ):
+        return run_bridge_editmode(env)
+
     project = resolve_project(options.host_project, env)
     version = project_unity_version(project)
     editor = resolve_editor(options.unity_executable, version, env)
-    output = Path(os.path.abspath(options.output_directory))
+    output = Path(os.path.abspath(options.output_directory or DEFAULT_OUTPUT))
     output.mkdir(parents=True, exist_ok=True)
 
     sys.path.insert(0, str(VALIDATION_SCRIPT.parent))

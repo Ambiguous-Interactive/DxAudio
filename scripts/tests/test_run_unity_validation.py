@@ -10,12 +10,16 @@ is no longer required, and the real CLI contract is exercised instead.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
+import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Sequence
+from unittest.mock import patch
 
 sys.dont_write_bytecode = True
 
@@ -31,6 +35,7 @@ from _test_helpers import (
 TESTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TESTS_DIR.parent.parent
 RUNNER = REPO_ROOT / "scripts" / "run_unity_validation.py"
+sys.path.insert(0, str(RUNNER.parent))
 
 
 def new_unity_project_fixture(root: Path, version: str = "6000.6.7f1") -> None:
@@ -211,6 +216,122 @@ def case_writes_the_compiler_policy_before_unity_starts() -> None:
         remove_temp_root(outside)
 
 
+def case_container_runs_the_pinned_editor_and_reports_its_result() -> None:
+    from unity_tests import main as unity_tests
+
+    endpoint = "http://bridge.example:9021/mcp"
+    env = {
+        "DXAUDIO_IN_CONTAINER": "1",
+        "UNITY_MCP_HTTP_URL": endpoint + "/",
+        "UNITY_MCP_PROJECT": r"c:\code\dxaudio",
+        "UNITY_MCP_TOKEN": "fixture-token",
+        "UNITY_MCP_TIMEOUT_MS": "45000.0",
+    }
+    for project, failed, expected_calls in [
+        ("C:/Code/DxAudio", 0, 4),
+        ("C:/Code/DxAudio", 1, 4),
+        ("C:/Code/Other", 0, 3),
+    ]:
+        editor = {"status": "ready", "projectPath": project, "playMode": "stopped"}
+        result = [
+            {"fullName": "Fixture.First", "status": "Passed"},
+            {"fullName": "Fixture.Second", "status": "Failed" if failed else "Passed", "message": "Planted failure"},
+            {"fullName": "Fixture.Third", "status": "Skipped"},
+            {"fullName": "Fixture.Fourth", "status": "Inconclusive"},
+        ]
+        output = io.StringIO()
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("unity_tests.read_env_file", return_value={}),
+            patch("unity_tests.request_json", side_effect=[
+                {"result": {"serverInfo": {"name": "fixture"}}},
+                {},
+                {"result": {"content": [{"text": json.dumps(editor)}]}},
+                {"result": {"content": [{"text": json.dumps(result)}]}},
+            ]) as request,
+            contextlib.redirect_stdout(output),
+            contextlib.redirect_stderr(output),
+        ):
+            code = unity_tests([])
+        assert_true(request.call_count == expected_calls, str(request.call_args_list))
+        assert_true(all(call.args[0] == endpoint for call in request.call_args_list), "wrong MCP endpoint")
+        timeouts = [call.kwargs["timeout"] for call in request.call_args_list]
+        expected_timeouts = [45, 45, 45, 50] if expected_calls == 4 else [45, 45, 45]
+        assert_true(timeouts == expected_timeouts, f"requests must honor the bridge timeout: {timeouts}")
+        assert_true(request.call_args.args[1]["Authorization"] == "Bearer fixture-token", "missing token")
+        if expected_calls == 4:
+            arguments = request.call_args.args[2]["params"]
+            assert_true(arguments["name"] == "test_run" and arguments["arguments"]["mode"] == "editor", str(arguments))
+            assert_true(arguments["arguments"]["timeout"] == 44, str(arguments))
+            assert_true(code == failed, f"wrong test exit code: {code}")
+            summary = f"{2 - failed}/4 passed, {failed} failed, 1 skipped, 1 inconclusive"
+            assert_true(summary in output.getvalue(), output.getvalue())
+            if failed:
+                assert_true("Fixture.Second: Planted failure" in output.getvalue(), output.getvalue())
+        else:
+            assert_true(code != 0, "a project mismatch must fail")
+            assert_true(endpoint in output.getvalue() and "UNITY_MCP_PROJECT" in output.getvalue(), output.getvalue())
+
+    output = io.StringIO()
+    with (
+        patch.dict(os.environ, env, clear=True),
+        patch("unity_tests.read_env_file", return_value={}),
+        patch("unity_tests.request_json", side_effect=OSError("Rejected fixture-token")),
+        contextlib.redirect_stderr(output),
+    ):
+        code = unity_tests([])
+    diagnostic = output.getvalue()
+    assert_true(code != 0 and endpoint in diagnostic and "npm run unity:mcp:doctor" in diagnostic, diagnostic)
+    assert_true("fixture-token" not in diagnostic, "the bridge diagnostic exposed a token")
+
+    output = io.StringIO()
+    unpinned_env = {key: value for key, value in env.items() if key != "UNITY_MCP_PROJECT"}
+    with (
+        patch.dict(os.environ, unpinned_env, clear=True),
+        patch("unity_tests.read_env_file", return_value={}),
+        patch("unity_tests.request_json") as request,
+        contextlib.redirect_stderr(output),
+    ):
+        code = unity_tests([])
+    request.assert_not_called()
+    assert_true(code != 0 and "Set UNITY_MCP_PROJECT" in output.getvalue(), output.getvalue())
+
+
+def case_batchmode_preserves_the_local_runner_and_output() -> None:
+    from unity_tests import main as unity_tests
+
+    root = new_temp_root(prefix="unity-wrapper-")
+    try:
+        new_unity_project_fixture(root)
+        output = root / "evidence"
+        for container, mode, options in [
+            ("0", "editmode", []),
+            ("1", "playmode", ["--suite", "playmode"]),
+            ("1", "editmode", ["--output-directory", str(output)]),
+        ]:
+            env = {
+                "DXAUDIO_IN_CONTAINER": container,
+                "UNITY_MCP_PROJECT": str(root),
+                "UNITY_EDITOR_PATH": sys.executable,
+            }
+            with (
+                patch.dict(os.environ, env, clear=True),
+                patch("unity_tests.DEFAULT_OUTPUT", output),
+                patch("unity_tests.read_env_file", return_value={}),
+                patch("unity_tests.request_json") as bridge,
+                patch("run_unity_validation.run", return_value=0) as runner,
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                code = unity_tests(options)
+            assert_true(code == 0, f"expected batchmode {mode} to pass")
+            bridge.assert_not_called()
+            runner.assert_called_once()
+            namespace = runner.call_args.args[0]
+            assert_true(namespace.suite == mode and namespace.output_directory == str(output), str(namespace))
+    finally:
+        remove_temp_root(root)
+
+
 def main() -> int:
     print("== direct Unity validation runner tests ==")
 
@@ -220,6 +341,8 @@ def main() -> int:
     run_case("Rejects_UnsupportedSuite_AtParameterBinding", case_rejects_unsupported_suite_at_parameter_binding)
     run_case("Preserves_ProcessFailureExitCode_AndRecordsFailure", case_preserves_process_failure_exit_code_and_records_failure)
     run_case("Writes_CompilerPolicy_BeforeUnityStarts", case_writes_the_compiler_policy_before_unity_starts)
+    run_case("Container_RunsThePinnedEditor_AndReportsItsResult", case_container_runs_the_pinned_editor_and_reports_its_result)
+    run_case("Batchmode_PreservesLocalRunnerAndOutput", case_batchmode_preserves_the_local_runner_and_output)
 
     failures = failure_count()
     print(f"== direct Unity validation runner: {failures} failure(s) ==")
