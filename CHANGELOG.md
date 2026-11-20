@@ -6,6 +6,8 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-20
+
 ### Added
 
 - Create balanced cues from selected clips, with shuffle, per-take level, low-pass variation, and seeded A/B audition ([#81](https://github.com/Ambiguous-Interactive/DxAudio/issues/81)).
