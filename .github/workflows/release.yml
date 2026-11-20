@@ -59,7 +59,8 @@ jobs:
       - name: Check and build the archives
         id: pack
         run: |
-          python3 .github/scripts/package_check.py --tag "$TAG" --out dist
+          python3 .github/scripts/package_check.py --tag "${TAG}" --out dist
+          test -s dist/notes.md
           python3 .github/scripts/release_assets.py build "dist/com.wallstop-studios.dxaudio-${TAG#v}.tgz"
 
       - name: Stage, verify and publish the release

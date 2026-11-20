@@ -208,8 +208,8 @@
     "release-asset-bytes": {
       "path": ".github/workflows/release.yml",
       "job": "release",
-      "run": "cmp \"$TARBALL\" \"$assets_dir/$archive_name\"",
-      "files": []
+      "run": "python3 .github/scripts/release_assets.py stage \"$TARBALL\" --tag \"$TAG\" \"${flags[@]}\"",
+      "files": [".github/scripts/release_assets.py", ".github/scripts/test_auto_release.py"]
     },
     "release-inputs": {
       "path": ".github/workflows/release.yml",
