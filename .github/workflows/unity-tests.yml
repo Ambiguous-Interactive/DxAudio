@@ -253,6 +253,15 @@ jobs:
           ./scripts/unity/run-editmode-tests.ps1 -ArchiveSmoke
           ./scripts/unity/run-editmode-tests.ps1 -IntegrationPlayerSmoke -Label consumer-archive-integration -DxMessagingVersion "3.3.0"
 
+      - name: Require current PR head after Unity validation
+        if: ${{ github.event_name == 'pull_request' }}
+        timeout-minutes: 2
+        uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/require-current-pr-head@720ef47f9ab352fbc9403363ca63ae8c487a2442 # v1.18.1
+        with:
+          github-token: ${{ github.token }}
+          pull-request-number: ${{ github.event.pull_request.number }}
+          expected-head-sha: ${{ github.event.pull_request.head.sha }}
+
       - name: Return Unity license
         id: return_unity_license
         if: ${{ always() && steps.acquire_lock.outputs.acquired == 'true' }}
@@ -325,16 +334,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Require current PR head before reporting success
-        if: >-
-          ${{ github.event_name == 'pull_request' &&
-              github.event.pull_request.user.login != 'dependabot[bot]' &&
-              github.event.pull_request.head.repo.full_name == github.repository }}
-        uses: Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/require-current-pr-head@720ef47f9ab352fbc9403363ca63ae8c487a2442 # v1.18.1
-        with:
-          github-token: ${{ github.token }}
-          pull-request-number: ${{ github.event.pull_request.number }}
-          expected-head-sha: ${{ github.event.pull_request.head.sha }}
       - name: Verify Unity CI result shape
         shell: bash
         env:

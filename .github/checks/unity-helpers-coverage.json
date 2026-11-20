@@ -255,9 +255,9 @@
     },
     "unity-late-current-head": {
       "path": ".github/workflows/unity-tests.yml",
-      "job": "unity-ci-success",
+      "job": "unity-tests",
       "uses": "Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/require-current-pr-head@720ef47f9ab352fbc9403363ca63ae8c487a2442 # v1.18.1",
-      "files": []
+      "files": [".github/scripts/test_unity_workflow.py"]
     },
     "build-safety": {
       "path": ".github/workflows/ci.yml",
@@ -1916,7 +1916,7 @@
     {
       "status": "enforced",
       "gate": "unity-late-current-head",
-      "evidence": "The required Unity aggregate runs the same canonical immutable PR-head action for trusted PRs before reporting success, passing the exact event head.",
+      "evidence": "Trusted PRs run the canonical immutable PR-head action after editor validation and before the mandatory cleanup suffix. The aggregate requires that job to succeed, and the workflow control verifies the late action's position, trust condition, and event head.",
       "checks": {
         "workflow:unity-tests/unity-ci-success": ["1 late_superseded"]
       }

@@ -53,7 +53,12 @@ class UnityWorkflowTests(unittest.TestCase):
         self.assertEqual("Unity CI Success", job["name"])
         self.assertIn("always()", job["if"])
         self.assertCountEqual(["runner-preflight", "unity-tests"], job["needs"])
-        late_head = next(step for step in job["steps"] if step["name"] == "Require current PR head before reporting success")
+        steps = self.workflow["jobs"]["unity-tests"]["steps"]
+        cleanup = next(index for index, step in enumerate(steps) if step["name"] == "Return Unity license")
+        self.assertEqual("Verify standalone player scripts with and without the optional integration", steps[cleanup - 2]["name"])
+        late_head = steps[cleanup - 1]
+        self.assertEqual("Require current PR head after Unity validation", late_head["name"])
+        self.assertEqual("${{ github.event_name == 'pull_request' }}", late_head["if"])
         self.assertIn("/require-current-pr-head@", late_head["uses"])
         self.assertEqual("${{ github.event.pull_request.head.sha }}", late_head["with"]["expected-head-sha"])
         command = next(step["run"] for step in job["steps"] if step["name"] == "Verify Unity CI result shape")
