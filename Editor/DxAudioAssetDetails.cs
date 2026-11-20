@@ -56,8 +56,6 @@ namespace WallstopStudios.DxAudio.Editor
                     switch (target)
                     {
                         case SfxCue cue when cue != null:
-                            AddLink(links, "Open Chain", cue.Chain, open);
-                            AddLink(links, "Open Graph", cue.Graph, open);
                             AddLink(links, "Open Followed Cue", cue.FollowsTakeOf == cue ? null : cue.FollowsTakeOf, open);
                             break;
                         case MusicTrack track when track != null:

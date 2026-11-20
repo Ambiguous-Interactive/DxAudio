@@ -21,6 +21,7 @@
         private readonly HashSet<int> _selection = new();
         private readonly VisualElement _cards = new() { pickingMode = PickingMode.Ignore };
         private readonly Label _empty = new("Right-click or choose Add Node to start a signal path.") { pickingMode = PickingMode.Ignore };
+        private readonly Label _connectionFeedback = new() { pickingMode = PickingMode.Ignore };
         private readonly Color _accent;
         private readonly string _viewKey;
         private Vector2[] _positions = Array.Empty<Vector2>();
@@ -73,6 +74,18 @@
             _empty.style.marginLeft = 16;
             _empty.style.marginTop = 18;
             Add(_empty);
+            _connectionFeedback.style.position = Position.Absolute;
+            _connectionFeedback.style.left = 12f;
+            _connectionFeedback.style.bottom = 12f;
+            _connectionFeedback.style.maxWidth = Length.Percent(90f);
+            _connectionFeedback.style.paddingLeft = 8f;
+            _connectionFeedback.style.paddingRight = 8f;
+            _connectionFeedback.style.paddingTop = 4f;
+            _connectionFeedback.style.paddingBottom = 4f;
+            _connectionFeedback.style.whiteSpace = WhiteSpace.Normal;
+            _connectionFeedback.style.backgroundColor = dark ? new Color(0.22f, 0.25f, 0.28f) : new Color(0.95f, 0.96f, 0.97f);
+            _connectionFeedback.style.display = DisplayStyle.None;
+            Add(_connectionFeedback);
             generateVisualContent += Draw;
             RegisterCallback<PointerDownEvent>(PointerDown);
             RegisterCallback<PointerMoveEvent>(PointerMove);
@@ -448,7 +461,10 @@
                 if (target != _target)
                 {
                     _target = target;
-                    _validTarget = 0 <= target && _edits.CanConnect(_source, target, out _);
+                    string reason = string.Empty;
+                    _validTarget = 0 <= target && _edits.CanConnect(_source, target, out reason);
+                    _connectionFeedback.text = _validTarget ? "Release to connect" : reason;
+                    _connectionFeedback.style.display = 0 <= target ? DisplayStyle.Flex : DisplayStyle.None;
                 }
             }
 
@@ -540,6 +556,7 @@
             _source = -1;
             _target = -1;
             _validTarget = false;
+            _connectionFeedback.style.display = DisplayStyle.None;
             if (0 <= previous && this.HasPointerCapture(previous))
             {
                 this.ReleasePointer(previous);
@@ -737,17 +754,38 @@
             _picker.style.paddingLeft = 6;
             _picker.style.paddingRight = 6;
             _picker.style.backgroundColor = EditorGUIUtility.isProSkin ? new Color(0.22f, 0.25f, 0.28f) : new Color(0.95f, 0.96f, 0.97f);
-            TextField search = new() { tooltip = title };
+            TextField search = new() { tooltip = "Type to filter. Use Up and Down to select, Enter to confirm, and Escape to close." };
             ScrollView results = new();
+            results.style.flexGrow = 1f;
+            results.style.minHeight = 0f;
             _picker.Add(new Label(title));
             _picker.Add(search);
             _picker.Add(results);
             Add(_picker);
-            Action firstResult = null;
+            List<Action> choices = new();
+            int selected = -1;
+            Color selectedBackground = EditorGUIUtility.isProSkin ? new Color(0.23f, 0.42f, 0.43f) : new Color(0.68f, 0.83f, 0.81f);
+            void SelectResult(int index, bool scroll)
+            {
+                if (0 <= selected)
+                {
+                    results.contentContainer[selected].style.backgroundColor = StyleKeyword.Null;
+                }
+
+                selected = index;
+                VisualElement row = results.contentContainer[selected];
+                row.style.backgroundColor = selectedBackground;
+                if (scroll)
+                {
+                    results.ScrollTo(row);
+                }
+            }
+
             void Rebuild(string query)
             {
                 results.Clear();
-                firstResult = null;
+                choices.Clear();
+                selected = -1;
                 populate(
                     query.Trim(),
                     (name, details, choose) =>
@@ -759,24 +797,55 @@
                             Focus();
                         }
 
-                        firstResult ??= Finish;
+                        choices.Add(Finish);
                         results.Add(new Button(Finish) { text = name, tooltip = details });
                     }
                 );
 
-                if (results.childCount == 0)
+                if (choices.Count == 0)
                 {
                     results.Add(new Label("No matching nodes."));
+                }
+                else
+                {
+                    results.scrollOffset = Vector2.zero;
+                    SelectResult(0, scroll: false);
                 }
             }
 
             search.RegisterValueChangedCallback(evt => Rebuild(evt.newValue));
+            _picker.RegisterCallback<KeyDownEvent>(
+                evt =>
+                {
+                    if (evt.keyCode == KeyCode.Escape)
+                    {
+                        ClosePicker();
+                        Focus();
+                        evt.StopImmediatePropagation();
+                    }
+                },
+                TrickleDown.TrickleDown
+            );
             search.RegisterCallback<KeyDownEvent>(
                 evt =>
                 {
                     if (evt.keyCode == KeyCode.Return || evt.keyCode == KeyCode.KeypadEnter)
                     {
-                        firstResult?.Invoke();
+                        if (0 <= selected)
+                        {
+                            choices[selected]();
+                        }
+
+                        evt.StopImmediatePropagation();
+                    }
+                    else if (evt.keyCode == KeyCode.UpArrow || evt.keyCode == KeyCode.DownArrow)
+                    {
+                        if (0 <= selected)
+                        {
+                            int direction = evt.keyCode == KeyCode.UpArrow ? -1 : 1;
+                            SelectResult(Mathf.Clamp(selected + direction, 0, choices.Count - 1), scroll: true);
+                        }
+
                         evt.StopImmediatePropagation();
                     }
                 },
@@ -871,6 +940,7 @@
         {
             bool dark = EditorGUIUtility.isProSkin;
             Color wire = dark ? new Color(0.46f, 0.57f, 0.62f) : new Color(0.35f, 0.44f, 0.50f);
+            Color rejected = dark ? new Color(0.85f, 0.32f, 0.30f) : new Color(0.70f, 0.18f, 0.17f);
             for (int index = 0; index < _links.Length; index++)
             {
                 (int from, int to) = _links[index];
@@ -883,14 +953,15 @@
             if (0 <= _source)
             {
                 Vector2 end = 0 <= _target ? Port(_target, output: false) : _pointer;
-                Color rejected = dark ? new Color(0.85f, 0.32f, 0.30f) : new Color(0.70f, 0.18f, 0.17f);
                 Color candidate = 0 <= _target && !_validTarget ? rejected : _accent;
                 DrawWire(context, Port(_source, output: true), end, candidate, 3f);
             }
 
             for (int index = 0; index < _positions.Length; index++)
             {
-                DrawRect(context, new Rect(Port(index, output: false) - Vector2.one * 4f, Vector2.one * 8f), wire);
+                float inputRadius = index == _target ? 6f : 4f;
+                Color inputColor = index == _target ? (_validTarget ? _accent : rejected) : wire;
+                DrawRect(context, new Rect(Port(index, output: false) - Vector2.one * inputRadius, Vector2.one * (2f * inputRadius)), inputColor);
                 DrawRect(context, new Rect(Port(index, output: true) - Vector2.one * 4f, Vector2.one * 8f), _accent);
             }
 

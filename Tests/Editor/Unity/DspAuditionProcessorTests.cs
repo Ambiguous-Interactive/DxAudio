@@ -21,6 +21,28 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(impulse, Is.EqualTo(new[] { 0f, 0f, 0f, 0f, 0f, 0.125f, 0f, 0f }));
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void CueAuditionAlignsDryAndWetSignalsAcrossBothDspStages(bool dry)
+        {
+            DspChain chain = new();
+            chain.Add(new DspLimiter { LookaheadSeconds = 0.002f });
+            Assert.That(chain.TryPrepare(1_000, 8, 1), Is.True);
+            DspChain branch = new();
+            branch.Add(new DspLimiter { LookaheadSeconds = 0.003f });
+            DspGraph graph = new();
+            Assert.That(graph.TryAddNode(branch, out int endpoint), Is.True);
+            Assert.That(graph.TryPrepare(1_000, 8, 1, endpoint, endpoint), Is.True);
+
+            DspAuditionProcessor processor = new(1_000, 8, 1);
+            processor.Publish(new DspAuditionProcessor.Revision(1, new[] { new DspAuditionProcessor.Path(8, 1, chain, graph) }));
+            processor.SetDry(dry);
+            float[] impulse = { 0.125f, 0f, 0f, 0f, 0f, 0f, 0f, 0f };
+            processor.Process(impulse, 1);
+
+            Assert.That(impulse, Is.EqualTo(new[] { 0f, 0f, 0f, 0f, 0f, 0.125f, 0f, 0f }));
+        }
+
         [Test]
         public void TheMonitorAttenuatesTheProcessedOutputWithoutChangingTheLimiterInput()
         {
@@ -36,6 +58,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(processor.Peak, Is.EqualTo(0.2f).Within(0.0001f));
             Assert.That(block[0], Is.EqualTo(0.05f).Within(0.0001f));
+
+            // A one-shot may finish before the next editor poll.
+            processor.Process(new float[8], 1);
+            Assert.That(processor.Peak, Is.Zero);
+            Assert.That(processor.PeakSinceStart, Is.EqualTo(0.2f).Within(0.0001f));
         }
 
         [Test]

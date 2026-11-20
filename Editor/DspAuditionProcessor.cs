@@ -26,6 +26,7 @@
         private float _monitor = 1f;
         private float _monitorGain;
         private float _peak;
+        private float _peakSinceStart;
 
         internal DspAuditionProcessor(int sampleRate, int blockFrames, int maximumChannels)
         {
@@ -40,6 +41,7 @@
         internal int Channels => Volatile.Read(ref _channels);
         internal int UnsupportedChannels => Volatile.Read(ref _unsupportedChannels);
         internal float Peak => Volatile.Read(ref _peak);
+        internal float PeakSinceStart => Volatile.Read(ref _peakSinceStart);
 
         internal void Publish(Revision revision)
         {
@@ -147,6 +149,10 @@
             }
 
             Volatile.Write(ref _peak, peak);
+            if (_peakSinceStart < peak)
+            {
+                Volatile.Write(ref _peakSinceStart, peak);
+            }
             Volatile.Write(ref _processedBlocks, _processedBlocks + 1);
         }
 
@@ -218,7 +224,7 @@
             {
                 _chain = chain;
                 _graph = graph;
-                LatencyFrames = graph?.LatencySamples ?? chain?.LatencySamples ?? 0;
+                LatencyFrames = (graph?.LatencySamples ?? 0) + (chain?.LatencySamples ?? 0);
                 _wet = new float[blockFrames * channels];
                 _dry = new float[_wet.Length];
                 _delay = new float[LatencyFrames * channels];

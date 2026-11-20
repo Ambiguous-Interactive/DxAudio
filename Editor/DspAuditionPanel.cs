@@ -11,8 +11,21 @@ namespace WallstopStudios.DxAudio.Editor
     internal sealed class DspAuditionPanel : VisualElement
     {
         private const double StartupSeconds = 1.25d;
+        private const double SeriesGapSeconds = 0.15d;
+        private const int SeriesLength = 8;
+        private const int DefaultSeed = 81;
+        private const string PeakCaption = "Peak before monitor";
         private static DspAuditionPanel _playing;
 
+        private readonly SfxPlaybackResolver _resolver = new();
+        private readonly IntegerField _seed = new("Preview seed") { value = DefaultSeed, isDelayed = true };
+        private readonly Toggle _bypassVariation = new("Bypass variation on replay");
+        private readonly VisualElement _cueControls = new();
+        private readonly VisualElement _signalPath = new();
+        private readonly Button _take;
+        private readonly Label _draw = new();
+        private readonly Button _series;
+        private readonly Button _replay;
         private readonly ObjectField _clip = new("Audition clip")
         {
             objectType = typeof(AudioClip),
@@ -23,11 +36,18 @@ namespace WallstopStudios.DxAudio.Editor
         private readonly Toggle _dry = new("Dry");
         private readonly Slider _volume = new("Monitor", 0f, 1f) { value = 0.25f };
         private readonly Label _status = new();
-        private readonly ProgressBar _meter = new() { highValue = 1f, title = "DSP peak" };
+        private readonly ProgressBar _meter = new() { highValue = 1f, title = PeakCaption };
         private readonly Button _play;
         private readonly Button _stop;
         private readonly AudioLayout _layout = new();
+        private readonly Action<Object> _openAsset;
+        private readonly Action _showSettings;
         private Object _asset;
+        private SfxPlayback _lastTake;
+        private AudioClip _lastClip;
+        private bool _lastLoop;
+        private int _seriesRemaining;
+        private double _nextStrikeAt;
         private AudioSource _source;
         private DspAuditionFilter _filter;
         private SceneView _enabledSceneAudio;
@@ -41,24 +61,54 @@ namespace WallstopStudios.DxAudio.Editor
         private double _startedAt;
         private bool _editModeFailed;
 
-        internal DspAuditionPanel()
+        internal DspAuditionPanel(Action<Object> openAsset, Action showSettings)
         {
+            _openAsset = openAsset;
+            _showSettings = showSettings;
+            _resolver.Reset(DefaultSeed);
+            _take = new Button(() =>
+            {
+                if (_lastClip != null)
+                {
+                    EditorGUIUtility.PingObject(_lastClip);
+                }
+            })
+            {
+                tooltip = "Locate the selected recording in the Project window.",
+            };
             _play = new Button(Play) { text = "Play" };
             _stop = new Button(Stop) { text = "Stop" };
-            VisualElement transport = new();
-            transport.style.flexDirection = FlexDirection.Row;
+            _series = new Button(PlaySeries) { text = "Play Series", tooltip = "Play eight sequential draws, with a short gap between takes." };
+            _replay = new Button(Replay) { text = "Replay Last", tooltip = "Play the last draw again without advancing the sequence." };
+            VisualElement transport = DxAudioInspectorUi.Row();
+            transport.style.flexWrap = Wrap.Wrap;
             transport.Add(_play);
+            transport.Add(_series);
+            transport.Add(_replay);
             transport.Add(_stop);
             transport.Add(_loop);
             transport.Add(_dry);
             Add(_clip);
             Add(transport);
+            VisualElement seedRow = DxAudioInspectorUi.Row();
+            seedRow.style.flexWrap = Wrap.Wrap;
+            seedRow.Add(_seed);
+            seedRow.Add(new Button(ResetSeed) { text = "Reset Seed", tooltip = "Restart the sequence and clear the audition take history." });
+            seedRow.Add(_bypassVariation);
+            _cueControls.Add(seedRow);
+            _signalPath.style.flexDirection = FlexDirection.Row;
+            _signalPath.style.flexWrap = Wrap.Wrap;
+            _cueControls.Add(_signalPath);
+            _cueControls.Add(_draw);
+            _draw.style.whiteSpace = WhiteSpace.Normal;
+            Add(_cueControls);
             Add(_volume);
             Add(_meter);
             Add(_status);
             _status.style.whiteSpace = WhiteSpace.Normal;
 
             _clip.RegisterValueChangedCallback(_ => Stop());
+            _seed.RegisterValueChangedCallback(_ => ResetSeed());
             _loop.RegisterValueChangedCallback(change =>
             {
                 if (_source != null)
@@ -71,6 +121,7 @@ namespace WallstopStudios.DxAudio.Editor
             RegisterCallback<AttachToPanelEvent>(_ => Subscribe());
             RegisterCallback<DetachFromPanelEvent>(_ => Unsubscribe());
             schedule.Execute(Tick).Every(75);
+            style.display = DisplayStyle.None;
             UpdateControls();
         }
 
@@ -82,13 +133,44 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             Stop();
-            _asset = asset is DspChainAsset || asset is DspGraphAsset ? asset : null;
+            _asset = asset is DspChainAsset or DspGraphAsset or SfxCue ? asset : null;
+            _lastTake = default;
+            _lastClip = null;
+            _draw.text = string.Empty;
             style.display = _asset != null ? DisplayStyle.Flex : DisplayStyle.None;
+            bool cueMode = _asset is SfxCue;
+            _clip.style.display = cueMode ? DisplayStyle.None : DisplayStyle.Flex;
+            _loop.style.display = cueMode ? DisplayStyle.None : DisplayStyle.Flex;
+            _series.style.display = cueMode ? DisplayStyle.Flex : DisplayStyle.None;
+            _replay.style.display = cueMode ? DisplayStyle.Flex : DisplayStyle.None;
+            _cueControls.style.display = cueMode ? DisplayStyle.Flex : DisplayStyle.None;
+            _cueControls.Unbind();
+            if (_asset is SfxCue cue)
+            {
+                UpdateCuePath(cue);
+                _cueControls.TrackSerializedObjectValue(
+                    new SerializedObject(cue),
+                    _ =>
+                    {
+                        if (cue != null && _asset == cue)
+                        {
+                            UpdateCuePath(cue);
+                            UpdatePlayButton();
+                        }
+                    }
+                );
+            }
             UpdateControls();
+        }
+
+        internal static void StopCurrent()
+        {
+            _playing?.Stop();
         }
 
         internal void Stop()
         {
+            _seriesRemaining = 0;
             if (_source != null)
             {
                 _source.Stop();
@@ -124,7 +206,8 @@ namespace WallstopStudios.DxAudio.Editor
             _filter = null;
             _tone = null;
             _processor = null;
-            _meter.value = 0f;
+            _take.style.unityFontStyleAndWeight = FontStyle.Normal;
+            ShowPeak(0f);
             _status.text = string.Empty;
             UpdateControls();
         }
@@ -169,33 +252,127 @@ namespace WallstopStudios.DxAudio.Editor
 
         private void Play()
         {
-            _playing?.Stop();
+            BeginTransport();
+            if (_asset is SfxCue)
+            {
+                PlayNextTake();
+                return;
+            }
+
+            StartClip(_clip.value as AudioClip, 0f, 1f, 1f, _loop.value);
+        }
+
+        private void PlaySeries()
+        {
+            BeginTransport();
+            _seriesRemaining = SeriesLength;
+            PlayNextTake();
+        }
+
+        private void Replay()
+        {
+            BeginTransport();
+            if (_asset is SfxCue cue && _lastClip != null)
+            {
+                PlayTake(cue, _lastClip, _lastTake, _lastLoop, _bypassVariation.value);
+            }
+        }
+
+        private void ResetSeed()
+        {
+            Stop();
+            _resolver.Reset(_seed.value);
+            _lastTake = default;
+            _lastClip = null;
+            _take.text = "Take";
+            _draw.text = string.Empty;
+            UpdateControls();
+        }
+
+        private void BeginTransport()
+        {
+            if (_playing != this)
+            {
+                StopCurrent();
+            }
             Stop();
             SfxAudition.Stop();
+        }
+
+        private void PlayNextTake()
+        {
+            if (_asset is not SfxCue cue || cue == null || !_resolver.TryResolve(cue, out SfxPlayback playback))
+            {
+                Stop();
+                _status.text = "Add a playable take to audition this cue.";
+                return;
+            }
+
+            bool loop = _seriesRemaining == 0 && cue.IsLooping;
+            if (0 < _seriesRemaining)
+            {
+                --_seriesRemaining;
+            }
+
+            AudioClip clip = playback.Variant.Clip;
+            if (PlayTake(cue, clip, playback, loop, bypass: false))
+            {
+                _lastClip = clip;
+                _lastTake = playback;
+                _lastLoop = loop;
+            }
+        }
+
+        private bool PlayTake(SfxCue cue, AudioClip clip, SfxPlayback playback, bool loop, bool bypass)
+        {
+            float pitch = bypass ? 1f : playback.Pitch;
+            float volume = bypass ? playback.BaseVolume : playback.Volume;
+            if (!StartClip(clip, playback.StartSeconds, pitch, volume, loop))
+            {
+                return false;
+            }
+
+            _take.text = clip.name;
+            _take.style.unityFontStyleAndWeight = FontStyle.Bold;
+            double cents = 0f < pitch ? 1200d * Math.Log(pitch, 2d) : 0d;
+            float decibels = bypass ? 0f : playback.LevelDecibels;
+            _draw.text = $"Trim {playback.StartSeconds:0.###} s · Pitch {cents:+0.##;-0.##;0} cents · Level {decibels:+0.##;-0.##;0} dB";
+            if (bypass)
+            {
+                _draw.text += " · Variation bypassed";
+            }
+            if (cue.FollowsTakeOf != null && !playback.FollowedTake)
+            {
+                _draw.text += " · No matching leader take in this preview. Drew from this cue.";
+            }
+            return true;
+        }
+
+        private bool StartClip(AudioClip clip, float trim, float pitch, float volume, bool loop)
+        {
             _layout.Invalidate();
             _layout.Refresh();
-            AudioClip clip = _clip.value as AudioClip;
             _maximumChannels = Math.Max(_layout.Channels, clip != null ? clip.channels : 1);
             _lastRevision = 0;
             _observedHash = ContentHash();
             _recheck = false;
             if (!TryPrepare(out DspAuditionProcessor.Revision revision, out string problem))
             {
+                Stop();
                 _status.text = problem;
-                return;
+                return false;
             }
 
-            if (!EditorApplication.isPlaying && !HasSceneAudio())
+            if (!TryEnableSceneAudio(out SceneView enabled))
             {
-                SceneView sceneView = SceneView.lastActiveSceneView;
-                if (sceneView == null)
-                {
-                    _status.text = "Open a Scene view or enter Play Mode to audition.";
-                    return;
-                }
+                Stop();
+                _status.text = "Open a Scene view or enter Play Mode to audition.";
+                return false;
+            }
 
-                _enabledSceneAudio = sceneView;
-                sceneView.audioPlay = true;
+            if (enabled != null)
+            {
+                _enabledSceneAudio = enabled;
             }
 
             if (clip == null)
@@ -204,15 +381,22 @@ namespace WallstopStudios.DxAudio.Editor
                 _tone = clip;
             }
 
-            GameObject host = EditorUtility.CreateGameObjectWithHideFlags("DxAudio DSP Audition", HideFlags.HideAndDontSave, typeof(AudioSource), typeof(DspAuditionFilter));
-            _source = host.GetComponent<AudioSource>();
-            _filter = host.GetComponent<DspAuditionFilter>();
-            _source.playOnAwake = false;
-            _source.spatialBlend = 0f;
-            _source.bypassListenerEffects = true;
-            _source.loop = _loop.value;
-            _source.volume = 1f;
+            if (_source == null)
+            {
+                GameObject host = EditorUtility.CreateGameObjectWithHideFlags("DxAudio DSP Audition", HideFlags.HideAndDontSave, typeof(AudioSource), typeof(DspAuditionFilter));
+                _source = host.GetComponent<AudioSource>();
+                _filter = host.GetComponent<DspAuditionFilter>();
+                _source.playOnAwake = false;
+                _source.spatialBlend = 0f;
+                _source.bypassListenerEffects = true;
+                _source.bypassReverbZones = true;
+            }
+
+            _source.loop = loop;
+            _source.volume = volume;
+            _source.pitch = pitch;
             _source.clip = clip;
+            _source.time = trim;
             _processor = new DspAuditionProcessor(_layout.SampleRate, _layout.BlockSize, _maximumChannels);
             _processor.SetDry(_dry.value);
             _processor.SetMonitor(_volume.value);
@@ -221,16 +405,22 @@ namespace WallstopStudios.DxAudio.Editor
             _draftProblem = null;
             _playing = this;
             _startedAt = EditorApplication.timeSinceStartup;
+            ShowPeak(0f);
             _status.text = "Starting audition…";
             _source.Play();
             EditorApplication.QueuePlayerLoopUpdate();
             UpdateControls();
+            return true;
         }
 
         private void Tick()
         {
             if (_processor == null)
             {
+                if (0 < _seriesRemaining && _nextStrikeAt <= EditorApplication.timeSinceStartup && !EditorApplication.isPaused)
+                {
+                    PlayNextTake();
+                }
                 UpdatePlayButton();
                 return;
             }
@@ -263,7 +453,21 @@ namespace WallstopStudios.DxAudio.Editor
 
             if (0 < _processor.ProcessedBlocks && !_source.isPlaying && !EditorApplication.isPaused)
             {
-                Stop();
+                if (_seriesRemaining == 0)
+                {
+                    float peak = _asset is SfxCue ? _processor.PeakSinceStart : 0f;
+                    Stop();
+                    ShowPeak(peak);
+                }
+                else
+                {
+                    ShowPeak(_processor.PeakSinceStart);
+                    _filter.SetProcessor(null);
+                    _processor = null;
+                    _nextStrikeAt = EditorApplication.timeSinceStartup + SeriesGapSeconds;
+                    _status.text = "Waiting for the next take…";
+                    _take.style.unityFontStyleAndWeight = FontStyle.Normal;
+                }
                 return;
             }
 
@@ -280,7 +484,7 @@ namespace WallstopStudios.DxAudio.Editor
             if (0 < active)
             {
                 string mode = _dry.value ? "Dry" : "Wet";
-                string text = $"{mode} · Playing revision {active}";
+                string text = _asset is SfxCue ? mode : $"{mode} · Playing revision {active}";
                 if (_draftProblem != null)
                 {
                     text += $". Draft pending. {_draftProblem}";
@@ -293,14 +497,20 @@ namespace WallstopStudios.DxAudio.Editor
                 _status.text = text;
             }
 
-            _meter.value = Math.Min(1f, _processor.Peak);
-            _meter.title = 1f < _processor.Peak ? "DSP peak · Clipping" : "DSP peak";
+            ShowPeak(_asset is SfxCue ? _processor.PeakSinceStart : _processor.Peak);
+        }
+
+        private void ShowPeak(float peak)
+        {
+            _meter.value = Math.Min(1f, peak);
+            _meter.title = 1f < peak ? PeakCaption + " · Above 0 dBFS" : PeakCaption;
         }
 
         private bool TryPrepare(out DspAuditionProcessor.Revision revision, out string problem)
         {
-            DspGraphAsset graphAsset = _asset as DspGraphAsset;
-            DspChainAsset chainAsset = _asset as DspChainAsset;
+            SfxCue cue = _asset as SfxCue;
+            DspGraphAsset graphAsset = cue != null ? cue.Graph : _asset as DspGraphAsset;
+            DspChainAsset chainAsset = cue != null ? cue.Chain : _asset as DspChainAsset;
             DspAuditionProcessor.Path[] paths = new DspAuditionProcessor.Path[_maximumChannels];
             bool prepared = false;
             for (int channels = 1; channels <= _maximumChannels; ++channels)
@@ -323,7 +533,8 @@ namespace WallstopStudios.DxAudio.Editor
                         continue;
                     }
                 }
-                else
+
+                if (chainAsset != null)
                 {
                     chain = chainAsset.CreateChain();
                     if (!chain.TryPrepare(_layout.SampleRate, _layout.BlockSize, channels))
@@ -332,8 +543,8 @@ namespace WallstopStudios.DxAudio.Editor
                     }
                 }
 
-                int latency = graph?.LatencySamples ?? chain.LatencySamples;
-                if (latency < 0 || DspGraph.MaximumPreparedBytes < (long)latency * channels * sizeof(float))
+                long latency = (long)(graph?.LatencySamples ?? 0) + (chain?.LatencySamples ?? 0);
+                if (latency < 0 || DspGraph.MaximumPreparedBytes < latency * channels * sizeof(float))
                 {
                     continue;
                 }
@@ -365,8 +576,23 @@ namespace WallstopStudios.DxAudio.Editor
                     return ChainHash(chain);
                 }
 
-                DspGraphAsset graph = (DspGraphAsset)_asset;
-                int hash = (graph.InputNode?.GetHashCode() ?? 0) * 397 ^ (graph.OutputNode?.GetHashCode() ?? 0);
+                if (_asset is SfxCue cue)
+                {
+                    return ChainHash(cue.Chain) * 397 ^ GraphHash(cue.Graph);
+                }
+                return GraphHash(_asset as DspGraphAsset);
+            }
+        }
+
+        private static int GraphHash(DspGraphAsset graph)
+        {
+            if (graph == null)
+            {
+                return 0;
+            }
+            unchecked
+            {
+                int hash = (graph.GetHashCode() * 397 ^ (graph.InputNode?.GetHashCode() ?? 0)) * 397 ^ (graph.OutputNode?.GetHashCode() ?? 0);
                 foreach (DspGraphNode node in graph.Nodes)
                 {
                     hash = hash * 397 ^ (node?.Name?.GetHashCode() ?? 0);
@@ -420,9 +646,59 @@ namespace WallstopStudios.DxAudio.Editor
         private void UpdatePlayButton()
         {
             bool needsSceneAudio = _source == null && !EditorApplication.isPlaying && !HasSceneAudio();
-            _play.text = needsSceneAudio ? "Play with Scene Audio" : "Play";
-            _play.tooltip = needsSceneAudio ? "Enable Scene view audio until audition stops." : "Audition the selected DSP asset.";
-            _play.SetEnabled(_asset != null && _source == null);
+            SfxCue cue = _asset as SfxCue;
+            bool idle = _source == null && _seriesRemaining == 0;
+            bool playable = cue != null && cue.IsPlayable;
+            _play.text =
+                cue != null ? "Play Cue"
+                : needsSceneAudio ? "Play with Scene Audio"
+                : "Play";
+            _play.tooltip = needsSceneAudio ? "Enable Scene view audio until audition stops." : "Audition the selected asset.";
+            _play.SetEnabled(_asset != null && idle && (cue == null || playable));
+            _series.SetEnabled(idle && playable);
+            _replay.SetEnabled(idle && _lastClip != null);
+            _take.SetEnabled(_lastClip != null);
+        }
+
+        private void UpdateCuePath(SfxCue cue)
+        {
+            _signalPath.Clear();
+            _take.text = _lastClip != null ? _lastClip.name : "Take";
+            _signalPath.Add(_take);
+            AddPathStage(new Button(_showSettings) { text = "Playback settings" });
+            if (cue.Chain != null)
+            {
+                AddPathStage(new Button(() => _openAsset(cue.Chain)) { text = cue.Chain.name, tooltip = "Open the cue chain" });
+            }
+            if (cue.Graph != null)
+            {
+                AddPathStage(new Button(() => _openAsset(cue.Graph)) { text = cue.Graph.name, tooltip = "Open the cue graph" });
+            }
+            AddPathStage(new Label("Isolated preview output") { tooltip = "Player and scene mixer routing are bypassed." });
+        }
+
+        private void AddPathStage(VisualElement stage)
+        {
+            _signalPath.Add(new Label("→") { pickingMode = PickingMode.Ignore });
+            _signalPath.Add(stage);
+        }
+
+        internal static bool TryEnableSceneAudio(out SceneView enabled)
+        {
+            enabled = null;
+            if (EditorApplication.isPlaying || HasSceneAudio())
+            {
+                return true;
+            }
+
+            enabled = SceneView.lastActiveSceneView;
+            if (enabled == null)
+            {
+                return false;
+            }
+
+            enabled.audioPlay = true;
+            return true;
         }
 
         private static bool HasSceneAudio()

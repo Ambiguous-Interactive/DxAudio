@@ -66,9 +66,10 @@ namespace WallstopStudios.DxAudio
         private DspChainAsset _busChain;
 
         private bool _paused;
+        private Func<int, ISfxRandom> _randomFactory;
 
         private readonly SfxThrottle<SfxCue> _throttle = new();
-        private readonly SfxSelection<SfxCue> _selection = new();
+        private readonly SfxPlaybackResolver _playback = new();
 
         private AudioSource[] _voices = Array.Empty<AudioSource>();
         private AudioFilterHost[] _hosts = Array.Empty<AudioFilterHost>();
@@ -81,7 +82,6 @@ namespace WallstopStudios.DxAudio
         private int _heldCount;
         private int _nextLease;
         private int _roundRobin;
-        private System.Random _random;
         private int _droppedNotPlayable;
         private int _droppedThrottled;
         private int _droppedNoVoice;
@@ -103,6 +103,26 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>The game's sound on/off setting. Muting keeps every voice's state, so loops resume on unmute.</summary>
+        /// <summary>Creates the random streams used to draw takes, pitch, and level.</summary>
+        /// <remarks>
+        /// Return a fresh, independently seeded generator for each seed. Set this before assigning the library,
+        /// or change it to restart both streams without clearing take history or interrupting voices.
+        /// A null factory, a null result, or a shared instance uses the default seeded generators instead.
+        /// </remarks>
+        public Func<int, ISfxRandom> RandomFactory
+        {
+            get => _randomFactory;
+            set
+            {
+                if (0 < _voices.Length)
+                {
+                    _playback.SetSeed(PlaybackSeed(), value);
+                }
+
+                _randomFactory = value;
+            }
+        }
+
         public bool Muted
         {
             get => _muted;
@@ -325,7 +345,7 @@ namespace WallstopStudios.DxAudio
             }
 
             _throttle.Clear();
-            _selection.Clear();
+            _playback.ClearHistory();
         }
 
         private void Awake()
@@ -439,7 +459,7 @@ namespace WallstopStudios.DxAudio
                 return Drop(cue, SfxDropReason.NoVoice);
             }
 
-            if (!TryPickVariant(cue, out SfxVariant variant))
+            if (!_playback.TryResolve(cue, out SfxPlayback play))
             {
                 return Drop(cue, SfxDropReason.NotPlayable);
             }
@@ -452,7 +472,7 @@ namespace WallstopStudios.DxAudio
             _roundRobin = index + 1;
             AudioSource voice = _voices[index];
             voice.Stop();
-            Configure(voice, cue, variant, position);
+            Configure(voice, cue, play, position);
             AudioFilterHost host = _hosts[index];
             if (host != null)
             {
@@ -483,28 +503,12 @@ namespace WallstopStudios.DxAudio
             return true;
         }
 
-        private bool TryPickVariant(SfxCue cue, out SfxVariant variant)
+        private void Configure(AudioSource voice, SfxCue cue, SfxPlayback play, Vector3? position)
         {
-            int count = cue.PlayableVariantCount;
-            if (!_selection.TryFollow(cue, cue.FollowsTakeOf, count, out int index))
-            {
-                float draw = (float)NextRandom();
-                if (!_selection.TryNext(cue, count, draw, out index))
-                {
-                    variant = null;
-                    return false;
-                }
-            }
-
-            return cue.TryGetPlayableVariant(index, out variant);
-        }
-
-        private void Configure(AudioSource voice, SfxCue cue, SfxVariant variant, Vector3? position)
-        {
-            voice.clip = variant.Clip;
-            voice.time = cue.PlaybackStartSecondsFor(variant);
-            voice.volume = cue.Volume;
-            voice.pitch = cue.PitchFor((float)NextRandom());
+            voice.clip = play.Variant.Clip;
+            voice.time = play.StartSeconds;
+            voice.volume = play.Volume;
+            voice.pitch = play.Pitch;
             voice.loop = cue.IsLooping;
             voice.mute = _muted;
             voice.ignoreListenerPause = cue.IgnoresListenerPause;
@@ -593,17 +597,6 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        private double NextRandom()
-        {
-            if (_random == null)
-            {
-                int seed = _library != null && _library.DrawSeed != 0 ? _library.DrawSeed : Environment.TickCount;
-                _random = new System.Random(seed);
-            }
-
-            return _random.NextDouble();
-        }
-
         private void DestroyVoices()
         {
             foreach (AudioSource old in _voices)
@@ -613,6 +606,11 @@ namespace WallstopStudios.DxAudio
                     DestroyVoice(old.gameObject);
                 }
             }
+        }
+
+        private int PlaybackSeed()
+        {
+            return _library != null && _library.DrawSeed != 0 ? _library.DrawSeed : Environment.TickCount;
         }
 
         private void BuildVoices()
@@ -629,7 +627,11 @@ namespace WallstopStudios.DxAudio
             _leases = new int[count];
             _heldCount = 0;
             _roundRobin = 0;
-            _random = null;
+            if (0 < count)
+            {
+                _playback.SetSeed(PlaybackSeed(), _randomFactory);
+            }
+
             for (int index = 0; index < count; index++)
             {
                 // Never saved with a scene in edit mode. In Play mode the flag would hide the voices from

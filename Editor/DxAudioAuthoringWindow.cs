@@ -137,7 +137,7 @@
             _status = new Label();
             _status.style.whiteSpace = WhiteSpace.Normal;
             content.Add(_status);
-            _audition = new DspAuditionPanel();
+            _audition = new DspAuditionPanel(SetTarget, ShowCueVariation);
             content.Add(_audition);
             body.Add(content);
 
@@ -313,6 +313,17 @@
             else
             {
                 scroll.Add(DxAudioAssetDetails.Build(_target, SetTarget));
+            }
+        }
+
+        private void ShowCueVariation()
+        {
+            VisualElement variation = _work.Q<VisualElement>("DxAudioSfxVariation");
+            if (variation != null)
+            {
+                variation.GetFirstAncestorOfType<ScrollView>()?.ScrollTo(variation);
+                VisualElement field = variation.Q<VisualElement>(className: "unity-base-field");
+                field?.Focus();
             }
         }
 

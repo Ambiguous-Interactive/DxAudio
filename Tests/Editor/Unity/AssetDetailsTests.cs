@@ -1,8 +1,12 @@
 namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System.Collections.Generic;
+    using System.Reflection;
     using NUnit.Framework;
+    using UnityEditor;
+    using UnityEditor.UIElements;
     using UnityEngine;
+    using UnityEngine.UIElements;
     using WallstopStudios.DxAudio.Editor;
 
     public sealed class AssetDetailsTests
@@ -60,6 +64,177 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             {
                 SfxAudition.DestroyPreview();
             }
+        }
+
+        [TestCase(false, TestName = "Stop releases a cue audition source")]
+        [TestCase(true, TestName = "Switching assets releases a cue series source")]
+        public void CueTransportReturnsTheSourceAndSceneAudioToTheirIdleState(bool switchAsset)
+        {
+            using MadeObjects made = new();
+            SceneView view = FindOrCreateSceneView(made);
+            bool sceneAudio = view.audioPlay;
+            AudioClip clip = made.Track(AudioClip.Create("Audition take", 48_000, 1, 48_000, false));
+            SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(clip) }));
+            DspAuditionPanel panel = new(_ => { }, () => { });
+            panel.SetTarget(cue);
+
+            try
+            {
+                Press(panel, switchAsset ? "Play Series" : "Play Cue");
+                AudioSource source = FindPreviewSource(clip);
+
+                if (switchAsset)
+                {
+                    panel.SetTarget(made.Track(SfxCue.Create(null)));
+                    Assert.That(FindButton(panel, "Replay Last").enabledSelf, Is.False);
+                }
+                else
+                {
+                    Press(panel, "Stop");
+                    Assert.That(FindButton(panel, "Replay Last").enabledSelf, Is.True);
+                }
+
+                Assert.That(source == null, Is.True);
+                Assert.That(view.audioPlay, Is.EqualTo(sceneAudio));
+            }
+            finally
+            {
+                panel.Stop();
+                view.audioPlay = sceneAudio;
+            }
+        }
+
+        [Test]
+        public void CueReplayCanBypassVariationAndLeavesTheSeededSequenceInPlace()
+        {
+            using MadeObjects made = new();
+            SceneView view = FindOrCreateSceneView(made);
+            bool sceneAudio = view.audioPlay;
+            AudioClip first = made.Track(AudioClip.Create("First take", 48_000, 1, 48_000, false));
+            AudioClip second = made.Track(AudioClip.Create("Second take", 48_000, 1, 48_000, false));
+            SfxVariation variation = new(true, 600f, 1_200f, -6f, -3f);
+            SfxCue cue = made.Track(SfxCue.CreateWithVariation(new[] { new SfxVariant(first), new SfxVariant(second) }, variation, volume: 0.5f));
+            DspAuditionPanel panel = new(_ => { }, () => { });
+            panel.SetTarget(cue);
+            SfxPlaybackResolver expected = new();
+            expected.Reset(panel.Q<IntegerField>().value);
+            Assert.That(expected.TryResolve(cue, out SfxPlayback firstDraw), Is.True);
+            Assert.That(expected.TryResolve(cue, out SfxPlayback secondDraw), Is.True);
+
+            try
+            {
+                Press(panel, "Play Cue");
+                AssertPreview(firstDraw);
+                Press(panel, "Stop");
+                panel.Query<Toggle>().Where(toggle => toggle.label == "Bypass variation on replay").First().SetValueWithoutNotify(true);
+                Press(panel, "Replay Last");
+                AudioSource replay = FindPreviewSource(firstDraw.Variant.Clip);
+                Assert.That(replay.pitch, Is.EqualTo(1f));
+                Assert.That(replay.volume, Is.EqualTo(cue.Volume));
+                Press(panel, "Stop");
+
+                Press(panel, "Play Cue");
+                AssertPreview(secondDraw);
+                Press(panel, "Reset Seed");
+                Assert.That(FindButton(panel, "Replay Last").enabledSelf, Is.False);
+                Press(panel, "Play Cue");
+                AssertPreview(firstDraw);
+            }
+            finally
+            {
+                panel.Stop();
+                view.audioPlay = sceneAudio;
+            }
+        }
+
+        [Test]
+        public void RawTakeAuditionKeepsSceneAudioThroughACuePreviewHandoff()
+        {
+            using MadeObjects made = new();
+            SceneView active = FindOrCreateSceneView(made);
+            List<SceneView> enabledViews = new();
+            foreach (SceneView view in SceneView.sceneViews)
+            {
+                if (view != null && view.audioPlay)
+                {
+                    enabledViews.Add(view);
+                    view.audioPlay = false;
+                }
+            }
+
+            AudioClip clip = made.Track(AudioClip.Create("Audition take", 48_000, 1, 48_000, false));
+            SfxVariant take = new(clip);
+            SfxCue cue = made.Track(SfxCue.Create(new[] { take }));
+            DspAuditionPanel panel = new(_ => { }, () => { });
+            panel.SetTarget(cue);
+            try
+            {
+                Press(panel, "Play Cue");
+                Assert.That(active.audioPlay, Is.True);
+                AudioSource cuePreview = FindPreviewSource(clip);
+
+                AudioSource quickPreview = SfxAudition.Play(cue, take);
+                Assert.That(cuePreview == null, Is.True);
+                Assert.That(quickPreview != null, Is.True);
+                Assert.That(active.audioPlay, Is.True);
+                SfxAudition.Stop();
+                Assert.That(active.audioPlay, Is.False);
+            }
+            finally
+            {
+                panel.Stop();
+                SfxAudition.DestroyPreview();
+                foreach (SceneView view in enabledViews)
+                {
+                    view.audioPlay = true;
+                }
+            }
+        }
+
+        private static SceneView FindOrCreateSceneView(MadeObjects made)
+        {
+            SceneView view = SceneView.lastActiveSceneView;
+            return view != null ? view : made.Track(ScriptableObject.CreateInstance<SceneView>());
+        }
+
+        private static Button FindButton(VisualElement panel, string title)
+        {
+            Button button = panel.Query<Button>().Where(candidate => candidate.text == title).First();
+            Assert.That(button != null, Is.True, title);
+            return button;
+        }
+
+        private static void Press(VisualElement panel, string title)
+        {
+            Button button = FindButton(panel, title);
+            Assert.That(button.enabledSelf, Is.True, title);
+
+            // Use the registered click handler without an EditorWindow or event loop.
+            MethodInfo invoke = typeof(Clickable).GetMethod("Invoke", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(invoke != null, Is.True);
+            invoke.Invoke(button.clickable, new object[] { null });
+        }
+
+        private static AudioSource FindPreviewSource(AudioClip clip)
+        {
+            AudioSource[] sources = Resources.FindObjectsOfTypeAll<AudioSource>();
+            foreach (AudioSource source in sources)
+            {
+                if (source.clip == clip && source.GetComponent<DspAuditionFilter>() != null)
+                {
+                    return source;
+                }
+            }
+
+            Assert.Fail($"No cue audition source was configured for {clip.name}.");
+            return null;
+        }
+
+        private static void AssertPreview(SfxPlayback draw)
+        {
+            AudioSource source = FindPreviewSource(draw.Variant.Clip);
+            Assert.That(source.pitch, Is.EqualTo(draw.Pitch).Within(0.0001f));
+            Assert.That(source.volume, Is.EqualTo(draw.Volume).Within(0.0001f));
         }
     }
 }

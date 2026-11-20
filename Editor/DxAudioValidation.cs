@@ -164,6 +164,11 @@ namespace WallstopStudios.DxAudio.Editor
                 findings.Add("This cue loops, so its take start offsets are ignored; a loop restarts at zero.");
             }
 
+            if (cue.Variation.HasInvalidBounds)
+            {
+                findings.Add("This cue has invalid playback variation bounds. Check the pitch and level ranges.");
+            }
+
             AddGraphFindings(findings, cue.Graph, "This cue");
             return findings;
         }

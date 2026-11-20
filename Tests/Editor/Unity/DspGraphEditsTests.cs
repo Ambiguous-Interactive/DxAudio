@@ -31,8 +31,10 @@
             DspGraphAsset graph = Graph(made);
             DspGraphEdits edits = new(graph);
 
+            Assert.That(edits.CanConnect(1, 0, out string previewReason), Is.False);
+            Assert.That(previewReason, Does.Contain("cycle"));
             Assert.That(edits.TryConnect(1, 0, out string reason), Is.False);
-            Assert.That(reason, Does.Contain("cycle"));
+            Assert.That(reason, Is.EqualTo(previewReason));
             Assert.That(graph.EdgeCount, Is.EqualTo(1));
         }
 
@@ -48,6 +50,34 @@
             Assert.That(graph.Edges[0].To, Is.EqualTo("Insert"));
             Assert.That(graph.Edges[1].From, Is.EqualTo("Insert"));
             Assert.That(graph.Nodes[2].HasEditorPosition, Is.True);
+
+            Undo.PerformUndo();
+            Assert.That(graph.NodeCount, Is.EqualTo(2));
+            Assert.That(graph.EdgeCount, Is.EqualTo(1));
+            Assert.That(graph.Edges[0].To, Is.EqualTo("Out"));
+
+            Undo.PerformRedo();
+            Assert.That(graph.Nodes[2].Name, Is.EqualTo("Insert"));
+            Assert.That(graph.EdgeCount, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void ReconnectingAWireRestoresItsOriginalEndpointInOneUndo()
+        {
+            using MadeObjects made = new();
+            DspGraphAsset graph = Graph(made);
+            DspGraphEdits edits = new(graph);
+            Assert.That(edits.TryAdd("Branch", null, Vector2.zero, out string addError), Is.True, addError);
+
+            Assert.That(edits.TrySetEdge(0, 0, 2, out string edgeError), Is.True, edgeError);
+            Assert.That(graph.Edges[0].To, Is.EqualTo("Branch"));
+
+            Undo.PerformUndo();
+            Assert.That(graph.NodeCount, Is.EqualTo(3));
+            Assert.That(graph.Edges[0].To, Is.EqualTo("Out"));
+
+            Undo.PerformRedo();
+            Assert.That(graph.Edges[0].To, Is.EqualTo("Branch"));
         }
 
         [Test]
