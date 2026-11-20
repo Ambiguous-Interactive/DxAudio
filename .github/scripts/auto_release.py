@@ -217,14 +217,14 @@ def promote(branch: str, sha: str, *, retry: bool) -> None:
             f"All validation passed for {tag} at {sha}. Publication is disabled for this rehearsal."
         )
         return
+    tag_sha = ref_sha(f"tags/{tag}")
+    if tag_sha is not None and tag_sha != sha and git("rev-parse", f"{tag}^{{commit}}") != sha:
+        raise ValueError(f"{tag} points to a different commit")
     if main == base:
         api("git/refs/heads/main", method="PATCH", body={"sha": sha, "force": False})
         summary(f"Advanced main to the validated release commit {sha}.")
-    tag_sha = ref_sha(f"tags/{tag}")
     if tag_sha is None:
         api("git/refs", method="POST", body={"ref": f"refs/tags/{tag}", "sha": sha})
-    elif git("rev-parse", f"{tag}^{{commit}}") != sha:
-        raise ValueError(f"{tag} points to a different commit")
     params = urlencode({"event": "workflow_dispatch", "head_sha": sha, "per_page": 100})
     releases = cast("RunList", api(f"actions/workflows/release.yml/runs?{params}"))["workflow_runs"]
     latest = next((release for release in releases if release["head_branch"] == tag), None)

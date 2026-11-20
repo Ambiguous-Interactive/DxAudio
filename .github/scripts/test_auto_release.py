@@ -110,6 +110,25 @@ class PromotionTests(unittest.TestCase):
                     api.assert_not_called()
                     dispatch.assert_not_called()
 
+    def test_conflicting_tag_blocks_the_main_update(self) -> None:
+        checks = dict.fromkeys(WORKFLOWS, self.run_data("success"))
+        with (
+            patch.dict(
+                "os.environ",
+                {"GITHUB_REPOSITORY": self.repository, "AUTO_RELEASE_VALIDATE_ONLY": ""},
+            ),
+            patch("auto_release.verify_edits"),
+            patch("auto_release.read_version", return_value="0.4.0"),
+            patch("auto_release.ref_sha", side_effect=[self.sha, self.base, "wrong-tag"]),
+            patch("auto_release.git", side_effect=[f"{self.sha} {self.base}", "wrong-tag"]),
+            patch("auto_release.validation_runs", return_value=checks),
+            patch("auto_release.api") as api,
+            patch("auto_release.summary"),
+            self.assertRaisesRegex(ValueError, "points to a different commit"),
+        ):
+            promote(self.branch, self.sha, retry=False)
+        api.assert_not_called()
+
     def test_retry_preserves_existing_tag_and_does_not_dispatch_twice(self) -> None:
         checks: dict[str, WorkflowRun | None] = dict.fromkeys(WORKFLOWS, self.run_data("success"))
         with (
@@ -120,7 +139,7 @@ class PromotionTests(unittest.TestCase):
             patch("auto_release.verify_edits"),
             patch("auto_release.read_version", return_value="0.4.0"),
             patch("auto_release.ref_sha", return_value=self.sha),
-            patch("auto_release.git", side_effect=[f"{self.sha} {self.base}", self.sha, self.sha]),
+            patch("auto_release.git", side_effect=[f"{self.sha} {self.base}", self.sha]),
             patch("auto_release.validation_runs", return_value=checks),
             patch(
                 "auto_release.api",

@@ -113,8 +113,8 @@ def github_release(operation: str, tag: str, tarball: Path, prerelease: bool) ->
         unity.with_suffix(".unitypackage.sha256"),
     ]
     if not matches:
-        if operation == "finalize":
-            raise ValueError(f"Missing draft for {tag}")
+        if operation != "stage":
+            raise ValueError(f"Missing GitHub Release for {tag}")
         flags = ["--prerelease"] if prerelease else []
         run(
             "gh",
