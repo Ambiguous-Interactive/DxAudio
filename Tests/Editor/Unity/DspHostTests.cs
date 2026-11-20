@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Tests.Editor
+﻿namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System.Collections.Generic;
     using NUnit.Framework;
@@ -12,6 +12,103 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     /// </remarks>
     public sealed class DspHostTests
     {
+        private static DspChainAsset Chain(MadeObjects made, params DspEffectAsset[] effects)
+        {
+            return made.Track(DspChainAsset.Create(effects));
+        }
+
+        /// <summary>A graph that runs one branch of <paramref name="effects" /> between an input and an output junction.</summary>
+        private static DspGraphAsset Graph(MadeObjects made, params DspEffectAsset[] effects)
+        {
+            DspChainAsset branch = Chain(made, effects);
+            return made.Track(
+                DspGraphAsset.Create(
+                    new[] { new DspGraphNode("in", null), new DspGraphNode("branch", branch), new DspGraphNode("out", null) },
+                    new[] { new DspGraphEdge("in", "branch"), new DspGraphEdge("branch", "out") },
+                    "in",
+                    "out"
+                )
+            );
+        }
+
+        private static AudioFilterHost Host(MadeObjects made, DspChainAsset chain)
+        {
+            AudioFilterHost host = made.Track(new GameObject("host")).AddComponent<AudioFilterHost>();
+            host.Chain = chain;
+            return host;
+        }
+
+        /// <summary>The rate a host prepares with: the device rate, or its 48 kHz fallback when the device reports none.</summary>
+        private static int OutputSampleRate()
+        {
+            return 0 < AudioSettings.outputSampleRate ? AudioSettings.outputSampleRate : 48_000;
+        }
+
+        private static AudioFilterHost HostOf(MonoBehaviour player)
+        {
+            IReadOnlyList<AudioFilterHost> hosts = player.GetComponentsInChildren<AudioFilterHost>();
+            Assert.That(hosts.Count, Is.GreaterThan(0), "a player builds one host per voice");
+            return hosts[0];
+        }
+
+        private static AudioFilterHost SyntheticVoiceHost(SfxPlayer player)
+        {
+            AudioFilterHost host = HostOf(player);
+            // Disable before Play so Unity cannot start a callback on the host the test drives.
+            host.enabled = false;
+            return host;
+        }
+
+        private static SfxPlayer Player(MadeObjects made, SfxLibrary library)
+        {
+            made.Track(library);
+            SfxPlayer player = made.Track(new GameObject("sfx")).AddComponent<SfxPlayer>();
+            player.Library = library;
+            return player;
+        }
+
+        private static float[] FullScale(int count)
+        {
+            float[] block = new float[count];
+            for (int index = 0; index < count; ++index)
+            {
+                block[index] = 1f;
+            }
+
+            return block;
+        }
+
+        private static float[] Quiet(float level, int count)
+        {
+            float[] block = new float[count];
+            for (int index = 0; index < count; ++index)
+            {
+                block[index] = level;
+            }
+
+            return block;
+        }
+
+        private static float Peak(float[] samples)
+        {
+            float peak = 0f;
+            foreach (float sample in samples)
+            {
+                float magnitude = Mathf.Abs(sample);
+                if (peak < magnitude)
+                {
+                    peak = magnitude;
+                }
+            }
+
+            return peak;
+        }
+
+        private static AudioClip Clip(MadeObjects made)
+        {
+            return made.Track(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
+        }
+
         [Test]
         public void AHostRunsItsChainOnASyntheticBlockWithoutAnAudioDevice()
         {
@@ -230,7 +327,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             AudioFilterHost host = SyntheticVoiceHost(player);
             Assert.That(player.Play(cue), Is.True);
             float[] block = new float[host.ChannelCount * 4];
-            for (int index = 0; index < block.Length; ++index)
+            for (int index = 0, blockLength = block.Length; index < blockLength; ++index)
             {
                 block[index] = 0.3f;
             }
@@ -458,103 +555,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             host.ProcessBuffer(mono, 1);
 
             Assert.That(Peak(mono), Is.EqualTo(0.1f).Within(0.001f), "a new play clears every width, not only the one its first block used");
-        }
-
-        private static DspChainAsset Chain(MadeObjects made, params DspEffectAsset[] effects)
-        {
-            return made.Track(DspChainAsset.Create(effects));
-        }
-
-        /// <summary>A graph that runs one branch of <paramref name="effects" /> between an input and an output junction.</summary>
-        private static DspGraphAsset Graph(MadeObjects made, params DspEffectAsset[] effects)
-        {
-            DspChainAsset branch = Chain(made, effects);
-            return made.Track(
-                DspGraphAsset.Create(
-                    new[] { new DspGraphNode("in", null), new DspGraphNode("branch", branch), new DspGraphNode("out", null) },
-                    new[] { new DspGraphEdge("in", "branch"), new DspGraphEdge("branch", "out") },
-                    "in",
-                    "out"
-                )
-            );
-        }
-
-        private static AudioFilterHost Host(MadeObjects made, DspChainAsset chain)
-        {
-            AudioFilterHost host = made.Track(new GameObject("host")).AddComponent<AudioFilterHost>();
-            host.Chain = chain;
-            return host;
-        }
-
-        /// <summary>The rate a host prepares with: the device rate, or its 48 kHz fallback when the device reports none.</summary>
-        private static int OutputSampleRate()
-        {
-            return 0 < AudioSettings.outputSampleRate ? AudioSettings.outputSampleRate : 48_000;
-        }
-
-        private static AudioFilterHost HostOf(MonoBehaviour player)
-        {
-            IReadOnlyList<AudioFilterHost> hosts = player.GetComponentsInChildren<AudioFilterHost>();
-            Assert.That(hosts.Count, Is.GreaterThan(0), "a player builds one host per voice");
-            return hosts[0];
-        }
-
-        private static AudioFilterHost SyntheticVoiceHost(SfxPlayer player)
-        {
-            AudioFilterHost host = HostOf(player);
-            // Disable before Play so Unity cannot start a callback on the host the test drives.
-            host.enabled = false;
-            return host;
-        }
-
-        private static SfxPlayer Player(MadeObjects made, SfxLibrary library)
-        {
-            made.Track(library);
-            SfxPlayer player = made.Track(new GameObject("sfx")).AddComponent<SfxPlayer>();
-            player.Library = library;
-            return player;
-        }
-
-        private static float[] FullScale(int count)
-        {
-            float[] block = new float[count];
-            for (int index = 0; index < count; ++index)
-            {
-                block[index] = 1f;
-            }
-
-            return block;
-        }
-
-        private static float[] Quiet(float level, int count)
-        {
-            float[] block = new float[count];
-            for (int index = 0; index < count; ++index)
-            {
-                block[index] = level;
-            }
-
-            return block;
-        }
-
-        private static float Peak(float[] samples)
-        {
-            float peak = 0f;
-            for (int index = 0; index < samples.Length; ++index)
-            {
-                float magnitude = Mathf.Abs(samples[index]);
-                if (peak < magnitude)
-                {
-                    peak = magnitude;
-                }
-            }
-
-            return peak;
-        }
-
-        private static AudioClip Clip(MadeObjects made)
-        {
-            return made.Track(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
         }
     }
 }

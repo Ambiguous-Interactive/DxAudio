@@ -73,6 +73,22 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 # =============================================================================
+# Pinned .NET SDK for package analysis (see .net-tests/global.json)
+# =============================================================================
+RUN set -eux; \
+    case "$(dpkg --print-architecture)" in \
+        amd64) sdk_arch=x64; sdk_hash=577d0eb17fec33d029104c5c63a1ab0accc3e28776274abef2218dbac5af18d2109b5406d26b31d76f5c245215e3ba0926a94c20246c672c41847c9e1eb1dc50 ;; \
+        arm64) sdk_arch=arm64; sdk_hash=3533a3869da219cac45c567aadac3d8e96cdf1c6a04fe1c1d5fdeefea5d45af8424488f0144730d11b4a751f7ad546fb11e4c2b2725cd8401efee726711f8f11 ;; \
+        *) exit 1 ;; \
+    esac; \
+    wget -q --tries=5 --waitretry=2 --timeout=45 "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.404/dotnet-sdk-10.0.404-linux-${sdk_arch}.tar.gz" -O /tmp/dxaudio-dotnet.tar.gz; \
+    echo "${sdk_hash}  /tmp/dxaudio-dotnet.tar.gz" | sha512sum -c -; \
+    mkdir -p /opt/dxaudio-dotnet; \
+    tar -xzf /tmp/dxaudio-dotnet.tar.gz -C /opt/dxaudio-dotnet; \
+    rm /tmp/dxaudio-dotnet.tar.gz
+ENV PATH="/opt/dxaudio-dotnet:${PATH}"
+
+# =============================================================================
 # LAYER 3: uv from PyPI (pinned)
 # Provides uvx for mcp-server-fetch and mcp-server-git. PyPI is used instead
 # of GitHub release tarballs because GitHub's CDN edges intermittently serve

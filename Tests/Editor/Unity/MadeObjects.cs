@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Tests.Editor
+﻿namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System;
     using System.Collections.Generic;
@@ -24,9 +24,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         public void Dispose()
         {
-            for (int index = 0; index < _made.Count; ++index)
+            foreach (Object made in _made)
             {
-                Object made = _made[index];
                 if (made != null)
                 {
                     Object.DestroyImmediate(made);

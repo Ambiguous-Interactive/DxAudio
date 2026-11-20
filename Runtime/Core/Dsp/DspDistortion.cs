@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
 
@@ -19,27 +19,6 @@ namespace WallstopStudios.DxAudio
         private const float MinimumToneHz = 20f;
 
         private const float SmoothingSeconds = 0.01f;
-
-        private float _drive;
-        private float _toneHz;
-        private float _toneCoefficient;
-        private float _activeDrive;
-        private float _activeToneCoefficient;
-        private float _smoothingCoefficient;
-        private float[] _toneState;
-        private int _sampleRate;
-        private int _channels;
-
-        public DspDistortion()
-        {
-            _drive = 1f;
-            _toneHz = OpenToneHz;
-            _toneCoefficient = 1f;
-            _activeDrive = 1f;
-            _activeToneCoefficient = 1f;
-            _smoothingCoefficient = 1f;
-            _toneState = Array.Empty<float>();
-        }
 
         public override string DisplayName => "Distortion";
 
@@ -72,14 +51,45 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
+        private float _drive;
+        private float _toneHz;
+        private float _toneCoefficient;
+        private float _activeDrive;
+        private float _activeToneCoefficient;
+        private float _smoothingCoefficient;
+        private float[] _toneState;
+        private int _sampleRate;
+        private int _channels;
+
+        public DspDistortion()
         {
-            _sampleRate = sampleRate;
-            _channels = channels;
-            _toneState = new float[channels];
-            _toneCoefficient = Coefficient(CappedToneHz(_toneHz, sampleRate), sampleRate);
-            _smoothingCoefficient = AudioMath.OnePoleCoefficient(SmoothingSeconds, sampleRate);
-            Reset();
+            _drive = 1f;
+            _toneHz = OpenToneHz;
+            _toneCoefficient = 1f;
+            _activeDrive = 1f;
+            _activeToneCoefficient = 1f;
+            _smoothingCoefficient = 1f;
+            _toneState = Array.Empty<float>();
+        }
+
+        private static float MaxToneHz(int sampleRate)
+        {
+            return 0.45f * sampleRate;
+        }
+
+        private static float CappedToneHz(float toneHz, int sampleRate)
+        {
+            return 0 < sampleRate ? Math.Min(toneHz, MaxToneHz(sampleRate)) : toneHz;
+        }
+
+        private static float Coefficient(float toneHz, int sampleRate)
+        {
+            if (sampleRate <= 0)
+            {
+                return 1f;
+            }
+
+            return AudioMath.OnePoleCoefficient(1f / (2f * (float)Math.PI * toneHz), sampleRate);
         }
 
         public override void Process(float[] buffer, int offset, int count, int channels)
@@ -94,8 +104,10 @@ namespace WallstopStudios.DxAudio
             int frames = count / stride;
             for (int frame = 0; frame < frames; frame++)
             {
-                // A knob move is a ramp, not a step: the block reads one drive and one tone, reached over
-                // SmoothingSeconds, so a sweep does not click.
+                /*
+                    A knob move is a ramp, not a step: the block reads one drive and one tone, reached over
+                    SmoothingSeconds, so a sweep does not click.
+                */
                 _activeDrive += (_drive - _activeDrive) * _smoothingCoefficient;
                 _activeToneCoefficient += (_toneCoefficient - _activeToneCoefficient) * _smoothingCoefficient;
                 int frameStart = offset + (frame * stride);
@@ -120,24 +132,14 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        private static float MaxToneHz(int sampleRate)
+        protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
         {
-            return 0.45f * sampleRate;
-        }
-
-        private static float CappedToneHz(float toneHz, int sampleRate)
-        {
-            return 0 < sampleRate ? Math.Min(toneHz, MaxToneHz(sampleRate)) : toneHz;
-        }
-
-        private static float Coefficient(float toneHz, int sampleRate)
-        {
-            if (sampleRate <= 0)
-            {
-                return 1f;
-            }
-
-            return AudioMath.OnePoleCoefficient(1f / (2f * (float)Math.PI * toneHz), sampleRate);
+            _sampleRate = sampleRate;
+            _channels = channels;
+            _toneState = new float[channels];
+            _toneCoefficient = Coefficient(CappedToneHz(_toneHz, sampleRate), sampleRate);
+            _smoothingCoefficient = AudioMath.OnePoleCoefficient(SmoothingSeconds, sampleRate);
+            Reset();
         }
     }
 }

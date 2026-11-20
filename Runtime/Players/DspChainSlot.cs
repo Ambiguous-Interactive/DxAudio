@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
 
@@ -13,6 +13,9 @@ namespace WallstopStudios.DxAudio
     /// </remarks>
     internal sealed class DspChainSlot
     {
+        /// <summary>The asset every chain in this slot was built from.</summary>
+        public DspChainAsset Asset { get; }
+
         /// <summary>The play that last asked for a clear. Written on the main thread only.</summary>
         public int ClearGeneration;
 
@@ -25,9 +28,6 @@ namespace WallstopStudios.DxAudio
         {
             Asset = asset;
         }
-
-        /// <summary>The asset every chain in this slot was built from.</summary>
-        public DspChainAsset Asset { get; }
 
         /// <summary>Asks for this slot to be cleared before it next processes a block.</summary>
         public void RequestClear()
@@ -78,9 +78,9 @@ namespace WallstopStudios.DxAudio
         /// </remarks>
         public void Reset()
         {
-            for (int index = 0; index < _chains.Length; index++)
+            foreach (DspChain chain in _chains)
             {
-                _chains[index].Reset();
+                chain.Reset();
             }
         }
     }

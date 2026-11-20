@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Editor
+﻿namespace WallstopStudios.DxAudio.Editor
 {
     using System;
     using System.Collections.Generic;
@@ -10,25 +10,6 @@ namespace WallstopStudios.DxAudio.Editor
     /// <summary>Adapts the asset inspectors and library membership to the authoring workspace.</summary>
     internal sealed class DxAudioAssetDetails : VisualElement
     {
-        internal readonly struct Member
-        {
-            public readonly Object Asset;
-            public readonly int Slot;
-            public readonly string Lookup;
-
-            public Member(Object asset, int slot, string lookup)
-            {
-                Asset = asset;
-                Slot = slot;
-                Lookup = lookup;
-            }
-
-            public string Label =>
-                Asset == null ? $"Slot {Slot} / Missing asset"
-                : string.IsNullOrWhiteSpace(Lookup) ? $"Slot {Slot} / {Asset.name}"
-                : $"Slot {Slot} / {Asset.name} / {Lookup}";
-        }
-
         internal static bool Supports(Object target)
         {
             return target != null && target is SfxCue or MusicTrack or MusicDuck or SfxLibrary or MusicLibrary or AudioMixBus or DspEffectAsset;
@@ -221,6 +202,24 @@ namespace WallstopStudios.DxAudio.Editor
             Refresh();
             view.TrackSerializedObjectValue(new SerializedObject(target), _ => Refresh());
             return view;
+        }
+
+        internal readonly struct Member
+        {
+            public string Label =>
+                Asset == null ? $"Slot {Slot} / Missing asset"
+                : string.IsNullOrWhiteSpace(Lookup) ? $"Slot {Slot} / {Asset.name}"
+                : $"Slot {Slot} / {Asset.name} / {Lookup}";
+            public readonly Object Asset;
+            public readonly int Slot;
+            public readonly string Lookup;
+
+            public Member(Object asset, int slot, string lookup)
+            {
+                Asset = asset;
+                Slot = slot;
+                Lookup = lookup;
+            }
         }
     }
 }

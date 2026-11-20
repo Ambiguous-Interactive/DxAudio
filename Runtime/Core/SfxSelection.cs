@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System.Collections.Generic;
 
@@ -34,6 +34,16 @@ namespace WallstopStudios.DxAudio
         {
             _comparer = comparer ?? EqualityComparer<TKey>.Default;
             _lastIndexByKey = new Dictionary<TKey, int>(_comparer);
+        }
+
+        private static int ClampIndex(int value, int highest)
+        {
+            if (value < 0)
+            {
+                return 0;
+            }
+
+            return highest < value ? highest : value;
         }
 
         /// <summary>Picks the next of <paramref name="variantCount"/> variants for <paramref name="key"/>.</summary>
@@ -129,16 +139,6 @@ namespace WallstopStudios.DxAudio
         internal void Remember(TKey key, int index)
         {
             _lastIndexByKey[key] = index;
-        }
-
-        private static int ClampIndex(int value, int highest)
-        {
-            if (value < 0)
-            {
-                return 0;
-            }
-
-            return highest < value ? highest : value;
         }
     }
 }

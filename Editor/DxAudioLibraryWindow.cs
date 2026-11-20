@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Editor
+﻿namespace WallstopStudios.DxAudio.Editor
 {
     using System;
     using System.Collections.Generic;
@@ -15,21 +15,6 @@ namespace WallstopStudios.DxAudio.Editor
     /// </remarks>
     public sealed class DxAudioLibraryWindow : EditorWindow
     {
-        [MenuItem("Tools/DxAudio/Validate Libraries")]
-        private static void Open()
-        {
-            DxAudioLibraryWindow window = GetWindow<DxAudioLibraryWindow>();
-            window.titleContent = new GUIContent("DxAudio Libraries");
-            // An open window keeps its last report, so the menu item validates again instead of showing it.
-            window.Refresh();
-            window.Show();
-        }
-
-        public void CreateGUI()
-        {
-            Refresh();
-        }
-
         /// <summary>The whole window tree: the recheck button and the current report.</summary>
         public static VisualElement BuildWindowContent(Action checkAgain)
         {
@@ -95,9 +80,9 @@ namespace WallstopStudios.DxAudio.Editor
                     continue;
                 }
 
-                for (int finding = 0; finding < findingsForLibrary.Count; ++finding)
+                foreach (string finding in findingsForLibrary)
                 {
-                    scroll.Add(new HelpBox(findingsForLibrary[finding], HelpBoxMessageType.Warning));
+                    scroll.Add(new HelpBox(finding, HelpBoxMessageType.Warning));
                 }
             }
 
@@ -105,10 +90,14 @@ namespace WallstopStudios.DxAudio.Editor
             return report;
         }
 
-        private void Refresh()
+        [MenuItem("Tools/DxAudio/Validate Libraries")]
+        private static void Open()
         {
-            rootVisualElement.Clear();
-            rootVisualElement.Add(BuildWindowContent(Refresh));
+            DxAudioLibraryWindow window = GetWindow<DxAudioLibraryWindow>();
+            window.titleContent = new GUIContent("DxAudio Libraries");
+            // An open window keeps its last report, so the menu item validates again instead of showing it.
+            window.Refresh();
+            window.Show();
         }
 
         private static void Collect(List<Object> libraries, List<List<string>> findings)
@@ -122,24 +111,35 @@ namespace WallstopStudios.DxAudio.Editor
         {
             string[] guids = AssetDatabase.FindAssets(filter);
             List<string> paths = new(guids.Length);
-            for (int index = 0; index < guids.Length; ++index)
+            foreach (string guid in guids)
             {
-                paths.Add(AssetDatabase.GUIDToAssetPath(guids[index]));
+                paths.Add(AssetDatabase.GUIDToAssetPath(guid));
             }
 
             paths.Sort(StringComparer.Ordinal);
-            for (int index = 0; index < paths.Count; ++index)
+            foreach (string path in paths)
             {
-                Object[] assets = AssetDatabase.LoadAllAssetsAtPath(paths[index]);
-                for (int asset = 0; asset < assets.Length; ++asset)
+                Object[] assets = AssetDatabase.LoadAllAssetsAtPath(path);
+                foreach (Object asset in assets)
                 {
-                    if (assets[asset] is T library && library != null)
+                    if (asset is T library && library != null)
                     {
                         libraries.Add(library);
                         findings.Add(validate(library));
                     }
                 }
             }
+        }
+
+        public void CreateGUI()
+        {
+            Refresh();
+        }
+
+        private void Refresh()
+        {
+            rootVisualElement.Clear();
+            rootVisualElement.Add(BuildWindowContent(Refresh));
         }
     }
 }

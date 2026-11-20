@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
     using System.Collections.Generic;
@@ -23,32 +23,6 @@ namespace WallstopStudios.DxAudio
     [AddComponentMenu("DxAudio/Audio Filter Host")]
     public sealed class AudioFilterHost : MonoBehaviour
     {
-        [SerializeField]
-        [Tooltip("The chain this host runs on its source, when a game drives the host itself. A player sets this per play.")]
-        private DspChainAsset _chain;
-
-        [SerializeField]
-        [Tooltip("A chain this host runs after its own, on one voice at a time, so a player's bus reaches every voice.")]
-        private DspChainAsset _busChain;
-
-        [SerializeField]
-        [Tooltip("A graph this host runs after its own chain. Its branches run in parallel, and it runs on one voice at a time.")]
-        private DspGraphAsset _graph;
-
-        private readonly AudioLayout _layout = new();
-        private readonly List<Instance> _instances = new();
-        private readonly List<GraphInstance> _graphInstances = new();
-
-        // Written on the main thread, read on the audio thread. Volatile makes a swap visible to the next block.
-        private volatile Instance _running;
-        private volatile Instance _bus;
-        private volatile GraphInstance _runningGraph;
-        private volatile SfxLowPass _cueLowPass;
-        private float _cueLowPassHertz;
-        private AudioSource _source;
-        private int _liveChannels;
-        private int _skippedBlocks;
-
         /// <summary>The chain this host runs, or null when it passes the block through.</summary>
         /// <remarks>
         /// Assigning starts a new play. The chain and the bus are cleared at the next block that runs them, never here:
@@ -62,8 +36,10 @@ namespace WallstopStudios.DxAudio
             {
                 Instance prepared = InstanceFor(value, bus: false);
                 _chain = value;
-                // The clear is requested before the instance is published: a block that reads the new one in between
-                // must already be owed a reset, or it would run the last play's delay line for one block.
+                /*
+                    The clear is requested before the instance is published: a block that reads the new one in between
+                    must already be owed a reset, or it would run the last play's delay line for one block.
+                */
                 MarkCleared(prepared);
                 _running = prepared;
                 MarkCleared(_bus);
@@ -171,6 +147,70 @@ namespace WallstopStudios.DxAudio
             }
         }
 
+        private AudioSource Source
+        {
+            get
+            {
+                if (_source == null)
+                {
+                    _source = GetComponent<AudioSource>();
+                }
+
+                return _source;
+            }
+        }
+
+        /// <summary>The block shape a reading describes: the last block run, or the output layout before any block.</summary>
+        private int ReadingChannels => 0 < _liveChannels ? _liveChannels : _layout.Channels;
+
+        [SerializeField]
+        [Tooltip("The chain this host runs on its source, when a game drives the host itself. A player sets this per play.")]
+        private DspChainAsset _chain;
+
+        [SerializeField]
+        [Tooltip("A chain this host runs after its own, on one voice at a time, so a player's bus reaches every voice.")]
+        private DspChainAsset _busChain;
+
+        [SerializeField]
+        [Tooltip("A graph this host runs after its own chain. Its branches run in parallel, and it runs on one voice at a time.")]
+        private DspGraphAsset _graph;
+
+        private readonly AudioLayout _layout = new();
+        private readonly List<Instance> _instances = new();
+        private readonly List<GraphInstance> _graphInstances = new();
+
+        // Written on the main thread, read on the audio thread. Volatile makes a swap visible to the next block.
+        private volatile Instance _running;
+        private volatile Instance _bus;
+        private volatile GraphInstance _runningGraph;
+        private volatile SfxLowPass _cueLowPass;
+        private float _cueLowPassHertz;
+        private AudioSource _source;
+        private int _liveChannels;
+        private int _skippedBlocks;
+
+        /// <summary>Asks for <paramref name="instance" /> to be cleared before it next processes a block.</summary>
+        /// <remarks>
+        /// The request belongs to the instance, not to the host: a swap races the audio thread, and a host-wide flag
+        /// could be spent on the chain the block is finishing instead of the one the next play selected.
+        /// </remarks>
+        private static void MarkCleared(Instance instance)
+        {
+            if (instance != null)
+            {
+                instance.slot.RequestClear();
+            }
+        }
+
+        /// <summary>Asks for <paramref name="instance" /> to be cleared before it next processes a block.</summary>
+        private static void MarkCleared(GraphInstance instance)
+        {
+            if (instance != null)
+            {
+                instance.ClearGeneration++;
+            }
+        }
+
         /// <summary>Prepares <paramref name="asset" />'s chain for this voice now, so the first play of it allocates nothing.</summary>
         public void Warm(DspChainAsset asset)
         {
@@ -181,70 +221,6 @@ namespace WallstopStudios.DxAudio
         public void Warm(DspGraphAsset asset)
         {
             _ = GraphInstanceFor(asset);
-        }
-
-        internal void PrepareCueLowPass()
-        {
-            _layout.Refresh();
-            // Source callbacks can use a clip's channel shape before downmixing to the output layout.
-            SfxLowPass stage = new(_layout.SampleRate, _layout.BlockSize, Math.Max(8, _layout.Channels));
-            stage.Begin(_cueLowPassHertz);
-            _cueLowPass = stage;
-        }
-
-        internal void SetCueLowPass(float cutoffHertz)
-        {
-            if (cutoffHertz == 0f && _cueLowPassHertz == 0f)
-            {
-                return;
-            }
-
-            _cueLowPassHertz = cutoffHertz;
-            _cueLowPass?.Begin(cutoffHertz);
-        }
-
-        /// <summary>Whether a chain for <paramref name="asset" /> is already prepared here, so it cannot allocate.</summary>
-        internal bool IsPrepared(DspChainAsset asset)
-        {
-            if (asset == null)
-            {
-                return false;
-            }
-
-            for (int index = 0; index < _instances.Count; index++)
-            {
-                if (_instances[index].asset == asset)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>Whether a graph for <paramref name="asset" /> is already prepared here, so it cannot allocate.</summary>
-        internal bool IsPrepared(DspGraphAsset asset)
-        {
-            if (asset == null)
-            {
-                return false;
-            }
-
-            for (int index = 0; index < _graphInstances.Count; index++)
-            {
-                if (_graphInstances[index].asset == asset)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>Runs the block the engine hands this host. Unity calls it on the audio thread.</summary>
-        internal void OnAudioFilterRead(float[] data, int channels)
-        {
-            ProcessBuffer(data, channels);
         }
 
         /// <summary>Runs <paramref name="buffer" /> through the chains in order, in place.</summary>
@@ -269,8 +245,10 @@ namespace WallstopStudios.DxAudio
             DspGraph graph = graphInstance != null ? graphInstance.For(channels) : null;
             if (graph != null && !graph.IsPrepared)
             {
-                // A graph its asset cannot build or prepare runs nothing. Dropping it here makes a block that no stage
-                // shaped count as skipped, rather than passing through invisibly.
+                /*
+                    A graph its asset cannot build or prepare runs nothing. Dropping it here makes a block that no stage
+                    shaped count as skipped, rather than passing through invisibly.
+                */
                 graph = null;
             }
 
@@ -286,8 +264,10 @@ namespace WallstopStudios.DxAudio
             }
 
             _liveChannels = channels;
-            // A new play can arrive at any block shape, so every shape this asset prepared is cleared, not only the one
-            // this block happens to use. Otherwise a later block of another width would run the last play's delay line.
+            /*
+                A new play can arrive at any block shape, so every shape this asset prepared is cleared, not only the one
+                this block happens to use. Otherwise a later block of another width would run the last play's delay line.
+            */
             if (runningInstance != null && runningInstance.ClearBeforeNextBlock())
             {
                 runningInstance.Reset();
@@ -319,41 +299,68 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        private AudioSource Source
-        {
-            get
-            {
-                if (_source == null)
-                {
-                    _source = GetComponent<AudioSource>();
-                }
-
-                return _source;
-            }
-        }
-
-        private void Awake()
+        internal void PrepareCueLowPass()
         {
             _layout.Refresh();
-            Chain = _chain;
-            Graph = _graph;
-            BusChain = _busChain;
+            // Source callbacks can use a clip's channel shape before downmixing to the output layout.
+            SfxLowPass stage = new(_layout.SampleRate, _layout.BlockSize, Math.Max(8, _layout.Channels));
+            stage.Begin(_cueLowPassHertz);
+            _cueLowPass = stage;
         }
 
-        private void OnEnable()
+        internal void SetCueLowPass(float cutoffHertz)
         {
-            AudioSettings.OnAudioConfigurationChanged += OnAudioConfigurationChanged;
-            // A device change while this host was disabled never reached the handler. An unchanged layout leaves a
-            // running release alone, so a plain enable does not restart it.
-            if (!_layout.MatchesDevice())
+            if (cutoffHertz == 0f && _cueLowPassHertz == 0f)
             {
-                OnAudioConfigurationChanged(deviceChanged: true);
+                return;
             }
+
+            _cueLowPassHertz = cutoffHertz;
+            _cueLowPass?.Begin(cutoffHertz);
         }
 
-        private void OnDisable()
+        /// <summary>Whether a chain for <paramref name="asset" /> is already prepared here, so it cannot allocate.</summary>
+        internal bool IsPrepared(DspChainAsset asset)
         {
-            AudioSettings.OnAudioConfigurationChanged -= OnAudioConfigurationChanged;
+            if (asset == null)
+            {
+                return false;
+            }
+
+            foreach (Instance instance in _instances)
+            {
+                if (instance.asset == asset)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>Whether a graph for <paramref name="asset" /> is already prepared here, so it cannot allocate.</summary>
+        internal bool IsPrepared(DspGraphAsset asset)
+        {
+            if (asset == null)
+            {
+                return false;
+            }
+
+            foreach (GraphInstance instance in _graphInstances)
+            {
+                if (instance.asset == asset)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>Runs the block the engine hands this host. Unity calls it on the audio thread.</summary>
+        internal void OnAudioFilterRead(float[] data, int channels)
+        {
+            ProcessBuffer(data, channels);
         }
 
         /// <summary>Re-prepares the selected chains for a new output rate or layout. Runs on the main thread.</summary>
@@ -382,30 +389,31 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        /// <summary>Asks for <paramref name="instance" /> to be cleared before it next processes a block.</summary>
-        /// <remarks>
-        /// The request belongs to the instance, not to the host: a swap races the audio thread, and a host-wide flag
-        /// could be spent on the chain the block is finishing instead of the one the next play selected.
-        /// </remarks>
-        private static void MarkCleared(Instance instance)
+        private void Awake()
         {
-            if (instance != null)
+            _layout.Refresh();
+            Chain = _chain;
+            Graph = _graph;
+            BusChain = _busChain;
+        }
+
+        private void OnEnable()
+        {
+            AudioSettings.OnAudioConfigurationChanged += OnAudioConfigurationChanged;
+            /*
+                A device change while this host was disabled never reached the handler. An unchanged layout leaves a
+                running release alone, so a plain enable does not restart it.
+            */
+            if (!_layout.MatchesDevice())
             {
-                instance.slot.RequestClear();
+                OnAudioConfigurationChanged(deviceChanged: true);
             }
         }
 
-        /// <summary>Asks for <paramref name="instance" /> to be cleared before it next processes a block.</summary>
-        private static void MarkCleared(GraphInstance instance)
+        private void OnDisable()
         {
-            if (instance != null)
-            {
-                instance.ClearGeneration++;
-            }
+            AudioSettings.OnAudioConfigurationChanged -= OnAudioConfigurationChanged;
         }
-
-        /// <summary>The block shape a reading describes: the last block run, or the output layout before any block.</summary>
-        private int ReadingChannels => 0 < _liveChannels ? _liveChannels : _layout.Channels;
 
         /// <summary>The prepared chains for <paramref name="asset" /> in one slot, built the first time this voice meets it.</summary>
         private Instance InstanceFor(DspChainAsset asset, bool bus)
@@ -415,9 +423,8 @@ namespace WallstopStudios.DxAudio
                 return null;
             }
 
-            for (int index = 0; index < _instances.Count; index++)
+            foreach (Instance met in _instances)
             {
-                Instance met = _instances[index];
                 if (met.bus == bus && met.asset == asset)
                 {
                     return met;
@@ -439,9 +446,8 @@ namespace WallstopStudios.DxAudio
                 return null;
             }
 
-            for (int index = 0; index < _graphInstances.Count; index++)
+            foreach (GraphInstance met in _graphInstances)
             {
-                GraphInstance met = _graphInstances[index];
                 if (met.asset == asset)
                 {
                     return met;
@@ -504,18 +510,19 @@ namespace WallstopStudios.DxAudio
         private sealed class GraphInstance
         {
             public readonly DspGraphAsset asset;
-            private DspGraph[] _graphs = Array.Empty<DspGraph>();
-
-            public GraphInstance(DspGraphAsset asset)
-            {
-                this.asset = asset;
-            }
 
             /// <summary>The play that last asked for a clear. Written on the main thread only.</summary>
             public int ClearGeneration;
 
             /// <summary>The generation this instance has already cleared for. Written on the audio thread only.</summary>
             public int ClearedGeneration;
+
+            private DspGraph[] _graphs = Array.Empty<DspGraph>();
+
+            public GraphInstance(DspGraphAsset asset)
+            {
+                this.asset = asset;
+            }
 
             /// <summary>Whether a clear is owed to this instance, recording it as taken when one is.</summary>
             /// <remarks>
@@ -540,8 +547,10 @@ namespace WallstopStudios.DxAudio
                 _graphs = new DspGraph[shapes];
                 for (int index = 0; index < shapes; index++)
                 {
-                    // An asset that cannot be built leaves an unprepared graph, which passes every block through, the
-                    // same answer a chain that refuses its layout gives. The inspector reports why it was refused.
+                    /*
+                        An asset that cannot be built leaves an unprepared graph, which passes every block through, the
+                        same answer a chain that refuses its layout gives. The inspector reports why it was refused.
+                    */
                     DspGraph graph = asset.TryCreateGraph(out DspGraph built) ? built : new DspGraph();
                     _ = graph.TryPrepare(sampleRate, blockSize, index + 1, asset.IndexOfNode(asset.InputNode), asset.IndexOfNode(asset.OutputNode));
                     _graphs[index] = graph;
@@ -562,9 +571,9 @@ namespace WallstopStudios.DxAudio
             /// <summary>Clears every block shape this asset prepared, so a reused voice starts silent at any width.</summary>
             public void Reset()
             {
-                for (int index = 0; index < _graphs.Length; index++)
+                foreach (DspGraph graph in _graphs)
                 {
-                    _graphs[index].Reset();
+                    graph.Reset();
                 }
             }
         }

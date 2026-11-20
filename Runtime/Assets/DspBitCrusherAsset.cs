@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using UnityEngine;
 
@@ -6,6 +6,10 @@ namespace WallstopStudios.DxAudio
     [CreateAssetMenu(fileName = "DspBitCrusher", menuName = "DxAudio/DSP/Bit Crusher")]
     public sealed class DspBitCrusherAsset : DspEffectAsset
     {
+        public int Bits => _bits;
+
+        public int RateReduction => _rateReduction;
+
         [Range(1, 24)]
         [SerializeField]
         [Tooltip("How many bits each sample keeps. Eight is audible grit; one keeps only the two ends of the range.")]
@@ -15,10 +19,6 @@ namespace WallstopStudios.DxAudio
         [SerializeField]
         [Tooltip("How many frames each kept sample lasts. One rewrites every frame; four is a rough, lower sample rate.")]
         private int _rateReduction = DspBitCrusher.DefaultRateReduction;
-
-        public int Bits => _bits;
-
-        public int RateReduction => _rateReduction;
 
         /// <summary>Builds a bit crusher asset in code, for tests and for games that author audio at runtime.</summary>
         public static DspBitCrusherAsset Create(int bits = DspBitCrusher.DefaultBits, int rateReduction = DspBitCrusher.DefaultRateReduction)

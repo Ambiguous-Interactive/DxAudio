@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System.Collections.Generic;
     using UnityEngine;
@@ -20,18 +20,6 @@ namespace WallstopStudios.DxAudio
     [AddComponentMenu("DxAudio/Audio Mix Bus")]
     public sealed class AudioMixBus : MonoBehaviour
     {
-        [SerializeField]
-        [Tooltip("The chain this bus runs on the final mix, after Unity sums every source. Attach this object to the AudioListener.")]
-        private DspChainAsset _chain;
-
-        private readonly AudioLayout _layout = new();
-        private readonly List<DspChainSlot> _slots = new();
-
-        // Written on the main thread, read on the audio thread. Volatile makes a swap visible to the next block.
-        private volatile DspChainSlot _running;
-        private int _liveChannels;
-        private int _skippedBlocks;
-
         /// <summary>The chain this bus runs, or null when it passes the mix through.</summary>
         /// <remarks>
         /// Assigning another asset selects that asset's prepared chain and clears it at the next block, never here: the
@@ -83,7 +71,25 @@ namespace WallstopStudios.DxAudio
         public int SkippedBlocks => _skippedBlocks;
 
         /// <summary>Whether this object also carries the AudioListener a mix bus needs to receive the mix.</summary>
-        public bool IsOnListener => GetComponent<AudioListener>() != null;
+        public bool IsOnListener => TryGetComponent<AudioListener>(out _);
+
+        /// <summary>The sample rate every slot here was prepared with, for a test that checks a device change.</summary>
+        internal int PreparedSampleRate => _layout.SampleRate;
+
+        /// <summary>The block shape a reading describes: the last block run, or the output layout before any block.</summary>
+        private int ReadingChannels => 0 < _liveChannels ? _liveChannels : _layout.Channels;
+
+        [SerializeField]
+        [Tooltip("The chain this bus runs on the final mix, after Unity sums every source. Attach this object to the AudioListener.")]
+        private DspChainAsset _chain;
+
+        private readonly AudioLayout _layout = new();
+        private readonly List<DspChainSlot> _slots = new();
+
+        // Written on the main thread, read on the audio thread. Volatile makes a swap visible to the next block.
+        private volatile DspChainSlot _running;
+        private int _liveChannels;
+        private int _skippedBlocks;
 
         /// <summary>Prepares <paramref name="asset" />'s chain now, so the first block that meets it allocates nothing.</summary>
         public void Warm(DspChainAsset asset)
@@ -99,9 +105,9 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
-            for (int index = 0; index < _slots.Count; index++)
+            foreach (DspChainSlot slot in _slots)
             {
-                if (_slots[index].Asset == asset)
+                if (slot.Asset == asset)
                 {
                     return true;
                 }
@@ -143,16 +149,6 @@ namespace WallstopStudios.DxAudio
             chain.Process(buffer, 0, buffer.Length, channels);
         }
 
-        private void OnAudioFilterRead(float[] data, int channels)
-        {
-            ProcessBuffer(data, channels);
-        }
-
-        private void Awake()
-        {
-            Initialize();
-        }
-
         /// <summary>Reads the serialized chain and prepares it. This is what <see cref="Awake" /> runs.</summary>
         /// <remarks>
         /// It does not go through the <see cref="Chain" /> setter, because that setter treats the asset already stored
@@ -164,14 +160,36 @@ namespace WallstopStudios.DxAudio
             Select(_chain);
         }
 
-        /// <summary>The sample rate every slot here was prepared with, for a test that checks a device change.</summary>
-        internal int PreparedSampleRate => _layout.SampleRate;
+        /// <summary>Re-prepares the selected chain for a new output rate or layout. Runs on the main thread.</summary>
+        /// <remarks>
+        /// A chain's delay lines are sized from the sample rate, so a device change leaves the prepared chain wrong
+        /// until this runs. The old slot stays alive for the block in flight and is dropped after it.
+        /// </remarks>
+        internal void OnAudioConfigurationChanged(bool deviceChanged)
+        {
+            _layout.Invalidate();
+            _liveChannels = 0;
+            _slots.Clear();
+            Select(_chain);
+        }
+
+        private void OnAudioFilterRead(float[] data, int channels)
+        {
+            ProcessBuffer(data, channels);
+        }
+
+        private void Awake()
+        {
+            Initialize();
+        }
 
         private void OnEnable()
         {
             AudioSettings.OnAudioConfigurationChanged += OnAudioConfigurationChanged;
-            // A device change while this component was disabled never reached the handler. An unchanged layout leaves a
-            // running release alone, so a plain enable does not restart it.
+            /*
+                A device change while this component was disabled never reached the handler. An unchanged layout leaves a
+                running release alone, so a plain enable does not restart it.
+            */
             if (!_layout.MatchesDevice())
             {
                 OnAudioConfigurationChanged(deviceChanged: true);
@@ -198,19 +216,6 @@ namespace WallstopStudios.DxAudio
             AudioSettings.OnAudioConfigurationChanged -= OnAudioConfigurationChanged;
         }
 
-        /// <summary>Re-prepares the selected chain for a new output rate or layout. Runs on the main thread.</summary>
-        /// <remarks>
-        /// A chain's delay lines are sized from the sample rate, so a device change leaves the prepared chain wrong
-        /// until this runs. The old slot stays alive for the block in flight and is dropped after it.
-        /// </remarks>
-        internal void OnAudioConfigurationChanged(bool deviceChanged)
-        {
-            _layout.Invalidate();
-            _liveChannels = 0;
-            _slots.Clear();
-            Select(_chain);
-        }
-
         /// <summary>Publishes the prepared slot for <paramref name="asset" />, owing it a clear first.</summary>
         private void Select(DspChainAsset asset)
         {
@@ -223,9 +228,6 @@ namespace WallstopStudios.DxAudio
             _running = prepared;
         }
 
-        /// <summary>The block shape a reading describes: the last block run, or the output layout before any block.</summary>
-        private int ReadingChannels => 0 < _liveChannels ? _liveChannels : _layout.Channels;
-
         /// <summary>The prepared chain for <paramref name="asset" /> in one slot, built the first time this bus meets it.</summary>
         private DspChainSlot SlotFor(DspChainAsset asset)
         {
@@ -234,11 +236,11 @@ namespace WallstopStudios.DxAudio
                 return null;
             }
 
-            for (int index = 0; index < _slots.Count; index++)
+            foreach (DspChainSlot slot in _slots)
             {
-                if (_slots[index].Asset == asset)
+                if (slot.Asset == asset)
                 {
-                    return _slots[index];
+                    return slot;
                 }
             }
 

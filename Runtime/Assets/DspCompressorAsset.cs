@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using UnityEngine;
 
@@ -6,6 +6,16 @@ namespace WallstopStudios.DxAudio
     [CreateAssetMenu(fileName = "DspCompressor", menuName = "DxAudio/DSP/Compressor")]
     public sealed class DspCompressorAsset : DspEffectAsset
     {
+        public float ThresholdDecibels => _thresholdDecibels;
+
+        public float Ratio => _ratio;
+
+        public float AttackSeconds => _attackSeconds;
+
+        public float ReleaseSeconds => _releaseSeconds;
+
+        public float MakeupDecibels => _makeupDecibels;
+
         [Range(-60f, 0f)]
         [SerializeField]
         [Tooltip("The level where reduction starts, in dBFS. A cue sitting under it passes untouched.")]
@@ -30,16 +40,6 @@ namespace WallstopStudios.DxAudio
         [SerializeField]
         [Tooltip("Gain added after the reduction. A lift can pass full scale, so put a limiter last if a ceiling is needed.")]
         private float _makeupDecibels;
-
-        public float ThresholdDecibels => _thresholdDecibels;
-
-        public float Ratio => _ratio;
-
-        public float AttackSeconds => _attackSeconds;
-
-        public float ReleaseSeconds => _releaseSeconds;
-
-        public float MakeupDecibels => _makeupDecibels;
 
         /// <summary>Builds a compressor asset in code, for tests and for games that author audio at runtime.</summary>
         public static DspCompressorAsset Create(

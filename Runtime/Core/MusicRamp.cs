@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
 
@@ -10,6 +10,14 @@ namespace WallstopStudios.DxAudio
     /// </remarks>
     public struct MusicRamp
     {
+        public float ElapsedSeconds => _elapsedSeconds;
+
+        public bool IsFinished => seconds <= _elapsedSeconds;
+
+        /// <summary>How far through the ramp it is, in [0, 1], before easing.</summary>
+        public float Progress => seconds <= 0f ? 1f : AudioMath.Clamp01(_elapsedSeconds / seconds);
+
+        public float Value => AudioMath.Lerp(from, to, MusicEasing.Evaluate(ease, Progress));
         public readonly float from;
         public readonly float to;
         public readonly float seconds;
@@ -31,15 +39,6 @@ namespace WallstopStudios.DxAudio
         {
             return new MusicRamp(value, value, 0f, MusicEase.Linear);
         }
-
-        public float ElapsedSeconds => _elapsedSeconds;
-
-        public bool IsFinished => seconds <= _elapsedSeconds;
-
-        /// <summary>How far through the ramp it is, in [0, 1], before easing.</summary>
-        public float Progress => seconds <= 0f ? 1f : AudioMath.Clamp01(_elapsedSeconds / seconds);
-
-        public float Value => AudioMath.Lerp(from, to, MusicEasing.Evaluate(ease, Progress));
 
         /// <summary>Moves the ramp on by <paramref name="deltaSeconds"/> and returns its value.</summary>
         public float Advance(float deltaSeconds)

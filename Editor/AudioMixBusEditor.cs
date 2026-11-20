@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Editor
+﻿namespace WallstopStudios.DxAudio.Editor
 {
     using UnityEditor;
     using UnityEditor.UIElements;
@@ -40,7 +40,7 @@ namespace WallstopStudios.DxAudio.Editor
                     )
                 );
             }
-            else if (bus.GetComponent<AudioSource>() != null)
+            else if (bus.TryGetComponent<AudioSource>(out _))
             {
                 root.Insert(
                     0,

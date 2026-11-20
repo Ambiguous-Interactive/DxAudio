@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Tests.Editor
+﻿namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System;
     using System.Collections.Generic;
@@ -11,12 +11,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public static IEnumerable<MusicEase> Eases()
         {
             MusicEase[] values = (MusicEase[])Enum.GetValues(typeof(MusicEase));
-            for (int index = 0; index < values.Length; ++index)
+            foreach (MusicEase value in values)
             {
                 // The unset sentinel is not a fade curve; its own case asserts it renders as linear.
-                if (values[index] != default)
+                if (value != default)
                 {
-                    yield return values[index];
+                    yield return value;
                 }
             }
         }

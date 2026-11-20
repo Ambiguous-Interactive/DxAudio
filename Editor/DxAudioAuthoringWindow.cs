@@ -41,6 +41,18 @@
         private int _selectedNode = -1;
         private int _selectedEdge = -1;
 
+        internal static void Open(Object asset)
+        {
+            DxAudioAuthoringWindow window = GetWindow<DxAudioAuthoringWindow>();
+            window.titleContent = new GUIContent("DxAudio Authoring");
+            window.minSize = new Vector2(680, 400);
+            window.Show();
+            if (asset != null)
+            {
+                window.SetTarget(asset);
+            }
+        }
+
         [MenuItem("Tools/DxAudio/Authoring")]
         private static void OpenWindow()
         {
@@ -53,16 +65,19 @@
             Open(selected is DspGraphAsset || selected is DspChainAsset || DxAudioAssetDetails.Supports(selected) ? selected : null);
         }
 
-        internal static void Open(Object asset)
+        private static string TypeLabel(Object asset)
         {
-            DxAudioAuthoringWindow window = GetWindow<DxAudioAuthoringWindow>();
-            window.titleContent = new GUIContent("DxAudio Authoring");
-            window.minSize = new Vector2(680, 400);
-            window.Show();
-            if (asset != null)
+            if (asset == null)
             {
-                window.SetTarget(asset);
+                return string.Empty;
             }
+
+            return ObjectNames.NicifyVariableName(asset.GetType().Name).Replace(" Asset", string.Empty);
+        }
+
+        private static string DisplayNodeName(string name)
+        {
+            return string.IsNullOrEmpty(name) ? "Unassigned" : name;
         }
 
         public void CreateGUI()
@@ -173,16 +188,6 @@
             label.text = asset == null ? "Deleted asset" : $"{asset.name}  ·  {type}";
             label.tooltip = asset == null ? string.Empty : AssetDatabase.GetAssetPath(asset);
             label.style.paddingLeft = 6;
-        }
-
-        private static string TypeLabel(Object asset)
-        {
-            if (asset == null)
-            {
-                return string.Empty;
-            }
-
-            return ObjectNames.NicifyVariableName(asset.GetType().Name).Replace(" Asset", string.Empty);
         }
 
         private void RefreshAssets()
@@ -509,11 +514,6 @@
                     }
                 );
             }
-        }
-
-        private static string DisplayNodeName(string name)
-        {
-            return string.IsNullOrEmpty(name) ? "Unassigned" : name;
         }
 
         private void BuildNodeDetails(int index, List<string> names)

@@ -27,22 +27,6 @@
         /// <summary>The channel count <see cref="FindProblems" /> prepares with when it checks the memory budget.</summary>
         public const int ReferenceChannels = 2;
 
-        [SerializeField]
-        [Tooltip("The nodes the signal can pass through. Each one runs a chain, or passes its input on when its chain is empty.")]
-        private List<DspGraphNode> _nodes = new();
-
-        [SerializeField]
-        [Tooltip("The connections between nodes. A node with several incoming edges sums them, and one with several outgoing edges feeds every one.")]
-        private List<DspGraphEdge> _edges = new();
-
-        [SerializeField]
-        [Tooltip("The node that receives the voice's block. The signal enters here.")]
-        private string _inputNode;
-
-        [SerializeField]
-        [Tooltip("The node that leaves the graph. The signal is read from here.")]
-        private string _outputNode;
-
         /// <summary>The authored nodes, in the order the account lists them.</summary>
         public IReadOnlyList<DspGraphNode> Nodes => _nodes;
 
@@ -60,6 +44,33 @@
 
         /// <summary>How many edges the graph holds.</summary>
         public int EdgeCount => _edges.Count;
+
+        [SerializeField]
+        [Tooltip("The nodes the signal can pass through. Each one runs a chain, or passes its input on when its chain is empty.")]
+        private List<DspGraphNode> _nodes = new();
+
+        [SerializeField]
+        [Tooltip("The connections between nodes. A node with several incoming edges sums them, and one with several outgoing edges feeds every one.")]
+        private List<DspGraphEdge> _edges = new();
+
+        [SerializeField]
+        [Tooltip("The node that receives the voice's block. The signal enters here.")]
+        private string _inputNode;
+
+        [SerializeField]
+        [Tooltip("The node that leaves the graph. The signal is read from here.")]
+        private string _outputNode;
+
+        /// <summary>Builds a graph asset in code, for tests and for games that author audio at runtime.</summary>
+        public static DspGraphAsset Create(IEnumerable<DspGraphNode> nodes, IEnumerable<DspGraphEdge> edges, string inputNode, string outputNode)
+        {
+            DspGraphAsset asset = CreateInstance<DspGraphAsset>();
+            asset._nodes = nodes == null ? new List<DspGraphNode>() : new List<DspGraphNode>(nodes);
+            asset._edges = edges == null ? new List<DspGraphEdge>() : new List<DspGraphEdge>(edges);
+            asset._inputNode = inputNode ?? string.Empty;
+            asset._outputNode = outputNode ?? string.Empty;
+            return asset;
+        }
 
         /// <summary>The position of the node named <paramref name="name" />, or -1 when no node holds that name.</summary>
         /// <remarks>
@@ -124,9 +135,8 @@
                 }
             }
 
-            for (int index = 0; index < _edges.Count; index++)
+            foreach (DspGraphEdge edge in _edges)
             {
-                DspGraphEdge edge = _edges[index];
                 if (edge == null || !built.TryAddEdge(IndexOfNode(edge.From), IndexOfNode(edge.To)))
                 {
                     return false;
@@ -250,22 +260,11 @@
             return found ? null : PrepareForFindings(Add);
         }
 
-        /// <summary>Builds a graph asset in code, for tests and for games that author audio at runtime.</summary>
-        public static DspGraphAsset Create(IEnumerable<DspGraphNode> nodes, IEnumerable<DspGraphEdge> edges, string inputNode, string outputNode)
-        {
-            DspGraphAsset asset = CreateInstance<DspGraphAsset>();
-            asset._nodes = nodes == null ? new List<DspGraphNode>() : new List<DspGraphNode>(nodes);
-            asset._edges = edges == null ? new List<DspGraphEdge>() : new List<DspGraphEdge>(edges);
-            asset._inputNode = inputNode ?? string.Empty;
-            asset._outputNode = outputNode ?? string.Empty;
-            return asset;
-        }
-
         /// <summary>Adds one problem per edge the graph refuses after its ends are known to exist.</summary>
         private void AddCycleProblems(Action<int, int, string> report)
         {
             DspGraph probe = new();
-            for (int index = 0; index < _nodes.Count; index++)
+            for (int remaining = _nodes.Count; 0 < remaining; --remaining)
             {
                 _ = probe.TryAddNode(new DspChain(), out _);
             }
@@ -295,9 +294,8 @@
             while (grew)
             {
                 grew = false;
-                for (int index = 0; index < _edges.Count; index++)
+                foreach (DspGraphEdge edge in _edges)
                 {
-                    DspGraphEdge edge = _edges[index];
                     int from = IndexOfNode(edge.From);
                     int to = IndexOfNode(edge.To);
                     if (reached[from] && !reached[to])

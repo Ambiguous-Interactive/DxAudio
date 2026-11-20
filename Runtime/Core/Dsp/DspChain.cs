@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
     using System.Collections.Generic;
@@ -14,17 +14,6 @@ namespace WallstopStudios.DxAudio
     /// </remarks>
     public sealed class DspChain
     {
-        private readonly List<DspEffect> _effects;
-        private int _sampleRate;
-        private int _maxBlockSize;
-        private int _channels;
-        private bool _prepared;
-
-        public DspChain()
-        {
-            _effects = new List<DspEffect>();
-        }
-
         public int Count => _effects.Count;
 
         public DspEffect this[int index] => _effects[index];
@@ -61,6 +50,16 @@ namespace WallstopStudios.DxAudio
 
                 return held;
             }
+        }
+        private readonly List<DspEffect> _effects;
+        private int _sampleRate;
+        private int _maxBlockSize;
+        private int _channels;
+        private bool _prepared;
+
+        public DspChain()
+        {
+            _effects = new List<DspEffect>();
         }
 
         /// <summary>Appends <paramref name="effect"/> to the end of the chain.</summary>
@@ -112,8 +111,10 @@ namespace WallstopStudios.DxAudio
             _sampleRate = sampleRate;
             _maxBlockSize = maxBlockSize;
             _channels = channels;
-            // Indexed on purpose. A stage may append to this chain from its own Prepare, and an enumerator would
-            // throw; the count is read per pass so the appended stage is prepared too in the same call.
+            /*
+                Indexed on purpose. A stage may append to this chain from its own Prepare, and an enumerator would
+                throw; the count is read per pass so the appended stage is prepared too in the same call.
+            */
             for (int i = 0; i < _effects.Count; i++)
             {
                 _ = _effects[i].TryPrepare(sampleRate, maxBlockSize, channels);
@@ -132,8 +133,10 @@ namespace WallstopStudios.DxAudio
                 return;
             }
 
-            // Indexed for the same reason as TryPrepare: a stage that appends while processing must not make the
-            // audio thread throw. The new stage runs in this block.
+            /*
+                Indexed for the same reason as TryPrepare: a stage that appends while processing must not make the
+                audio thread throw. The new stage runs in this block.
+            */
             for (int i = 0; i < _effects.Count; i++)
             {
                 _effects[i].Process(buffer, offset, count, channels);

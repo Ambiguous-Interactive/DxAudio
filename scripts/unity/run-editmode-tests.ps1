@@ -1,9 +1,9 @@
 #Requires -Version 7.0
-# Run DxAudio's EditMode tests in a disposable Unity project.
+# Validate DxAudio in a disposable Unity project.
 #
 # The package has no Unity project of its own, so this script creates a minimal
-# project that references the checkout as a local package. The `testables` entry
-# compiles Tests/Editor, which a plain file dependency does not include.
+# project that references a staged package. The `testables` entry compiles its
+# tests. Archive mode uses the npm tarball and a separate consumer smoke.
 #
 # The DxMessaging integration is optional: leave -DxMessagingVersion empty to
 # prove the package compiles and its suite passes with the dependency absent, and
@@ -15,7 +15,9 @@ param(
     [string]$UnityEditorPath = $env:UNITY_EDITOR_PATH,
     [string]$PackageRoot = $env:GITHUB_WORKSPACE,
     [string]$DxMessagingVersion = $env:DXMESSAGING_VERSION,
-    [string]$Label = $env:UNITY_TEST_LABEL
+    [string]$Label = $env:UNITY_TEST_LABEL,
+    [string]$ConsumerArchive = $env:DXAUDIO_CONSUMER_ARCHIVE,
+    [switch]$ArchiveSmoke
 )
 
 Set-StrictMode -Version Latest
@@ -47,20 +49,37 @@ if (Test-Path -LiteralPath $projectPath) {
 }
 $packagesPath = Join-Path $projectPath 'Packages'
 $settingsPath = Join-Path $projectPath 'ProjectSettings'
-New-Item -ItemType Directory -Force -Path `
-    (Join-Path $projectPath 'Assets'), $packagesPath, $settingsPath | Out-Null
+$assetsPath = Join-Path $projectPath 'Assets'
+New-Item -ItemType Directory -Force -Path $assetsPath, $packagesPath, $settingsPath | Out-Null
 
-$testFramework = if ($UnityVersion -like '2021.*') { '1.1.33' } else { '1.4.6' }
-$packageUri = $PackageRoot.Replace('\', '/')
 $manifest = [ordered]@{
     dependencies = [ordered]@{
-        'com.unity.test-framework' = $testFramework
-        # The package uses AudioSource, AudioClip, and AudioMixerGroup. A
-        # built-in module that the manifest omits is excluded from the project.
         'com.unity.modules.audio' = '1.0.0'
-        'com.wallstop-studios.dxaudio' = "file:$packageUri"
+        'com.unity.modules.imgui' = '1.0.0'
     }
-    testables = @('com.wallstop-studios.dxaudio')
+}
+if ($ArchiveSmoke) {
+    if ([string]::IsNullOrWhiteSpace($ConsumerArchive) -or -not (Test-Path -LiteralPath $ConsumerArchive -PathType Leaf)) {
+        throw 'The pristine consumer tarball is missing.'
+    }
+    if (-not [string]::IsNullOrWhiteSpace($DxMessagingVersion)) {
+        throw 'The consumer archive smoke requires the optional integration to be absent.'
+    }
+    Copy-Item -LiteralPath $ConsumerArchive -Destination (Join-Path $packagesPath 'dxaudio.tgz')
+    $manifest.dependencies['com.wallstop-studios.dxaudio'] = 'file:dxaudio.tgz'
+    $editorPath = New-Item -ItemType Directory -Path (Join-Path $assetsPath 'Editor')
+    Copy-Item -LiteralPath (Join-Path $PackageRoot '.net-tests/UnityValidation/ArchiveSmoke.cs') -Destination $editorPath.FullName
+} else {
+    $stagedPackage = Join-Path $projectPath 'DxAudio'
+    $prepareScript = Join-Path $PSScriptRoot 'prepare-package.py'
+    $samplePath = Join-Path $assetsPath 'BasicUsage'
+    uv run --no-project $prepareScript --source $PackageRoot --destination $stagedPackage --sample-destination $samplePath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not stage the analysis package (exit code $LASTEXITCODE)."
+    }
+    $manifest.dependencies['com.wallstop-studios.dxaudio'] = 'file:../DxAudio'
+    $manifest.dependencies['com.unity.test-framework'] = if ($UnityVersion -like '2021.*') { '1.1.33' } else { '1.4.6' }
+    $manifest.testables = @('com.wallstop-studios.dxaudio')
 }
 if (-not [string]::IsNullOrWhiteSpace($DxMessagingVersion)) {
     # The integration is guarded by a version define, so without this entry the
@@ -75,25 +94,24 @@ if (-not [string]::IsNullOrWhiteSpace($DxMessagingVersion)) {
     )
 }
 $manifest = $manifest | ConvertTo-Json -Depth 5
-Set-Content -LiteralPath (Join-Path $packagesPath 'manifest.json') -Value $manifest -Encoding utf8
+Set-Content -LiteralPath (Join-Path $packagesPath 'manifest.json') -Value $manifest -Encoding utf8NoBOM
 Set-Content -LiteralPath (Join-Path $settingsPath 'ProjectVersion.txt') `
-    -Value "m_EditorVersion: $UnityVersion" -Encoding utf8
+    -Value "m_EditorVersion: $UnityVersion" -Encoding utf8NoBOM
 
 $artifactsPath = Join-Path $env:RUNNER_TEMP "dxaudio-results-$runName"
+if (Test-Path -LiteralPath $artifactsPath) {
+    Remove-Item -LiteralPath $artifactsPath -Recurse -Force
+}
 New-Item -ItemType Directory -Force -Path $artifactsPath | Out-Null
 $resultsPath = Join-Path $artifactsPath 'editmode-results.xml'
 $logPath = Join-Path $artifactsPath 'editmode.log'
+New-Item -ItemType File -Path $logPath | Out-Null
 
 $unityArgs = @(
     '-batchmode'
     '-nographics'
     '-projectPath'
     $projectPath
-    '-runTests'
-    '-testPlatform'
-    'EditMode'
-    '-testResults'
-    $resultsPath
     '-logFile'
     '-'
     '-serial'
@@ -103,27 +121,66 @@ $unityArgs = @(
     '-password'
     $env:UNITY_PASSWORD
 )
+if ($ArchiveSmoke) {
+    $unityArgs += @('-quit', '-executeMethod', 'WallstopStudios.DxAudio.Validation.ArchiveSmoke.Run')
+} else {
+    $unityArgs += @('-runTests', '-testPlatform', 'EditMode', '-testResults', $resultsPath)
+}
 # Unity writes its log to stdout. Tee it to the log file as it arrives so a
 # timed-out run leaves the evidence the follow-up tail step reads. The final
 # Out-Null keeps the log out of the shared job log.
 $exitCode = 1
 try {
+    $env:DXMESSAGING_VERSION = $DxMessagingVersion
     & $UnityEditorPath @unityArgs 2>&1 | Tee-Object -FilePath $logPath | Out-Null
     if (Test-Path -LiteralPath variable:\LASTEXITCODE) {
         $exitCode = $LASTEXITCODE
     }
 } catch {
-    Write-Host "Unity invocation failed: $_"
+    Write-RedactedLogTail -Path $logPath
     throw
 }
 
-if (-not (Test-Path -LiteralPath $resultsPath -PathType Leaf)) {
-    Write-Host "Unity did not write an EditMode result file (exit code $exitCode). Redacted log tail:"
-    Write-RedactedLogTail -Path $logPath
-    throw "Unity did not write an EditMode result file (exit code $exitCode). Log: $logPath"
-}
 if ($exitCode -ne 0) {
-    Write-Host "Unity EditMode tests failed with exit code $exitCode. Redacted log tail:"
     Write-RedactedLogTail -Path $logPath
-    throw "Unity EditMode tests failed with exit code $exitCode. Log: $logPath"
+    throw "Unity failed with exit code $exitCode. Log: $logPath"
 }
+if (Select-String -LiteralPath $logPath -Pattern '\b(?:AD0001|AD0002|CS8032|CS8034|CS9057)\b' -Quiet) {
+    Write-RedactedLogTail -Path $logPath
+    throw 'Unity reported an analyzer load failure or exception.'
+}
+if ($ArchiveSmoke) {
+    if (-not (Select-String -LiteralPath $logPath -SimpleMatch 'DxAudio archive and player script validation passed.' -Quiet)) {
+        Write-RedactedLogTail -Path $logPath
+        throw 'Unity did not confirm the archive and player script validation.'
+    }
+    return
+}
+
+if (-not (Test-Path -LiteralPath $resultsPath -PathType Leaf)) {
+    Write-RedactedLogTail -Path $logPath
+    throw "Unity did not write an EditMode result file. Log: $logPath"
+}
+[xml]$results = Get-Content -LiteralPath $resultsPath -Raw
+$testRun = $results.SelectSingleNode('/test-run')
+if ($null -eq $testRun -or $testRun.GetAttribute('result') -ne 'Passed' -or [int]$testRun.GetAttribute('passed') -le 0) {
+    throw 'Unity did not report a passing EditMode run with executed tests.'
+}
+foreach ($test in @(
+    'AllExpectedAssembliesUseThePinnedAnalyzers',
+    'AssemblyDefinitionsMatchTheCompilerReferenceGraph',
+    'EditorOnlyAssembliesContainNoConcreteMonoBehaviours'
+)) {
+    $evidence = $results.SelectSingleNode("//test-case[@name='$test']")
+    if ($null -eq $evidence -or $evidence.GetAttribute('result') -ne 'Passed') {
+        throw "Unity did not report a passing $test control."
+    }
+}
+$integrationSuite = $results.SelectSingleNode(
+    '//test-suite[@type="Assembly" and (@name="WallstopStudios.DxAudio.Tests.Integration.DxMessaging.dll" or @name="WallstopStudios.DxAudio.Tests.Integration.DxMessaging")]'
+)
+$expectIntegration = -not [string]::IsNullOrWhiteSpace($DxMessagingVersion)
+if (($null -ne $integrationSuite) -ne $expectIntegration -or ($expectIntegration -and [int]$integrationSuite.GetAttribute('passed') -le 0)) {
+    throw 'The EditMode results do not match the expected DxMessaging test state.'
+}
+Write-Host "EditMode passed $($testRun.GetAttribute('passed')) tests on $runName."

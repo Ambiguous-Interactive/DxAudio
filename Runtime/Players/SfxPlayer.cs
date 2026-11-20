@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
     using System.Collections.Generic;
@@ -50,44 +50,6 @@ namespace WallstopStudios.DxAudio
     [AddComponentMenu("DxAudio/Sfx Player")]
     public sealed class SfxPlayer : MonoBehaviour
     {
-        [SerializeField]
-        private SfxLibrary _library;
-
-        [SerializeField]
-        [Tooltip("Silences every voice while set. Cues still claim voices and rate limits, so loops resume on unmute.")]
-        private bool _muted;
-
-        [SerializeField]
-        [Tooltip("The listener a centred cue is placed in front of. Empty uses the main camera's.")]
-        private AudioListener _listener;
-
-        [SerializeField]
-        [Tooltip("A chain every voice runs after its cue's own, one voice at a time. It cannot hold the sum of the voices under a ceiling. Empty passes through.")]
-        private DspChainAsset _busChain;
-
-        private bool _paused;
-        private Func<int, ISfxRandom> _randomFactory;
-
-        private readonly SfxThrottle<SfxCue> _throttle = new();
-        private readonly SfxPlaybackResolver _playback = new();
-
-        private AudioSource[] _voices = Array.Empty<AudioSource>();
-        private AudioFilterHost[] _hosts = Array.Empty<AudioFilterHost>();
-        private SfxVoiceState[] _states = Array.Empty<SfxVoiceState>();
-        private SfxPriority[] _priorities = Array.Empty<SfxPriority>();
-        private float[] _startedAt = Array.Empty<float>();
-        private bool[] _held = Array.Empty<bool>();
-        private bool[] _voicePaused = Array.Empty<bool>();
-        private int[] _leases = Array.Empty<int>();
-        private int _heldCount;
-        private int _nextLease;
-        private int _roundRobin;
-        private int _droppedNotPlayable;
-        private int _droppedThrottled;
-        private int _droppedNoVoice;
-        private int _droppedLoopLimit;
-        private int _droppedWrongPlayMethod;
-
         /// <summary>Raised for every cue that did not play, and why.</summary>
         public event Action<SfxCue, SfxDropReason> CueDropped;
 
@@ -106,7 +68,6 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        /// <summary>The game's sound on/off setting. Muting keeps every voice's state, so loops resume on unmute.</summary>
         /// <summary>Creates the random streams used to draw takes, pitch, and level.</summary>
         /// <remarks>
         /// Return a fresh, independently seeded generator for each seed. Set this before assigning the library,
@@ -127,6 +88,7 @@ namespace WallstopStudios.DxAudio
             }
         }
 
+        /// <summary>The game's sound on/off setting. Muting keeps every voice's state, so loops resume on unmute.</summary>
         public bool Muted
         {
             get => _muted;
@@ -156,9 +118,8 @@ namespace WallstopStudios.DxAudio
             set
             {
                 _busChain = value;
-                for (int index = 0; index < _hosts.Length; index++)
+                foreach (AudioFilterHost host in _hosts)
                 {
-                    AudioFilterHost host = _hosts[index];
                     if (host != null)
                     {
                         host.BusChain = value;
@@ -217,6 +178,56 @@ namespace WallstopStudios.DxAudio
         /// <summary>Every cue this player dropped, counted by reason. Reading it allocates nothing.</summary>
         public SfxDropCounts DropCounts => new(_droppedNotPlayable, _droppedThrottled, _droppedNoVoice, _droppedLoopLimit, _droppedWrongPlayMethod);
 
+        [SerializeField]
+        private SfxLibrary _library;
+
+        [SerializeField]
+        [Tooltip("Silences every voice while set. Cues still claim voices and rate limits, so loops resume on unmute.")]
+        private bool _muted;
+
+        [SerializeField]
+        [Tooltip("The listener a centred cue is placed in front of. Empty uses the main camera's.")]
+        private AudioListener _listener;
+
+        [SerializeField]
+        [Tooltip("A chain every voice runs after its cue's own, one voice at a time. It cannot hold the sum of the voices under a ceiling. Empty passes through.")]
+        private DspChainAsset _busChain;
+
+        private bool _paused;
+        private Func<int, ISfxRandom> _randomFactory;
+
+        private readonly SfxThrottle<SfxCue> _throttle = new();
+        private readonly SfxPlaybackResolver _playback = new();
+
+        private AudioSource[] _voices = Array.Empty<AudioSource>();
+        private AudioFilterHost[] _hosts = Array.Empty<AudioFilterHost>();
+        private SfxVoiceState[] _states = Array.Empty<SfxVoiceState>();
+        private SfxPriority[] _priorities = Array.Empty<SfxPriority>();
+        private float[] _startedAt = Array.Empty<float>();
+        private bool[] _held = Array.Empty<bool>();
+        private bool[] _voicePaused = Array.Empty<bool>();
+        private int[] _leases = Array.Empty<int>();
+        private int _heldCount;
+        private int _nextLease;
+        private int _roundRobin;
+        private int _droppedNotPlayable;
+        private int _droppedThrottled;
+        private int _droppedNoVoice;
+        private int _droppedLoopLimit;
+        private int _droppedWrongPlayMethod;
+
+        private static void DestroyVoice(GameObject voice)
+        {
+            if (Application.isPlaying)
+            {
+                Destroy(voice);
+            }
+            else
+            {
+                DestroyImmediate(voice);
+            }
+        }
+
         /// <summary>What voice <paramref name="voice"/> is doing, for a diagnostic.</summary>
         /// <param name="lease">The loop lease when a looping cue holds the voice, otherwise zero.</param>
         /// <returns><see langword="false"/> when the pool has no such voice.</returns>
@@ -233,9 +244,11 @@ namespace WallstopStudios.DxAudio
             bool usable = source != null;
             if (usable && VoiceClip.HasLostSound(source))
             {
-                // A source whose clip was released, or whose data was unloaded while it played, reports playback
-                // while it makes no sound. It is not busy, and it is silent, so stop it while the pool is being read
-                // anyway.
+                /*
+                    A source whose clip was released, or whose data was unloaded while it played, reports playback
+                    while it makes no sound. It is not busy, and it is silent, so stop it while the pool is being read
+                    anyway.
+                */
                 source.Stop();
                 _voicePaused[voice] = false;
             }
@@ -316,9 +329,8 @@ namespace WallstopStudios.DxAudio
             }
 
             _playback.Warm(cue);
-            for (int index = 0; index < _hosts.Length; index++)
+            foreach (AudioFilterHost host in _hosts)
             {
-                AudioFilterHost host = _hosts[index];
                 if (host != null)
                 {
                     host.Warm(cue.Chain);
@@ -350,20 +362,6 @@ namespace WallstopStudios.DxAudio
 
             _throttle.Clear();
             _playback.ClearHistory();
-        }
-
-        private void Awake()
-        {
-            if (_library != null && _voices.Length == 0)
-            {
-                BuildVoices();
-            }
-        }
-
-        private void OnDestroy()
-        {
-            CueDropped = null;
-            DestroyVoices();
         }
 
         /// <summary>Releases every hold whose voice or clip is gone, so it stops counting against the limit.</summary>
@@ -401,6 +399,20 @@ namespace WallstopStudios.DxAudio
                     _voicePaused[index] = false;
                 }
             }
+        }
+
+        private void Awake()
+        {
+            if (_library != null && _voices.Length == 0)
+            {
+                BuildVoices();
+            }
+        }
+
+        private void OnDestroy()
+        {
+            CueDropped = null;
+            DestroyVoices();
         }
 
         private void Update()
@@ -441,8 +453,10 @@ namespace WallstopStudios.DxAudio
                 }
             }
 
-            // A loop stands for a state, so it is never rate-limited: stopping and restarting one in a
-            // frame, or two owners starting the same hum together, must both get their loop.
+            /*
+                A loop stands for a state, so it is never rate-limited: stopping and restarting one in a
+                frame, or two owners starting the same hum together, must both get their loop.
+            */
             float now = Time.unscaledTime;
             if (!looping && !_throttle.IsReady(cue, now, cue.MinimumIntervalSeconds))
             {
@@ -481,10 +495,12 @@ namespace WallstopStudios.DxAudio
             if (host != null)
             {
                 host.SetCueLowPass(play.LowPassHertz);
-                // The chain is cleared here, not at stop: a voice is about to start a new play, and it must not
-                // inherit the last one's delay line or envelope. The bus is cleared by the same assignment.
-                // A cue the library does not list is built on this voice now, which is its first and only allocation;
-                // a game that plays such a cue by reference can call Warm(cue) to move that cost off the play.
+                /*
+                    The chain is cleared here, not at stop: a voice is about to start a new play, and it must not
+                    inherit the last one's delay line or envelope. The bus is cleared by the same assignment.
+                    A cue the library does not list is built on this voice now, which is its first and only allocation;
+                    a game that plays such a cue by reference can call Warm(cue) to move that cost off the play.
+                */
                 host.Chain = cue.Chain;
                 host.Graph = cue.Graph;
             }
@@ -639,8 +655,10 @@ namespace WallstopStudios.DxAudio
 
             for (int index = 0; index < count; index++)
             {
-                // Never saved with a scene in edit mode. In Play mode the flag would hide the voices from
-                // FindObjectsOfType, so a game's own pause-all could not reach them.
+                /*
+                    Never saved with a scene in edit mode. In Play mode the flag would hide the voices from
+                    FindObjectsOfType, so a game's own pause-all could not reach them.
+                */
                 GameObject child = new($"Sfx Voice {index}") { hideFlags = Application.isPlaying ? HideFlags.None : HideFlags.DontSave };
                 child.transform.SetParent(transform, worldPositionStays: false);
                 AudioSource voice = child.AddComponent<AudioSource>();
@@ -674,9 +692,8 @@ namespace WallstopStudios.DxAudio
                 }
             }
 
-            for (int index = 0; index < _hosts.Length; index++)
+            foreach (AudioFilterHost host in _hosts)
             {
-                AudioFilterHost host = _hosts[index];
                 if (host == null)
                 {
                     continue;
@@ -697,18 +714,6 @@ namespace WallstopStudios.DxAudio
                         host.Warm(cue.Graph);
                     }
                 }
-            }
-        }
-
-        private static void DestroyVoice(GameObject voice)
-        {
-            if (Application.isPlaying)
-            {
-                Destroy(voice);
-            }
-            else
-            {
-                DestroyImmediate(voice);
             }
         }
     }

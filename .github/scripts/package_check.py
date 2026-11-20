@@ -6,10 +6,8 @@ npm never takes a version back, so everything a bad release could ship is checke
 - the tarball holds the package only, not CI, the .NET test harness or editor settings;
 - every asset and folder in it has its .meta, and every .meta its asset (a package installed from a
   registry is read-only, so Unity ignores an asset without one);
-- every assembly an asmdef references is the package's own, Unity's, or from a package that
-  package.json lists in "dependencies" at an exact version. npm, a git URL, a release tarball and
-  OpenUPM all resolve that list, so an assembly from an unlisted package fails to compile only for
-  the user who lacks it, and a version range is an error to Unity;
+- every assembly an asmdef references is either local, supplied by Unity for tests, or guarded by the optional DxMessaging package.
+  The runtime dependency map is empty;
 - with --tag, the tag names package.json's version and CHANGELOG.md has a section for it.
 
     python3 .github/scripts/package_check.py                      # check the packed file list
@@ -35,14 +33,13 @@ ROOT_FILES = ("package.json", "README.md", "CHANGELOG.md", "LICENSE.md")
 # Lowercase prerelease names only: GitHub compares concurrency groups without case, so two tags that
 # differ only in case would share the release workflow's group.
 TAG = re.compile(r"^v(\d+\.\d+\.\d+(?:-[0-9a-z.-]+)?)$")
-# Unity Package Manager takes exact versions only; "^1.2.0" or "1.x" is an error when it resolves.
-EXACT_VERSION = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$")
-# The package that declares each assembly a DxAudio asmdef may reference. A new reference gets a line here
-# and its package an entry in package.json "dependencies".
-ASSEMBLY_PACKAGES = {
-    "WallstopStudios.DxMessaging": "com.wallstop-studios.dxmessaging",
-    "WallstopStudios.UnityHelpers": "com.wallstop-studios.unity-helpers",
-}
+DXMESSAGING = "com.wallstop-studios.dxmessaging"
+DXMESSAGING_ASSEMBLY = "WallstopStudios.DxMessaging"
+DXMESSAGING_DEFINE = "DXMESSAGING_PRESENT"
+TOOLING_SUFFIXES = frozenset({
+    ".rsp", ".ruleset", ".editorconfig", ".globalconfig", ".dll", ".exe", ".pdb",
+    ".so", ".dylib", ".bundle", ".a", ".aar", ".jar", ".nupkg",
+})
 # What a test assembly may use from com.unity.test-framework, which the project that runs the tests has.
 TEST_ASSEMBLIES = {"UnityEngine.TestRunner", "UnityEditor.TestRunner"}
 TEST_PRECOMPILED = {"nunit.framework.dll"}
@@ -57,17 +54,36 @@ def pack(destination: Path | None) -> dict:
     return packed[0] if isinstance(packed, list) else packed[NAME]
 
 
+def unity_visible(path: str) -> bool:
+    return not any(part.startswith(".") or part.endswith("~") for part in PurePosixPath(path).parts)
+
+
+def tooling_problems(paths: set[str], *, unity_visible_only: bool = False) -> list[str]:
+    problems = []
+    for path in sorted(paths):
+        if unity_visible_only and not unity_visible(path):
+            continue
+        asset = PurePosixPath(path.lower().removesuffix(".meta"))
+        if any(
+            PurePosixPath(part).suffix in TOOLING_SUFFIXES or part in TOOLING_SUFFIXES
+            for part in asset.parts
+        ):
+            problems.append(f"development tooling in consumer content: {path}")
+    return problems
+
+
+def tracked_paths() -> set[str]:
+    result = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, check=True, capture_output=True)
+    return {path for path in result.stdout.decode("utf-8").split("\0") if path}
+
+
 def payload_problems(paths: set[str]) -> list[str]:
     allowed = set(ROOT_FILES) | {f"{name}.meta" for name in ROOT_FILES + PACKAGE_DIRS}
     stray = {path for path in paths if path not in allowed and PurePosixPath(path).parts[0] not in PACKAGE_DIRS}
     problems = [f"not package content: {path}" for path in sorted(stray)]
-    # The compiler policy is generated beside each assembly definition for local and CI builds, so a
-    # response file or ruleset in the payload would promote warnings inside a consumer's project.
-    problems += [
-        f"compiler policy shipped: {path}" for path in sorted(paths) if path.endswith((".rsp", ".ruleset"))
-    ]
-    # Unity imports neither a dotfile nor anything under a folder ending in ~, so neither has a .meta.
-    paths = {path for path in paths - stray if not any(p.startswith(".") or p.endswith("~") for p in PurePosixPath(path).parts)}
+    problems += tooling_problems(paths)
+    # Unity imports neither a dot path nor anything under a folder ending in ~.
+    paths = {path for path in paths - stray if unity_visible(path)}
     folders = {str(parent) for path in paths for parent in PurePosixPath(path).parents if str(parent) != "."}
     assets = {path for path in paths if not path.endswith(".meta")} | folders
     for asset in sorted(assets):
@@ -82,55 +98,40 @@ def payload_problems(paths: set[str]) -> list[str]:
     return problems
 
 
-def package_of(assembly: str) -> str | None:
-    for prefix, package in ASSEMBLY_PACKAGES.items():
-        if assembly == prefix or assembly.startswith(prefix + "."):
-            return package
-    return None
+def dxmessaging_guarded(asmdef: dict) -> bool:
+    producers = [entry["name"] for entry in asmdef.get("versionDefines", []) if entry["define"] == DXMESSAGING_DEFINE]
+    return producers == [DXMESSAGING] and DXMESSAGING_DEFINE in asmdef.get("defineConstraints", [])
 
 
-def dependency_problems(manifest: dict) -> list[str]:
-    dependencies = manifest.get("dependencies", {})
-    problems = [
-        f"package.json dependency {name} is {version!r}, not an exact version"
-        for name, version in sorted(dependencies.items())
-        if not EXACT_VERSION.fullmatch(version)
-    ]
-    paths = sorted(path for folder in PACKAGE_DIRS for path in (ROOT / folder).rglob("*.asmdef"))
+def dependency_problems(manifest: dict, root: Path = ROOT) -> list[str]:
+    problems = []
+    if manifest.get("dependencies") != {}:
+        problems.append("package.json must declare an empty runtime dependency map")
+    paths = sorted(path for folder in PACKAGE_DIRS for path in (root / folder).rglob("*.asmdef"))
     asmdefs = {path: json.loads(path.read_text(encoding="utf-8")) for path in paths}
-    own = {asmdef["name"] for asmdef in asmdefs.values()}
-    used = set()
+    own = {asmdef["name"]: asmdef for asmdef in asmdefs.values()}
+    if len(own) != len(asmdefs):
+        problems.append("assembly names must be unique")
     for path, asmdef in asmdefs.items():
-        where = path.relative_to(ROOT).as_posix()
+        where = path.relative_to(root).as_posix()
         constraints = set(asmdef.get("defineConstraints", []))
         is_test = "UNITY_INCLUDE_TESTS" in constraints
-        # An optional integration compiles only when its package is present, so that package is not listed.
-        # A package guards the assembly when a constraint is a define that only that package's entries set.
-        producers: dict[str, set[str]] = {}
-        for entry in asmdef.get("versionDefines", []):
-            producers.setdefault(entry["define"], set()).add(entry["name"])
-        sole = {define: next(iter(names)) for define, names in producers.items() if len(names) == 1}
-        guarded = {package for define, package in sole.items() if define in constraints}
+        guarded = dxmessaging_guarded(asmdef)
         for reference in asmdef.get("references", []):
-            if reference.startswith("GUID:"):
-                problems.append(f"{where} references {reference}: name the assembly, so this check can read it")
+            if reference in own:
+                if dxmessaging_guarded(own[reference]) and not guarded:
+                    problems.append(f"{where} references optional assembly {reference} without its DxMessaging guard")
+            elif is_test and reference in TEST_ASSEMBLIES:
                 continue
-            if reference in own or (is_test and reference in TEST_ASSEMBLIES):
-                continue
-            package = package_of(reference)
-            if package is None:
-                problems.append(f"{where} references {reference}, whose package is not in ASSEMBLY_PACKAGES")
-            elif package in dependencies:
-                used.add(package)
-            elif package not in guarded:
-                problems.append(f"{where} references {reference}, but package.json does not list {package}")
+            elif reference != DXMESSAGING_ASSEMBLY or not guarded:
+                problems.append(f"{where} references external assembly {reference} without a supported guard")
+        if asmdef.get("allowUnsafeCode", False):
+            problems.append(f"{where} enables unsafe code")
         if not asmdef.get("overrideReferences", False):
             problems.append(f"{where} sets no overrideReferences, so it takes every auto-referenced DLL in the project")
         for dll in asmdef.get("precompiledReferences", []):
             if not (is_test and dll in TEST_PRECOMPILED):
-                problems.append(f"{where} references {dll}, which no listed package provides")
-    unused = sorted(set(dependencies) - used)
-    problems += [f"package.json lists {name}, which no assembly references" for name in unused]
+                problems.append(f"{where} references external binary {dll}")
     return problems
 
 
@@ -173,6 +174,7 @@ def main() -> int:
     packed = pack(args.out if args.out and not problems else None)
     paths = {entry["path"] for entry in packed["files"]}
     problems += payload_problems(paths)
+    problems += tooling_problems(tracked_paths(), unity_visible_only=True)
 
     for problem in problems:
         print(f"::error::{problem}", file=sys.stderr)

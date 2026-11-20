@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
     using System.Collections.Generic;
@@ -11,6 +11,12 @@ namespace WallstopStudios.DxAudio
         private ISfxRandom _takeAndPitch;
         private ISfxRandom _level;
         private ISfxRandom _brightness;
+
+        private static float Draw(ISfxRandom source)
+        {
+            double draw = source.NextDouble();
+            return double.IsNaN(draw) ? 0.5f : (float)draw;
+        }
 
         internal void Reset(int seed)
         {
@@ -90,7 +96,11 @@ namespace WallstopStudios.DxAudio
             else
             {
                 RestartBag(cue);
-                _ = _selection.TryNext(cue, count, Draw(_takeAndPitch), out index);
+                if (!_selection.TryNext(cue, count, Draw(_takeAndPitch), out index))
+                {
+                    play = default;
+                    return false;
+                }
             }
 
             if (!cue.TryGetPlayableVariant(index, out SfxVariant variant))
@@ -124,12 +134,6 @@ namespace WallstopStudios.DxAudio
             {
                 bag.Restart();
             }
-        }
-
-        private static float Draw(ISfxRandom source)
-        {
-            double draw = source.NextDouble();
-            return double.IsNaN(draw) ? 0.5f : (float)draw;
         }
 
         private sealed class LegacyRandom : ISfxRandom

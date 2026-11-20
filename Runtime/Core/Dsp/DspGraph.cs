@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
 
@@ -34,6 +34,21 @@ namespace WallstopStudios.DxAudio
         /// </remarks>
         public const int MaximumPreparedBytes = 2 * 1024 * 1024;
 
+        /// <summary>How many nodes the graph holds.</summary>
+        public int NodeCount { get; private set; }
+
+        /// <summary>How many edges the graph holds.</summary>
+        public int EdgeCount { get; private set; }
+
+        /// <summary>Whether <see cref="TryPrepare"/> accepted this graph, so <see cref="Process"/> runs it.</summary>
+        public bool IsPrepared { get; private set; }
+
+        /// <summary>The delay of the longest path from the input to the output, in samples; zero until prepared.</summary>
+        public int LatencySamples { get; private set; }
+
+        /// <summary>How many bytes <see cref="TryPrepare"/> reserved; zero until prepared.</summary>
+        public int PreparedBytes { get; private set; }
+
         private readonly DspChain[] _chains = new DspChain[MaximumNodes];
         private readonly int[] _edgeFrom = new int[MaximumEdges];
         private readonly int[] _edgeTo = new int[MaximumEdges];
@@ -55,21 +70,6 @@ namespace WallstopStudios.DxAudio
             _buffers = Array.Empty<float[]>();
             _edgeLines = Array.Empty<float[]>();
         }
-
-        /// <summary>How many nodes the graph holds.</summary>
-        public int NodeCount { get; private set; }
-
-        /// <summary>How many edges the graph holds.</summary>
-        public int EdgeCount { get; private set; }
-
-        /// <summary>Whether <see cref="TryPrepare"/> accepted this graph, so <see cref="Process"/> runs it.</summary>
-        public bool IsPrepared { get; private set; }
-
-        /// <summary>The delay of the longest path from the input to the output, in samples; zero until prepared.</summary>
-        public int LatencySamples { get; private set; }
-
-        /// <summary>How many bytes <see cref="TryPrepare"/> reserved; zero until prepared.</summary>
-        public int PreparedBytes { get; private set; }
 
         /// <summary>The delay of <paramref name="node"/> from the graph's input, in samples.</summary>
         /// <remarks>
@@ -207,8 +207,10 @@ namespace WallstopStudios.DxAudio
                 }
             }
 
-            // A node arrives as late as its latest predecessor, then its own chain adds its delay. Every edge then
-            // waits the difference, so all paths reach the output with the same age.
+            /*
+                A node arrives as late as its latest predecessor, then its own chain adds its delay. Every edge then
+                waits the difference, so all paths reach the output with the same age.
+            */
             for (int index = 0; index < NodeCount; index++)
             {
                 int node = _order[index];
@@ -289,9 +291,9 @@ namespace WallstopStudios.DxAudio
             }
 
             float[][] buffers = _buffers;
-            for (int node = 0; node < buffers.Length; node++)
+            foreach (float[] nodeBuffer in buffers)
             {
-                Array.Clear(buffers[node], 0, count);
+                Array.Clear(nodeBuffer, 0, count);
             }
 
             Array.Copy(buffer, offset, buffers[_input], 0, count);
@@ -347,8 +349,10 @@ namespace WallstopStudios.DxAudio
                 return;
             }
 
-            // The line holds the block that is still on its way plus the block being written, so one wrap covers a
-            // whole read. Everything that ran before this edge wrote its block, so the delay is whole blocks of lag.
+            /*
+                The line holds the block that is still on its way plus the block being written, so one wrap covers a
+                whole read. Everything that ran before this edge wrote its block, so the delay is whole blocks of lag.
+            */
             float[] line = _edgeLines[edge];
             int capacity = line.Length;
             int position = _edgePosition[edge];

@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Tests.Editor
+﻿namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System.Collections.Generic;
     using NUnit.Framework;
@@ -10,6 +10,52 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
     public sealed class AuthoringTests
     {
+        /// <summary>Whether <paramref name="parts" /> appear in <paramref name="text" /> in the order given, each once.</summary>
+        private static bool Order(string text, params string[] parts)
+        {
+            int from = 0;
+            foreach (string part in parts)
+            {
+                int at = text.IndexOf(part, from, System.StringComparison.Ordinal);
+                if (at < 0)
+                {
+                    return false;
+                }
+
+                from = at + part.Length;
+            }
+
+            return true;
+        }
+
+        private static List<string> Labels(VisualElement view)
+        {
+            List<string> texts = new();
+            foreach (Label label in view.Query<Label>().ToList())
+            {
+                texts.Add(label.text);
+            }
+
+            return texts;
+        }
+
+        private static string Joined(List<string> findings)
+        {
+            return string.Join(" | ", findings);
+        }
+
+        private static SfxVariant Variant(MadeObjects made)
+        {
+            return new SfxVariant(Clip(made));
+        }
+
+        private static AudioClip Clip(MadeObjects made, float seconds = 0.5f)
+        {
+            const int Frequency = 8_000;
+            int samples = Mathf.Max(1, (int)(seconds * Frequency));
+            return made.Track(AudioClip.Create("test clip", samples, 1, Frequency, stream: false));
+        }
+
         [Test]
         public void AnSfxLibraryCheckNamesEveryCueThePlayersCannotReach()
         {
@@ -427,52 +473,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                     Object.DestroyImmediate(editor);
                 }
             }
-        }
-
-        /// <summary>Whether <paramref name="parts" /> appear in <paramref name="text" /> in the order given, each once.</summary>
-        private static bool Order(string text, params string[] parts)
-        {
-            int from = 0;
-            for (int index = 0; index < parts.Length; ++index)
-            {
-                int at = text.IndexOf(parts[index], from, System.StringComparison.Ordinal);
-                if (at < 0)
-                {
-                    return false;
-                }
-
-                from = at + parts[index].Length;
-            }
-
-            return true;
-        }
-
-        private static List<string> Labels(VisualElement view)
-        {
-            List<string> texts = new();
-            foreach (Label label in view.Query<Label>().ToList())
-            {
-                texts.Add(label.text);
-            }
-
-            return texts;
-        }
-
-        private static string Joined(List<string> findings)
-        {
-            return string.Join(" | ", findings);
-        }
-
-        private static SfxVariant Variant(MadeObjects made)
-        {
-            return new SfxVariant(Clip(made));
-        }
-
-        private static AudioClip Clip(MadeObjects made, float seconds = 0.5f)
-        {
-            const int Frequency = 8_000;
-            int samples = Mathf.Max(1, (int)(seconds * Frequency));
-            return made.Track(AudioClip.Create("test clip", samples, 1, Frequency, stream: false));
         }
     }
 }

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RuleSet Name="DxAudio development analysis" ToolsVersion="15.0">
+  <IncludeAll Action="Error" />
+  <Rules AnalyzerId="WallstopStudios.UnityHelpers.Analyzers" RuleNamespace="WallstopStudios.UnityHelpers.Analyzers">
+    <Rule Id="WUH001" Action="Error" />
+    <Rule Id="WUH002" Action="Error" />
+    <Rule Id="WUH003" Action="Error" />
+    <Rule Id="WUH004" Action="Error" />
+    <Rule Id="WUH005" Action="Error" />
+    <Rule Id="WUH006" Action="Error" />
+    <Rule Id="WUH007" Action="Error" />
+    <Rule Id="WUH008" Action="Error" />
+    <Rule Id="WUH009" Action="Error" />
+    <Rule Id="WUH010" Action="Error" />
+    <Rule Id="WUH011" Action="Error" />
+    <Rule Id="WUH012" Action="Error" />
+    <Rule Id="WUH013" Action="Error" />
+    <Rule Id="WUH014" Action="Error" />
+    <Rule Id="WUH015" Action="Error" />
+    <Rule Id="WUH016" Action="Error" />
+    <Rule Id="WUH017" Action="Error" />
+    <Rule Id="WUH018" Action="Error" />
+    <Rule Id="WUH019" Action="Error" />
+    <Rule Id="WUH020" Action="Error" />
+    <Rule Id="WUH021" Action="Error" />
+    <Rule Id="WUH022" Action="Error" />
+    <Rule Id="WUH023" Action="Error" />
+    <Rule Id="WUH024" Action="Error" />
+    <Rule Id="WUH025" Action="Error" />
+    <Rule Id="WUH026" Action="Error" />
+    <Rule Id="WUH027" Action="Error" />
+    <Rule Id="WUH028" Action="Error" />
+    <Rule Id="WUH029" Action="Error" />
+    <Rule Id="WUH030" Action="Error" />
+  </Rules>
+</RuleSet>

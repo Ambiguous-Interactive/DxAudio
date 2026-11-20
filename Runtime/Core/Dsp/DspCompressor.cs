@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
 
@@ -18,29 +18,6 @@ namespace WallstopStudios.DxAudio
 
         private const float MinimumMakeupDecibels = -60f;
         private const float MaximumMakeupDecibels = 24f;
-
-        private float _thresholdDecibels;
-        private float _ratio;
-        private float _attackSeconds;
-        private float _releaseSeconds;
-        private float _makeupDecibels;
-        private int _sampleRate;
-        private float _thresholdLinear;
-        private float _makeupLinear;
-        private float _attackCoefficient;
-        private float _releaseCoefficient;
-        private int _channels;
-        private float _gainDecibels;
-
-        public DspCompressor()
-        {
-            _thresholdDecibels = DefaultThresholdDecibels;
-            _ratio = DefaultRatio;
-            _attackSeconds = 0.005f;
-            _releaseSeconds = 0.1f;
-            _makeupDecibels = 0f;
-            Recompute();
-        }
 
         public override string DisplayName => "Compressor";
 
@@ -121,12 +98,27 @@ namespace WallstopStudios.DxAudio
         /// <summary>How far the gain is currently held down, in decibels; zero is untouched.</summary>
         public override float GainReductionDecibels => _gainDecibels;
 
-        protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
+        private float _thresholdDecibels;
+        private float _ratio;
+        private float _attackSeconds;
+        private float _releaseSeconds;
+        private float _makeupDecibels;
+        private int _sampleRate;
+        private float _thresholdLinear;
+        private float _makeupLinear;
+        private float _attackCoefficient;
+        private float _releaseCoefficient;
+        private int _channels;
+        private float _gainDecibels;
+
+        public DspCompressor()
         {
-            _sampleRate = sampleRate;
-            _channels = channels;
+            _thresholdDecibels = DefaultThresholdDecibels;
+            _ratio = DefaultRatio;
+            _attackSeconds = 0.005f;
+            _releaseSeconds = 0.1f;
+            _makeupDecibels = 0f;
             Recompute();
-            Reset();
         }
 
         public override void Process(float[] buffer, int offset, int count, int channels)
@@ -156,14 +148,18 @@ namespace WallstopStudios.DxAudio
                 float targetDecibels = 0f;
                 if (_thresholdLinear < peak)
                 {
-                    // Full-range decibels, not the mixer helpers: those floor a level at -80 dB, which would
-                    // turn a threshold below that into silence and reduce a signal under its own threshold.
+                    /*
+                        Full-range decibels, not the mixer helpers: those floor a level at -80 dB, which would
+                        turn a threshold below that into silence and reduce a signal under its own threshold.
+                    */
                     float levelDecibels = 20f * (float)Math.Log10(peak);
                     targetDecibels = -(levelDecibels - _thresholdDecibels) * slope;
                 }
 
-                // The time constants are decibels, so the attack reaches its reduction in the time its name says.
-                // A linear gain would arrive at half of it, because 15 dB is not halfway toward a gain of zero.
+                /*
+                    The time constants are decibels, so the attack reaches its reduction in the time its name says.
+                    A linear gain would arrive at half of it, because 15 dB is not halfway toward a gain of zero.
+                */
                 float coefficient = targetDecibels < _gainDecibels ? _attackCoefficient : _releaseCoefficient;
                 _gainDecibels += (targetDecibels - _gainDecibels) * coefficient;
                 float gain = (float)Math.Pow(10.0, _gainDecibels / 20.0) * _makeupLinear;
@@ -178,6 +174,14 @@ namespace WallstopStudios.DxAudio
         public override void Reset()
         {
             _gainDecibels = 0f;
+        }
+
+        protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
+        {
+            _sampleRate = sampleRate;
+            _channels = channels;
+            Recompute();
+            Reset();
         }
 
         private void Recompute()

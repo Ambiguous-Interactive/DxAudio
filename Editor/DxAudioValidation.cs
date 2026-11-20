@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Editor
+﻿namespace WallstopStudios.DxAudio.Editor
 {
     using System;
     using System.Collections.Generic;
@@ -102,9 +102,8 @@ namespace WallstopStudios.DxAudio.Editor
                 {
                     findings.Add($"{name} has no clip, so it cannot play.");
                 }
-                else if (!MusicClipImport.Matches(track))
+                else if (MusicClipImport.TryGetAppliedLoadType(track.Clip, out MusicClipLoadType applied) && applied != track.ResolvedClipLoadType)
                 {
-                    MusicClipImport.TryGetAppliedLoadType(track.Clip, out MusicClipLoadType applied);
                     findings.Add(
                         $"{name} asks for a {track.ResolvedClipLoadType} clip, but the clip is imported as "
                             + $"{applied}; the track inspector applies the choice to the clip, which every user of "

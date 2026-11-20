@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Editor
+﻿namespace WallstopStudios.DxAudio.Editor
 {
     using System;
     using UnityEditor;
@@ -144,6 +144,105 @@ namespace WallstopStudios.DxAudio.Editor
             UpdateControls();
         }
 
+        internal static void StopCurrent()
+        {
+            _playing?.Stop();
+        }
+
+        internal static bool TryEnableSceneAudio(out SceneView enabled)
+        {
+            enabled = null;
+            if (EditorApplication.isPlaying || HasSceneAudio())
+            {
+                return true;
+            }
+
+            enabled = SceneView.lastActiveSceneView;
+            if (enabled == null)
+            {
+                return false;
+            }
+
+            enabled.audioPlay = true;
+            return true;
+        }
+
+        private static int GraphHash(DspGraphAsset graph)
+        {
+            if (graph == null)
+            {
+                return 0;
+            }
+            unchecked
+            {
+                int hash = (graph.GetHashCode() * 397 ^ (graph.InputNode?.GetHashCode() ?? 0)) * 397 ^ (graph.OutputNode?.GetHashCode() ?? 0);
+                foreach (DspGraphNode node in graph.Nodes)
+                {
+                    hash = hash * 397 ^ (node?.Name?.GetHashCode() ?? 0);
+                    hash = hash * 397 ^ ChainHash(node?.Chain);
+                }
+
+                foreach (DspGraphEdge edge in graph.Edges)
+                {
+                    hash = hash * 397 ^ (edge?.From?.GetHashCode() ?? 0);
+                    hash = hash * 397 ^ (edge?.To?.GetHashCode() ?? 0);
+                }
+
+                return hash;
+            }
+        }
+
+        private static int ChainHash(DspChainAsset chain)
+        {
+            if (chain == null)
+            {
+                return 0;
+            }
+            unchecked
+            {
+                int hash = chain.GetHashCode();
+                foreach (DspEffectAsset effect in chain.Effects)
+                {
+                    hash = hash * 397;
+                    if (effect != null)
+                    {
+                        hash = (hash ^ effect.GetHashCode()) * 397 ^ EditorUtility.GetDirtyCount(effect);
+                    }
+                }
+
+                return hash;
+            }
+        }
+
+        private static bool HasSceneAudio()
+        {
+            foreach (SceneView view in SceneView.sceneViews)
+            {
+                if (view != null && view.audioPlay)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static AudioClip CreateTone(int sampleRate)
+        {
+            const float ToneHertz = 220f;
+            float[] samples = new float[sampleRate];
+            for (int index = 0, samplesLength = samples.Length; index < samplesLength; ++index)
+            {
+                double phase = 2d * Math.PI * ToneHertz * index / sampleRate;
+                samples[index] = (float)(0.15d * Math.Sin(phase) + 0.05d * Math.Sin(3d * phase));
+            }
+
+            AudioClip tone = AudioClip.Create("DxAudio test tone", samples.Length, 1, sampleRate, false);
+            tone.hideFlags = HideFlags.HideAndDontSave;
+            tone.SetData(samples, 0);
+            return tone;
+        }
+
         internal void SetTarget(Object asset)
         {
             if (_asset == asset)
@@ -185,11 +284,6 @@ namespace WallstopStudios.DxAudio.Editor
                 );
             }
             UpdateControls();
-        }
-
-        internal static void StopCurrent()
-        {
-            _playing?.Stop();
         }
 
         internal void Stop()
@@ -688,53 +782,6 @@ namespace WallstopStudios.DxAudio.Editor
             }
         }
 
-        private static int GraphHash(DspGraphAsset graph)
-        {
-            if (graph == null)
-            {
-                return 0;
-            }
-            unchecked
-            {
-                int hash = (graph.GetHashCode() * 397 ^ (graph.InputNode?.GetHashCode() ?? 0)) * 397 ^ (graph.OutputNode?.GetHashCode() ?? 0);
-                foreach (DspGraphNode node in graph.Nodes)
-                {
-                    hash = hash * 397 ^ (node?.Name?.GetHashCode() ?? 0);
-                    hash = hash * 397 ^ ChainHash(node?.Chain);
-                }
-
-                foreach (DspGraphEdge edge in graph.Edges)
-                {
-                    hash = hash * 397 ^ (edge?.From?.GetHashCode() ?? 0);
-                    hash = hash * 397 ^ (edge?.To?.GetHashCode() ?? 0);
-                }
-
-                return hash;
-            }
-        }
-
-        private static int ChainHash(DspChainAsset chain)
-        {
-            if (chain == null)
-            {
-                return 0;
-            }
-            unchecked
-            {
-                int hash = chain.GetHashCode();
-                foreach (DspEffectAsset effect in chain.Effects)
-                {
-                    hash = hash * 397;
-                    if (effect != null)
-                    {
-                        hash = (hash ^ effect.GetHashCode()) * 397 ^ EditorUtility.GetDirtyCount(effect);
-                    }
-                }
-
-                return hash;
-            }
-        }
-
         private void UpdateControls()
         {
             bool needsPlayMode = _editModeFailed && !EditorApplication.isPlaying;
@@ -798,64 +845,17 @@ namespace WallstopStudios.DxAudio.Editor
             _signalPath.Add(stage);
         }
 
-        internal static bool TryEnableSceneAudio(out SceneView enabled)
-        {
-            enabled = null;
-            if (EditorApplication.isPlaying || HasSceneAudio())
-            {
-                return true;
-            }
-
-            enabled = SceneView.lastActiveSceneView;
-            if (enabled == null)
-            {
-                return false;
-            }
-
-            enabled.audioPlay = true;
-            return true;
-        }
-
-        private static bool HasSceneAudio()
-        {
-            foreach (SceneView view in SceneView.sceneViews)
-            {
-                if (view != null && view.audioPlay)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private static AudioClip CreateTone(int sampleRate)
-        {
-            const float ToneHertz = 220f;
-            float[] samples = new float[sampleRate];
-            for (int index = 0; index < samples.Length; ++index)
-            {
-                double phase = 2d * Math.PI * ToneHertz * index / sampleRate;
-                samples[index] = (float)(0.15d * Math.Sin(phase) + 0.05d * Math.Sin(3d * phase));
-            }
-
-            AudioClip tone = AudioClip.Create("DxAudio test tone", samples.Length, 1, sampleRate, false);
-            tone.hideFlags = HideFlags.HideAndDontSave;
-            tone.SetData(samples, 0);
-            return tone;
-        }
-
         private sealed class Comparison
         {
-            private readonly AudioClip[] _clips;
-            private readonly float[] _trims;
-            private readonly bool _loop;
-
             internal readonly SfxVariation Variation;
             internal readonly int TakeRevision;
             internal readonly float PitchJitter;
             internal readonly float Volume;
             internal readonly float[] Gains;
+
+            private readonly AudioClip[] _clips;
+            private readonly float[] _trims;
+            private readonly bool _loop;
 
             internal Comparison(SfxCue cue)
             {

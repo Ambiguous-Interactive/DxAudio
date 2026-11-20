@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Tests.Editor
+﻿namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System;
     using NUnit.Framework;
@@ -7,6 +7,85 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     {
         private const int SampleRate = 48_000;
         private const int BlockFrames = 256;
+
+        private static void Prepare(DspEffect effect)
+        {
+            effect.TryPrepare(SampleRate, BlockFrames, 1);
+        }
+
+        private static float[] Render(DspEffect effect, float[] source)
+        {
+            return Render(effect, source, BlockFrames);
+        }
+
+        private static float[] Render(DspEffect effect, float[] source, int blockFrames)
+        {
+            effect.TryPrepare(SampleRate, blockFrames, 1);
+            float[] output = new float[source.Length];
+            Array.Copy(source, output, source.Length);
+            for (int offset = 0, outputLength = output.Length; offset < outputLength; offset += blockFrames)
+            {
+                int count = Math.Min(blockFrames, output.Length - offset);
+                effect.Process(output, offset, count, 1);
+            }
+
+            return output;
+        }
+
+        private static float Peak(float[] samples)
+        {
+            float peak = 0f;
+            foreach (float sample in samples)
+            {
+                float magnitude = Math.Abs(sample);
+                if (peak < magnitude)
+                {
+                    peak = magnitude;
+                }
+            }
+
+            return peak;
+        }
+
+        private static float Rms(float[] samples, int from)
+        {
+            double sum = 0;
+            for (int i = from, samplesLength = samples.Length; i < samplesLength; i++)
+            {
+                sum += (double)samples[i] * samples[i];
+            }
+
+            return (float)Math.Sqrt(sum / (samples.Length - from));
+        }
+
+        private static float CrestFactor(float[] samples)
+        {
+            float rms = Rms(samples, 0);
+            return rms <= 0f ? float.MaxValue : Peak(samples) / rms;
+        }
+
+        private static float[] Sine(float hertz, float amplitude, int frames)
+        {
+            float[] block = new float[frames];
+            double step = (2 * Math.PI * hertz) / SampleRate;
+            for (int frame = 0; frame < frames; frame++)
+            {
+                block[frame] = amplitude * (float)Math.Sin(step * frame);
+            }
+
+            return block;
+        }
+
+        private static float[] Ramp(float from, float to, int frames)
+        {
+            float[] block = new float[frames];
+            for (int frame = 0; frame < frames; frame++)
+            {
+                block[frame] = from + (((to - from) * frame) / (frames - 1));
+            }
+
+            return block;
+        }
 
         [TestCase(1f, TestName = "A gentle drive stays near the input")]
         [TestCase(8f, TestName = "A hard drive flattens the wave")]
@@ -107,7 +186,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             DspDistortion distortion = new() { Drive = 1f, ToneHz = DspDistortion.OpenToneHz };
             Prepare(distortion);
             float[] steady = new float[256];
-            for (int frame = 0; frame < steady.Length; frame++)
+            for (int frame = 0, steadyLength = steady.Length; frame < steadyLength; frame++)
             {
                 steady[frame] = 0.5f;
             }
@@ -164,7 +243,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Prepare(crusher);
             float[] output = Render(crusher, source);
 
-            for (int frame = 0; frame < output.Length; frame++)
+            for (int frame = 0, outputLength = output.Length; frame < outputLength; frame++)
             {
                 int firstOfHold = frame - (frame % 4);
                 Assert.That(output[frame], Is.EqualTo(output[firstOfHold]), $"frame {frame} belongs to the hold that started at {firstOfHold}");
@@ -224,85 +303,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             distortion.Process(silence, 0, silence.Length, 1);
 
             Assert.That(Peak(silence), Is.Zero, "a reset clears the tone control's memory");
-        }
-
-        private static void Prepare(DspEffect effect)
-        {
-            effect.TryPrepare(SampleRate, BlockFrames, 1);
-        }
-
-        private static float[] Render(DspEffect effect, float[] source)
-        {
-            return Render(effect, source, BlockFrames);
-        }
-
-        private static float[] Render(DspEffect effect, float[] source, int blockFrames)
-        {
-            effect.TryPrepare(SampleRate, blockFrames, 1);
-            float[] output = new float[source.Length];
-            Array.Copy(source, output, source.Length);
-            for (int offset = 0; offset < output.Length; offset += blockFrames)
-            {
-                int count = Math.Min(blockFrames, output.Length - offset);
-                effect.Process(output, offset, count, 1);
-            }
-
-            return output;
-        }
-
-        private static float Peak(float[] samples)
-        {
-            float peak = 0f;
-            foreach (float sample in samples)
-            {
-                float magnitude = Math.Abs(sample);
-                if (peak < magnitude)
-                {
-                    peak = magnitude;
-                }
-            }
-
-            return peak;
-        }
-
-        private static float Rms(float[] samples, int from)
-        {
-            double sum = 0;
-            for (int i = from; i < samples.Length; i++)
-            {
-                sum += (double)samples[i] * samples[i];
-            }
-
-            return (float)Math.Sqrt(sum / (samples.Length - from));
-        }
-
-        private static float CrestFactor(float[] samples)
-        {
-            float rms = Rms(samples, 0);
-            return rms <= 0f ? float.MaxValue : Peak(samples) / rms;
-        }
-
-        private static float[] Sine(float hertz, float amplitude, int frames)
-        {
-            float[] block = new float[frames];
-            double step = (2 * Math.PI * hertz) / SampleRate;
-            for (int frame = 0; frame < frames; frame++)
-            {
-                block[frame] = amplitude * (float)Math.Sin(step * frame);
-            }
-
-            return block;
-        }
-
-        private static float[] Ramp(float from, float to, int frames)
-        {
-            float[] block = new float[frames];
-            for (int frame = 0; frame < frames; frame++)
-            {
-                block[frame] = from + (((to - from) * frame) / (frames - 1));
-            }
-
-            return block;
         }
     }
 }

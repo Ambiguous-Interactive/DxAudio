@@ -7,6 +7,7 @@
 
     internal sealed class DspGraphEdits
     {
+        internal event Action Changed;
         private readonly DspGraphAsset _asset;
 
         internal DspGraphEdits(DspGraphAsset asset)
@@ -14,7 +15,40 @@
             _asset = asset;
         }
 
-        internal event Action Changed;
+        private static SerializedProperty Append(SerializedProperty array)
+        {
+            int index = array.arraySize;
+            array.arraySize++;
+            return array.GetArrayElementAtIndex(index);
+        }
+
+        private static void SetPosition(SerializedProperty node, Vector2 position)
+        {
+            node.FindPropertyRelative("_hasEditorPosition").boolValue = true;
+            node.FindPropertyRelative("_editorPosition").vector2Value = position;
+        }
+
+        private static void SetEdge(SerializedProperty edge, string from, string to)
+        {
+            edge.FindPropertyRelative("_from").stringValue = from;
+            edge.FindPropertyRelative("_to").stringValue = to;
+        }
+
+        private static void Replace(SerializedProperty property, string before, string after)
+        {
+            if (!string.IsNullOrEmpty(before) && property != null && string.Equals(property.stringValue, before, StringComparison.Ordinal))
+            {
+                property.stringValue = after;
+            }
+        }
+
+        private static void ClearEndpoint(SerializedProperty property, HashSet<string> names)
+        {
+            if (names.Contains(property.stringValue))
+            {
+                property.stringValue = string.Empty;
+            }
+        }
 
         internal bool TryAdd(string name, DspChainAsset chain, Vector2 position, out string error)
         {
@@ -35,67 +69,6 @@
             }
 
             return TryAddNode(name, chain, position, -1, edge, out error);
-        }
-
-        private bool TryAddNode(string name, DspChainAsset chain, Vector2 position, int from, int edge, out string error)
-        {
-            name = name?.Trim();
-            if (!CanName(name, -1, out error))
-            {
-                return false;
-            }
-
-            if (DspGraph.MaximumNodes <= _asset.NodeCount || ((0 <= from || 0 <= edge) && DspGraph.MaximumEdges <= _asset.EdgeCount))
-            {
-                error = "The graph has reached its node or connection limit.";
-                return false;
-            }
-
-            DspGraphEdge replaced = 0 <= edge ? _asset.Edges[edge] : null;
-            if ((0 <= from && !CanUseNode(from)) || (0 <= edge && (replaced == null || Resolve(replaced.From) < 0 || Resolve(replaced.To) < 0)))
-            {
-                error = "Choose unambiguous endpoints before adding a connected node.";
-                return false;
-            }
-
-            if (replaced != null && !CanConnect(edge, Resolve(replaced.From), Resolve(replaced.To), out error))
-            {
-                return false;
-            }
-
-            if (HasReference(name))
-            {
-                error = "Repair the existing references to this name before adding the node.";
-                return false;
-            }
-
-            return Commit(
-                0 <= edge ? "Insert DSP Node" : "Add DSP Node",
-                serialized =>
-                {
-                    SerializedProperty nodes = serialized.FindProperty("_nodes");
-                    SerializedProperty node = Append(nodes);
-                    node.FindPropertyRelative("_name").stringValue = name;
-                    node.FindPropertyRelative("_chain").objectReferenceValue = chain;
-                    SetPosition(node, position);
-                    SerializedProperty edges = serialized.FindProperty("_edges");
-                    if (replaced != null)
-                    {
-                        SetEdge(edges.GetArrayElementAtIndex(edge), replaced.From, name);
-                        SetEdge(Append(edges), name, replaced.To);
-                    }
-                    else if (0 <= from)
-                    {
-                        SetEdge(Append(edges), _asset.Nodes[from].Name, name);
-                    }
-                    else if (nodes.arraySize == 1)
-                    {
-                        serialized.FindProperty("_inputNode").stringValue = name;
-                        serialized.FindProperty("_outputNode").stringValue = name;
-                    }
-                },
-                out error
-            );
         }
 
         internal bool TryConnect(int from, int to, out string error)
@@ -128,54 +101,6 @@
             return CanConnect(-1, from, to, out error);
         }
 
-        private bool CanConnect(int edge, int from, int to, out string error)
-        {
-            if (IsReadOnly())
-            {
-                error = "The graph is read-only.";
-                return false;
-            }
-
-            if (_asset.EdgeCount <= edge || !CanUseNode(from) || !CanUseNode(to))
-            {
-                error = "Choose two nodes with unique names.";
-                return false;
-            }
-
-            if (from == to)
-            {
-                error = "A node cannot connect to itself.";
-                return false;
-            }
-
-            if (edge < 0 && DspGraph.MaximumEdges <= _asset.EdgeCount)
-            {
-                error = "The graph has reached its connection limit.";
-                return false;
-            }
-
-            string source = _asset.Nodes[from].Name;
-            string target = _asset.Nodes[to].Name;
-            for (int index = 0; index < _asset.EdgeCount; index++)
-            {
-                DspGraphEdge existing = _asset.Edges[index];
-                if (index != edge && existing != null && existing.From == source && existing.To == target)
-                {
-                    error = "These nodes already have this connection.";
-                    return false;
-                }
-            }
-
-            if (Reaches(to, from, edge, new HashSet<int>()))
-            {
-                error = "This connection would close a cycle.";
-                return false;
-            }
-
-            error = string.Empty;
-            return true;
-        }
-
         internal bool TryRename(int index, string name, out string error)
         {
             name = name?.Trim();
@@ -191,7 +116,7 @@
             }
 
             string previous = _asset.Nodes[index].Name;
-            if (previous == name)
+            if (string.Equals(previous, name, StringComparison.Ordinal))
             {
                 return true;
             }
@@ -366,7 +291,7 @@
             int match = -1;
             for (int index = 0; index < _asset.NodeCount; index++)
             {
-                if (_asset.Nodes[index]?.Name == name)
+                if (string.Equals(_asset.Nodes[index]?.Name, name, StringComparison.Ordinal))
                 {
                     if (0 <= match)
                     {
@@ -378,6 +303,120 @@
             }
 
             return match;
+        }
+
+        private bool TryAddNode(string name, DspChainAsset chain, Vector2 position, int from, int edge, out string error)
+        {
+            name = name?.Trim();
+            if (!CanName(name, -1, out error))
+            {
+                return false;
+            }
+
+            if (DspGraph.MaximumNodes <= _asset.NodeCount || ((0 <= from || 0 <= edge) && DspGraph.MaximumEdges <= _asset.EdgeCount))
+            {
+                error = "The graph has reached its node or connection limit.";
+                return false;
+            }
+
+            DspGraphEdge replaced = 0 <= edge ? _asset.Edges[edge] : null;
+            if ((0 <= from && !CanUseNode(from)) || (0 <= edge && (replaced == null || Resolve(replaced.From) < 0 || Resolve(replaced.To) < 0)))
+            {
+                error = "Choose unambiguous endpoints before adding a connected node.";
+                return false;
+            }
+
+            if (replaced != null && !CanConnect(edge, Resolve(replaced.From), Resolve(replaced.To), out error))
+            {
+                return false;
+            }
+
+            if (HasReference(name))
+            {
+                error = "Repair the existing references to this name before adding the node.";
+                return false;
+            }
+
+            return Commit(
+                0 <= edge ? "Insert DSP Node" : "Add DSP Node",
+                serialized =>
+                {
+                    SerializedProperty nodes = serialized.FindProperty("_nodes");
+                    SerializedProperty node = Append(nodes);
+                    node.FindPropertyRelative("_name").stringValue = name;
+                    node.FindPropertyRelative("_chain").objectReferenceValue = chain;
+                    SetPosition(node, position);
+                    SerializedProperty edges = serialized.FindProperty("_edges");
+                    if (replaced != null)
+                    {
+                        SetEdge(edges.GetArrayElementAtIndex(edge), replaced.From, name);
+                        SetEdge(Append(edges), name, replaced.To);
+                    }
+                    else if (0 <= from)
+                    {
+                        SetEdge(Append(edges), _asset.Nodes[from].Name, name);
+                    }
+                    else if (nodes.arraySize == 1)
+                    {
+                        serialized.FindProperty("_inputNode").stringValue = name;
+                        serialized.FindProperty("_outputNode").stringValue = name;
+                    }
+                },
+                out error
+            );
+        }
+
+        private bool CanConnect(int edge, int from, int to, out string error)
+        {
+            if (IsReadOnly())
+            {
+                error = "The graph is read-only.";
+                return false;
+            }
+
+            if (_asset.EdgeCount <= edge || !CanUseNode(from) || !CanUseNode(to))
+            {
+                error = "Choose two nodes with unique names.";
+                return false;
+            }
+
+            if (from == to)
+            {
+                error = "A node cannot connect to itself.";
+                return false;
+            }
+
+            if (edge < 0 && DspGraph.MaximumEdges <= _asset.EdgeCount)
+            {
+                error = "The graph has reached its connection limit.";
+                return false;
+            }
+
+            string source = _asset.Nodes[from].Name;
+            string target = _asset.Nodes[to].Name;
+            for (int index = 0; index < _asset.EdgeCount; index++)
+            {
+                DspGraphEdge existing = _asset.Edges[index];
+                if (
+                    index != edge
+                    && existing != null
+                    && string.Equals(existing.From, source, StringComparison.Ordinal)
+                    && string.Equals(existing.To, target, StringComparison.Ordinal)
+                )
+                {
+                    error = "These nodes already have this connection.";
+                    return false;
+                }
+            }
+
+            if (Reaches(to, from, edge, new HashSet<int>()))
+            {
+                error = "This connection would close a cycle.";
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
         }
 
         private bool CanUseNode(int index)
@@ -395,7 +434,7 @@
 
             for (int index = 0; index < _asset.NodeCount; index++)
             {
-                if (index != except && _asset.Nodes[index]?.Name == name)
+                if (index != except && string.Equals(_asset.Nodes[index]?.Name, name, StringComparison.Ordinal))
                 {
                     error = "That node name is already in use.";
                     return false;
@@ -413,14 +452,14 @@
                 return false;
             }
 
-            if (_asset.InputNode == name || _asset.OutputNode == name)
+            if (string.Equals(_asset.InputNode, name, StringComparison.Ordinal) || string.Equals(_asset.OutputNode, name, StringComparison.Ordinal))
             {
                 return true;
             }
 
             foreach (DspGraphEdge edge in _asset.Edges)
             {
-                if (edge != null && (edge.From == name || edge.To == name))
+                if (edge != null && (string.Equals(edge.From, name, StringComparison.Ordinal) || string.Equals(edge.To, name, StringComparison.Ordinal)))
                 {
                     return true;
                 }
@@ -445,7 +484,7 @@
             for (int index = 0; index < _asset.EdgeCount; index++)
             {
                 DspGraphEdge edge = _asset.Edges[index];
-                if (index != excludedEdge && edge != null && edge.From == name)
+                if (index != excludedEdge && edge != null && string.Equals(edge.From, name, StringComparison.Ordinal))
                 {
                     int next = Resolve(edge.To);
                     if (0 <= next && Reaches(next, to, excludedEdge, visited))
@@ -485,41 +524,6 @@
         private bool IsReadOnly()
         {
             return AssetDatabase.Contains(_asset) && !AssetDatabase.IsOpenForEdit(_asset);
-        }
-
-        private static SerializedProperty Append(SerializedProperty array)
-        {
-            int index = array.arraySize;
-            array.arraySize++;
-            return array.GetArrayElementAtIndex(index);
-        }
-
-        private static void SetPosition(SerializedProperty node, Vector2 position)
-        {
-            node.FindPropertyRelative("_hasEditorPosition").boolValue = true;
-            node.FindPropertyRelative("_editorPosition").vector2Value = position;
-        }
-
-        private static void SetEdge(SerializedProperty edge, string from, string to)
-        {
-            edge.FindPropertyRelative("_from").stringValue = from;
-            edge.FindPropertyRelative("_to").stringValue = to;
-        }
-
-        private static void Replace(SerializedProperty property, string before, string after)
-        {
-            if (!string.IsNullOrEmpty(before) && property != null && property.stringValue == before)
-            {
-                property.stringValue = after;
-            }
-        }
-
-        private static void ClearEndpoint(SerializedProperty property, HashSet<string> names)
-        {
-            if (names.Contains(property.stringValue))
-            {
-                property.stringValue = string.Empty;
-            }
         }
     }
 }

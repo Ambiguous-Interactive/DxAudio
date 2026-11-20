@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using UnityEngine;
 
@@ -6,6 +6,18 @@ namespace WallstopStudios.DxAudio
     [CreateAssetMenu(fileName = "DspFilter", menuName = "DxAudio/DSP/Filter")]
     public sealed class DspFilterAsset : DspEffectAsset
     {
+        /// <summary>The band this stage shapes.</summary>
+        public DspFilterMode Mode => _mode;
+
+        /// <summary>The corner of the band, in hertz.</summary>
+        public float FrequencyHz => _frequencyHz;
+
+        /// <summary>How narrow the band is.</summary>
+        public float Quality => _quality;
+
+        /// <summary>How far the Peak or Bell mode moves its band, in decibels.</summary>
+        public float PeakDecibels => _peakDecibels;
+
         [SerializeField]
         [Tooltip("Which part of the spectrum the stage keeps. The default, Low Pass, muffles the sound above the corner.")]
         private DspFilterMode _mode = DspFilterMode.LowPass;
@@ -25,18 +37,6 @@ namespace WallstopStudios.DxAudio
         [Tooltip("How far the Peak or Bell mode moves its band, in decibels. Every other mode ignores it.")]
         private float _peakDecibels;
 
-        /// <summary>The band this stage shapes.</summary>
-        public DspFilterMode Mode => _mode;
-
-        /// <summary>The corner of the band, in hertz.</summary>
-        public float FrequencyHz => _frequencyHz;
-
-        /// <summary>How narrow the band is.</summary>
-        public float Quality => _quality;
-
-        /// <summary>How far the Peak or Bell mode moves its band, in decibels.</summary>
-        public float PeakDecibels => _peakDecibels;
-
         /// <summary>Builds a filter asset in code, for tests and for games that author audio at runtime.</summary>
         public static DspFilterAsset Create(
             DspFilterMode mode = DspFilterMode.LowPass,
@@ -53,23 +53,6 @@ namespace WallstopStudios.DxAudio
             asset._quality = AudioMath.IsFinite(quality) ? Mathf.Clamp(quality, DspFilter.MinimumQuality, DspFilter.MaximumQuality) : DspFilter.DefaultQuality;
             asset._peakDecibels = AudioMath.IsFinite(peakDecibels) ? Mathf.Clamp(peakDecibels, DspFilter.MinimumPeakDecibels, DspFilter.MaximumPeakDecibels) : 0f;
             return asset;
-        }
-
-        public override string Describe()
-        {
-            string corner = $"{DescribeMode(_mode)} {_frequencyHz:0.#} Hz, Q {_quality:0.##}";
-            return _mode == DspFilterMode.Peak || _mode == DspFilterMode.Bell ? $"{corner}, {_peakDecibels:+0.#;-0.#;0} dB" : corner;
-        }
-
-        public override DspEffect CreateEffect()
-        {
-            return new DspFilter
-            {
-                Mode = _mode,
-                FrequencyHz = _frequencyHz,
-                Quality = _quality,
-                PeakDecibels = _peakDecibels,
-            };
         }
 
         private static string DescribeMode(DspFilterMode mode)
@@ -91,6 +74,23 @@ namespace WallstopStudios.DxAudio
                 default:
                     return "unset";
             }
+        }
+
+        public override string Describe()
+        {
+            string corner = $"{DescribeMode(_mode)} {_frequencyHz:0.#} Hz, Q {_quality:0.##}";
+            return _mode == DspFilterMode.Peak || _mode == DspFilterMode.Bell ? $"{corner}, {_peakDecibels:+0.#;-0.#;0} dB" : corner;
+        }
+
+        public override DspEffect CreateEffect()
+        {
+            return new DspFilter
+            {
+                Mode = _mode,
+                FrequencyHz = _frequencyHz,
+                Quality = _quality,
+                PeakDecibels = _peakDecibels,
+            };
         }
     }
 }

@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Tests.Editor
+﻿namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System.Text.RegularExpressions;
     using NUnit.Framework;
@@ -7,6 +7,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
     public sealed class LibraryTests
     {
+        private static SfxVariant Variant(MadeObjects made)
+        {
+            return new SfxVariant(Clip(made));
+        }
+
+        private static AudioClip Clip(MadeObjects made, float seconds = 0.5f)
+        {
+            const int Frequency = 8_000;
+            int samples = Mathf.Max(1, (int)(seconds * Frequency));
+            return made.Track(AudioClip.Create("test clip", samples, 1, Frequency, stream: false));
+        }
+
         [Test]
         public void AnSfxLibraryFindsPlayableCuesByKey()
         {
@@ -259,6 +271,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         private sealed class FixedRandom : ISfxRandom
         {
+            internal int Draws { get; private set; }
             private readonly double _value;
 
             internal FixedRandom(double value)
@@ -266,25 +279,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 _value = value;
             }
 
-            internal int Draws { get; private set; }
-
             public double NextDouble()
             {
                 Draws++;
                 return _value;
             }
-        }
-
-        private static SfxVariant Variant(MadeObjects made)
-        {
-            return new SfxVariant(Clip(made));
-        }
-
-        private static AudioClip Clip(MadeObjects made, float seconds = 0.5f)
-        {
-            const int Frequency = 8_000;
-            int samples = Mathf.Max(1, (int)(seconds * Frequency));
-            return made.Track(AudioClip.Create("test clip", samples, 1, Frequency, stream: false));
         }
     }
 }

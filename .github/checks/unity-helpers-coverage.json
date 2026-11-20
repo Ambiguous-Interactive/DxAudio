@@ -1,0 +1,1477 @@
+{
+  "revision": "072d2dddd79b4a9210aa2812ae5761bf9a5e28c8",
+  "complete_registries": true,
+  "gates": {
+    "upstream-source": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "run": "python3 .github/checks/unity_helpers_coverage.py --validate --analyzer-fixtures",
+      "files": [
+        ".github/checks/unity_helpers_source_checks.py",
+        ".github/checks/test_unity_helpers_coverage.py",
+        ".github/checks/unity_helpers_unsafe.cjs",
+        ".github/checks/portable_csharp_checks.py"
+      ]
+    },
+    "core": {
+      "path": ".github/workflows/ci.yml",
+      "job": "core-tests",
+      "run": "python3 .net-tests/run_checks.py",
+      "files": [".net-tests/UnityHelpers.ruleset", ".net-tests/Compatibility/DxAudio.Core.Compatibility.csproj"]
+    },
+    "package": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "run": "python3 .github/scripts/package_check.py",
+      "files": [".github/scripts/package_check.py", ".github/scripts/test_package_check.py"]
+    },
+    "unity": {
+      "path": ".github/workflows/unity-tests.yml",
+      "job": "unity-tests",
+      "run": "./scripts/unity/run-editmode-tests.ps1",
+      "files": ["scripts/unity/run-editmode-tests.ps1", ".net-tests/UnityValidation/test_runner.py"]
+    },
+    "unity-archive": {
+      "path": ".github/workflows/unity-tests.yml",
+      "job": "unity-tests",
+      "run": "./scripts/unity/run-editmode-tests.ps1 -ArchiveSmoke",
+      "files": ["scripts/unity/run-editmode-tests.ps1", ".net-tests/UnityValidation/test_runner.py"]
+    },
+    "metadata": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "run": "python3 .github/scripts/meta_files.py --check",
+      "files": [".github/scripts/meta_files.py"]
+    },
+    "repo-lints": {
+      "path": ".github/workflows/llm-lint.yml",
+      "job": "lint",
+      "run": "uv run scripts/run_ci_lints.py",
+      "files": ["scripts/run_ci_lints.py", "scripts/lint_meta_companions.py"]
+    },
+    "markdown-format": {
+      "path": ".github/workflows/llm-lint.yml",
+      "job": "lint",
+      "run": "uv run scripts/markdown_check.py ${{ github.event_name == 'push' && 'all' || steps.check-scope.outputs.markdown-files }}",
+      "files": ["scripts/markdown_check.py", "scripts/tests/test_markdown_check.py"]
+    },
+    "text-files": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "run": "python3 .github/scripts/check_text_files.py",
+      "files": [".github/scripts/check_text_files.py"]
+    },
+    "release": {
+      "path": ".github/workflows/release.yml",
+      "job": "release",
+      "run": "python3 .github/scripts/package_check.py --tag \"${TAG}\" --out dist",
+      "files": [".github/scripts/package_check.py"]
+    }
+  },
+  "mappings": [
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Pinned upstream check functions run on real DxAudio C# and six planted red/green controls.",
+      "checks": {
+        "lint": [
+          "comparison-direction",
+          "conditional-call-chains",
+          "drawer-multiobject",
+          "no-regions",
+          "preserve-attributes",
+          "unity-file-naming",
+          "no-regions-controls",
+          "drawer-multiobject-test",
+          "unity-file-naming-test"
+        ],
+        "contract": ["lint-comparison-direction", "lint-preserve-attributes"],
+        "command": [
+          "lint:comparison-direction",
+          "lint:conditional-call-chains",
+          "lint:drawer-multiobject",
+          "lint:preserve-attributes",
+          "lint:unity-file-naming",
+          "test:lint-comparison-direction",
+          "test:drawer-multiobject",
+          "test:lint-preserve-attributes",
+          "test:lint-unity-file-naming"
+        ]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Pinned portable C# policies scan DxAudio and reject explicit bad naming, duplicate imports, misplaced types, hidden test hooks, repeated XML summaries, and multiline line-comments.",
+      "checks": {
+        "lint": ["comment-block-form", "csharp-naming", "csharp-naming-test", "duplicate-usings", "nested-type-placement", "production-test-hooks", "xml-doc-summaries"],
+        "contract": ["lint-comment-block-form", "lint-duplicate-usings", "lint-nested-type-placement", "lint-production-test-hooks", "lint-xml-doc-summaries"],
+        "command": [
+          "lint:comment-block-form",
+          "lint:csharp-naming",
+          "lint:duplicate-usings",
+          "lint:nested-type-placement",
+          "lint:production-test-hooks",
+          "lint:xml-doc-summaries",
+          "test:lint-comment-block-form",
+          "test:lint-duplicate-usings",
+          "test:lint-nested-type-placement",
+          "test:lint-production-test-hooks",
+          "test:lint-xml-doc-summaries"
+        ]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The native upstream asmdef and cache-fill checks scan DxAudio and have wrong-name and nonatomic-population controls.",
+      "checks": {
+        "lint": ["asmdef", "concurrent-cache-fill", "concurrent-cache-fill-test"],
+        "contract": ["asmdef", "lint-concurrent-cache-fill"],
+        "command": ["lint:concurrent-cache-fill", "test:asmdef", "test:lint-concurrent-cache-fill"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Immutable action references and missing, disconnected, or unrecognized coverage cases have planted controls.",
+      "checks": {
+        "lint": ["workflow-action-pins"],
+        "contract": ["check-registries"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The pinned upstream Roslyn syntax gate rejects unsafe compiler switches, unsafe access, disabled IL2CPP safety checks, and unbounded stackalloc, with planted controls.",
+      "checks": {
+        "lint": ["unsafe-code", "unsafe-code-test"],
+        "command": ["lint:unsafe-code", "test:lint-unsafe-code"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The exact pinned analyzer fixture project compiles and runs in a disposable copy with a positive test count.",
+      "checks": {
+        "command": ["test:analyzers"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "core",
+      "evidence": "The compiler must load the pinned DLL, verify all IDs against the ruleset, and run the configured analyzer rules.",
+      "checks": {
+        "diagnostic": [
+          "WUH001",
+          "WUH002",
+          "WUH003",
+          "WUH004",
+          "WUH005",
+          "WUH006",
+          "WUH007",
+          "WUH008",
+          "WUH009",
+          "WUH010",
+          "WUH011",
+          "WUH012",
+          "WUH013",
+          "WUH014",
+          "WUH015",
+          "WUH016",
+          "WUH017",
+          "WUH018",
+          "WUH019",
+          "WUH020",
+          "WUH021",
+          "WUH022",
+          "WUH023",
+          "WUH024",
+          "WUH025",
+          "WUH026",
+          "WUH027",
+          "WUH028",
+          "WUH029",
+          "WUH030"
+        ]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "package",
+      "evidence": "DxAudio checks its declared and optional asmdef references plus payload and tracked Unity assets. Package tests plant forbidden DLLs and a mandatory dependency.",
+      "checks": {
+        "lint": ["npm-package", "bundled-assemblies"],
+        "command": ["validate:npm-package", "lint:bundled-assemblies"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity",
+      "evidence": "The real editor compiles package asmdefs and tests with both optional dependency states. The runner rejects missing results and a missing analyzer activation receipt.",
+      "checks": {
+        "lint": ["unity-nunit-results", "unity-compiler-warnings"],
+        "contract": ["unity-nunit-results", "test-result-evidence", "analyzer-placement"],
+        "typecheck": ["runtime", "editor", "editor-tests", "integrations"],
+        "command": ["unity:compile", "unity:test:editmode", "test:unity-nunit-results", "test:unity-compiler-warnings", "test:analyzer-placement", "test:test-result-evidence"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity",
+      "evidence": "Live Unity reference parity and Editor-only MonoBehaviour tests pass and were verified with a planted extra reference and a planted editor-only Runtime assembly.",
+      "checks": {
+        "lint": ["typecheck-asmdef-references", "editor-assembly-monobehaviours", "editor-assembly-monobehaviours-test"],
+        "contract": ["lint-typecheck-asmdef-references"],
+        "command": [
+          "lint:typecheck-asmdef-references",
+          "test:lint-typecheck-asmdef-references",
+          "lint:editor-assembly-monobehaviours",
+          "test:lint-editor-assembly-monobehaviours",
+          "typecheck:tests:asmdef-references"
+        ]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-archive",
+      "evidence": "A pristine archive importer must produce the clean compile receipt. The runner test covers rejected receipt and staged package leakage.",
+      "checks": {
+        "command": ["test:unity-package-export"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "metadata",
+      "evidence": "CI rejects missing or orphaned filesystem meta companions for package imports.",
+      "checks": {
+        "lint": ["meta-files"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "repo-lints",
+      "evidence": "DxAudio's lint checks generated skills, release-note shape, and the local meta companion policy.",
+      "checks": {
+        "lint": ["skill-sizes", "changelog"],
+        "contract": ["lint-changelog"],
+        "command": ["lint:llm", "lint:changelog", "test:lint-changelog"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "text-files",
+      "evidence": "The required package job checks Prettier-managed JSON, YAML and Markdown and final newlines for text files.",
+      "checks": {
+        "lint": ["format-json", "format-js", "format-yaml", "final-newline"],
+        "command": ["format:json:check", "format:js:check", "format:yaml:check", "test:final-newline"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "markdown-format",
+      "evidence": "CI runs source-scoped Prettier Markdown checks and has a dedicated harness test.",
+      "checks": {
+        "lint": ["format-md"],
+        "command": ["format:md:check"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "release",
+      "evidence": "Release packing validates tag, published manifest version, and versioned changelog before publishing.",
+      "checks": {
+        "contract": ["verify-release-tag", "npm-package-changelog"],
+        "command": ["test:verify-release-tag", "test:npm-package-changelog"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the unity-helpers WProto generator, Protobuf candidate branches, and WProto contract fixtures. DxAudio ships no Protobuf generator or schema.",
+      "checks": {
+        "lint": ["wproto-claim-catalog"],
+        "contract": ["protobuf-candidate", "wproto-annotations", "wproto-evidence", "run-wproto-evidence", "wproto-corpus"],
+        "command": ["typecheck:unity:proto-only", "test:protobuf-candidate", "test:wproto-annotations", "test:wproto-evidence", "test:wproto-corpus", "test:run-wproto-evidence"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the Odin editor integration, its compatibility typecheck configurations, and Odin-specific Undo fixtures.",
+      "checks": {
+        "lint": ["odin-undo-safety", "odin-undo-safety-test"],
+        "command": [
+          "lint:odin-undo-safety",
+          "test:odin-undo-safety",
+          "typecheck:unity:odin",
+          "typecheck:editor:odin",
+          "typecheck:editor-tests:odin",
+          "typecheck:unity:odin-bases-disabled"
+        ]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires unity-helpers' typed enum source generator and emitted generator artifacts. DxAudio uses a source enum invariant check.",
+      "checks": {
+        "lint": ["enum-generator"],
+        "command": ["test:enum-generator"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the upstream browser persistent storage bridge and its WebGL browser export fixtures. DxAudio has no storage bridge.",
+      "checks": {
+        "contract": ["browser-storage", "browser-consumer"],
+        "command": ["test:browser-storage", "test:browser-consumer"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Tests unity-helpers' own random generator, stream, arithmetic sampler, and TestU01 fixtures. DxAudio has no shipped PRNG implementation.",
+      "checks": {
+        "contract": ["bounded-sampling-parser", "random-periods", "evaluate-testu01", "random-quality-stream", "random-quality-outcomes"],
+        "command": [
+          "test:bounded-sampling",
+          "test:random-periods",
+          "test:evaluate-testu01",
+          "test:random-quality-stream",
+          "test:random-quality-outcomes",
+          "typecheck:random-quality"
+        ]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the upstream durable file API and its injected storage failure fixtures. DxAudio ships no persistent file API.",
+      "checks": {
+        "contract": ["durable-file"],
+        "command": ["test:durable-file"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires GitHub Pages or wiki publishing assets. DxAudio documentation is distributed from the repository and package.",
+      "checks": {
+        "lint": ["github-pages-css"],
+        "contract": ["validate-github-pages-css", "github-pages-sortable", "wiki-generation"],
+        "command": ["test:validate-github-pages-css", "test:github-pages-sortable", "test:wiki-generation"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the upstream unitypackage archive exporter. DxAudio ships npm/UPM archives with its own clean consumer import check.",
+      "checks": {
+        "contract": ["release-export-only", "create-unitypackage"],
+        "command": ["test:release-export-only", "test:create-unitypackage"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires committing generated analyzer DLLs as part of the product's published package. DxAudio verifies the development pin and rejects these artifacts from the consumer payload.",
+      "checks": {
+        "lint": ["shipped-analyzers"],
+        "contract": ["verify-shipped-analyzers"],
+        "command": ["verify:shipped-analyzers", "verify:shipped-analyzers:fix", "test:verify-shipped-analyzers"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires a Tests/Runtime assembly or a legacy Reflex integration. DxAudio currently has Editor suites and an optional DxMessaging integration.",
+      "checks": {
+        "typecheck": ["tests"],
+        "command": ["typecheck:integrations:legacy-reflex"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires unity-helpers' domain-specific data structure and asset canonicalization APIs, which DxAudio does not publish.",
+      "checks": {
+        "command": ["test:intmap", "test:enumeration", "test:stable-assets"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the upstream wiki/readme mirror and generated documentation counters. DxAudio owns a single README and its package documentation.",
+      "checks": {
+        "lint": ["doc-counts", "readme-mirror-test", "readme-mirror"],
+        "contract": ["sync-readme-mirror", "lint-doc-counts"],
+        "command": ["lint:doc-counts", "lint:readme-mirror", "test:lint-doc-counts", "test:sync-readme-mirror"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Needs a DxAudio compiler or semantic rule and a planted source control.",
+      "checks": {
+        "contract": ["out-parameters", "csharp-syntax", "csharp-lints", "typecheck-controls"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Needs a portable formatting or language policy and negative fixtures for DxAudio's source and configuration trees.",
+      "checks": {
+        "lint": ["yaml", "lint-error-codes", "lint-error-codes-test", "path-normalization", "path-normalization-test", "eol", "license-headers", "license-years"],
+        "contract": ["yaml-controls", "validate-formatting", "check-eol", "validate-lint-error-codes", "license-year-rename", "license-year-copy-detection"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Needs the equivalent docs, examples, or documentation corpus check with a red control. Existing relative link and sample GUID checks cover part of the contract.",
+      "checks": {
+        "lint": ["doc-links-test", "deprecated-external-links", "doc-links", "code-fence-syntax", "markdown", "doc-code-samples", "doc-identifiers", "spelling", "spelling-config"],
+        "contract": [
+          "check-code-fence-syntax",
+          "lint-doc-identifiers",
+          "extract-code-samples",
+          "extract-doc-samples",
+          "empty-corpus-gates",
+          "markdown-fence-repair",
+          "lint-markdown",
+          "doc-link-test-launcher"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Needs a DxAudio-specific Unity runner or platform control and validation in a disposable editor or player.",
+      "checks": {
+        "lint": [
+          "unity-mode-coordinator",
+          "report-slow-tests",
+          "unity-license-activation-retry",
+          "unity-configure-upm-retry",
+          "unity-environment-warnings",
+          "process-watchdog",
+          "native-debugger-download",
+          "native-fault-capture"
+        ],
+        "contract": [
+          "unity-framework",
+          "native-build-readback",
+          "native-fault-capture",
+          "lint-unity-test-modules",
+          "unity-workflow-matrix-contract",
+          "unity-test-filter",
+          "unity-frozen-player-provenance",
+          "unity-acceptance-runner",
+          "unity-acceptance-evidence",
+          "unity-acceptance-workflow",
+          "nullable-consumer-matrix",
+          "il2cpp-conversion-inputs",
+          "unity-grouped-modes",
+          "standalone-scene-provision",
+          "unity-timeout",
+          "redact-unity-artifacts",
+          "unity-artifact-redaction",
+          "unity-license-cache-location",
+          "build-lock-action-inputs",
+          "build-lock-action-input-parser",
+          "portable-cleanup-classifier",
+          "license-cache",
+          "watchdog-cancellation",
+          "accelerator",
+          "project-workspace",
+          "perf-tools"
+        ]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity",
+      "evidence": "Real Unity EditMode validation checks the matrix, analyzer receipt, and result XML.",
+      "checks": {
+        "workflow:unity-compatibility/unity-tests": ["12 run_editmode", "34 verify_editmode"],
+        "workflow:unity-tests/unity-tests": ["12 run_editmode", "34 verify_editmode"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-archive",
+      "evidence": "The package consumer import runs in a clean project with an explicit compile receipt.",
+      "checks": {
+        "workflow:unity-tests/unitypackage-smoke-aggregate": ["1 Require package smoke result"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "package",
+      "evidence": "The release runs DxAudio's package gate before publication.",
+      "checks": {
+        "workflow:release/validate-package": ["5 Run release package validation"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "release",
+      "evidence": "The release check validates an exact tag and versioned changelog.",
+      "checks": {
+        "workflow:release/verify-tag": ["5 verify"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "text-files",
+      "evidence": "The required format check covers Markdown, JSON, YAML, and JavaScript.",
+      "checks": {
+        "workflow:prettier-autofix/autofix": ["8 Prettier check (Markdown)", "9 Prettier check (JSON / asmdef / asmref)", "10 Prettier check (YAML)", "11 Prettier check (JS)"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Runs the pinned upstream analyzer fixture project and requires a nonzero result.",
+      "checks": {
+        "workflow:wproto-generator/generator": ["9 Test the WUH analyzers"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the generated wiki or Pages artifact and the corresponding deployment workflow.",
+      "checks": {
+        "workflow:deploy-pages/build": ["5 Build with MkDocs", "6 Validate build output"],
+        "workflow:deploy-wiki/check-wiki": ["1 check"],
+        "workflow:deploy-wiki/sync-wiki": [
+          "3 Require wiki publisher credentials",
+          "7 Generate sidebar",
+          "8 Generate footer",
+          "9 Validate wiki content",
+          "10 changes",
+          "12 Summary"
+        ],
+        "workflow:deploy-wiki/notify-failure": ["1 Create failure summary"],
+        "workflow:validate-docs/build-mkdocs-test": ["4 Build MkDocs site", "5 Verify build output"],
+        "workflow:validate-wiki-links/validate": [
+          "3 Generate wiki page names and validate structure",
+          "4 Validate internal documentation links",
+          "5 Test wiki generation logic (bash)",
+          "6 Test wiki Python scripts"
+        ]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Runs statistics and compatibility checks for unity-helpers' shipped PRNG algorithms.",
+      "checks": {
+        "workflow:random-quality/resolve": ["3 Require the installed .NET SDK", "5 resolve"],
+        "workflow:random-quality/practrand": ["2 Build PractRand from the pinned archive", "3 Verify the pinned battery version"],
+        "workflow:random-quality/testu01": [
+          "3 Require the installed .NET SDK",
+          "8 Build TestU01 if needed, and prove it can fail",
+          "9 Run SmallCrush over the inventory",
+          "10 Report"
+        ],
+        "workflow:random-quality/battery": ["2 Require the installed .NET SDK", "5 Run the battery"],
+        "workflow:random-quality/evaluate": ["5 compare", "8 Fail the run on a mismatch"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the protobuf generator or an upstream WProto-only standalone deployment.",
+      "checks": {
+        "workflow:unity-compatibility/unity-tests": [
+          "23 proto_only_head",
+          "24 run_proto_only",
+          "45 verify_proto_only",
+          "46 redact_proto_only",
+          "48 Require WProto-only Standalone acceptance",
+          "51 reverify_wproto_acceptance"
+        ],
+        "workflow:unity-tests/unity-tests": [
+          "23 proto_only_head",
+          "24 run_proto_only",
+          "45 verify_proto_only",
+          "46 redact_proto_only",
+          "48 Require WProto-only Standalone acceptance",
+          "51 reverify_wproto_acceptance"
+        ],
+        "workflow:wproto-generator/generator": [
+          "3 Require the retained protobuf compiler SDK",
+          "11 Test the generator against protobuf-net 3.2.56",
+          "12 Admit retained Dox consumer contracts against protobuf-net v3",
+          "13 Compile exported schemas and cross-read with protoc",
+          "15 Test the generator against protobuf-net 2.4.9",
+          "17 Build the pinned current protobuf candidate",
+          "18 Test the generator against the current protobuf candidate",
+          "19 Verify shipped protobuf matches its source build",
+          "20 Admit retained Dox contracts against current protobuf"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Review the local or CI equivalent for the named upstream contract and demonstrate it with a passing and failing fixture before claiming enforcement.",
+      "checks": {
+        "lint": [
+          "catastrophic-pattern-sync",
+          "comment-stripping",
+          "dependabot",
+          "devcontainer-config",
+          "devcontainer-urls",
+          "devcontainer-urls-test",
+          "gitignore-docs",
+          "hook-patterns",
+          "hook-permissions",
+          "hook-spell-parity",
+          "hook-sync-calls",
+          "lint-tests-test",
+          "mcp-config",
+          "meta-exclusions",
+          "post-create",
+          "pwsh-invocations",
+          "skill-sizes-test",
+          "workflow-run-expression-length"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Review the local or CI equivalent for the named upstream contract and demonstrate it with a passing and failing fixture before claiming enforcement.",
+      "checks": {
+        "contract": [
+          "add-cspell-word",
+          "agent-check",
+          "agent-skill-migration",
+          "asmdef-discovery",
+          "assembly-launchers",
+          "asset-postprocessor-reachability",
+          "auto-publish-release",
+          "check-runner",
+          "compiler-tooling",
+          "configure-git-defaults",
+          "devcontainer-persistence",
+          "fixture-assets",
+          "format-on-demand-workflow",
+          "frozen-files",
+          "git-path-helpers",
+          "git-staging-helpers",
+          "github-mcp",
+          "github-token",
+          "gitignore-docs",
+          "lint-bundled-assemblies",
+          "lint-dependabot",
+          "lint-pwsh-invocations",
+          "lint-tests",
+          "lint-workflow-run-expression-length",
+          "meta-generation",
+          "node-bin",
+          "normalize-container-git-config",
+          "npm-package-signature",
+          "postinstall-hooks",
+          "pr-workflow-concurrency",
+          "python-compatibility",
+          "python-policy",
+          "read-stdin-sync",
+          "reference-upstream-drift",
+          "release-tools",
+          "run-contract-tests",
+          "run-repo-lint",
+          "runner-maintenance",
+          "shell-portability",
+          "skill-stubs",
+          "sync-mcp",
+          "sync-script-contracts",
+          "typecheck-iterate",
+          "unity-mcp",
+          "unity-package-export",
+          "validate-devcontainer-config",
+          "validate-devcontainer-urls",
+          "validate-git-push-config",
+          "validate-hook-permissions",
+          "validate-hook-sync-calls",
+          "validate-mcp-config",
+          "verify-devcontainer-tools",
+          "version-sync",
+          "workflow-license-secret-scope",
+          "workflow-repository-guard",
+          "zai-mcp"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Review the local or CI equivalent for the named upstream contract and demonstrate it with a passing and failing fixture before claiming enforcement.",
+      "checks": {
+        "hook": ["agent-preflight", "pre-push-changed-files", "precommit-integration"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Review this validation command or alias against the equivalent registry and DxAudio command contract.",
+      "checks": {
+        "command": [
+          "check:container-git-credentials",
+          "check:reference-upstream-drift",
+          "check:upm-changelog",
+          "format:csharp:check",
+          "lint:code-samples",
+          "lint:code-samples:verbose",
+          "lint:comment-block-form:fix",
+          "lint:comparison-direction:fix",
+          "lint:csharp-syntax",
+          "lint:csharp-syntax:fix",
+          "lint:dependabot",
+          "lint:doc-identifiers",
+          "lint:doc-links",
+          "lint:doc-samples",
+          "lint:doc-samples:reuse-checks",
+          "lint:docs",
+          "lint:license-headers",
+          "lint:llm:fix",
+          "lint:llm:verbose",
+          "lint:markdown",
+          "lint:nested-type-placement:fix",
+          "lint:path-normalization",
+          "lint:pwsh-invocations",
+          "lint:python",
+          "lint:repo",
+          "lint:skill-sizes",
+          "lint:spelling",
+          "lint:spelling:add",
+          "lint:spelling:config",
+          "lint:spelling:config:fix",
+          "lint:spelling:verbose",
+          "lint:tests",
+          "lint:workflow-run-expression-length",
+          "lint:yaml",
+          "test:accelerator",
+          "test:add-cspell-word",
+          "test:agent-check",
+          "test:agent-preflight",
+          "test:agent-skill-migration",
+          "test:ai-backends",
+          "test:asmdef-discovery",
+          "test:assembly-launchers",
+          "test:asset-postprocessor-reachability",
+          "test:auto-publish-release",
+          "test:build-lock-action-input-parser",
+          "test:build-lock-action-inputs",
+          "test:catastrophic-pattern-sync",
+          "test:check-code-fence-syntax",
+          "test:check-eol",
+          "test:check-registries",
+          "test:check-runner",
+          "test:compiler-tooling",
+          "test:configure-git-defaults",
+          "test:csharp-lints",
+          "test:deprecated-external-links",
+          "test:devcontainer-persistence",
+          "test:doc-links-launcher",
+          "test:empty-corpus-gates",
+          "test:extract-code-samples",
+          "test:extract-doc-samples",
+          "test:fixture-assets",
+          "test:format-on-demand-workflow",
+          "test:frozen-files",
+          "test:git-path-helpers",
+          "test:git-staging-helpers",
+          "test:github-mcp",
+          "test:github-token",
+          "test:gitignore-docs",
+          "test:il2cpp-conversion-inputs",
+          "test:license-cache",
+          "test:license-year-copy-detection",
+          "test:license-year-rename",
+          "test:lint-bundled-assemblies",
+          "test:lint-dependabot",
+          "test:lint-doc-identifiers",
+          "test:lint-markdown",
+          "test:lint-path-normalization",
+          "test:lint-pwsh-invocations",
+          "test:lint-unity-test-modules",
+          "test:lint-workflow-run-expression-length",
+          "test:lint-yaml",
+          "test:markdown-fence-repair",
+          "test:meta-generation",
+          "test:native-debugger-download",
+          "test:native-fault-capture",
+          "test:node-bin",
+          "test:normalize-container-git-config",
+          "test:npm-package-signature",
+          "test:nullable-consumer-matrix",
+          "test:out-parameters",
+          "test:perf-tools",
+          "test:portable-cleanup-classifier",
+          "test:post-create",
+          "test:postinstall-hooks",
+          "test:pr-workflow-concurrency",
+          "test:pre-push-changed-files",
+          "test:precommit-integration",
+          "test:project-workspace",
+          "test:python-compatibility",
+          "test:read-stdin-sync",
+          "test:redact-unity-artifacts",
+          "test:reference-upstream-drift",
+          "test:release-tools",
+          "test:run-contract-tests",
+          "test:run-repo-lint",
+          "test:runner-maintenance",
+          "test:shell-portability",
+          "test:skill-sizes",
+          "test:skill-stubs",
+          "test:standalone-scene-provision",
+          "test:sync-mcp",
+          "test:sync-script-contracts",
+          "test:typecheck-controls",
+          "test:typecheck-iterate",
+          "test:unity-acceptance-evidence",
+          "test:unity-acceptance-runner",
+          "test:unity-acceptance-workflow",
+          "test:unity-acceptance-workflow:predicates",
+          "test:unity-artifact-redaction",
+          "test:unity-framework",
+          "test:unity-frozen-player-provenance",
+          "test:unity-grouped-modes",
+          "test:unity-license-cache-location",
+          "test:unity-mcp",
+          "test:unity-modes",
+          "test:unity-test-filter",
+          "test:unity-timeout",
+          "test:unity-workflow-matrix-contract",
+          "test:validate-devcontainer-config",
+          "test:validate-devcontainer-urls",
+          "test:validate-formatting",
+          "test:validate-git-push-config",
+          "test:validate-hook-permissions",
+          "test:validate-hook-sync-calls",
+          "test:validate-lint-error-codes",
+          "test:validate-mcp-config",
+          "test:verify-devcontainer-tools",
+          "test:version-sync",
+          "test:watchdog-cancellation",
+          "test:workflow-license-secret-scope",
+          "test:workflow-repository-guard",
+          "test:zai-mcp",
+          "typecheck:controls",
+          "typecheck:editor",
+          "typecheck:editor-tests",
+          "typecheck:editor-tests:default",
+          "typecheck:editor:default",
+          "typecheck:editor:legacy",
+          "typecheck:editor:no-test-framework",
+          "typecheck:editor:singlethreaded",
+          "typecheck:integrations",
+          "typecheck:integrations:default",
+          "typecheck:integrations:player",
+          "typecheck:iterate",
+          "typecheck:tests",
+          "typecheck:tests:default",
+          "typecheck:tests:legacy",
+          "typecheck:tests:odin",
+          "typecheck:tests:singlethreaded",
+          "typecheck:unity",
+          "typecheck:unity:clean",
+          "typecheck:unity:default",
+          "typecheck:unity:legacy",
+          "typecheck:unity:singlethreaded",
+          "unity:test",
+          "unity:test:all",
+          "unity:test:playmode",
+          "unity:validate",
+          "validate:content",
+          "validate:cspell-files-parity",
+          "validate:devcontainer",
+          "validate:git-push-config",
+          "validate:hook-perms",
+          "validate:hook-spell-parity",
+          "validate:hook-sync",
+          "validate:lint-error-codes",
+          "validate:local",
+          "validate:mcp-config",
+          "validate:prepush",
+          "validate:tests",
+          "validate:tests:fast",
+          "validate:tests:hook-regressions",
+          "validate:tests:native-build-readback",
+          "verify:tools"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:agent-metrics/metrics": ["1 Ambiguous-Interactive/review-tools/.github/workflows/agent-metrics.yml@d8aab4dc3655924360ff17ebb04bbc3a844a493f # v1.1.0"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:build-publish-devcontainer/publish-devcontainer": ["3 Validate Dockerfile download URLs", "4 Validate devcontainer config", "5 Validate post-create script"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:csharpier-autofix/format": ["4 Run CSharpier (format repository)", "6 Verify formatting (CI gate)"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:csharpier-autofix/format_fork": ["4 Run CSharpier (format repository)", "6 Create bot branch and push to base repo"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:format-on-demand/by_comment": [
+          "2 Exit if not authorized",
+          "8 Apply Prettier fixes",
+          "9 Apply markdownlint fixes",
+          "10 Apply CSharpier formatting",
+          "13 Create bot branch and PR (fork)",
+          "14 Open/Update formatting PR (fork)",
+          "16 No-op comment (nothing to change)"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:format-on-demand/by_dispatch": [
+          "7 Apply Prettier fixes",
+          "8 Apply markdownlint fixes",
+          "9 Apply CSharpier formatting",
+          "12 Create bot branch and PR (fork)",
+          "13 Open/Update formatting PR (fork)"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:lint-doc-links/external-links": ["2 Check external links (lychee)"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:llm-instructions-lint/lint-llm-instructions": [
+          "6 Test feedback report",
+          "7 Test LLM instructions lint",
+          "8 Validate authorship policy",
+          "9 Test skill size linter",
+          "10 Test agent skill migration and discovery",
+          "11 Check skill file sizes",
+          "12 Validate skills index is up-to-date"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:local-gates/contract-suites": [
+          "6 Require centrally approved build-lock action pins",
+          "10 Require the installed .NET SDK",
+          "12 Validate migrated Python scripts",
+          "13 Select GNU timeout for process-group controls",
+          "14 Run bounded-random arithmetic proof",
+          "16 Require the installed CSharpier SDK",
+          "18 Record task selection and native coverage proposal",
+          "19 Run contract suites"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:local-gates/typecheck-phases": [
+          "3 Require the installed .NET SDK",
+          "7 Type-check the runtime and test sources",
+          "8 Verify value enumeration and allocation controls",
+          "9 Verify scene canonicalization and reference identity",
+          "10 Run integer-map correctness without Unity",
+          "11 Prove each type-check gate can still fail"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:local-gates/typecheck": ["1 Require both type-check phases"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:local-gates/windows-tool-phases": [
+          "5 Check strict Python policies on Windows",
+          "6 Verify assembly discovery on Windows",
+          "7 Verify workspace and log adapters on Windows",
+          "8 Verify metadata validation on Windows",
+          "9 Verify compiler payload publication on Windows",
+          "10 Verify process orchestration on Windows"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:local-gates/assembly-tools-windows": ["1 Require both Windows tool phases"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:openai-review/review": ["1 Ambiguous-Interactive/review-tools/.github/workflows/openai-review.yml@d8aab4dc3655924360ff17ebb04bbc3a844a493f # v1.1.0"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:prettier-autofix/autofix": ["5 Run Prettier (write fixes)", "6 Markdownlint (auto-fix)", "12 Markdown lint (CI gate)", "13 Enforce EOL (CRLF) and No BOM"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:prettier-autofix/autofix_fork": ["6 Run Prettier (write fixes)", "7 Markdownlint (auto-fix)", "9 Create bot branch and push to base repo"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:reference-upstream-drift/check": ["3 check", "5 Fail on unresolved drift"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:release-drafter/update_release_draft": ["3 Create changelog extraction script", "5 Update release with changelog"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:release-prepare/prepare": [
+          "1 Require default branch dispatch",
+          "2 Check auto-commit GitHub App credentials",
+          "8 Prepare release files",
+          "9 Sync generated version references",
+          "10 Validate prepared release tree",
+          "13 Push release branch and open PR"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:release/verify-tag": ["1 Validate source ref input"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:release/unitypackage": ["4 Create Unity package"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:release/native-validation": ["3 Require exact-source native export and cleanup"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:release/prepare-tag": ["2 Recheck release artifacts before tag mutation", "3 Create or retarget release tag"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:release/publish": ["4 artifacts", "5 Verify release tag target before publish", "8 Verify GitHub Release assets"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:repo-lint/repo-lint": ["7 Require the installed .NET SDK", "8 actionlint", "9 yamllint", "10 checks", "11 safety", "13 Gate"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:runner-bootstrap/matrix-config": ["3 matrix"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:runner-bootstrap/runner-preflight": ["1 Require the selected Unity runner online"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:runner-bootstrap/bootstrap-host": ["3 Confirm runner identity (hard-fail on wrong target)", "4 Maintain host prerequisites"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:runner-bootstrap/maintain-unity": ["3 Confirm runner identity (hard-fail on wrong target)", "4 Maintain Unity ${{ matrix.unity-version }}"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:stuck-job-watchdog/audit-queue": ["4 Audit + cancel-and-redispatch"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:sync-banner-version/validate-banner-version": ["3 Validate banner version matches package.json"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:sync-issue-template/sync-versions": ["3 Test version synchronization", "4 Run sync script", "5 diff"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-benchmarks/matrix-config": ["3 resolve"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-benchmarks/runner-preflight": ["1 Require an online Unity runner"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-benchmarks/benchmarks": [
+          "1 ensure_unity_editor",
+          "5 Validate Unity license secrets",
+          "6 unity_lock",
+          "7 run_tests",
+          "8 return_unity_license",
+          "9 cleanup_classification",
+          "10 release_unity_lock",
+          "12 Verify tests actually ran",
+          "13 Stage perf results for commit",
+          "15 redact_unity_artifacts",
+          "18 Require confirmed Unity cleanup"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-benchmarks/benchmarks-aggregate": ["1 Enforce Unity benchmark and preflight results"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-benchmarks/commit-perf-results": ["5 assemble", "8 perf_deltas", "10 Require valid benchmark comparison"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-compatibility/matrix-config": [
+          "4 Validate Build readback source selection",
+          "5 Validate native comparison selection",
+          "6 Validate Standalone native diagnostic selection",
+          "7 Validate Standalone Direct control selection",
+          "8 Validate Standalone debugger heap selection",
+          "9 Validate Standalone debugger attachment selection",
+          "10 assemblies",
+          "11 superseded",
+          "12 Validate Unity test-project module manifest",
+          "13 release_version",
+          "14 resolve"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-compatibility/runner-preflight": ["1 Require an online Unity runner"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-compatibility/unity-tests": [
+          "1 Require current PR head before setup",
+          "2 ensure_unity_editor",
+          "7 Validate Unity license secrets",
+          "8 Require current PR head before lock acquisition",
+          "9 unity_lock",
+          "10 require_unity_lock",
+          "11 run_modes",
+          "13 native_capture",
+          "14 Restore native loader-snaps comparison",
+          "15 playmode_head",
+          "16 run_playmode",
+          "17 standalone_head",
+          "18 run_standalone",
+          "21 native_build_capture",
+          "22 run_acceptance",
+          "25 return_unity_license",
+          "26 cleanup_classification",
+          "27 release_unity_lock",
+          "28 Report slowest EditMode tests",
+          "29 Report slowest PlayMode tests",
+          "30 Report slowest Standalone tests",
+          "35 verify_playmode",
+          "36 verify_standalone",
+          "38 redact_editmode",
+          "41 redact_playmode",
+          "43 redact_standalone",
+          "49 verify_acceptance",
+          "50 redact_acceptance",
+          "53 Require requested native acceptance",
+          "54 require_selected_modes",
+          "55 Require confirmed Unity cleanup"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-compatibility/unity-tests-aggregate": ["1 Require Unity tests result"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-tests/native-historical-readback": [
+          "2 Validate historical readback selection",
+          "3 readback_selection",
+          "6 readback_host_idle",
+          "7 Read historical acceptance process evidence",
+          "8 Read historical standalone process and package sources",
+          "9 Read exact historical native Build evidence",
+          "11 redact_native_readback"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-tests/matrix-config": [
+          "4 Validate Build readback source selection",
+          "5 Validate combined sibling selection",
+          "6 Validate native comparison selection",
+          "7 Validate Standalone native diagnostic selection",
+          "8 Validate Standalone Direct control selection",
+          "9 Validate Standalone debugger heap selection",
+          "10 Validate Standalone debugger attachment selection",
+          "11 assemblies",
+          "12 superseded",
+          "13 Validate Unity test-project module manifest",
+          "14 release_version",
+          "15 resolve"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-tests/runner-preflight": ["1 Require an online Unity runner"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-tests/unity-tests": [
+          "1 Require current PR head before setup",
+          "2 ensure_unity_editor",
+          "7 Validate Unity license secrets",
+          "8 Require current PR head before lock acquisition",
+          "9 unity_lock",
+          "10 require_unity_lock",
+          "11 run_modes",
+          "13 native_capture",
+          "14 Restore native loader-snaps comparison",
+          "15 playmode_head",
+          "16 run_playmode",
+          "17 standalone_head",
+          "18 run_standalone",
+          "21 native_build_capture",
+          "22 run_acceptance",
+          "25 return_unity_license",
+          "26 cleanup_classification",
+          "27 release_unity_lock",
+          "28 Report slowest EditMode tests",
+          "29 Report slowest PlayMode tests",
+          "30 Report slowest Standalone tests",
+          "35 verify_playmode",
+          "36 verify_standalone",
+          "38 redact_editmode",
+          "41 redact_playmode",
+          "43 redact_standalone",
+          "49 verify_acceptance",
+          "50 redact_acceptance",
+          "53 Require requested native acceptance",
+          "54 require_selected_modes",
+          "55 Report slowest EditMode tests (SINGLE_THREADED)",
+          "56 Report slowest PlayMode tests (SINGLE_THREADED)",
+          "57 Report slowest Standalone tests (SINGLE_THREADED)",
+          "61 verify_st_editmode",
+          "62 verify_st_playmode",
+          "63 verify_st_standalone",
+          "64 redact_st_editmode",
+          "67 redact_st_playmode",
+          "69 redact_st_standalone",
+          "71 require_st_modes",
+          "72 Require confirmed Unity cleanup"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-tests/unity-tests-single-threaded": [
+          "1 Require current PR head before setup",
+          "2 ensure_unity_editor",
+          "7 Validate Unity license secrets",
+          "8 Require current PR head before lock acquisition",
+          "9 unity_lock",
+          "10 require_unity_lock",
+          "11 run_modes",
+          "12 run_editmode",
+          "13 playmode_head",
+          "14 run_playmode",
+          "15 standalone_head",
+          "16 run_standalone",
+          "17 return_unity_license",
+          "18 cleanup_classification",
+          "19 release_unity_lock",
+          "20 Report slowest EditMode tests (SINGLE_THREADED)",
+          "21 Report slowest PlayMode tests (SINGLE_THREADED)",
+          "22 Report slowest Standalone tests (SINGLE_THREADED)",
+          "26 verify_editmode",
+          "27 verify_playmode",
+          "28 verify_standalone",
+          "29 redact_editmode",
+          "32 redact_playmode",
+          "34 redact_standalone",
+          "36 require_selected_modes",
+          "37 Require confirmed Unity cleanup"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-tests/unitypackage-smoke": [
+          "1 Require current PR head before setup",
+          "2 ensure_unity_editor",
+          "7 Stage release package payload",
+          "8 Validate Unity license secrets",
+          "9 Require current PR head before lock acquisition",
+          "10 unity_lock",
+          "11 export_unitypackage",
+          "12 return_unity_license",
+          "13 cleanup_classification",
+          "14 release_unity_lock",
+          "16 redact_unity_artifacts",
+          "18 Require confirmed Unity cleanup"
+        ]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-tests/unity-tests-aggregate": ["1 Require Unity tests result"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-tests/unity-tests-single-threaded-aggregate": ["1 Require the selected single-threaded result"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unity-tests/unity-ci-success": ["1 late_superseded", "2 Require every expected Unity CI job result"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:unstick-run/unstick": ["1 Validate, cancel, and optionally re-dispatch"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:update-dotnet-tools/update-tools": ["4 Update local dotnet tools", "6 Normalize EOL (dotnet tools manifest)", "9 PR created summary", "10 No changes summary"]
+      }
+    },
+    {
+      "status": "pending",
+      "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
+      "checks": {
+        "workflow:wproto-generator/generator": [
+          "5 Require the installed .NET SDK",
+          "8 Verify every shipped compiler input against its sources",
+          "10 Verify where the analyzer is placed",
+          "14 Compile consumers with the Roslyn 3.8 API floor",
+          "16 Test candidate build controls"
+        ]
+      }
+    }
+  ]
+}

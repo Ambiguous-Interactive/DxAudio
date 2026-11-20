@@ -56,10 +56,10 @@ jobs:
 
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
-          dotnet-version: 9.0.x
+          global-json-file: .net-tests/global.json
 
       - name: Test the engine-free core
-        run: dotnet test .net-tests --configuration Release
+        run: python3 .net-tests/run_checks.py
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:

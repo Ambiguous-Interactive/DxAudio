@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
 
@@ -18,22 +18,6 @@ namespace WallstopStudios.DxAudio
 
         private const int MinimumBits = 1;
         private const int MaximumBits = 24;
-
-        private int _bits;
-        private int _rateReduction;
-        private int _levels;
-        private float _step;
-        private float[] _held;
-        private int _heldFor;
-        private int _channels;
-
-        public DspBitCrusher()
-        {
-            _bits = DefaultBits;
-            _rateReduction = DefaultRateReduction;
-            _held = Array.Empty<float>();
-            Recompute();
-        }
 
         public override string DisplayName => "Bit Crusher";
 
@@ -55,11 +39,40 @@ namespace WallstopStudios.DxAudio
             set => _rateReduction = Math.Max(1, value);
         }
 
-        protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
+        private int _bits;
+        private int _rateReduction;
+        private int _levels;
+        private float _step;
+        private float[] _held;
+        private int _heldFor;
+        private int _channels;
+
+        public DspBitCrusher()
         {
-            _channels = channels;
-            _held = new float[channels];
-            Reset();
+            _bits = DefaultBits;
+            _rateReduction = DefaultRateReduction;
+            _held = Array.Empty<float>();
+            Recompute();
+        }
+
+        private static float Quantize(float sample, float step, int levels)
+        {
+            // Bounded first: a wild sample would otherwise become a level index far outside the range of an int.
+            float bounded = AudioMath.Clamp(sample, -1f, 1f);
+            int level = (int)Math.Round((bounded + 1f) / step);
+            if (level < 0)
+            {
+                level = 0;
+            }
+
+            int loudest = levels - 1;
+            if (loudest < level)
+            {
+                level = loudest;
+            }
+
+            // Mono rounds the top level a hair above one, so the range is enforced, not assumed.
+            return AudioMath.Clamp(-1f + (level * step), -1f, 1f);
         }
 
         public override void Process(float[] buffer, int offset, int count, int channels)
@@ -71,8 +84,10 @@ namespace WallstopStudios.DxAudio
 
             int stride = channels;
 
-            // One configuration for the whole block: a knob set on the main thread must not split a block
-            // between two steps.
+            /*
+                One configuration for the whole block: a knob set on the main thread must not split a block
+                between two steps.
+            */
             float step = _step;
             int levels = _levels;
             int frames = count / stride;
@@ -107,24 +122,11 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        private static float Quantize(float sample, float step, int levels)
+        protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
         {
-            // Bounded first: a wild sample would otherwise become a level index far outside the range of an int.
-            float bounded = AudioMath.Clamp(sample, -1f, 1f);
-            int level = (int)Math.Round((bounded + 1f) / step);
-            if (level < 0)
-            {
-                level = 0;
-            }
-
-            int loudest = levels - 1;
-            if (loudest < level)
-            {
-                level = loudest;
-            }
-
-            // Mono rounds the top level a hair above one, so the range is enforced, not assumed.
-            return AudioMath.Clamp(-1f + (level * step), -1f, 1f);
+            _channels = channels;
+            _held = new float[channels];
+            Reset();
         }
 
         private void Recompute()

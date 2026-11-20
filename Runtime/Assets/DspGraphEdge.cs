@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
     using UnityEngine;
@@ -12,6 +12,12 @@ namespace WallstopStudios.DxAudio
     [Serializable]
     public sealed class DspGraphEdge
     {
+        /// <summary>The name of the node the signal leaves.</summary>
+        public string From => _from;
+
+        /// <summary>The name of the node the signal enters.</summary>
+        public string To => _to;
+
         [SerializeField]
         [Tooltip("The node the signal leaves. Its name must match a node in this graph.")]
         private string _from;
@@ -31,11 +37,5 @@ namespace WallstopStudios.DxAudio
             _from = from ?? string.Empty;
             _to = to ?? string.Empty;
         }
-
-        /// <summary>The name of the node the signal leaves.</summary>
-        public string From => _from;
-
-        /// <summary>The name of the node the signal enters.</summary>
-        public string To => _to;
     }
 }

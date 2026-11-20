@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Editor
+﻿namespace WallstopStudios.DxAudio.Editor
 {
     using System;
     using System.Collections.Generic;
@@ -24,37 +24,10 @@ namespace WallstopStudios.DxAudio.Editor
         // Every open preview draws the shared set, so a change in one inspector redraws all of them.
         private static readonly List<Action> _refreshers = new();
 
-        public override VisualElement CreateInspectorGUI()
-        {
-            VisualElement root = new VisualElement();
-            InspectorElement.FillDefaultInspector(root, serializedObject, this);
-
-            // The preview composes one duck with a chosen set, so a mixed selection only edits fields.
-            if (targets.Length != 1)
-            {
-                return root;
-            }
-
-            DxAudioAssetDetails.AddWorkspaceButton(root, target);
-            VisualElement section = DxAudioInspectorUi.AddSection(root, "Composed Preview");
-            section.Add(new HelpBox("Add the ducks that can hold the music at the same time to see what they compose to.", HelpBoxMessageType.None));
-            VisualElement preview = BuildComposedPreview((MusicDuck)target, out Action refresh);
-            section.Add(preview);
-            // The composed line depends on this duck's own fields, so a serialized change redraws it.
-            preview.TrackSerializedObjectValue(serializedObject, _ => refresh());
-            return root;
-        }
-
         /// <summary>The composed preview for <paramref name="preview" />, which the added and removed rows edit.</summary>
         public static VisualElement BuildComposedPreview(MusicDuck duck, List<MusicDuck> preview)
         {
             return BuildComposedPreview(duck, preview, false, out _);
-        }
-
-        /// <summary>The composed preview for the shared set and the action that redraws it.</summary>
-        private static VisualElement BuildComposedPreview(MusicDuck duck, out Action refresh)
-        {
-            return BuildComposedPreview(duck, _preview, true, out refresh);
         }
 
         /// <summary>What <paramref name="duck" /> and <paramref name="others" /> compose to while all are held.</summary>
@@ -81,6 +54,12 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             return stack.Current;
+        }
+
+        /// <summary>The composed preview for the shared set and the action that redraws it.</summary>
+        private static VisualElement BuildComposedPreview(MusicDuck duck, out Action refresh)
+        {
+            return BuildComposedPreview(duck, _preview, true, out refresh);
         }
 
         private static VisualElement BuildComposedPreview(MusicDuck duck, List<MusicDuck> preview, bool shared, out Action refresh)
@@ -187,6 +166,27 @@ namespace WallstopStudios.DxAudio.Editor
         private static void ShowComposed(MusicDuck duck, List<MusicDuck> preview, Label composed)
         {
             composed.text = "Composed: " + Compose(duck, preview);
+        }
+
+        public override VisualElement CreateInspectorGUI()
+        {
+            VisualElement root = new VisualElement();
+            InspectorElement.FillDefaultInspector(root, serializedObject, this);
+
+            // The preview composes one duck with a chosen set, so a mixed selection only edits fields.
+            if (targets.Length != 1)
+            {
+                return root;
+            }
+
+            DxAudioAssetDetails.AddWorkspaceButton(root, target);
+            VisualElement section = DxAudioInspectorUi.AddSection(root, "Composed Preview");
+            section.Add(new HelpBox("Add the ducks that can hold the music at the same time to see what they compose to.", HelpBoxMessageType.None));
+            VisualElement preview = BuildComposedPreview((MusicDuck)target, out Action refresh);
+            section.Add(preview);
+            // The composed line depends on this duck's own fields, so a serialized change redraws it.
+            preview.TrackSerializedObjectValue(serializedObject, _ => refresh());
+            return root;
         }
     }
 }

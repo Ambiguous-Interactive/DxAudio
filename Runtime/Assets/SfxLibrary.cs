@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
     using System.Collections.Generic;
@@ -14,6 +14,16 @@ namespace WallstopStudios.DxAudio
     public sealed class SfxLibrary : ScriptableObject
     {
         private static event Action IndexesStale;
+
+        public AudioMixerGroup MixerGroup => _mixerGroup;
+
+        public int VoiceCount => _voiceCount;
+
+        public int LoopingVoiceLimit => _loopingVoiceLimit;
+
+        public int DrawSeed => _drawSeed;
+
+        public IReadOnlyList<SfxCue> Cues => _cues;
 
         [SerializeField]
         [Tooltip("The mixer group every cue plays through unless it names its own. Empty plays unrouted.")]
@@ -42,16 +52,6 @@ namespace WallstopStudios.DxAudio
         private readonly Dictionary<string, SfxCue> _cuesByKey = new(StringComparer.Ordinal);
         private bool _indexBuilt;
 
-        public AudioMixerGroup MixerGroup => _mixerGroup;
-
-        public int VoiceCount => _voiceCount;
-
-        public int LoopingVoiceLimit => _loopingVoiceLimit;
-
-        public int DrawSeed => _drawSeed;
-
-        public IReadOnlyList<SfxCue> Cues => _cues;
-
         /// <summary>Builds a library in code, for tests and for games that author audio at runtime.</summary>
         public static SfxLibrary Create(IEnumerable<SfxCue> cues, int voiceCount = 16, int loopingVoiceLimit = 6, AudioMixerGroup mixerGroup = null, int drawSeed = 0)
         {
@@ -62,6 +62,11 @@ namespace WallstopStudios.DxAudio
             library._mixerGroup = mixerGroup;
             library._drawSeed = drawSeed;
             return library;
+        }
+
+        internal static void ForgetEveryIndex()
+        {
+            IndexesStale?.Invoke();
         }
 
         /// <summary>The playable cue listed under <paramref name="key"/>.</summary>
@@ -85,11 +90,6 @@ namespace WallstopStudios.DxAudio
         public void ForgetIndex()
         {
             _indexBuilt = false;
-        }
-
-        internal static void ForgetEveryIndex()
-        {
-            IndexesStale?.Invoke();
         }
 
         private void OnEnable()

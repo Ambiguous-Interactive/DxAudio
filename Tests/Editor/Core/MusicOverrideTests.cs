@@ -54,7 +54,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void ATrackThePlayableCheckRejectsIsNeverTaken()
         {
             List<string> heard = new();
-            MusicOverride<string> selection = new(heard.Add, isPlayable: track => track.Length > 0);
+            MusicOverride<string> selection = new(heard.Add, isPlayable: track => 0 < track.Length);
             _ = selection.SetContextTrack("town");
 
             Assert.That(selection.Take("").IsValid, Is.False, "a silent track is refused, not held");

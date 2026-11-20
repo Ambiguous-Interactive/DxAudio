@@ -96,6 +96,57 @@
             Refresh();
         }
 
+        private static Rect Box(Vector2 a, Vector2 b)
+        {
+            return Rect.MinMaxRect(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.x, b.x), Mathf.Max(a.y, b.y));
+        }
+
+        private static Vector2 Curve(Vector2 start, Vector2 end, float t)
+        {
+            float reach = Mathf.Max(45f, Mathf.Abs(end.x - start.x) * 0.46f);
+            float a = 1f - t;
+            return a * a * a * start + 3f * a * a * t * (start + new Vector2(reach, 0f)) + 3f * a * t * t * (end - new Vector2(reach, 0f)) + t * t * t * end;
+        }
+
+        private static void DrawWire(MeshGenerationContext context, Vector2 start, Vector2 end, Color color, float width)
+        {
+            MeshWriteData mesh = context.Allocate(WireSegments * 4, WireSegments * 6);
+            Vector2 previous = start;
+            for (int segment = 1; segment <= WireSegments; segment++)
+            {
+                Vector2 next = Curve(start, end, (float)segment / WireSegments);
+                Vector2 axis = next - previous;
+                Vector2 offset = new Vector2(-axis.y, axis.x).normalized * (width * 0.5f);
+                Quad(mesh, previous - offset, next - offset, next + offset, previous + offset, color, (ushort)((segment - 1) * 4));
+                previous = next;
+            }
+        }
+
+        private static void DrawRect(MeshGenerationContext context, Rect rect, Color color)
+        {
+            MeshWriteData mesh = context.Allocate(4, 6);
+            Quad(mesh, rect.min, new Vector2(rect.xMax, rect.yMin), rect.max, new Vector2(rect.xMin, rect.yMax), color, 0);
+        }
+
+        private static void Quad(MeshWriteData mesh, Vector2 a, Vector2 b, Vector2 c, Vector2 d, Color color, ushort index)
+        {
+            WriteVertex(mesh, a, color);
+            WriteVertex(mesh, b, color);
+            WriteVertex(mesh, c, color);
+            WriteVertex(mesh, d, color);
+            mesh.SetNextIndex(index);
+            mesh.SetNextIndex((ushort)(index + 1));
+            mesh.SetNextIndex((ushort)(index + 2));
+            mesh.SetNextIndex(index);
+            mesh.SetNextIndex((ushort)(index + 2));
+            mesh.SetNextIndex((ushort)(index + 3));
+        }
+
+        private static void WriteVertex(MeshWriteData mesh, Vector2 point, Color color)
+        {
+            mesh.SetNextVertex(new Vertex { position = new Vector3(point.x, point.y, Vertex.nearZ), tint = color });
+        }
+
         internal void Refresh()
         {
             CancelGesture();
@@ -229,6 +280,44 @@
             }
         }
 
+        internal void AddNode()
+        {
+            ShowPicker(contentRect.center, -1, -1);
+        }
+
+        internal void FindNode()
+        {
+            OpenPicker(
+                contentRect.center,
+                "Find node",
+                (query, result) =>
+                {
+                    for (int index = 0; index < _asset.NodeCount; index++)
+                    {
+                        DspGraphNode node = _asset.Nodes[index];
+                        string title = string.IsNullOrWhiteSpace(node?.Name) ? $"Unnamed node {index + 1}" : node.Name;
+                        DspChainAsset chain = node?.Chain;
+                        string chainName = chain == null ? "Junction" : chain.name;
+                        if (title.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0 && chainName.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
+                        {
+                            continue;
+                        }
+
+                        int row = index;
+                        result(
+                            title,
+                            chainName,
+                            () =>
+                            {
+                                SelectNode(row);
+                                FrameSelection();
+                            }
+                        );
+                    }
+                }
+            );
+        }
+
         private void FrameOnOpen(GeometryChangedEvent evt)
         {
             if (0f < evt.newRect.width && 0f < evt.newRect.height)
@@ -236,11 +325,6 @@
                 UnregisterCallback<GeometryChangedEvent>(FrameOnOpen);
                 FrameSelection();
             }
-        }
-
-        internal void AddNode()
-        {
-            ShowPicker(contentRect.center, -1, -1);
         }
 
         private Vector2[] AutomaticPositions()
@@ -265,9 +349,8 @@
                 }
             }
 
-            while (ready.Count != 0)
+            while (ready.TryDequeue(out int node))
             {
-                int node = ready.Dequeue();
                 foreach ((int from, int to) in _links)
                 {
                     if (from != node || to < 0)
@@ -631,39 +714,6 @@
             evt.StopPropagation();
         }
 
-        internal void FindNode()
-        {
-            OpenPicker(
-                contentRect.center,
-                "Find node",
-                (query, result) =>
-                {
-                    for (int index = 0; index < _asset.NodeCount; index++)
-                    {
-                        DspGraphNode node = _asset.Nodes[index];
-                        string title = string.IsNullOrWhiteSpace(node?.Name) ? $"Unnamed node {index + 1}" : node.Name;
-                        DspChainAsset chain = node?.Chain;
-                        string chainName = chain == null ? "Junction" : chain.name;
-                        if (title.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0 && chainName.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
-                        {
-                            continue;
-                        }
-
-                        int row = index;
-                        result(
-                            title,
-                            chainName,
-                            () =>
-                            {
-                                SelectNode(row);
-                                FrameSelection();
-                            }
-                        );
-                    }
-                }
-            );
-        }
-
         private void ShowPicker(Vector2 point, int source, int edge)
         {
             Vector2 position = (point - _pan) / _zoom;
@@ -971,57 +1021,6 @@
                 shade.a = 0.24f;
                 DrawRect(context, Box(_down, _pointer), shade);
             }
-        }
-
-        private static Rect Box(Vector2 a, Vector2 b)
-        {
-            return Rect.MinMaxRect(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.x, b.x), Mathf.Max(a.y, b.y));
-        }
-
-        private static Vector2 Curve(Vector2 start, Vector2 end, float t)
-        {
-            float reach = Mathf.Max(45f, Mathf.Abs(end.x - start.x) * 0.46f);
-            float a = 1f - t;
-            return a * a * a * start + 3f * a * a * t * (start + new Vector2(reach, 0f)) + 3f * a * t * t * (end - new Vector2(reach, 0f)) + t * t * t * end;
-        }
-
-        private static void DrawWire(MeshGenerationContext context, Vector2 start, Vector2 end, Color color, float width)
-        {
-            MeshWriteData mesh = context.Allocate(WireSegments * 4, WireSegments * 6);
-            Vector2 previous = start;
-            for (int segment = 1; segment <= WireSegments; segment++)
-            {
-                Vector2 next = Curve(start, end, (float)segment / WireSegments);
-                Vector2 axis = next - previous;
-                Vector2 offset = new Vector2(-axis.y, axis.x).normalized * (width * 0.5f);
-                Quad(mesh, previous - offset, next - offset, next + offset, previous + offset, color, (ushort)((segment - 1) * 4));
-                previous = next;
-            }
-        }
-
-        private static void DrawRect(MeshGenerationContext context, Rect rect, Color color)
-        {
-            MeshWriteData mesh = context.Allocate(4, 6);
-            Quad(mesh, rect.min, new Vector2(rect.xMax, rect.yMin), rect.max, new Vector2(rect.xMin, rect.yMax), color, 0);
-        }
-
-        private static void Quad(MeshWriteData mesh, Vector2 a, Vector2 b, Vector2 c, Vector2 d, Color color, ushort index)
-        {
-            WriteVertex(mesh, a, color);
-            WriteVertex(mesh, b, color);
-            WriteVertex(mesh, c, color);
-            WriteVertex(mesh, d, color);
-            mesh.SetNextIndex(index);
-            mesh.SetNextIndex((ushort)(index + 1));
-            mesh.SetNextIndex((ushort)(index + 2));
-            mesh.SetNextIndex(index);
-            mesh.SetNextIndex((ushort)(index + 2));
-            mesh.SetNextIndex((ushort)(index + 3));
-        }
-
-        private static void WriteVertex(MeshWriteData mesh, Vector2 point, Color color)
-        {
-            mesh.SetNextVertex(new Vertex { position = new Vector3(point.x, point.y, Vertex.nearZ), tint = color });
         }
     }
 }

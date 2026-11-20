@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Tests.Editor
+﻿namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System;
     using NUnit.Framework;
@@ -7,6 +7,63 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     public sealed class DspPitchShifterTests
     {
         private const int SampleRate = 48_000;
+
+        private static void ProcessInBlocks(DspEffect effect, float[] buffer, int channels, int blockFrames)
+        {
+            ProcessInBlocks(effect, buffer, channels, blockFrames, 0, buffer.Length / channels);
+        }
+
+        private static void ProcessInBlocks(DspEffect effect, float[] buffer, int channels, int blockFrames, int startFrame, int endFrame)
+        {
+            for (int frame = startFrame; frame < endFrame; frame += blockFrames)
+            {
+                int count = Math.Min(blockFrames, endFrame - frame) * channels;
+                effect.Process(buffer, frame * channels, count, channels);
+            }
+        }
+
+        /// <summary>The amplitude of one frequency over a window, by projection, so a warble cannot fool a crossing count.</summary>
+        private static double MagnitudeAt(float[] samples, int startFrame, int frames, double hertz)
+        {
+            double real = 0;
+            double imaginary = 0;
+            double step = (2 * Math.PI * hertz) / SampleRate;
+            for (int frame = 0; frame < frames; frame++)
+            {
+                double sample = samples[startFrame + frame];
+                real += sample * Math.Cos(step * frame);
+                imaginary += sample * Math.Sin(step * frame);
+            }
+
+            return (2 * Math.Sqrt((real * real) + (imaginary * imaginary))) / frames;
+        }
+
+        private static float Peak(float[] samples)
+        {
+            float peak = 0f;
+            foreach (float sample in samples)
+            {
+                float magnitude = Math.Abs(sample);
+                if (peak < magnitude)
+                {
+                    peak = magnitude;
+                }
+            }
+
+            return peak;
+        }
+
+        private static float[] Sine(float hertz, float amplitude, int frames)
+        {
+            float[] block = new float[frames];
+            double step = (2 * Math.PI * hertz) / SampleRate;
+            for (int frame = 0; frame < frames; frame++)
+            {
+                block[frame] = amplitude * (float)Math.Sin(step * frame);
+            }
+
+            return block;
+        }
 
         [Test]
         public void AnUnpreparedShifterLeavesTheBlockUntouched()
@@ -195,14 +252,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             shifter.TryPrepare(SampleRate, 256, 1);
             int settled = shifter.LatencySamples * 2;
             float[] block = new float[settled + 4_096];
-            for (int index = 0; index < block.Length; index++)
+            for (int index = 0, blockLength = block.Length; index < blockLength; index++)
             {
                 block[index] = 0.5f;
             }
 
             ProcessInBlocks(shifter, block, 1, 256);
 
-            for (int index = settled; index < block.Length; index++)
+            for (int index = settled, blockLength = block.Length; index < blockLength; index++)
             {
                 Assert.That(block[index], Is.EqualTo(0.5f).Within(0.0001f), "gains that sum to one keep a steady level, so neither head is missing or double-counted");
             }
@@ -244,7 +301,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             ProcessInBlocks(shifter, block, 1, 256, half, block.Length);
 
             float largest = 0f;
-            for (int frame = 1; frame < block.Length; frame++)
+            for (int frame = 1, blockLength = block.Length; frame < blockLength; frame++)
             {
                 float step = Math.Abs(block[frame] - block[frame - 1]);
                 if (largest < step)
@@ -279,63 +336,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             {
                 Assert.That(block[frame], Is.EqualTo(input[frame - latency]), $"frame {frame} is a copy of the input, not a comb of two heads");
             }
-        }
-
-        private static void ProcessInBlocks(DspEffect effect, float[] buffer, int channels, int blockFrames)
-        {
-            ProcessInBlocks(effect, buffer, channels, blockFrames, 0, buffer.Length / channels);
-        }
-
-        private static void ProcessInBlocks(DspEffect effect, float[] buffer, int channels, int blockFrames, int startFrame, int endFrame)
-        {
-            for (int frame = startFrame; frame < endFrame; frame += blockFrames)
-            {
-                int count = Math.Min(blockFrames, endFrame - frame) * channels;
-                effect.Process(buffer, frame * channels, count, channels);
-            }
-        }
-
-        /// <summary>The amplitude of one frequency over a window, by projection, so a warble cannot fool a crossing count.</summary>
-        private static double MagnitudeAt(float[] samples, int startFrame, int frames, double hertz)
-        {
-            double real = 0;
-            double imaginary = 0;
-            double step = (2 * Math.PI * hertz) / SampleRate;
-            for (int frame = 0; frame < frames; frame++)
-            {
-                double sample = samples[startFrame + frame];
-                real += sample * Math.Cos(step * frame);
-                imaginary += sample * Math.Sin(step * frame);
-            }
-
-            return (2 * Math.Sqrt((real * real) + (imaginary * imaginary))) / frames;
-        }
-
-        private static float Peak(float[] samples)
-        {
-            float peak = 0f;
-            foreach (float sample in samples)
-            {
-                float magnitude = Math.Abs(sample);
-                if (peak < magnitude)
-                {
-                    peak = magnitude;
-                }
-            }
-
-            return peak;
-        }
-
-        private static float[] Sine(float hertz, float amplitude, int frames)
-        {
-            float[] block = new float[frames];
-            double step = (2 * Math.PI * hertz) / SampleRate;
-            for (int frame = 0; frame < frames; frame++)
-            {
-                block[frame] = amplitude * (float)Math.Sin(step * frame);
-            }
-
-            return block;
         }
     }
 }

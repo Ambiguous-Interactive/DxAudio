@@ -1,0 +1,30 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "dictionaries": ["csharp", "softwareTerms"],
+  "ignoreRegExpList": ["Urls", "HexValues", "Base64MultiLine"],
+  "words": [
+    "Addressables",
+    "Behaviour",
+    "crossfade",
+    "crossfades",
+    "crossfading",
+    "cutscene",
+    "cutscenes",
+    "dxaudio",
+    "dxmessaging",
+    "Isho",
+    "Multiband",
+    "npmjs",
+    "Nyquist",
+    "openupm",
+    "playhead",
+    "testables",
+    "unduck",
+    "Unduck",
+    "unmuted",
+    "Untargeted",
+    "wallstop",
+    "Wallstop"
+  ]
+}

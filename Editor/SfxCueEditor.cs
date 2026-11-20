@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Editor
+﻿namespace WallstopStudios.DxAudio.Editor
 {
     using System.Collections.Generic;
     using UnityEditor;
@@ -13,6 +13,124 @@ namespace WallstopStudios.DxAudio.Editor
     public sealed class SfxCueEditor : UnityEditor.Editor
     {
         internal const string AuditionName = "DxAudioAudition";
+
+        /// <summary>The take list the cue inspector shows.</summary>
+        public static VisualElement BuildTakes(SfxCue cue)
+        {
+            VisualElement list = new VisualElement();
+            if (cue == null)
+            {
+                list.Add(new Label("There is no cue to show."));
+                return list;
+            }
+
+            IReadOnlyList<SfxVariant> variants = cue.Variants;
+            if (variants.Count == 0)
+            {
+                list.Add(new Label("No takes yet. Add one above."));
+                return list;
+            }
+
+            for (int index = 0; index < variants.Count; ++index)
+            {
+                list.Add(BuildTake(cue, variants[index], index));
+            }
+
+            return list;
+        }
+
+        internal static bool AppendTakes(SerializedObject asset, Object[] items)
+        {
+            asset.Update();
+            SerializedProperty takes = asset.FindProperty("_variants");
+            int count = takes.arraySize;
+            foreach (Object item in items)
+            {
+                if (item is AudioClip clip && clip != null)
+                {
+                    int index = takes.arraySize;
+                    takes.InsertArrayElementAtIndex(index);
+                    SerializedProperty take = takes.GetArrayElementAtIndex(index);
+                    take.FindPropertyRelative("_clip").objectReferenceValue = clip;
+                    take.FindPropertyRelative("_startTimeSeconds").floatValue = 0f;
+                    take.FindPropertyRelative("_attenuationDecibels").floatValue = 0f;
+                }
+            }
+
+            if (count == takes.arraySize)
+            {
+                return false;
+            }
+
+            Undo.SetCurrentGroupName("Add Cue Takes");
+            takes.isExpanded = true;
+            return asset.ApplyModifiedProperties();
+        }
+
+        private static void RebuildAuthoring(VisualElement container, SfxCue cue)
+        {
+            container.Clear();
+            VisualElement check = DxAudioInspectorUi.AddSection(container, "Authoring Check");
+            DxAudioInspectorUi.AddFindings(check, DxAudioValidation.Validate(cue), "Every take is ready to play.");
+            VisualElement effects = DxAudioInspectorUi.AddSection(container, "Effects");
+            VisualElement rows = new VisualElement();
+            effects.Add(rows);
+            DxAudioInspectorUi.AddChainRows(rows, cue.Chain);
+            DxAudioInspectorUi.RefreshWhilePlaying(rows, cue.Chain);
+        }
+
+        private static VisualElement BuildClipDrop(SerializedObject asset)
+        {
+            HelpBox drop = new("Drop AudioClips here to add takes.", HelpBoxMessageType.None) { name = "DxAudioTakeDrop" };
+            drop.RegisterCallback<DragUpdatedEvent>(evt =>
+            {
+                foreach (Object item in DragAndDrop.objectReferences)
+                {
+                    if (item is AudioClip clip && clip != null)
+                    {
+                        DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
+                        evt.StopPropagation();
+                        return;
+                    }
+                }
+            });
+            drop.RegisterCallback<DragPerformEvent>(evt =>
+            {
+                if (AppendTakes(asset, DragAndDrop.objectReferences))
+                {
+                    DragAndDrop.AcceptDrag();
+                    evt.StopPropagation();
+                }
+            });
+            return drop;
+        }
+
+        private static VisualElement BuildTake(SfxCue cue, SfxVariant variant, int index)
+        {
+            if (variant == null)
+            {
+                VisualElement empty = DxAudioInspectorUi.Row();
+                DxAudioInspectorUi.AddText(empty, $"Take {index + 1}: empty");
+                return empty;
+            }
+
+            AudioClip clip = variant.Clip;
+            if (clip == null)
+            {
+                VisualElement silent = DxAudioInspectorUi.Row();
+                DxAudioInspectorUi.AddText(silent, $"Take {index + 1}: no clip");
+                return silent;
+            }
+
+            VisualElement row = DxAudioInspectorUi.Row();
+            float start = cue.PlaybackStartSecondsFor(variant);
+            DxAudioInspectorUi.AddText(row, $"Take {index + 1}: {clip.name}, starts {start:0.###}s of {clip.length:0.###}s");
+
+            Button audition = new Button(() => SfxAudition.Play(cue, variant)) { text = "Audition", name = AuditionName };
+            audition.style.width = 80f;
+            row.Add(audition);
+            return row;
+        }
 
         public override VisualElement CreateInspectorGUI()
         {
@@ -69,124 +187,6 @@ namespace WallstopStudios.DxAudio.Editor
             // IMGUI redrew this section on every repaint; a serialized change rebuilds it the same way.
             authoring.TrackSerializedObjectValue(serializedObject, _ => RebuildAuthoring(authoring, cue));
             return root;
-        }
-
-        private static void RebuildAuthoring(VisualElement container, SfxCue cue)
-        {
-            container.Clear();
-            VisualElement check = DxAudioInspectorUi.AddSection(container, "Authoring Check");
-            DxAudioInspectorUi.AddFindings(check, DxAudioValidation.Validate(cue), "Every take is ready to play.");
-            VisualElement effects = DxAudioInspectorUi.AddSection(container, "Effects");
-            VisualElement rows = new VisualElement();
-            effects.Add(rows);
-            DxAudioInspectorUi.AddChainRows(rows, cue.Chain);
-            DxAudioInspectorUi.RefreshWhilePlaying(rows, cue.Chain);
-        }
-
-        private static VisualElement BuildClipDrop(SerializedObject asset)
-        {
-            HelpBox drop = new("Drop AudioClips here to add takes.", HelpBoxMessageType.None) { name = "DxAudioTakeDrop" };
-            drop.RegisterCallback<DragUpdatedEvent>(evt =>
-            {
-                foreach (Object item in DragAndDrop.objectReferences)
-                {
-                    if (item is AudioClip clip && clip != null)
-                    {
-                        DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
-                        evt.StopPropagation();
-                        return;
-                    }
-                }
-            });
-            drop.RegisterCallback<DragPerformEvent>(evt =>
-            {
-                if (AppendTakes(asset, DragAndDrop.objectReferences))
-                {
-                    DragAndDrop.AcceptDrag();
-                    evt.StopPropagation();
-                }
-            });
-            return drop;
-        }
-
-        internal static bool AppendTakes(SerializedObject asset, Object[] items)
-        {
-            asset.Update();
-            SerializedProperty takes = asset.FindProperty("_variants");
-            int count = takes.arraySize;
-            foreach (Object item in items)
-            {
-                if (item is AudioClip clip && clip != null)
-                {
-                    int index = takes.arraySize;
-                    takes.InsertArrayElementAtIndex(index);
-                    SerializedProperty take = takes.GetArrayElementAtIndex(index);
-                    take.FindPropertyRelative("_clip").objectReferenceValue = clip;
-                    take.FindPropertyRelative("_startTimeSeconds").floatValue = 0f;
-                    take.FindPropertyRelative("_attenuationDecibels").floatValue = 0f;
-                }
-            }
-
-            if (count == takes.arraySize)
-            {
-                return false;
-            }
-
-            Undo.SetCurrentGroupName("Add Cue Takes");
-            takes.isExpanded = true;
-            return asset.ApplyModifiedProperties();
-        }
-
-        /// <summary>The take list the cue inspector shows.</summary>
-        public static VisualElement BuildTakes(SfxCue cue)
-        {
-            VisualElement list = new VisualElement();
-            if (cue == null)
-            {
-                list.Add(new Label("There is no cue to show."));
-                return list;
-            }
-
-            IReadOnlyList<SfxVariant> variants = cue.Variants;
-            if (variants.Count == 0)
-            {
-                list.Add(new Label("No takes yet. Add one above."));
-                return list;
-            }
-
-            for (int index = 0; index < variants.Count; ++index)
-            {
-                list.Add(BuildTake(cue, variants[index], index));
-            }
-
-            return list;
-        }
-
-        private static VisualElement BuildTake(SfxCue cue, SfxVariant variant, int index)
-        {
-            if (variant == null)
-            {
-                VisualElement empty = DxAudioInspectorUi.Row();
-                DxAudioInspectorUi.AddText(empty, $"Take {index + 1}: empty");
-                return empty;
-            }
-
-            AudioClip clip = variant.Clip;
-            if (clip == null)
-            {
-                VisualElement silent = DxAudioInspectorUi.Row();
-                DxAudioInspectorUi.AddText(silent, $"Take {index + 1}: no clip");
-                return silent;
-            }
-
-            VisualElement row = DxAudioInspectorUi.Row();
-            float start = cue.PlaybackStartSecondsFor(variant);
-            DxAudioInspectorUi.AddText(row, $"Take {index + 1}: {clip.name}, starts {start:0.###}s of {clip.length:0.###}s");
-
-            Button audition = new Button(() => SfxAudition.Play(cue, variant)) { text = "Audition", name = AuditionName };
-            audition.style.width = 80f;
-            row.Add(audition);
-            return row;
         }
 
         private void OnDisable()

@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Editor
+﻿namespace WallstopStudios.DxAudio.Editor
 {
     using System;
     using System.Collections.Generic;
@@ -21,65 +21,6 @@ namespace WallstopStudios.DxAudio.Editor
         private const double MinimumSquaredImprovement = 1e-8;
         private const double MaximumEdgeWeight = 8d;
         private static readonly float[] Qualities = { 0.1f, 0.2f, 0.4f, 0.8f, 1.6f, 3.2f, 6.4f, 12.8f, DspFilter.MaximumQuality };
-
-        private sealed class BandResponses
-        {
-            internal BandResponses(int bandCount)
-            {
-                Active = new double[bandCount][];
-                Candidate = new double[FitSampleCount];
-            }
-
-            internal double[][] Active { get; }
-            internal double[] Candidate { get; private set; }
-
-            internal void KeepCandidate(int bandIndex)
-            {
-                // Reuse the previous band's buffer for the next candidate.
-                double[] previous = Active[bandIndex];
-                Active[bandIndex] = Candidate;
-                Candidate = previous;
-            }
-        }
-
-        internal readonly struct Band
-        {
-            internal Band(float frequencyHz, float quality, float gainDecibels)
-            {
-                FrequencyHz = frequencyHz;
-                Quality = quality;
-                GainDecibels = gainDecibels;
-            }
-
-            internal float FrequencyHz { get; }
-            internal float Quality { get; }
-            internal float GainDecibels { get; }
-
-            internal float GetResponseDecibels(float frequencyHz, int sampleRate)
-            {
-                double center = Warp(Math.Min(FrequencyHz, GetMaximumCenterHz(sampleRate)), sampleRate);
-                double shape = GetShape(Warp(frequencyHz, sampleRate), center, Quality);
-                return (float)GetResponse(shape, AudioMath.DecibelsToLinear(GainDecibels));
-            }
-        }
-
-        internal sealed class Result
-        {
-            internal Result(Band[] bands, float[] responseDecibels, float[] previewDecibels, float maximumErrorDecibels, float rmsErrorDecibels)
-            {
-                Bands = bands;
-                ResponseDecibels = responseDecibels;
-                PreviewDecibels = previewDecibels;
-                MaximumErrorDecibels = maximumErrorDecibels;
-                RmsErrorDecibels = rmsErrorDecibels;
-            }
-
-            internal Band[] Bands { get; }
-            internal float[] ResponseDecibels { get; }
-            internal float[] PreviewDecibels { get; }
-            internal float MaximumErrorDecibels { get; }
-            internal float RmsErrorDecibels { get; }
-        }
 
         internal static float GetMaximumFrequencyHz(int sampleRate)
         {
@@ -208,6 +149,57 @@ namespace WallstopStudios.DxAudio.Editor
             return greedy;
         }
 
+        internal static Result MeasureFit(IReadOnlyList<float> targetDecibels, Band[] bands, int sampleRate)
+        {
+            double drawingWidth = GetFitWidth(sampleRate);
+            float[] response = new float[SampleCount];
+            float[] preview = new float[PreviewSampleCount];
+            double span = GetMaximumFrequencyHz(sampleRate) / (double)MinimumFrequencyHz;
+            double maximumError = 0d;
+            double squaredError = 0d;
+            for (int index = 0; index < PreviewSampleCount; index++)
+            {
+                float frequencyHz = (float)(MinimumFrequencyHz * Math.Pow(span, index / (PreviewSampleCount - 1d)));
+                preview[index] = MeasureResponse(bands, frequencyHz, sampleRate);
+                if (index % PreviewSubdivisions == 0)
+                {
+                    response[index / PreviewSubdivisions] = preview[index];
+                }
+
+                double error = InterpolateTarget(targetDecibels, index * drawingWidth / PreviewSubdivisions) - preview[index];
+                maximumError = Math.Max(maximumError, Math.Abs(error));
+                squaredError += error * error;
+            }
+
+            // At cropped rates the preview grid can step over a corner in the original drawing.
+            if (drawingWidth < 1d)
+            {
+                double visibleIntervals = (SampleCount - 1) * drawingWidth;
+                for (int index = 1; index < visibleIntervals; index++)
+                {
+                    float frequencyHz = (float)(MinimumFrequencyHz * Math.Pow(span, index / visibleIntervals));
+                    double error = targetDecibels[index] - MeasureResponse(bands, frequencyHz, sampleRate);
+                    maximumError = Math.Max(maximumError, Math.Abs(error));
+                }
+            }
+
+            // Narrow high bands can peak between even the denser preview points. Include their centers in the max.
+            foreach (Band band in bands)
+            {
+                float center = Math.Min(band.FrequencyHz, GetMaximumCenterHz(sampleRate));
+                if (center < MinimumFrequencyHz)
+                {
+                    continue;
+                }
+
+                double position = (SampleCount - 1) * drawingWidth * Math.Log(center / (double)MinimumFrequencyHz, span);
+                double error = InterpolateTarget(targetDecibels, position) - MeasureResponse(bands, center, sampleRate);
+                maximumError = Math.Max(maximumError, Math.Abs(error));
+            }
+
+            return new Result(bands, response, preview, (float)maximumError, (float)Math.Sqrt(squaredError / PreviewSampleCount));
+        }
+
         private static bool HasBroadEdge(IReadOnlyList<float> drawing, double edge, double endpoint)
         {
             if (endpoint == 0d || edge < BroadEdgeIntervals)
@@ -294,57 +286,6 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             return squaredError;
-        }
-
-        internal static Result MeasureFit(IReadOnlyList<float> targetDecibels, Band[] bands, int sampleRate)
-        {
-            double drawingWidth = GetFitWidth(sampleRate);
-            float[] response = new float[SampleCount];
-            float[] preview = new float[PreviewSampleCount];
-            double span = GetMaximumFrequencyHz(sampleRate) / (double)MinimumFrequencyHz;
-            double maximumError = 0d;
-            double squaredError = 0d;
-            for (int index = 0; index < PreviewSampleCount; index++)
-            {
-                float frequencyHz = (float)(MinimumFrequencyHz * Math.Pow(span, index / (PreviewSampleCount - 1d)));
-                preview[index] = MeasureResponse(bands, frequencyHz, sampleRate);
-                if (index % PreviewSubdivisions == 0)
-                {
-                    response[index / PreviewSubdivisions] = preview[index];
-                }
-
-                double error = InterpolateTarget(targetDecibels, index * drawingWidth / PreviewSubdivisions) - preview[index];
-                maximumError = Math.Max(maximumError, Math.Abs(error));
-                squaredError += error * error;
-            }
-
-            // At cropped rates the preview grid can step over a corner in the original drawing.
-            if (drawingWidth < 1d)
-            {
-                double visibleIntervals = (SampleCount - 1) * drawingWidth;
-                for (int index = 1; index < visibleIntervals; index++)
-                {
-                    float frequencyHz = (float)(MinimumFrequencyHz * Math.Pow(span, index / visibleIntervals));
-                    double error = targetDecibels[index] - MeasureResponse(bands, frequencyHz, sampleRate);
-                    maximumError = Math.Max(maximumError, Math.Abs(error));
-                }
-            }
-
-            // Narrow high bands can peak between even the denser preview points. Include their centers in the max.
-            foreach (Band band in bands)
-            {
-                float center = Math.Min(band.FrequencyHz, GetMaximumCenterHz(sampleRate));
-                if (center < MinimumFrequencyHz)
-                {
-                    continue;
-                }
-
-                double position = (SampleCount - 1) * drawingWidth * Math.Log(center / (double)MinimumFrequencyHz, span);
-                double error = InterpolateTarget(targetDecibels, position) - MeasureResponse(bands, center, sampleRate);
-                maximumError = Math.Max(maximumError, Math.Abs(error));
-            }
-
-            return new Result(bands, response, preview, (float)maximumError, (float)Math.Sqrt(squaredError / PreviewSampleCount));
         }
 
         private static float MeasureResponse(Band[] bands, float frequencyHz, int sampleRate)
@@ -635,6 +576,65 @@ namespace WallstopStudios.DxAudio.Editor
         {
             // Square the Bell transfer magnitude, then divide both terms by the squared band contribution.
             return 10d * Math.Log10((shape + gain) / (shape + (1d / gain)));
+        }
+
+        private sealed class BandResponses
+        {
+            internal double[][] Active { get; }
+            internal double[] Candidate { get; private set; }
+
+            internal BandResponses(int bandCount)
+            {
+                Active = new double[bandCount][];
+                Candidate = new double[FitSampleCount];
+            }
+
+            internal void KeepCandidate(int bandIndex)
+            {
+                // Reuse the previous band's buffer for the next candidate.
+                double[] previous = Active[bandIndex];
+                Active[bandIndex] = Candidate;
+                Candidate = previous;
+            }
+        }
+
+        internal readonly struct Band
+        {
+            internal float FrequencyHz { get; }
+            internal float Quality { get; }
+            internal float GainDecibels { get; }
+
+            internal Band(float frequencyHz, float quality, float gainDecibels)
+            {
+                FrequencyHz = frequencyHz;
+                Quality = quality;
+                GainDecibels = gainDecibels;
+            }
+
+            internal float GetResponseDecibels(float frequencyHz, int sampleRate)
+            {
+                double center = Warp(Math.Min(FrequencyHz, GetMaximumCenterHz(sampleRate)), sampleRate);
+                double shape = GetShape(Warp(frequencyHz, sampleRate), center, Quality);
+                return (float)GetResponse(shape, AudioMath.DecibelsToLinear(GainDecibels));
+            }
+        }
+
+        internal sealed class Result
+        {
+            internal Band[] Bands { get; }
+            internal float[] ResponseDecibels { get; }
+            internal float[] PreviewDecibels { get; }
+            internal float MaximumErrorDecibels { get; }
+            internal float RmsErrorDecibels { get; }
+
+            internal Result(Band[] bands, float[] responseDecibels, float[] previewDecibels, float maximumErrorDecibels, float rmsErrorDecibels)
+            {
+                Bands = bands;
+                ResponseDecibels = responseDecibels;
+                PreviewDecibels = previewDecibels;
+                MaximumErrorDecibels = maximumErrorDecibels;
+                RmsErrorDecibels = rmsErrorDecibels;
+            }
         }
     }
 }

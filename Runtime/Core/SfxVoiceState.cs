@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     /// <summary>What one pooled voice is doing, as much of it as choosing the next voice needs.</summary>
     /// <remarks>
@@ -12,6 +12,11 @@ namespace WallstopStudios.DxAudio
     public readonly struct SfxVoiceState
     {
         public static readonly SfxVoiceState Idle = new(isUsable: true, isPlaying: false, isHeld: false, SfxPriority.Medium, startedAtUnscaledTime: 0f);
+
+        public bool IsFree => isUsable && !isPlaying && !isHeld && !isPaused;
+
+        /// <summary>Whether this voice may be taken from at all, before priority is considered.</summary>
+        public bool CanBeTakenFrom => isUsable && !isHeld;
 
         /// <summary>
         /// Whether the voice still exists. A destroyed <c>AudioSource</c> reports that it is not playing, so
@@ -49,10 +54,5 @@ namespace WallstopStudios.DxAudio
             this.startedAtUnscaledTime = startedAtUnscaledTime;
             this.isPaused = isPaused;
         }
-
-        public bool IsFree => isUsable && !isPlaying && !isHeld && !isPaused;
-
-        /// <summary>Whether this voice may be taken from at all, before priority is considered.</summary>
-        public bool CanBeTakenFrom => isUsable && !isHeld;
     }
 }

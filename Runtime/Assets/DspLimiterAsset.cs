@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using UnityEngine;
 
@@ -6,6 +6,13 @@ namespace WallstopStudios.DxAudio
     [CreateAssetMenu(fileName = "DspLimiter", menuName = "DxAudio/DSP/Limiter")]
     public sealed class DspLimiterAsset : DspEffectAsset
     {
+        /// <summary>The loudest sample that leaves this stage, in dBFS.</summary>
+        public float CeilingDecibels => _ceilingDecibels;
+
+        public float LookaheadSeconds => _lookaheadSeconds;
+
+        public float ReleaseSeconds => _releaseSeconds;
+
         [Range(-48f, 0f)]
         [SerializeField]
         [Tooltip("The loudest sample that leaves the limiter, in dBFS. Leave room under zero for inter-sample peaks.")]
@@ -20,13 +27,6 @@ namespace WallstopStudios.DxAudio
         [SerializeField]
         [Tooltip("How quickly the gain returns after a peak. Too short pumps; too long stays quiet.")]
         private float _releaseSeconds = 0.05f;
-
-        /// <summary>The loudest sample that leaves this stage, in dBFS.</summary>
-        public float CeilingDecibels => _ceilingDecibels;
-
-        public float LookaheadSeconds => _lookaheadSeconds;
-
-        public float ReleaseSeconds => _releaseSeconds;
 
         /// <summary>Builds a limiter asset in code, for tests and for games that author audio at runtime.</summary>
         public static DspLimiterAsset Create(float ceilingDecibels = DspLimiter.DefaultCeilingDecibels, float lookaheadSeconds = 0.005f, float releaseSeconds = 0.05f)

@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using UnityEngine;
 
@@ -6,6 +6,31 @@ namespace WallstopStudios.DxAudio
     [CreateAssetMenu(fileName = "MusicTrack", menuName = "DxAudio/Music Track")]
     public sealed class MusicTrack : ScriptableObject
     {
+        public string Context => _context;
+
+        public AudioClip Clip => _clip;
+
+        public bool Loop => _loop;
+
+        public float VolumeScale => _volumeScale;
+
+        /// <summary>The effects this track's voice runs, or null to play the clip untouched.</summary>
+        public DspChainAsset Chain => _chain;
+
+        /// <summary>The graph this track's voice runs after <see cref="Chain" />, or null to run none.</summary>
+        public DspGraphAsset Graph => _graph;
+
+        public bool IsPlayable => _clip != null;
+
+        /// <summary>What the track asks for; <see cref="ResolvedClipLoadType" /> turns it into a concrete value.</summary>
+        public MusicClipLoadType ClipLoadType => _clipLoadType;
+
+        /// <summary>The load type this track's clip should use, from its preference and the clip's length.</summary>
+        public MusicClipLoadType ResolvedClipLoadType => MusicLoadPolicy.Resolve(_clip == null ? 0f : _clip.length, _clipLoadType);
+
+        /// <summary>Where playback begins, clamped so it never starts at or past the clip's end.</summary>
+        public float StartTimeSeconds => AudioClipStart.Clamped(_clip, _startTimeSeconds);
+
         [SerializeField]
         [Tooltip("The context this plays for (a screen, a level, an area) when looked up through a MusicLibrary. " + "Optional when the track is only played by reference.")]
         private string _context;
@@ -43,31 +68,6 @@ namespace WallstopStudios.DxAudio
         [SerializeField]
         [Tooltip("A graph this track's voice runs after the chain, with its branches side by side. Empty runs no graph.")]
         private DspGraphAsset _graph;
-
-        public string Context => _context;
-
-        public AudioClip Clip => _clip;
-
-        public bool Loop => _loop;
-
-        public float VolumeScale => _volumeScale;
-
-        /// <summary>The effects this track's voice runs, or null to play the clip untouched.</summary>
-        public DspChainAsset Chain => _chain;
-
-        /// <summary>The graph this track's voice runs after <see cref="Chain" />, or null to run none.</summary>
-        public DspGraphAsset Graph => _graph;
-
-        public bool IsPlayable => _clip != null;
-
-        /// <summary>What the track asks for; <see cref="ResolvedClipLoadType" /> turns it into a concrete value.</summary>
-        public MusicClipLoadType ClipLoadType => _clipLoadType;
-
-        /// <summary>The load type this track's clip should use, from its preference and the clip's length.</summary>
-        public MusicClipLoadType ResolvedClipLoadType => MusicLoadPolicy.Resolve(_clip == null ? 0f : _clip.length, _clipLoadType);
-
-        /// <summary>Where playback begins, clamped so it never starts at or past the clip's end.</summary>
-        public float StartTimeSeconds => AudioClipStart.Clamped(_clip, _startTimeSeconds);
 
         /// <summary>Builds a track in code, for tests and for games that author audio at runtime.</summary>
         public static MusicTrack Create(

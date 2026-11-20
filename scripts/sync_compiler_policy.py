@@ -48,7 +48,7 @@ GENERATED_POLICY: Tuple[Tuple[str, str], ...] = (
 
 # Tool caches and build output hold no assembly, and Unity ignores a folder
 # whose name ends in ``~``.
-SKIPPED_DIRECTORY_NAMES = frozenset((".git", ".venv", "bin", "obj", "node_modules", "__pycache__"))
+SKIPPED_DIRECTORY_NAMES = frozenset((".git", ".artifacts", ".venv", "bin", "obj", "node_modules", "__pycache__"))
 
 
 def display_path(path: Path, repo_root: Path) -> str:

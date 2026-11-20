@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Tests.Editor
+﻿namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System;
     using NUnit.Framework;
@@ -7,6 +7,94 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     {
         private const int SampleRate = 48_000;
         private const int BlockFrames = 256;
+
+        /// <summary>The amplitude a tone leaves at, after the filter has settled on it.</summary>
+        private static float Amplitude(DspFilter filter, float hertz)
+        {
+            float[] output = Render(filter, Sine(hertz, 1f, 9_600));
+            return Rms(output, 4_800) * (float)Math.Sqrt(2.0);
+        }
+
+        /// <summary>The response at one tone, for a filter at a 1 kHz corner and the quality its mode documents.</summary>
+        private static float Decibels(DspFilterMode mode, float hertz, float peakDecibels)
+        {
+            DspFilter filter = new()
+            {
+                Mode = mode,
+                FrequencyHz = 1_000f,
+                Quality = mode == DspFilterMode.LowPass || mode == DspFilterMode.HighPass ? DspFilter.DefaultQuality : 2f,
+                PeakDecibels = peakDecibels,
+            };
+
+            return 20f * (float)Math.Log10(Amplitude(filter, hertz));
+        }
+
+        private static void Prepare(DspEffect effect)
+        {
+            effect.TryPrepare(SampleRate, BlockFrames, 1);
+        }
+
+        private static float[] Render(DspEffect effect, float[] source)
+        {
+            effect.TryPrepare(SampleRate, BlockFrames, 1);
+            return RenderPrepared(effect, source);
+        }
+
+        private static float[] RenderPrepared(DspEffect effect, float[] source)
+        {
+            float[] output = new float[source.Length];
+            Array.Copy(source, output, source.Length);
+            for (int offset = 0, outputLength = output.Length; offset < outputLength; offset += BlockFrames)
+            {
+                int count = Math.Min(BlockFrames, output.Length - offset);
+                effect.Process(output, offset, count, 1);
+            }
+
+            return output;
+        }
+
+        private static float Peak(float[] samples, int from)
+        {
+            return Peak(samples, from, samples.Length - from);
+        }
+
+        private static float Peak(float[] samples, int from, int count)
+        {
+            float peak = 0f;
+            for (int index = from; index < from + count; index++)
+            {
+                float magnitude = Math.Abs(samples[index]);
+                if (peak < magnitude)
+                {
+                    peak = magnitude;
+                }
+            }
+
+            return peak;
+        }
+
+        private static float Rms(float[] samples, int from)
+        {
+            double sum = 0;
+            for (int index = from, samplesLength = samples.Length; index < samplesLength; index++)
+            {
+                sum += (double)samples[index] * samples[index];
+            }
+
+            return (float)Math.Sqrt(sum / (samples.Length - from));
+        }
+
+        private static float[] Sine(float hertz, float amplitude, int frames)
+        {
+            float[] block = new float[frames];
+            double step = (2 * Math.PI * hertz) / SampleRate;
+            for (int frame = 0; frame < frames; frame++)
+            {
+                block[frame] = amplitude * (float)Math.Sin(step * frame);
+            }
+
+            return block;
+        }
 
         [TestCase(DspFilterMode.LowPass, 100f, 0.99f, 8_000f, 0.02f, TestName = "A low pass keeps its passband and cuts its stopband")]
         [TestCase(DspFilterMode.HighPass, 5_000f, 0.99f, 125f, 0.02f, TestName = "A high pass keeps its passband and cuts its stopband")]
@@ -132,8 +220,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             filter.FrequencyHz = 100f;
             filter.Process(whole, 48_000, 48_000, 1);
 
-            // Two milliseconds after the move the old passband is still there; a coefficient step would have closed it
-            // in the first frames, which is what this reads.
+            /*
+                Two milliseconds after the move the old passband is still there; a coefficient step would have closed it
+                in the first frames, which is what this reads.
+            */
             Assert.That(Peak(whole, 48_096, 96), Is.GreaterThan(0.5f), "the corner ramps rather than jumping");
             Assert.That(Rms(whole, 91_200), Is.LessThan(0.05f), "a tenth of a second later the new corner has taken effect");
         }
@@ -151,19 +241,19 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             DspFilter stereo = new() { Mode = DspFilterMode.LowPass, FrequencyHz = 1_500f };
             stereo.TryPrepare(SampleRate, BlockFrames, 2);
             float[] interleaved = new float[left.Length * 2];
-            for (int frame = 0; frame < left.Length; frame++)
+            for (int frame = 0, leftLength = left.Length; frame < leftLength; frame++)
             {
                 interleaved[frame * 2] = left[frame];
                 interleaved[frame * 2 + 1] = right[frame];
             }
 
-            for (int offset = 0; offset < interleaved.Length; offset += BlockFrames * 2)
+            for (int offset = 0, interleavedLength = interleaved.Length; offset < interleavedLength; offset += BlockFrames * 2)
             {
                 int count = Math.Min(BlockFrames * 2, interleaved.Length - offset);
                 stereo.Process(interleaved, offset, count, 2);
             }
 
-            for (int frame = 0; frame < left.Length; frame++)
+            for (int frame = 0, leftLength = left.Length; frame < leftLength; frame++)
             {
                 Assert.That(interleaved[frame * 2], Is.EqualTo(expectedLeft[frame]).Within(0.000001f), "the left channel keeps its own state");
                 Assert.That(interleaved[frame * 2 + 1], Is.EqualTo(expectedRight[frame]).Within(0.000001f), "the right channel keeps its own state");
@@ -181,12 +271,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             float[] small = (float[])source.Clone();
             float[] large = (float[])source.Clone();
-            for (int offset = 0; offset < small.Length; offset += 64)
+            for (int offset = 0, smallLength = small.Length; offset < smallLength; offset += 64)
             {
                 narrow.Process(small, offset, 64, 1);
             }
 
-            for (int offset = 0; offset < large.Length; offset += 1_024)
+            for (int offset = 0, largeLength = large.Length; offset < largeLength; offset += 1_024)
             {
                 wide.Process(large, offset, 1_024, 1);
             }
@@ -300,7 +390,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             DspFilter mono = new() { FrequencyHz = 100f };
             mono.TryPrepare(SampleRate, BlockFrames, 1);
             float[] stereo = new float[source.Length * 2];
-            for (int frame = 0; frame < source.Length; frame++)
+            for (int frame = 0, sourceLength = source.Length; frame < sourceLength; frame++)
             {
                 stereo[frame * 2] = source[frame];
                 stereo[frame * 2 + 1] = source[frame];
@@ -308,7 +398,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             mono.Process(stereo, 0, stereo.Length, 2);
 
-            for (int frame = 0; frame < source.Length; frame++)
+            for (int frame = 0, sourceLength = source.Length; frame < sourceLength; frame++)
             {
                 Assert.That(stereo[frame * 2], Is.EqualTo(source[frame]), "a wider block must not index past the state");
             }
@@ -397,94 +487,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(filter.LatencySamples, Is.Zero, "a state-variable filter answers the frame it is given");
             Assert.That(filter.GainReductionDecibels, Is.Zero, "a band shape is not a reduction");
-        }
-
-        /// <summary>The amplitude a tone leaves at, after the filter has settled on it.</summary>
-        private static float Amplitude(DspFilter filter, float hertz)
-        {
-            float[] output = Render(filter, Sine(hertz, 1f, 9_600));
-            return Rms(output, 4_800) * (float)Math.Sqrt(2.0);
-        }
-
-        /// <summary>The response at one tone, for a filter at a 1 kHz corner and the quality its mode documents.</summary>
-        private static float Decibels(DspFilterMode mode, float hertz, float peakDecibels)
-        {
-            DspFilter filter = new()
-            {
-                Mode = mode,
-                FrequencyHz = 1_000f,
-                Quality = mode == DspFilterMode.LowPass || mode == DspFilterMode.HighPass ? DspFilter.DefaultQuality : 2f,
-                PeakDecibels = peakDecibels,
-            };
-
-            return 20f * (float)Math.Log10(Amplitude(filter, hertz));
-        }
-
-        private static void Prepare(DspEffect effect)
-        {
-            effect.TryPrepare(SampleRate, BlockFrames, 1);
-        }
-
-        private static float[] Render(DspEffect effect, float[] source)
-        {
-            effect.TryPrepare(SampleRate, BlockFrames, 1);
-            return RenderPrepared(effect, source);
-        }
-
-        private static float[] RenderPrepared(DspEffect effect, float[] source)
-        {
-            float[] output = new float[source.Length];
-            Array.Copy(source, output, source.Length);
-            for (int offset = 0; offset < output.Length; offset += BlockFrames)
-            {
-                int count = Math.Min(BlockFrames, output.Length - offset);
-                effect.Process(output, offset, count, 1);
-            }
-
-            return output;
-        }
-
-        private static float Peak(float[] samples, int from)
-        {
-            return Peak(samples, from, samples.Length - from);
-        }
-
-        private static float Peak(float[] samples, int from, int count)
-        {
-            float peak = 0f;
-            for (int index = from; index < from + count; index++)
-            {
-                float magnitude = Math.Abs(samples[index]);
-                if (peak < magnitude)
-                {
-                    peak = magnitude;
-                }
-            }
-
-            return peak;
-        }
-
-        private static float Rms(float[] samples, int from)
-        {
-            double sum = 0;
-            for (int index = from; index < samples.Length; index++)
-            {
-                sum += (double)samples[index] * samples[index];
-            }
-
-            return (float)Math.Sqrt(sum / (samples.Length - from));
-        }
-
-        private static float[] Sine(float hertz, float amplitude, int frames)
-        {
-            float[] block = new float[frames];
-            double step = (2 * Math.PI * hertz) / SampleRate;
-            for (int frame = 0; frame < frames; frame++)
-            {
-                block[frame] = amplitude * (float)Math.Sin(step * frame);
-            }
-
-            return block;
         }
     }
 }

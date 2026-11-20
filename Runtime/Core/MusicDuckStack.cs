@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
     using System.Collections.Generic;
@@ -15,16 +15,15 @@ namespace WallstopStudios.DxAudio
     /// </remarks>
     public sealed class MusicDuckStack
     {
-        private readonly Dictionary<IMusicDuckReason, ReasonHold> _active = new();
-        private readonly List<IMusicDuckReason> _unheld = new();
-
-        private long _nextId = MusicDuckLease.NoneId + 1;
-
         /// <summary>What every live hold composes to. <see cref="MusicAttenuation.Unattenuated"/> with none.</summary>
         public MusicAttenuation Current { get; private set; } = MusicAttenuation.Unattenuated;
 
         /// <summary>How many reasons hold the music down.</summary>
         public int ActiveCount => _active.Count;
+        private readonly Dictionary<IMusicDuckReason, ReasonHold> _active = new();
+        private readonly List<IMusicDuckReason> _unheld = new();
+
+        private long _nextId = MusicDuckLease.NoneId + 1;
 
         public bool IsActive(IMusicDuckReason reason)
         {
@@ -44,9 +43,9 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
-            for (int index = 0; index < held.holders.Count; ++index)
+            foreach (Hold holder in held.holders)
             {
-                if (held.holders[index].id == lease.Id)
+                if (holder.id == lease.Id)
                 {
                     return true;
                 }
@@ -305,6 +304,11 @@ namespace WallstopStudios.DxAudio
 
         private readonly struct Hold
         {
+            /// <summary>Whether the holder was a Unity object that has since been destroyed.</summary>
+            internal bool IsAbandoned
+            {
+                get { return UnityObjects.IsDestroyed(holder); }
+            }
             public readonly long id;
             public readonly object holder;
 
@@ -312,12 +316,6 @@ namespace WallstopStudios.DxAudio
             {
                 this.id = id;
                 this.holder = holder;
-            }
-
-            /// <summary>Whether the holder was a Unity object that has since been destroyed.</summary>
-            internal bool IsAbandoned
-            {
-                get { return UnityObjects.IsDestroyed(holder); }
             }
         }
     }

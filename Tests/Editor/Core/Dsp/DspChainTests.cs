@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Tests.Editor
+﻿namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System;
     using NUnit.Framework;
@@ -6,6 +6,77 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     public sealed class DspChainTests
     {
         private const int SampleRate = 48_000;
+
+        private static void RunInBlocks(float[] block, int blockFrames)
+        {
+            DspChain chain = new();
+            chain.Add(new DspLimiter());
+            chain.Add(new DspCompressor());
+            chain.Add(new DspDistortion { Drive = 6f });
+            chain.Add(new DspBitCrusher { Bits = 8, RateReduction = 2 });
+            chain.Add(new DspPitchShifter { Semitones = 7f });
+            chain.TryPrepare(SampleRate, blockFrames, 1);
+            for (int offset = 0, blockLength = block.Length; offset < blockLength; offset += blockFrames)
+            {
+                int count = Math.Min(blockFrames, block.Length - offset);
+                chain.Process(block, offset, count, 1);
+            }
+        }
+
+        private static float[] Run(DspEffect[] effects)
+        {
+            float[] block = Sine(2_000f, 0.8f, 4_096);
+            DspChain chain = new();
+            foreach (DspEffect effect in effects)
+            {
+                chain.Add(effect);
+            }
+
+            chain.TryPrepare(SampleRate, 256, 1);
+            chain.Process(block, 0, block.Length, 1);
+            return block;
+        }
+
+        private static float Peak(float[] samples)
+        {
+            float peak = 0f;
+            foreach (float sample in samples)
+            {
+                float magnitude = Math.Abs(sample);
+                if (peak < magnitude)
+                {
+                    peak = magnitude;
+                }
+            }
+
+            return peak;
+        }
+
+        private static int DifferingSamples(float[] left, float[] right)
+        {
+            int differences = 0;
+            for (int i = 0, leftLength = left.Length; i < leftLength; i++)
+            {
+                if (0.0001f < Math.Abs(left[i] - right[i]))
+                {
+                    differences++;
+                }
+            }
+
+            return differences;
+        }
+
+        private static float[] Sine(float hertz, float amplitude, int frames)
+        {
+            float[] block = new float[frames];
+            double step = (2 * Math.PI * hertz) / SampleRate;
+            for (int frame = 0; frame < frames; frame++)
+            {
+                block[frame] = amplitude * (float)Math.Sin(step * frame);
+            }
+
+            return block;
+        }
 
         [Test]
         public void AnEmptyChainPassesTheBlockUntouched()
@@ -128,6 +199,27 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void AStageMayAddToTheChainWhileReportingGainReduction()
+        {
+            DspChain chain = new();
+            chain.Add(new RecordingEffect { ReadingReduction = () => chain.Add(new RecordingEffect { Reduction = 3f }) });
+
+            Assert.That(chain.GainReductionDecibels, Is.EqualTo(3f), "the appended stage contributes to the same reading");
+        }
+
+        [Test]
+        public void AStageMayAddToTheChainFromItsReset()
+        {
+            DspChain chain = new();
+            RecordingEffect appended = new();
+            chain.Add(new RecordingEffect { Resetting = () => chain.Add(appended) });
+
+            chain.Reset();
+
+            Assert.That(appended.Resets, Is.EqualTo(1), "the appended stage resets in the same pass");
+        }
+
+        [Test]
         public void LatencyIsTheSumOfItsStages()
         {
             DspLimiter limiter = new() { LookaheadSeconds = 0.005f };
@@ -221,9 +313,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             DspEffect[] effects = { new DspLimiter(), new DspCompressor(), new DspDistortion(), new DspBitCrusher(), new DspPitchShifter() };
 
-            for (int i = 0; i < effects.Length; i++)
+            foreach (DspEffect effect in effects)
             {
-                DspEffect effect = effects[i];
                 Assert.That(effect.TryPrepare(0, 256, 2), Is.False, effect.DisplayName);
                 Assert.That(effect.TryPrepare(SampleRate, 256, 0), Is.False, effect.DisplayName);
                 Assert.That(effect.TryPrepare(SampleRate, 0, 2), Is.False, effect.DisplayName);
@@ -277,79 +368,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(block[8], Is.EqualTo(1f), "an odd sample count is not a whole stereo frame, so the block is refused");
         }
 
-        private static void RunInBlocks(float[] block, int blockFrames)
-        {
-            DspChain chain = new();
-            chain.Add(new DspLimiter());
-            chain.Add(new DspCompressor());
-            chain.Add(new DspDistortion { Drive = 6f });
-            chain.Add(new DspBitCrusher { Bits = 8, RateReduction = 2 });
-            chain.Add(new DspPitchShifter { Semitones = 7f });
-            chain.TryPrepare(SampleRate, blockFrames, 1);
-            for (int offset = 0; offset < block.Length; offset += blockFrames)
-            {
-                int count = Math.Min(blockFrames, block.Length - offset);
-                chain.Process(block, offset, count, 1);
-            }
-        }
-
-        private static float[] Run(DspEffect[] effects)
-        {
-            float[] block = Sine(2_000f, 0.8f, 4_096);
-            DspChain chain = new();
-            for (int i = 0; i < effects.Length; i++)
-            {
-                chain.Add(effects[i]);
-            }
-
-            chain.TryPrepare(SampleRate, 256, 1);
-            chain.Process(block, 0, block.Length, 1);
-            return block;
-        }
-
-        private static float Peak(float[] samples)
-        {
-            float peak = 0f;
-            foreach (float sample in samples)
-            {
-                float magnitude = Math.Abs(sample);
-                if (peak < magnitude)
-                {
-                    peak = magnitude;
-                }
-            }
-
-            return peak;
-        }
-
-        private static int DifferingSamples(float[] left, float[] right)
-        {
-            int differences = 0;
-            for (int i = 0; i < left.Length; i++)
-            {
-                if (0.0001f < Math.Abs(left[i] - right[i]))
-                {
-                    differences++;
-                }
-            }
-
-            return differences;
-        }
-
-        private static float[] Sine(float hertz, float amplitude, int frames)
-        {
-            float[] block = new float[frames];
-            double step = (2 * Math.PI * hertz) / SampleRate;
-            for (int frame = 0; frame < frames; frame++)
-            {
-                block[frame] = amplitude * (float)Math.Sin(step * frame);
-            }
-
-            return block;
-        }
-
         private sealed class AddingEffect : DspEffect
         {
+            public override string DisplayName => "Adding";
             private readonly DspChain _chain;
             private readonly DspEffect _stage;
             private readonly bool _addWhileProcessing;
@@ -362,20 +383,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 _addWhileProcessing = addWhileProcessing;
             }
 
-            public override string DisplayName => "Adding";
-
-            protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
+            public override void Process(float[] buffer, int offset, int count, int channels)
             {
-                if (!_addWhileProcessing && !_added)
+                if (_addWhileProcessing && !_added)
                 {
                     _added = true;
                     _chain.Add(_stage);
                 }
             }
 
-            public override void Process(float[] buffer, int offset, int count, int channels)
+            protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
             {
-                if (_addWhileProcessing && !_added)
+                if (!_addWhileProcessing && !_added)
                 {
                     _added = true;
                     _chain.Add(_stage);
@@ -393,9 +412,19 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             public int Processed { get; private set; }
 
-            protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
+            public Action ReadingReduction { get; set; }
+
+            public Action Resetting { get; set; }
+
+            public float Reduction { get; set; }
+
+            public override float GainReductionDecibels
             {
-                PreparedAs = (sampleRate, maxBlockSize, channels);
+                get
+                {
+                    ReadingReduction?.Invoke();
+                    return Reduction;
+                }
             }
 
             public override void Process(float[] buffer, int offset, int count, int channels)
@@ -406,6 +435,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             public override void Reset()
             {
                 Resets++;
+                Resetting?.Invoke();
+            }
+
+            protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
+            {
+                PreparedAs = (sampleRate, maxBlockSize, channels);
             }
         }
     }

@@ -43,8 +43,10 @@ namespace WallstopStudios.DxAudio
         /// <summary>Whether a clip's data cannot make sound: it was unloaded, or its load already failed.</summary>
         private static bool IsDeadData(AudioClip clip)
         {
-            // Loading and partial data play, so they are fine. A failed load never completes, and is as gone as data
-            // that was unloaded on purpose.
+            /*
+                Loading and partial data play, so they are fine. A failed load never completes, and is as gone as data
+                that was unloaded on purpose.
+            */
             AudioDataLoadState state = clip.loadState;
             return state == AudioDataLoadState.Unloaded || state == AudioDataLoadState.Failed;
         }

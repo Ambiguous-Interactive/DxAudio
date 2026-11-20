@@ -8,6 +8,13 @@
     {
         private static readonly Revision CancelledRevision = new(0, Array.Empty<Path>());
 
+        internal int ActiveRevision => Volatile.Read(ref _activeRevision);
+        internal int ProcessedBlocks => Volatile.Read(ref _processedBlocks);
+        internal int Channels => Volatile.Read(ref _channels);
+        internal int UnsupportedChannels => Volatile.Read(ref _unsupportedChannels);
+        internal float Peak => Volatile.Read(ref _peak);
+        internal float PeakSinceStart => Volatile.Read(ref _peakSinceStart);
+
         private readonly int _blockFrames;
         private readonly int _maximumChannels;
         private readonly int _crossfadeFrames;
@@ -35,13 +42,6 @@
             _crossfadeFrames = Math.Max(1, sampleRate / 50);
             _dipFrames = Math.Max(1, sampleRate / 200);
         }
-
-        internal int ActiveRevision => Volatile.Read(ref _activeRevision);
-        internal int ProcessedBlocks => Volatile.Read(ref _processedBlocks);
-        internal int Channels => Volatile.Read(ref _channels);
-        internal int UnsupportedChannels => Volatile.Read(ref _unsupportedChannels);
-        internal float Peak => Volatile.Read(ref _peak);
-        internal float PeakSinceStart => Volatile.Read(ref _peakSinceStart);
 
         internal void Publish(Revision revision)
         {
@@ -195,6 +195,7 @@
 
         internal sealed class Revision
         {
+            internal int Number { get; }
             private readonly Path[] _shapes;
 
             internal Revision(int number, Path[] shapes)
@@ -202,8 +203,6 @@
                 Number = number;
                 _shapes = shapes;
             }
-
-            internal int Number { get; }
 
             internal Path For(int channels)
             {
@@ -213,6 +212,7 @@
 
         internal sealed class Path
         {
+            internal int LatencyFrames { get; }
             private readonly DspChain _chain;
             private readonly DspGraph _graph;
             private readonly DspFilter _lowPass;
@@ -231,8 +231,6 @@
                 _dry = new float[_wet.Length];
                 _delay = new float[LatencyFrames * channels];
             }
-
-            internal int LatencyFrames { get; }
 
             internal void Render(float[] input, int offset, int count, int channels)
             {

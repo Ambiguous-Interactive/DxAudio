@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
     using System.Collections.Generic;
@@ -16,6 +16,18 @@ namespace WallstopStudios.DxAudio
         private const int CurrentEaseVersion = 1;
 
         private static event Action IndexesStale;
+
+        public AudioMixerGroup MixerGroup => _mixerGroup;
+
+        public IReadOnlyList<MusicTrack> Tracks => _tracks;
+
+        public float FadeInSeconds => _fadeInSeconds;
+
+        public MusicEase FadeInEase => _fadeInEase;
+
+        public float FadeOutSeconds => _fadeOutSeconds;
+
+        public MusicEase FadeOutEase => _fadeOutEase;
 
         [SerializeField]
         [Tooltip("The mixer group music plays through. Empty plays unrouted.")]
@@ -48,22 +60,26 @@ namespace WallstopStudios.DxAudio
         private readonly Dictionary<string, MusicTrack> _tracksByContext = new(StringComparer.Ordinal);
         private bool _indexBuilt;
 
-        public AudioMixerGroup MixerGroup => _mixerGroup;
+        /// <summary>Builds a library in code, for tests and for games that author audio at runtime.</summary>
+        public static MusicLibrary Create(IEnumerable<MusicTrack> tracks, float fadeInSeconds = 1.5f, float fadeOutSeconds = 1.2f, AudioMixerGroup mixerGroup = null)
+        {
+            MusicLibrary library = CreateInstance<MusicLibrary>();
+            library._tracks = tracks == null ? new List<MusicTrack>() : new List<MusicTrack>(tracks);
+            library._fadeInSeconds = Mathf.Max(0f, fadeInSeconds);
+            library._fadeOutSeconds = Mathf.Max(0f, fadeOutSeconds);
+            library._mixerGroup = mixerGroup;
+            return library;
+        }
 
-        public IReadOnlyList<MusicTrack> Tracks => _tracks;
-
-        public float FadeInSeconds => _fadeInSeconds;
-
-        public MusicEase FadeInEase => _fadeInEase;
-
-        public float FadeOutSeconds => _fadeOutSeconds;
-
-        public MusicEase FadeOutEase => _fadeOutEase;
+        internal static void ForgetEveryIndex()
+        {
+            IndexesStale?.Invoke();
+        }
 
         /// <inheritdoc />
         public void OnAfterDeserialize()
         {
-            if (_easeVersion >= CurrentEaseVersion)
+            if (CurrentEaseVersion <= _easeVersion)
             {
                 return;
             }
@@ -75,17 +91,6 @@ namespace WallstopStudios.DxAudio
 
         /// <inheritdoc />
         public void OnBeforeSerialize() { }
-
-        /// <summary>Builds a library in code, for tests and for games that author audio at runtime.</summary>
-        public static MusicLibrary Create(IEnumerable<MusicTrack> tracks, float fadeInSeconds = 1.5f, float fadeOutSeconds = 1.2f, AudioMixerGroup mixerGroup = null)
-        {
-            MusicLibrary library = CreateInstance<MusicLibrary>();
-            library._tracks = tracks == null ? new List<MusicTrack>() : new List<MusicTrack>(tracks);
-            library._fadeInSeconds = Mathf.Max(0f, fadeInSeconds);
-            library._fadeOutSeconds = Mathf.Max(0f, fadeOutSeconds);
-            library._mixerGroup = mixerGroup;
-            return library;
-        }
 
         /// <summary>The playable track listed for <paramref name="context"/>.</summary>
         public bool TryGetTrack(string context, out MusicTrack track)
@@ -108,11 +113,6 @@ namespace WallstopStudios.DxAudio
         public void ForgetIndex()
         {
             _indexBuilt = false;
-        }
-
-        internal static void ForgetEveryIndex()
-        {
-            IndexesStale?.Invoke();
         }
 
         private void OnEnable()

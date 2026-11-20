@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Integration
+﻿namespace WallstopStudios.DxAudio.Integration
 {
     using System;
     using System.Collections.Generic;
@@ -38,6 +38,22 @@ namespace WallstopStudios.DxAudio.Integration
         */
         private static long _nextDuckId;
 
+        /// <summary>The player this relay drives, or <see langword="null"/> once it is gone.</summary>
+        public MusicPlayer Player
+        {
+            get { return _player; }
+        }
+
+        /// <summary>How many ducks this relay took and has not released.</summary>
+        /// <remarks>
+        /// A duck whose holder was destroyed is released by the player, and its id is forgotten on the next duck or
+        /// unduck request.
+        /// </remarks>
+        public int HeldDuckCount
+        {
+            get { return _ducks.Count; }
+        }
+
         private readonly Dictionary<long, MusicDuckLease> _ducks = new(InitialDuckCapacity);
 
         /* Keys are collected before any removal: a dictionary throws when it is changed while enumerated. */
@@ -59,22 +75,6 @@ namespace WallstopStudios.DxAudio.Integration
             _source = source;
             _bus = bus;
             _busProvider = busProvider;
-        }
-
-        /// <summary>The player this relay drives, or <see langword="null"/> once it is gone.</summary>
-        public MusicPlayer Player
-        {
-            get { return _player; }
-        }
-
-        /// <summary>How many ducks this relay took and has not released.</summary>
-        /// <remarks>
-        /// A duck whose holder was destroyed is released by the player, and its id is forgotten on the next duck or
-        /// unduck request.
-        /// </remarks>
-        public int HeldDuckCount
-        {
-            get { return _ducks.Count; }
         }
 
         /// <summary>Stages the handlers that drive the player.</summary>
@@ -145,9 +145,9 @@ namespace WallstopStudios.DxAudio.Integration
                 }
             }
 
-            for (int index = 0; index < _endedDucks.Count; ++index)
+            foreach (long ended in _endedDucks)
             {
-                _ = _ducks.Remove(_endedDucks[index]);
+                _ = _ducks.Remove(ended);
             }
 
             _endedDucks.Clear();

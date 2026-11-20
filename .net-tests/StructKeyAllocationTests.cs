@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Tests
+﻿namespace WallstopStudios.DxAudio.Tests
 {
     using System;
     using NUnit.Framework;
@@ -11,20 +11,14 @@ namespace WallstopStudios.DxAudio.Tests
     {
         private const int Calls = 1000;
 
-        private readonly struct CueKey : IEquatable<CueKey>
+        /// <returns>1 when <c>TryBegin</c> started a window, so the caller can assert outside the measure.</returns>
+        private static int Exercise(SfxThrottle<CueKey> throttle, SfxSelection<CueKey> selection, CueKey leader, CueKey follower, float now)
         {
-            private readonly int _id;
-
-            public CueKey(int id)
-            {
-                _id = id;
-            }
-
-            public bool Equals(CueKey other) => _id == other._id;
-
-            public override bool Equals(object obj) => obj is CueKey other && Equals(other);
-
-            public override int GetHashCode() => _id;
+            _ = throttle.IsReady(leader, now, 0.05f);
+            bool begun = throttle.TryBegin(leader, now, 0.05f);
+            _ = selection.TryNext(leader, 4, 0.5f, out _);
+            _ = selection.TryFollow(follower, leader, 4, out _);
+            return begun ? 1 : 0;
         }
 
         [Test]
@@ -49,14 +43,20 @@ namespace WallstopStudios.DxAudio.Tests
             Assert.That(allocated, Is.Zero, $"{Calls} rounds on warmed struct keys allocated {allocated} bytes");
         }
 
-        /// <returns>1 when <c>TryBegin</c> started a window, so the caller can assert outside the measure.</returns>
-        private static int Exercise(SfxThrottle<CueKey> throttle, SfxSelection<CueKey> selection, CueKey leader, CueKey follower, float now)
+        private readonly struct CueKey : IEquatable<CueKey>
         {
-            _ = throttle.IsReady(leader, now, 0.05f);
-            bool begun = throttle.TryBegin(leader, now, 0.05f);
-            _ = selection.TryNext(leader, 4, 0.5f, out _);
-            _ = selection.TryFollow(follower, leader, 4, out _);
-            return begun ? 1 : 0;
+            private readonly int _id;
+
+            public CueKey(int id)
+            {
+                _id = id;
+            }
+
+            public bool Equals(CueKey other) => _id == other._id;
+
+            public override bool Equals(object obj) => obj is CueKey other && Equals(other);
+
+            public override int GetHashCode() => _id;
         }
     }
 }

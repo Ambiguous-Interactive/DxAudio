@@ -7,8 +7,8 @@
 /[Uu]ser[Ss]ettings/
 
 # .NET test build output
-.net-tests/bin/
-.net-tests/obj/
+.net-tests/**/bin/
+.net-tests/**/obj/
 
 # Editors
 .vs/

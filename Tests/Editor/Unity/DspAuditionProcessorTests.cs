@@ -1,10 +1,45 @@
-namespace WallstopStudios.DxAudio.Tests.Editor
+﻿namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using NUnit.Framework;
     using WallstopStudios.DxAudio.Editor;
 
     public sealed class DspAuditionProcessorTests
     {
+        private static DspAuditionProcessor.Revision DelayedRevision(int number, float lookahead)
+        {
+            DspChain chain = new();
+            chain.Add(new DspLimiter { LookaheadSeconds = lookahead });
+            Assert.That(chain.TryPrepare(1_000, 32, 1), Is.True);
+            return new DspAuditionProcessor.Revision(number, new[] { new DspAuditionProcessor.Path(32, 1, chain, null) });
+        }
+
+        private static DspAuditionProcessor.Revision Revision(int number, int branches)
+        {
+            DspGraph graph = new();
+            Assert.That(graph.TryAddNode(new DspChain(), out int input), Is.True);
+            Assert.That(graph.TryAddNode(new DspChain(), out int output), Is.True);
+            for (int index = 0; index < branches; ++index)
+            {
+                Assert.That(graph.TryAddNode(new DspChain(), out int branch), Is.True);
+                Assert.That(graph.TryAddEdge(input, branch), Is.True);
+                Assert.That(graph.TryAddEdge(branch, output), Is.True);
+            }
+
+            Assert.That(graph.TryPrepare(1_000, 32, 1, input, output), Is.True);
+            return new DspAuditionProcessor.Revision(number, new[] { new DspAuditionProcessor.Path(32, 1, null, graph) });
+        }
+
+        private static float[] Constant(int length)
+        {
+            float[] block = new float[length];
+            for (int index = 0, blockLength = block.Length; index < blockLength; ++index)
+            {
+                block[index] = 0.25f;
+            }
+
+            return block;
+        }
+
         [Test]
         public void DryAuditionMatchesTheLatencyOfWetPlayback()
         {
@@ -159,41 +194,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(block, Is.EqualTo(Constant(32)));
             Assert.That(processor.ActiveRevision, Is.EqualTo(1));
-        }
-
-        private static DspAuditionProcessor.Revision DelayedRevision(int number, float lookahead)
-        {
-            DspChain chain = new();
-            chain.Add(new DspLimiter { LookaheadSeconds = lookahead });
-            Assert.That(chain.TryPrepare(1_000, 32, 1), Is.True);
-            return new DspAuditionProcessor.Revision(number, new[] { new DspAuditionProcessor.Path(32, 1, chain, null) });
-        }
-
-        private static DspAuditionProcessor.Revision Revision(int number, int branches)
-        {
-            DspGraph graph = new();
-            Assert.That(graph.TryAddNode(new DspChain(), out int input), Is.True);
-            Assert.That(graph.TryAddNode(new DspChain(), out int output), Is.True);
-            for (int index = 0; index < branches; ++index)
-            {
-                Assert.That(graph.TryAddNode(new DspChain(), out int branch), Is.True);
-                Assert.That(graph.TryAddEdge(input, branch), Is.True);
-                Assert.That(graph.TryAddEdge(branch, output), Is.True);
-            }
-
-            Assert.That(graph.TryPrepare(1_000, 32, 1, input, output), Is.True);
-            return new DspAuditionProcessor.Revision(number, new[] { new DspAuditionProcessor.Path(32, 1, null, graph) });
-        }
-
-        private static float[] Constant(int length)
-        {
-            float[] block = new float[length];
-            for (int index = 0; index < block.Length; ++index)
-            {
-                block[index] = 0.25f;
-            }
-
-            return block;
         }
     }
 }

@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Editor
+﻿namespace WallstopStudios.DxAudio.Editor
 {
     using System;
     using System.Collections.Generic;
@@ -128,7 +128,7 @@ namespace WallstopStudios.DxAudio.Editor
         internal static float[] CreateTarget(int preset, int sampleRate)
         {
             float[] samples = new float[DspEqCurveFit.SampleCount];
-            for (int index = 0; index < samples.Length; ++index)
+            for (int index = 0, samplesLength = samples.Length; index < samplesLength; ++index)
             {
                 float frequency = DspEqCurveFit.FrequencyAt(index, sampleRate);
                 switch (preset)

@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Tests.Editor
+﻿namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System.Collections.Generic;
     using NUnit.Framework;
@@ -9,6 +9,49 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     /// <summary>What the players promise when a clip is released while a voice still refers to it.</summary>
     public sealed class ClipLifetimeTests
     {
+        /// <summary>The committed sound file, with its audio data loaded: only an imported clip can unload data.</summary>
+        private static AudioClip ImportedClip()
+        {
+            /*
+                Pinned by GUID: the host project may carry a file of the same name, and unloading that one would be both
+                wrong and destructive.
+            */
+            string path = AssetDatabase.GUIDToAssetPath("5081b21fa3e1420dbfaac900a77b4b24");
+            AudioClip found = path.Length == 0 ? null : AssetDatabase.LoadAssetAtPath<AudioClip>(path);
+            Assert.That(found != null, Is.True, "Tests/Editor/Unity/Data/TestTone.wav is missing or was not imported as an AudioClip.");
+
+            // A freshly imported clip reports its data as unloaded until something loads it.
+            Assert.That(found.LoadAudioData(), Is.True, "the fixture clip loads its audio data");
+            Assert.That(found.loadState, Is.EqualTo(AudioDataLoadState.Loaded));
+            return found;
+        }
+
+        private static SfxPlayer SfxPlayer(MadeObjects made, SfxLibrary library)
+        {
+            made.Track(library);
+            SfxPlayer player = made.Track(new GameObject("sfx")).AddComponent<SfxPlayer>();
+            player.Library = library;
+            return player;
+        }
+
+        private static MusicPlayer MusicPlayer(MadeObjects made, MusicLibrary library)
+        {
+            made.Track(library);
+            MusicPlayer player = made.Track(new GameObject("music")).AddComponent<MusicPlayer>();
+            player.Library = library;
+            return player;
+        }
+
+        private static SfxCue Cue(MadeObjects made, AudioClip clip, bool loop)
+        {
+            return made.Track(SfxCue.Create(new[] { new SfxVariant(clip) }, loop: loop, minimumIntervalSeconds: 0f));
+        }
+
+        private static AudioClip Clip(MadeObjects made)
+        {
+            return made.Track(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
+        }
+
         [Test]
         public void AReleasedCueIsRefusedAsNotPlayable()
         {
@@ -143,7 +186,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 player.ReclaimLostHolds();
                 int heldAfterUnload = player.HeldVoiceCount;
                 bool staleStops = player.StopLoop(held);
-                _ = player.TryGetVoiceState(held.voice, out SfxVoiceState read, out int lease);
+                if (!player.TryGetVoiceState(held.voice, out SfxVoiceState read, out int lease))
+                {
+                    Assert.Fail("The voice must still describe its state after the clip unloads.");
+                    return;
+                }
 
                 Assert.That(heldAfterUnload, Is.Zero, "a clip with no audio data cannot hold a voice");
                 Assert.That(staleStops, Is.False, "the hold is gone, so its handle stops nothing");
@@ -195,47 +242,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             {
                 unloaded.LoadAudioData();
             }
-        }
-
-        /// <summary>The committed sound file, with its audio data loaded: only an imported clip can unload data.</summary>
-        private static AudioClip ImportedClip()
-        {
-            // Pinned by GUID: the host project may carry a file of the same name, and unloading that one would be both
-            // wrong and destructive.
-            string path = AssetDatabase.GUIDToAssetPath("5081b21fa3e1420dbfaac900a77b4b24");
-            AudioClip found = path.Length == 0 ? null : AssetDatabase.LoadAssetAtPath<AudioClip>(path);
-            Assert.That(found != null, Is.True, "Tests/Editor/Unity/Data/TestTone.wav is missing or was not imported as an AudioClip.");
-
-            // A freshly imported clip reports its data as unloaded until something loads it.
-            Assert.That(found.LoadAudioData(), Is.True, "the fixture clip loads its audio data");
-            Assert.That(found.loadState, Is.EqualTo(AudioDataLoadState.Loaded));
-            return found;
-        }
-
-        private static SfxPlayer SfxPlayer(MadeObjects made, SfxLibrary library)
-        {
-            made.Track(library);
-            SfxPlayer player = made.Track(new GameObject("sfx")).AddComponent<SfxPlayer>();
-            player.Library = library;
-            return player;
-        }
-
-        private static MusicPlayer MusicPlayer(MadeObjects made, MusicLibrary library)
-        {
-            made.Track(library);
-            MusicPlayer player = made.Track(new GameObject("music")).AddComponent<MusicPlayer>();
-            player.Library = library;
-            return player;
-        }
-
-        private static SfxCue Cue(MadeObjects made, AudioClip clip, bool loop)
-        {
-            return made.Track(SfxCue.Create(new[] { new SfxVariant(clip) }, loop: loop, minimumIntervalSeconds: 0f));
-        }
-
-        private static AudioClip Clip(MadeObjects made)
-        {
-            return made.Track(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
         }
     }
 }

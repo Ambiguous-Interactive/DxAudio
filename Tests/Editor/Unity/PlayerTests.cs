@@ -6,6 +6,57 @@
 
     public sealed class PlayerTests
     {
+        private static SfxPlayer SfxPlayer(MadeObjects made, SfxLibrary library)
+        {
+            made.Track(library);
+            SfxPlayer player = made.Track(new GameObject("sfx")).AddComponent<SfxPlayer>();
+            player.Library = library;
+            return player;
+        }
+
+        private static AudioSource PlayingSource(MonoBehaviour player)
+        {
+            AudioSource[] sources = player.GetComponentsInChildren<AudioSource>();
+            foreach (AudioSource source in sources)
+            {
+                if (source.isPlaying)
+                {
+                    return source;
+                }
+            }
+
+            return null;
+        }
+
+        private static AudioSource SourceWithClip(MonoBehaviour player, AudioClip clip)
+        {
+            AudioSource[] sources = player.GetComponentsInChildren<AudioSource>();
+            foreach (AudioSource source in sources)
+            {
+                if (source.clip == clip)
+                {
+                    return source;
+                }
+            }
+
+            return null;
+        }
+
+        private static MusicPlayer MusicPlayer(MadeObjects made)
+        {
+            return made.Track(new GameObject("music")).AddComponent<MusicPlayer>();
+        }
+
+        private static SfxCue Cue(MadeObjects made, bool loop, string key = null, float minimumIntervalSeconds = 0f, SfxPriority priority = SfxPriority.Medium)
+        {
+            return made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, key: key, priority: priority, loop: loop, minimumIntervalSeconds: minimumIntervalSeconds));
+        }
+
+        private static AudioClip Clip(MadeObjects made)
+        {
+            return made.Track(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
+        }
+
         [Test]
         public void TheSfxPlayerRefusesWhatItCannotPlayAndSaysWhy()
         {
@@ -350,57 +401,6 @@
             player.Stop();
             Assert.That(stops, Is.EqualTo(1));
             Assert.That(player.Current == null);
-        }
-
-        private static SfxPlayer SfxPlayer(MadeObjects made, SfxLibrary library)
-        {
-            made.Track(library);
-            SfxPlayer player = made.Track(new GameObject("sfx")).AddComponent<SfxPlayer>();
-            player.Library = library;
-            return player;
-        }
-
-        private static AudioSource PlayingSource(MonoBehaviour player)
-        {
-            AudioSource[] sources = player.GetComponentsInChildren<AudioSource>();
-            for (int index = 0; index < sources.Length; ++index)
-            {
-                if (sources[index].isPlaying)
-                {
-                    return sources[index];
-                }
-            }
-
-            return null;
-        }
-
-        private static AudioSource SourceWithClip(MonoBehaviour player, AudioClip clip)
-        {
-            AudioSource[] sources = player.GetComponentsInChildren<AudioSource>();
-            for (int index = 0; index < sources.Length; ++index)
-            {
-                if (sources[index].clip == clip)
-                {
-                    return sources[index];
-                }
-            }
-
-            return null;
-        }
-
-        private static MusicPlayer MusicPlayer(MadeObjects made)
-        {
-            return made.Track(new GameObject("music")).AddComponent<MusicPlayer>();
-        }
-
-        private static SfxCue Cue(MadeObjects made, bool loop, string key = null, float minimumIntervalSeconds = 0f, SfxPriority priority = SfxPriority.Medium)
-        {
-            return made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, key: key, priority: priority, loop: loop, minimumIntervalSeconds: minimumIntervalSeconds));
-        }
-
-        private static AudioClip Clip(MadeObjects made)
-        {
-            return made.Track(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
         }
     }
 }

@@ -13,7 +13,7 @@ metadata:
 | ----------------- | ----------------- | ---------------------------------------- |
 | Fast check        | changed files     | `npm run check:fast`                     |
 | Full local gate   | every check       | `npm run check:gate`                     |
-| Engine-free tests | Runtime/Core      | `dotnet test .net-tests --configuration Release` |
+| C# analysis      | Runtime/Core      | `npm run check:analysis`                         |
 | Unity EditMode    | assets + players  | `npm run unity:tests`                    |
 | CI                | ubuntu + windows  | `.github/workflows/llm-lint.yml`         |
 

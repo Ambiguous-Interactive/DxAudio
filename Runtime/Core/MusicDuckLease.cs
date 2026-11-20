@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
 
@@ -20,6 +20,10 @@ namespace WallstopStudios.DxAudio
 
         public static readonly MusicDuckLease None = new();
 
+        public bool IsValid => _id != NoneId && _issuer != null;
+
+        internal long Id => _id;
+
         public readonly IMusicDuckReason reason;
 
         private readonly long _id;
@@ -30,19 +34,6 @@ namespace WallstopStudios.DxAudio
             _id = id;
             this.reason = reason;
             _issuer = issuer;
-        }
-
-        public bool IsValid => _id != NoneId && _issuer != null;
-
-        internal long Id => _id;
-
-        /// <remarks>
-        /// Every stack numbers its holds from one, so identity is the pair (issuer, id), never the id alone.
-        /// Checking only the id would let one stack release another's hold.
-        /// </remarks>
-        internal bool IssuedBy(MusicDuckStack stack)
-        {
-            return ReferenceEquals(_issuer, stack);
         }
 
         public bool Equals(MusicDuckLease other)
@@ -67,6 +58,15 @@ namespace WallstopStudios.DxAudio
         public override string ToString()
         {
             return IsValid ? $"{reason} duck #{_id}" : "no duck";
+        }
+
+        /// <remarks>
+        /// Every stack numbers its holds from one, so identity is the pair (issuer, id), never the id alone.
+        /// Checking only the id would let one stack release another's hold.
+        /// </remarks>
+        internal bool IssuedBy(MusicDuckStack stack)
+        {
+            return ReferenceEquals(_issuer, stack);
         }
     }
 }

@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using UnityEngine;
 
@@ -11,6 +11,18 @@ namespace WallstopStudios.DxAudio
     public sealed class MusicDuck : ScriptableObject, IMusicDuckReason, ISerializationCallbackReceiver
     {
         private const int CurrentEaseVersion = 1;
+
+        public MusicDuckHolders Holders => _holders;
+
+        public float ApplySeconds => _applySeconds;
+
+        public MusicEase ApplyEase => _applyEase;
+
+        public float ReleaseSeconds => _releaseSeconds;
+
+        public MusicEase ReleaseEase => _releaseEase;
+
+        public MusicAttenuation Attenuation => new(_volumeScale, _lowPassCutoffHz, _highPassCutoffHz);
 
         [SerializeField]
         [Tooltip(
@@ -54,34 +66,6 @@ namespace WallstopStudios.DxAudio
         [HideInInspector]
         private int _easeVersion = CurrentEaseVersion;
 
-        public MusicDuckHolders Holders => _holders;
-
-        public float ApplySeconds => _applySeconds;
-
-        public MusicEase ApplyEase => _applyEase;
-
-        public float ReleaseSeconds => _releaseSeconds;
-
-        public MusicEase ReleaseEase => _releaseEase;
-
-        public MusicAttenuation Attenuation => new(_volumeScale, _lowPassCutoffHz, _highPassCutoffHz);
-
-        /// <inheritdoc />
-        public void OnAfterDeserialize()
-        {
-            if (_easeVersion >= CurrentEaseVersion)
-            {
-                return;
-            }
-
-            _applyEase = MusicEasing.FromStoredBeforeUnknown((int)_applyEase);
-            _releaseEase = MusicEasing.FromStoredBeforeUnknown((int)_releaseEase);
-            _easeVersion = CurrentEaseVersion;
-        }
-
-        /// <inheritdoc />
-        public void OnBeforeSerialize() { }
-
         /// <summary>Builds a duck in code, for tests and for games that author audio at runtime.</summary>
         public static MusicDuck Create(
             MusicDuckHolders holders,
@@ -101,6 +85,22 @@ namespace WallstopStudios.DxAudio
             duck._releaseSeconds = Mathf.Max(0f, releaseSeconds);
             return duck;
         }
+
+        /// <inheritdoc />
+        public void OnAfterDeserialize()
+        {
+            if (CurrentEaseVersion <= _easeVersion)
+            {
+                return;
+            }
+
+            _applyEase = MusicEasing.FromStoredBeforeUnknown((int)_applyEase);
+            _releaseEase = MusicEasing.FromStoredBeforeUnknown((int)_releaseEase);
+            _easeVersion = CurrentEaseVersion;
+        }
+
+        /// <inheritdoc />
+        public void OnBeforeSerialize() { }
 
         public override string ToString()
         {

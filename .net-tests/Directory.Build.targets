@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <DxAudioPython Condition="'$(OS)' == 'Windows_NT'">python</DxAudioPython>
+    <DxAudioPython Condition="'$(DxAudioPython)' == ''">python3</DxAudioPython>
+  </PropertyGroup>
+  <Target Name="VerifyDxAudioAnalyzer" BeforeTargets="CoreCompile" Condition="'$(EnableDxAudioAnalyzers)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Exec Command="&quot;$(DxAudioPython)&quot; &quot;$(MSBuildThisFileDirectory)prepare_analyzers.py&quot; --output-dir &quot;$(DxAudioAnalyzerDirectory)&quot;" />
+  </Target>
+</Project>

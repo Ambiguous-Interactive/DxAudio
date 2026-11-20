@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Integration
+﻿namespace WallstopStudios.DxAudio.Integration
 {
     using System;
     using System.Collections.Generic;
@@ -38,6 +38,18 @@ namespace WallstopStudios.DxAudio.Integration
         */
         private static long _nextLoopId;
 
+        /// <summary>The player this relay drives, or <see langword="null"/> once it is gone.</summary>
+        public SfxPlayer Player
+        {
+            get { return _player; }
+        }
+
+        /// <summary>How many loops this relay started and has not ended.</summary>
+        public int HeldLoopCount
+        {
+            get { return _loops.Count; }
+        }
+
         private readonly Dictionary<long, SfxLoopHandle> _loops = new(InitialLoopCapacity);
 
         /* Keys are collected before any removal: a dictionary throws when it is changed while enumerated. */
@@ -59,18 +71,6 @@ namespace WallstopStudios.DxAudio.Integration
             _source = source;
             _bus = bus;
             _busProvider = busProvider;
-        }
-
-        /// <summary>The player this relay drives, or <see langword="null"/> once it is gone.</summary>
-        public SfxPlayer Player
-        {
-            get { return _player; }
-        }
-
-        /// <summary>How many loops this relay started and has not ended.</summary>
-        public int HeldLoopCount
-        {
-            get { return _loops.Count; }
         }
 
         /// <summary>Stages the handlers that drive the player.</summary>
@@ -147,8 +147,10 @@ namespace WallstopStudios.DxAudio.Integration
             SfxLibrary library = _player.Library;
             if (library == null || !library.TryGetCue(request.key, out SfxCue cue))
             {
-                // The player's own drop report never sees this one: the key was resolved here, before the pool. Report
-                // the same fact it would, once, rather than leaving a request that started nothing unexplained.
+                /*
+                    The player's own drop report never sees this one: the key was resolved here, before the pool. Report
+                    the same fact it would, once, rather than leaving a request that started nothing unexplained.
+                */
                 Broadcast(new SfxCueDroppedMessage(null, SfxDropReason.NotPlayable));
                 return;
             }
@@ -252,9 +254,9 @@ namespace WallstopStudios.DxAudio.Integration
                 }
             }
 
-            for (int index = 0; index < _endedLoops.Count; ++index)
+            foreach (long ended in _endedLoops)
             {
-                _ = _loops.Remove(_endedLoops[index]);
+                _ = _loops.Remove(ended);
             }
 
             _endedLoops.Clear();

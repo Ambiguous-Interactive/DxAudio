@@ -89,9 +89,11 @@ namespace WallstopStudios.DxAudio
                 return 1f;
             }
 
-            // The step is computed in double: a float product overflows for a long time constant, and the
-            // exponential then rounds to exactly one. A tiny step uses its series, 1 - exp(-x) ~ x, which keeps a
-            // very long smoother moving rather than freezing it at zero.
+            /*
+                The step is computed in double: a float product overflows for a long time constant, and the
+                exponential then rounds to exactly one. A tiny step uses its series, 1 - exp(-x) ~ x, which keeps a
+                very long smoother moving rather than freezing it at zero.
+            */
             double step = 1.0 / ((double)seconds * sampleRate);
             return step < 1e-8 ? (float)step : (float)(1.0 - Math.Exp(-step));
         }

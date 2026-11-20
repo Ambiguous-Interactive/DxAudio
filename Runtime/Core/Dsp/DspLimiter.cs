@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio
+﻿namespace WallstopStudios.DxAudio
 {
     using System;
 
@@ -18,27 +18,6 @@ namespace WallstopStudios.DxAudio
 
         private const float QuietestCeiling = 0.0001f;
         private const float MaximumLookaheadSeconds = 1f;
-
-        private float _ceiling;
-        private float _lookaheadSeconds;
-        private float _releaseSeconds;
-        private float[] _delay;
-        private int _delayFrames;
-        private int _delayIndex;
-        private int _channels;
-        private int _sampleRate;
-        private float _releaseCoefficient;
-        private float _gain;
-        private int _holdFrames;
-
-        public DspLimiter()
-        {
-            _ceiling = AudioMath.DecibelsToLinear(DefaultCeilingDecibels);
-            _lookaheadSeconds = 0.005f;
-            _releaseSeconds = 0.05f;
-            _delay = Array.Empty<float>();
-            _gain = 1f;
-        }
 
         public override string DisplayName => "Limiter";
 
@@ -94,14 +73,25 @@ namespace WallstopStudios.DxAudio
         /// <summary>How far the gain is currently held down, in decibels; zero is not limiting.</summary>
         public override float GainReductionDecibels => AudioMath.LinearToDecibels(_gain);
 
-        protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
+        private float _ceiling;
+        private float _lookaheadSeconds;
+        private float _releaseSeconds;
+        private float[] _delay;
+        private int _delayFrames;
+        private int _delayIndex;
+        private int _channels;
+        private int _sampleRate;
+        private float _releaseCoefficient;
+        private float _gain;
+        private int _holdFrames;
+
+        public DspLimiter()
         {
-            _sampleRate = sampleRate;
-            _channels = channels;
-            _delayFrames = (int)Math.Round(_lookaheadSeconds * sampleRate);
-            _delay = 0 < _delayFrames ? new float[_delayFrames * channels] : Array.Empty<float>();
-            _releaseCoefficient = AudioMath.OnePoleCoefficient(_releaseSeconds, sampleRate);
-            Reset();
+            _ceiling = AudioMath.DecibelsToLinear(DefaultCeilingDecibels);
+            _lookaheadSeconds = 0.005f;
+            _releaseSeconds = 0.05f;
+            _delay = Array.Empty<float>();
+            _gain = 1f;
         }
 
         public override void Process(float[] buffer, int offset, int count, int channels)
@@ -128,8 +118,10 @@ namespace WallstopStudios.DxAudio
                         incomingPeak = incoming;
                     }
 
-                    // The frame that leaves now was measured by an earlier block, so a ceiling lowered since
-                    // then has to be enforced against it as well.
+                    /*
+                        The frame that leaves now was measured by an earlier block, so a ceiling lowered since
+                        then has to be enforced against it as well.
+                    */
                     if (0 < _delayFrames)
                     {
                         float outgoing = Math.Abs(_delay[slot + channel]);
@@ -140,9 +132,11 @@ namespace WallstopStudios.DxAudio
                     }
                 }
 
-                // The hold keeps the gain steady while a peak travels the lookahead, so only an arriving peak
-                // renews it. The countdown still runs whenever nothing renews it, even while a peak in flight holds
-                // the gain down; otherwise a sustained passage would extend the hold by its own length.
+                /*
+                    The hold keeps the gain steady while a peak travels the lookahead, so only an arriving peak
+                    renews it. The countdown still runs whenever nothing renews it, even while a peak in flight holds
+                    the gain down; otherwise a sustained passage would extend the hold by its own length.
+                */
                 if (_ceiling < incomingPeak)
                 {
                     _holdFrames = _delayFrames;
@@ -155,8 +149,10 @@ namespace WallstopStudios.DxAudio
                 float peak = outgoingPeak < incomingPeak ? incomingPeak : outgoingPeak;
                 if (_ceiling < peak)
                 {
-                    // The frame that leaves is measured against the ceiling of its own block too, so a ceiling
-                    // lowered since it was stored still holds.
+                    /*
+                        The frame that leaves is measured against the ceiling of its own block too, so a ceiling
+                        lowered since it was stored still holds.
+                    */
                     float neededGain = _ceiling / peak;
                     if (neededGain < _gain)
                     {
@@ -204,6 +200,16 @@ namespace WallstopStudios.DxAudio
             {
                 Array.Clear(_delay, 0, _delay.Length);
             }
+        }
+
+        protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
+        {
+            _sampleRate = sampleRate;
+            _channels = channels;
+            _delayFrames = (int)Math.Round(_lookaheadSeconds * sampleRate);
+            _delay = 0 < _delayFrames ? new float[_delayFrames * channels] : Array.Empty<float>();
+            _releaseCoefficient = AudioMath.OnePoleCoefficient(_releaseSeconds, sampleRate);
+            Reset();
         }
     }
 }

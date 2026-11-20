@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Tests.Editor
+﻿namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System;
     using NUnit.Framework;
@@ -8,13 +8,71 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private const int SampleRate = 48_000;
         private const int BlockFrames = 256;
 
+        private static void Prepare(DspEffect effect)
+        {
+            effect.TryPrepare(SampleRate, BlockFrames, 1);
+        }
+
+        private static float[] Render(DspEffect effect, float[] source)
+        {
+            float[] output = new float[source.Length];
+            Array.Copy(source, output, source.Length);
+            for (int offset = 0, outputLength = output.Length; offset < outputLength; offset += BlockFrames)
+            {
+                int count = Math.Min(BlockFrames, output.Length - offset);
+                effect.Process(output, offset, count, 1);
+            }
+
+            return output;
+        }
+
+        private static float Peak(float[] samples, int from)
+        {
+            float peak = 0f;
+            for (int i = from, samplesLength = samples.Length; i < samplesLength; i++)
+            {
+                float magnitude = Math.Abs(samples[i]);
+                if (peak < magnitude)
+                {
+                    peak = magnitude;
+                }
+            }
+
+            return peak;
+        }
+
+        private static float[] Constant(float value, int frames)
+        {
+            float[] block = new float[frames];
+            for (int frame = 0; frame < frames; frame++)
+            {
+                block[frame] = value;
+            }
+
+            return block;
+        }
+
+        private static float[] Sine(float hertz, float amplitude, int frames)
+        {
+            float[] block = new float[frames];
+            double step = (2 * Math.PI * hertz) / SampleRate;
+            for (int frame = 0; frame < frames; frame++)
+            {
+                block[frame] = amplitude * (float)Math.Sin(step * frame);
+            }
+
+            return block;
+        }
+
         [Test]
         public void AVeryLongTimeConstantStillMoves()
         {
             Assert.That(AudioMath.OnePoleCoefficient(1_000f, SampleRate), Is.GreaterThan(0f), "the subtraction happens before the cast to float");
 
-            // Without the fix the 5 ms coefficient is still right, so the shape is checked as the physics it
-            // stands for: one time constant closes about 63% of a step.
+            /*
+                Without the fix the 5 ms coefficient is still right, so the shape is checked as the physics it
+                stands for: one time constant closes about 63% of a step.
+            */
             float coefficient = AudioMath.OnePoleCoefficient(0.005f, SampleRate);
             float smoothed = 0f;
             for (int frame = 0; frame < 240; frame++)
@@ -52,7 +110,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 Assert.That(output[frame], Is.Zero, "the lookahead delay is silent");
             }
 
-            for (int frame = latency; frame < source.Length; frame++)
+            for (int frame = latency, sourceLength = source.Length; frame < sourceLength; frame++)
             {
                 Assert.That(output[frame], Is.EqualTo(source[frame - latency]), "a quiet signal is only delayed, never turned down");
             }
@@ -475,14 +533,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             };
             float[] source = Sine(1_000f, 1f, 4_800);
             float[] interleaved = new float[source.Length * 2];
-            for (int frame = 0; frame < source.Length; frame++)
+            for (int frame = 0, sourceLength = source.Length; frame < sourceLength; frame++)
             {
                 interleaved[frame * 2] = source[frame];
                 interleaved[frame * 2 + 1] = source[frame] * 0.1f;
             }
 
             limiter.TryPrepare(SampleRate, BlockFrames, 2);
-            for (int offset = 0; offset < interleaved.Length; offset += BlockFrames * 2)
+            for (int offset = 0, interleavedLength = interleaved.Length; offset < interleavedLength; offset += BlockFrames * 2)
             {
                 int count = Math.Min(BlockFrames * 2, interleaved.Length - offset);
                 limiter.Process(interleaved, offset, count, 2);
@@ -490,7 +548,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             float left = 0f;
             float right = 0f;
-            for (int frame = 1_200; frame < source.Length; frame++)
+            for (int frame = 1_200, sourceLength = source.Length; frame < sourceLength; frame++)
             {
                 left = Math.Max(left, Math.Abs(interleaved[frame * 2]));
                 right = Math.Max(right, Math.Abs(interleaved[frame * 2 + 1]));
@@ -498,62 +556,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(left, Is.EqualTo(0.5f).Within(0.001f));
             Assert.That(right, Is.EqualTo(0.05f).Within(0.001f), "one gain for every channel keeps the image still");
-        }
-
-        private static void Prepare(DspEffect effect)
-        {
-            effect.TryPrepare(SampleRate, BlockFrames, 1);
-        }
-
-        private static float[] Render(DspEffect effect, float[] source)
-        {
-            float[] output = new float[source.Length];
-            Array.Copy(source, output, source.Length);
-            for (int offset = 0; offset < output.Length; offset += BlockFrames)
-            {
-                int count = Math.Min(BlockFrames, output.Length - offset);
-                effect.Process(output, offset, count, 1);
-            }
-
-            return output;
-        }
-
-        private static float Peak(float[] samples, int from)
-        {
-            float peak = 0f;
-            for (int i = from; i < samples.Length; i++)
-            {
-                float magnitude = Math.Abs(samples[i]);
-                if (peak < magnitude)
-                {
-                    peak = magnitude;
-                }
-            }
-
-            return peak;
-        }
-
-        private static float[] Constant(float value, int frames)
-        {
-            float[] block = new float[frames];
-            for (int frame = 0; frame < frames; frame++)
-            {
-                block[frame] = value;
-            }
-
-            return block;
-        }
-
-        private static float[] Sine(float hertz, float amplitude, int frames)
-        {
-            float[] block = new float[frames];
-            double step = (2 * Math.PI * hertz) / SampleRate;
-            for (int frame = 0; frame < frames; frame++)
-            {
-                block[frame] = amplitude * (float)Math.Sin(step * frame);
-            }
-
-            return block;
         }
     }
 }

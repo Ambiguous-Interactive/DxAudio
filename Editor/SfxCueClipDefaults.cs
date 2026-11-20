@@ -1,4 +1,4 @@
-namespace WallstopStudios.DxAudio.Editor
+﻿namespace WallstopStudios.DxAudio.Editor
 {
     using System;
     using System.Buffers;
@@ -34,7 +34,7 @@ namespace WallstopStudios.DxAudio.Editor
                 }
             }
 
-            for (int index = 0; index < levels.Length; ++index)
+            for (int index = 0, levelsLength = levels.Length; index < levelsLength; ++index)
             {
                 if (AudioMath.IsFinite(levels[index]))
                 {
