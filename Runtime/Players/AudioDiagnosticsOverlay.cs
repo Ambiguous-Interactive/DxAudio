@@ -1,4 +1,4 @@
-﻿namespace WallstopStudios.DxAudio
+namespace WallstopStudios.DxAudio
 {
     using System;
     using System.Text;

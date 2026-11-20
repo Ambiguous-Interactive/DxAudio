@@ -1,4 +1,4 @@
-﻿namespace WallstopStudios.DxAudio
+namespace WallstopStudios.DxAudio
 {
     using System;
     using System.Collections.Generic;
@@ -433,14 +433,15 @@
 
         private bool TryStart(SfxCue cue, bool looping, Vector3? position, out SfxLoopHandle handle)
         {
-            handle = default;
             if (cue == null || !cue.IsPlayable)
             {
+                handle = default;
                 return Drop(cue, SfxDropReason.NotPlayable);
             }
 
             if (cue.IsLooping != looping)
             {
+                handle = default;
                 return Drop(cue, SfxDropReason.WrongPlayMethod);
             }
 
@@ -449,6 +450,7 @@
                 BuildVoices();
                 if (_voices.Length == 0)
                 {
+                    handle = default;
                     return Drop(cue, SfxDropReason.NoVoice);
                 }
             }
@@ -460,6 +462,7 @@
             float now = Time.unscaledTime;
             if (!looping && !_throttle.IsReady(cue, now, cue.MinimumIntervalSeconds))
             {
+                handle = default;
                 return Drop(cue, SfxDropReason.Throttled);
             }
 
@@ -468,17 +471,20 @@
             int loopingLimit = _library != null ? _library.LoopingVoiceLimit : _voices.Length;
             if (looping && loopingLimit <= _heldCount)
             {
+                handle = default;
                 return Drop(cue, SfxDropReason.LoopLimit);
             }
 
             ReadStates();
             if (!SfxVoiceArbiter.TryChoose(_states, cue.Priority, _roundRobin, out int index, out _))
             {
+                handle = default;
                 return Drop(cue, SfxDropReason.NoVoice);
             }
 
             if (!_playback.TryResolve(cue, out SfxPlayback play))
             {
+                handle = default;
                 return Drop(cue, SfxDropReason.NotPlayable);
             }
 
@@ -507,11 +513,12 @@
             _priorities[index] = cue.Priority;
             _startedAt[index] = now;
             _leases[index] = ++_nextLease;
+            SfxLoopHandle started = default;
             if (looping)
             {
                 _held[index] = true;
                 _heldCount++;
-                handle = new SfxLoopHandle(index, _leases[index]);
+                started = new SfxLoopHandle(index, _leases[index]);
             }
 
             voice.Play();
@@ -521,6 +528,7 @@
                 _voicePaused[index] = true;
             }
 
+            handle = started;
             return true;
         }
 

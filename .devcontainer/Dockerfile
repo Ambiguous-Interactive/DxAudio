@@ -8,10 +8,9 @@ FROM mcr.microsoft.com/devcontainers/dotnet@sha256:7572080d1ce09283b8bc2504e3e88
 # Use bash with pipefail so failed downloads in pipelines are surfaced.
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# Pinned checksum for Microsoft package repository bootstrap package.
-ARG MS_PACKAGES_DEB_SHA256=8434dcb8c346dc95fbd63dbece056c343704590b58b6a5c323d39acf52bf0b48
 # Pinned uv release (provides uvx for the fetch/git MCP servers).
 ARG UV_VERSION=0.12.10
+ARG TARGETARCH
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -60,17 +59,22 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 # =============================================================================
-# LAYER 2: Add Microsoft signed apt feed and install PowerShell (repo lint scripts)
+# LAYER 2: Install the same pinned PowerShell release on both architectures
 # =============================================================================
-RUN set -eux; \
-    wget -q --tries=5 --waitretry=2 --timeout=30 "https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb" -O /tmp/packages-microsoft-prod.deb; \
-    echo "${MS_PACKAGES_DEB_SHA256}  /tmp/packages-microsoft-prod.deb" | sha256sum -c -; \
-    dpkg -i /tmp/packages-microsoft-prod.deb; \
-    rm /tmp/packages-microsoft-prod.deb; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends powershell; \
-    apt-get clean; \
-    rm -rf /var/lib/apt/lists/*
+RUN POWERSHELL_VERSION="7.6.9" \
+    && case "${TARGETARCH}" in \
+        amd64) POWERSHELL_ARCH="x64"; POWERSHELL_SHA256="1da6d6d6035d651f20e70ddee7c4c15ac6ab8b9fb40ee92240d91263f28a884b" ;; \
+        arm64) POWERSHELL_ARCH="arm64"; POWERSHELL_SHA256="02eb9991af447c7e7fe881acde195961afd397c40b8eb1c2b3856b84ec2d85f2" ;; \
+        *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL "https://github.com/PowerShell/PowerShell/releases/download/v${POWERSHELL_VERSION}/powershell-${POWERSHELL_VERSION}-linux-${POWERSHELL_ARCH}.tar.gz" --retry 4 --connect-timeout 30 -o /tmp/powershell.tar.gz \
+    && echo "${POWERSHELL_SHA256}  /tmp/powershell.tar.gz" | sha256sum -c - \
+    && mkdir -p /opt/microsoft/powershell/7 \
+    && tar -xzf /tmp/powershell.tar.gz -C /opt/microsoft/powershell/7 \
+    && chmod +x /opt/microsoft/powershell/7/pwsh \
+    && ln -sf /opt/microsoft/powershell/7/pwsh /usr/local/bin/pwsh \
+    && rm /tmp/powershell.tar.gz \
+    && pwsh -NoLogo -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
 
 # =============================================================================
 # Pinned .NET SDK for package analysis (see .net-tests/global.json)

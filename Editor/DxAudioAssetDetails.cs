@@ -1,4 +1,4 @@
-﻿namespace WallstopStudios.DxAudio.Editor
+namespace WallstopStudios.DxAudio.Editor
 {
     using System;
     using System.Collections.Generic;

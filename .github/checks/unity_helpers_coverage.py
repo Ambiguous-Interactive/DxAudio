@@ -14,9 +14,12 @@ from collections import Counter
 from pathlib import Path
 
 from portable_csharp_checks import PORTABLE_PATHS, run_checks as run_portable_checks
+from portable_doc_checks import PORTABLE_DOC_PATHS, run_doc_checks
+from portable_tool_checks import PORTABLE_TOOL_PATHS, run_tool_checks
 from unity_helpers_source_checks import (
     fetch,
     run_analyzer_fixtures,
+    run_contract_controls,
     run_source_checks,
     run_unsafe_checks,
     stage_modules,
@@ -38,8 +41,8 @@ DIAGNOSTICS = "Generator~/WallstopStudios.UnityHelpers.Analyzers/UnityHelpersDia
 CHECK_COMMAND = re.compile(r"^(?:(?:check|lint|test|typecheck|validate|verify)(?::|$)|format:.*:check$|unity:(?:compile|test|validate)(?::|$))")
 JOB = re.compile(r"^  ([a-zA-Z0-9_-]+):\s*(?:#.*)?$")
 STEP = re.compile(r"^      - ([a-zA-Z0-9_-]+):\s*(.*)$")
-STEP_PROPERTY = re.compile(r"^        (name|id|uses|run|if|continue-on-error):\s*(.*)$")
-JOB_PROPERTY = re.compile(r"^    (if|continue-on-error):\s*(.*)$")
+STEP_PROPERTY = re.compile(r"^        (name|id|uses|run|if|env|continue-on-error):\s*(.*)$")
+JOB_PROPERTY = re.compile(r"^    (if|env|continue-on-error):\s*(.*)$")
 USES = re.compile(r"^\s*(?:-\s*)?uses:\s+(\"[^\"]*\"|'[^']*'|[^#\s]+)")
 PINNED_ACTION = re.compile(r"@[a-f0-9]{40}$")
 PINNED_IMAGE = re.compile(r"@sha256:[a-f0-9]{64}$")
@@ -124,6 +127,8 @@ def workflow_steps(source: str) -> dict[str, list[dict[str, str]]]:
 def inventory(upstream: Path, revision: str) -> dict:
     ids: dict[str, list[str]] = {}
     digests: dict[str, str] = {}
+    invocations: dict[str, set[str]] = {}
+    aliases: dict[str, dict[str, str]] = {}
 
     def read(path: str) -> str:
         contents = subprocess.check_output(["git", "-C", str(upstream), "show", f"{revision}:{path}"])
@@ -131,11 +136,29 @@ def inventory(upstream: Path, revision: str) -> dict:
         return contents.decode("utf-8-sig")
 
     for kind, path in REGISTRIES.items():
-        ids[kind] = sorted(row["id"] for row in json.loads(read(path)))
+        records = json.loads(read(path))
+        ids[kind] = sorted(row["id"] for row in records)
+        for row in records:
+            if "run" in row:
+                invocations.setdefault(row["run"].strip(), set()).add(f"{kind}/{row['id']}")
     ids["diagnostic"] = sorted(re.findall(r'"(WUH[0-9]{3})"', read(DIAGNOSTICS)))
-    ids["command"] = sorted(
-        name for name in json.loads(read("package.json"))["scripts"] if CHECK_COMMAND.match(name)
-    )
+    scripts = json.loads(read("package.json"))["scripts"]
+    ids["command"] = []
+    command_operations = []
+    for name in sorted(scripts):
+        if not CHECK_COMMAND.match(name):
+            continue
+        if name.endswith((":fix", ":add")):
+            command_operations.append(name)
+            continue
+        invocation = f"npm run {name}"
+        candidates = invocations.get(invocation, set())
+        if len(candidates) == 1:
+            aliases.setdefault("command", {})[name] = next(iter(candidates))
+        else:
+            ids["command"].append(name)
+            if not candidates:
+                invocations[invocation] = {f"command/{name}"}
     operations: dict[str, list[str]] = {}
     paths = git(upstream, "ls-tree", "-r", "--name-only", revision, ".github/workflows").splitlines()
     for path in paths:
@@ -148,19 +171,28 @@ def inventory(upstream: Path, revision: str) -> dict:
             scope = f"workflow:{Path(path).stem}/{name}"
             commands = []
             support = []
+            inherits_environment = any("job-env" in step for step in steps)
             executed = (step for step in steps if "run" in step or "uses" in step)
             for index, step in enumerate(executed, 1):
                 label = step.get("id", step.get("name", step.get("uses", "run")))
                 item = f"{index} {label}"
                 if is_support_operation(step):
                     support.append(item)
-                else:
-                    commands.append(item)
+                    continue
+                invocation = step.get("run", "").strip()
+                candidates = invocations.get(invocation, set())
+                if len(candidates) == 1 and not inherits_environment and "env" not in step and not step.get("if"):
+                    aliases.setdefault(scope, {})[item] = next(iter(candidates))
+                    continue
+                commands.append(item)
             if commands:
                 ids[scope] = commands
             if support:
                 operations[scope] = support
-    return {"revision": revision, "sources": digests, "checks": ids, "workflow_operations": operations}
+    return {
+        "revision": revision, "sources": digests, "checks": ids, "aliases": aliases,
+        "workflow_operations": operations, "command_operations": command_operations,
+    }
 
 
 def is_support_operation(step: dict[str, str]) -> bool:
@@ -244,11 +276,15 @@ def audit(root: Path, expected: dict, coverage: dict) -> tuple[list[str], set[tu
                 if status == "pending":
                     pending.add(check)
                 totals[status] += 1
-    if coverage.get("complete_registries"):
-        missing_registry = (known - mapped) & {item for item in known if item[0] in REGISTRIES}
-        for kind, name in sorted(missing_registry):
-            problems.append(f"registry check {kind}/{name} has no decision")
+    for kind, name in sorted(known - mapped):
+        problems.append(f"upstream check {kind}/{name} has no decision")
     totals["unmapped"] = len(known - mapped)
+    canonical = {f"{kind}/{name}" for kind, name in known}
+    for kind, aliases in expected.get("aliases", {}).items():
+        for name, target in aliases.items():
+            if target not in canonical or (kind, name) in known:
+                problems.append(f"invalid upstream alias {kind}/{name} → {target}")
+            totals["aliases"] += 1
     return problems, pending | (known - mapped), totals
 
 
@@ -271,6 +307,8 @@ def main() -> int:
                 print(problem, file=sys.stderr)
             return int(bool(problems))
         coverage = read_json(COVERAGE)
+        if re.fullmatch(r"[a-f0-9]{40}", coverage["revision"]) is None:
+            raise ValueError("unity-helpers revision must be a full immutable Git commit SHA")
         if options.write_inventory:
             if options.upstream is None:
                 parser.error("--write-inventory requires --upstream")
@@ -290,11 +328,17 @@ def main() -> int:
                 staged = scratch / "sources"
                 stage_modules(upstream, coverage["revision"], staged)
                 stage_paths(upstream, coverage["revision"], staged, PORTABLE_PATHS)
+                stage_paths(upstream, coverage["revision"], staged, PORTABLE_DOC_PATHS)
+                stage_paths(upstream, coverage["revision"], staged, PORTABLE_TOOL_PATHS)
                 problems.extend(action_pin_violations(ROOT))
                 modules = staged / "scripts"
                 problems.extend(verify_source_controls(scratch / "controls", modules))
                 problems.extend(run_source_checks(ROOT, modules))
                 problems.extend(run_portable_checks(ROOT, modules, staged))
+                problems.extend(run_doc_checks(ROOT, modules, staged))
+                problems.extend(run_tool_checks(ROOT, modules, staged))
+                if not problems:
+                    run_contract_controls(ROOT, staged)
                 if options.analyzer_fixtures and not problems:
                     run_unsafe_checks(ROOT, upstream, coverage["revision"], scratch / "fixtures")
                     run_analyzer_fixtures(upstream, coverage["revision"], scratch / "fixtures")
@@ -309,7 +353,7 @@ def main() -> int:
                 print(f"pending {kind}/{name}")
         print(f"[unity-helpers-coverage] {totals['enforced']} enforced, "
               f"{totals['inapplicable']} inapplicable, {totals['pending']} recorded pending, "
-              f"{totals['unmapped']} unmapped, "
+              f"{totals['unmapped']} unmapped, {totals['aliases']} aliases, "
               f"{sum(len(items) for items in expected['workflow_operations'].values())} workflow operations")
         return int(bool(problems))
     except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:

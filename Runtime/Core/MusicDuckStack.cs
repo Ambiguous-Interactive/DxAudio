@@ -1,4 +1,4 @@
-﻿namespace WallstopStudios.DxAudio
+namespace WallstopStudios.DxAudio
 {
     using System;
     using System.Collections.Generic;
@@ -170,9 +170,9 @@
                 }
             }
 
-            reclaimed = swept;
             if (swept == 0)
             {
+                reclaimed = 0;
                 return false;
             }
 
@@ -191,6 +191,7 @@
             }
 
             _unheld.Clear();
+            reclaimed = swept;
             return Recompose();
         }
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import os
+import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -46,7 +47,76 @@ def stage_paths(upstream: Path, revision: str, destination: Path, paths: tuple[s
 
 
 def stage_modules(upstream: Path, revision: str, destination: Path) -> None:
-    stage_paths(upstream, revision, destination, tuple(f"scripts/{module}.py" for module in MODULES))
+    paths = tuple(f"scripts/{module}.py" for module in MODULES) + (
+        "scripts/comment-stripping.ps1",
+        "scripts/tests/test-comment-stripping.ps1",
+        "scripts/tests/test-out-parameter-discipline.js",
+        "scripts/tests/test-pr-workflow-concurrency.ps1",
+        "scripts/tests/test-workflow-license-secret-scope.ps1",
+        "scripts/tests/test-workflow-repository-guard.ps1",
+    )
+    stage_paths(upstream, revision, destination, paths)
+
+
+def run_contract_controls(root: Path, staged: Path) -> None:
+    tests = staged / "scripts/tests"
+    subprocess.run(["pwsh", "-NoProfile", "-File", str(tests / "test-comment-stripping.ps1")], check=True)
+
+    upstream = tests / "test-out-parameter-discipline.js"
+    text = upstream.read_text(encoding="utf-8")
+    replacements = {
+        'const root = path.resolve(__dirname, "../..");': "const root = process.cwd();",
+        'const BASELINE = new Set(require("./out-parameter-baseline.json"));': "const BASELINE = new Set();",
+        'anchorFile: "Runtime/Core/DataStructure/Adapters/SerializableDictionary.cs",\n    anchorMethod: "TryGetValue"':
+            'anchorFile: "Runtime/Core/SfxVoiceArbiter.cs",\n    anchorMethod: "TryChoose"',
+        'anchorFile: "Editor/CustomDrawers/SerializableDictionaryPropertyDrawer.cs",\n    anchorMethod: "TryResolveKeyValueTypes"':
+            'anchorFile: "Editor/SfxCueClipDefaults.cs",\n    anchorMethod: "TryMeasure"',
+    }
+    for expected, replacement in replacements.items():
+        if text.count(expected) != 1:
+            raise ValueError("upstream out-parameter check layout differs from the pinned adapter")
+        text = text.replace(expected, replacement)
+    adapted = tests / "test-dxaudio-out-parameters.cjs"
+    adapted.write_text(text, encoding="utf-8")
+    subprocess.run(["node", str(adapted)], cwd=root, check=True)
+
+    workflows = staged / ".github/workflows"
+    workflows.mkdir(parents=True)
+    for workflow in (root / ".github/workflows").glob("*.y*ml"):
+        staged_name = workflow.name if workflow.suffix == ".yml" else f"{workflow.stem}-yaml.yml"
+        destination = workflows / staged_name
+        if destination.exists():
+            raise ValueError(f"duplicate staged workflow name: {staged_name}")
+        shutil.copyfile(workflow, destination)
+    workflow_checks = (
+        "test-pr-workflow-concurrency.ps1",
+        "test-workflow-license-secret-scope.ps1",
+        "test-workflow-repository-guard.ps1",
+    )
+    for script in workflow_checks:
+        subprocess.run(["pwsh", "-NoProfile", "-File", str(tests / script)], check=True)
+
+    fixture = workflows / "contract-negative-control.yml"
+    fixture.write_text(
+        "name: Broken control\non:\n  pull_request:\njobs:\n  broken:\n"
+        "    if: github.repository == 'somewhere/else'\n    runs-on: ubuntu-latest\n"
+        "    env:\n      UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}\n"
+        "    steps:\n      - run: echo broken\n",
+        encoding="utf-8",
+    )
+    expected = (
+        "must define top-level concurrency",
+        "puts secrets.UNITY_SERIAL in scope",
+        "must not gate on a hard-coded repository name",
+    )
+    for script, diagnostic in zip(workflow_checks, expected):
+        result = subprocess.run(
+            ["pwsh", "-NoProfile", "-File", str(tests / script)],
+            capture_output=True, text=True, encoding="utf-8",
+        )
+        if result.returncode != 1 or diagnostic not in result.stdout:
+            raise ValueError(f"{script} missed its negative workflow control: {result.stdout}{result.stderr}")
+    fixture.unlink()
 
 
 def run_source_checks(root: Path, modules: Path) -> list[str]:

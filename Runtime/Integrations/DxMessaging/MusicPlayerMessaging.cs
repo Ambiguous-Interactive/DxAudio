@@ -1,4 +1,4 @@
-﻿namespace WallstopStudios.DxAudio.Integration
+namespace WallstopStudios.DxAudio.Integration
 {
     using DxMessaging.Unity;
     using UnityEngine;

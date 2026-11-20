@@ -35,8 +35,8 @@ Run `dotnet tool restore` first. The `dotnet-tool-restore` hook runs on every co
 - No LINQ in `Runtime/` or `Tests/`.
 - Unity object null checks use `== null` / `!= null`.
 - One top-level type per file.
-- C# assets are UTF-8 with BOM and CRLF by repo convention; `.llm/**`, `scripts/**`, and `.devcontainer/**` are UTF-8 without BOM and LF. `.editorconfig` owns the split and
-  `scripts/lint_line_endings.py` checks `.gitattributes` agrees.
+- Source files use UTF-8 without BOM, LF line endings, and a final newline. The text gate checks the files directly, and
+  `scripts/lint_line_endings.py` checks that `.gitattributes` and `.editorconfig` agree.
 
 ## Lint commands
 

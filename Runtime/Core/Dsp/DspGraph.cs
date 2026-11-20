@@ -1,4 +1,4 @@
-﻿namespace WallstopStudios.DxAudio
+namespace WallstopStudios.DxAudio
 {
     using System;
 
@@ -116,10 +116,11 @@
                 }
             }
 
-            _chains[NodeCount] = chain;
-            node = NodeCount;
+            int added = NodeCount;
+            _chains[added] = chain;
             NodeCount++;
             Invalidate();
+            node = added;
             return true;
         }
 

@@ -17,7 +17,8 @@ param(
     [string]$DxMessagingVersion = $env:DXMESSAGING_VERSION,
     [string]$Label = $env:UNITY_TEST_LABEL,
     [string]$ConsumerArchive = $env:DXAUDIO_CONSUMER_ARCHIVE,
-    [switch]$ArchiveSmoke
+    [switch]$ArchiveSmoke,
+    [ValidateRange(1, 2400)][int]$EditorTimeoutSeconds = 2400
 )
 
 Set-StrictMode -Version Latest
@@ -43,6 +44,17 @@ foreach ($name in @('UNITY_SERIAL', 'UNITY_EMAIL', 'UNITY_PASSWORD')) {
 }
 
 $runName = Get-EditModeRunName -UnityVersion $UnityVersion -Label $Label
+if ([string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
+    throw 'RUNNER_TEMP is required.'
+}
+$artifactsPath = Join-Path $env:RUNNER_TEMP "dxaudio-results-$runName"
+if (Test-Path -LiteralPath $artifactsPath) {
+    Remove-Item -LiteralPath $artifactsPath -Recurse -Force
+}
+New-Item -ItemType Directory -Force -Path $artifactsPath | Out-Null
+$resultsPath = Join-Path $artifactsPath 'editmode-results.xml'
+$logPath = Join-Path $artifactsPath 'editmode.log'
+
 $projectPath = Join-Path $env:RUNNER_TEMP "dxaudio-unity-$runName"
 if (Test-Path -LiteralPath $projectPath) {
     Remove-Item -LiteralPath $projectPath -Recurse -Force
@@ -98,22 +110,13 @@ Set-Content -LiteralPath (Join-Path $packagesPath 'manifest.json') -Value $manif
 Set-Content -LiteralPath (Join-Path $settingsPath 'ProjectVersion.txt') `
     -Value "m_EditorVersion: $UnityVersion" -Encoding utf8NoBOM
 
-$artifactsPath = Join-Path $env:RUNNER_TEMP "dxaudio-results-$runName"
-if (Test-Path -LiteralPath $artifactsPath) {
-    Remove-Item -LiteralPath $artifactsPath -Recurse -Force
-}
-New-Item -ItemType Directory -Force -Path $artifactsPath | Out-Null
-$resultsPath = Join-Path $artifactsPath 'editmode-results.xml'
-$logPath = Join-Path $artifactsPath 'editmode.log'
-New-Item -ItemType File -Path $logPath | Out-Null
-
 $unityArgs = @(
     '-batchmode'
     '-nographics'
     '-projectPath'
     $projectPath
     '-logFile'
-    '-'
+    $logPath
     '-serial'
     $env:UNITY_SERIAL
     '-username'
@@ -123,27 +126,57 @@ $unityArgs = @(
 )
 if ($ArchiveSmoke) {
     $unityArgs += @('-quit', '-executeMethod', 'WallstopStudios.DxAudio.Validation.ArchiveSmoke.Run')
+    $EditorTimeoutSeconds = [Math]::Min($EditorTimeoutSeconds, 900)
 } else {
     $unityArgs += @('-runTests', '-testPlatform', 'EditMode', '-testResults', $resultsPath)
 }
-# Unity writes its log to stdout. Tee it to the log file as it arrives so a
-# timed-out run leaves the evidence the follow-up tail step reads. The final
-# Out-Null keeps the log out of the shared job log.
-$exitCode = 1
-try {
-    $env:DXMESSAGING_VERSION = $DxMessagingVersion
-    & $UnityEditorPath @unityArgs 2>&1 | Tee-Object -FilePath $logPath | Out-Null
-    if (Test-Path -LiteralPath variable:\LASTEXITCODE) {
-        $exitCode = $LASTEXITCODE
+
+# ArgumentList keeps paths and credential values in their original arguments.
+# Unity writes the raw log to disk. Only sanitized output reaches the job log.
+$start = [System.Diagnostics.ProcessStartInfo]::new()
+$start.FileName = $UnityEditorPath
+$start.UseShellExecute = $false
+$start.CreateNoWindow = $true
+$start.RedirectStandardOutput = $true
+$start.RedirectStandardError = $true
+if ($UnityEditorPath.EndsWith('.ps1', [StringComparison]::OrdinalIgnoreCase)) {
+    $start.FileName = [Environment]::ProcessPath
+    foreach ($item in @('-NoProfile', '-NonInteractive', '-File', $UnityEditorPath)) {
+        $start.ArgumentList.Add($item)
     }
+}
+foreach ($item in $unityArgs) {
+    $start.ArgumentList.Add($item)
+}
+$start.Environment['DXMESSAGING_VERSION'] = $DxMessagingVersion
+$process = $null
+try {
+    $process = [System.Diagnostics.Process]::Start($start)
+    [void]$process.StandardOutput.BaseStream.CopyToAsync([System.IO.Stream]::Null)
+    [void]$process.StandardError.BaseStream.CopyToAsync([System.IO.Stream]::Null)
+    if (-not $process.WaitForExit($EditorTimeoutSeconds * 1000)) {
+        try {
+            $process.Kill($true)
+        } catch [InvalidOperationException] {
+            if (-not $process.HasExited) { throw }
+        }
+        [void]$process.WaitForExit(5000)
+        throw "Unity did not exit within $EditorTimeoutSeconds seconds."
+    }
+    $exitCode = $process.ExitCode
 } catch {
     Write-RedactedLogTail -Path $logPath
-    throw
+    throw (ConvertTo-SafeUnityReport -Text $_.Exception.Message)
+} finally {
+    if ($null -ne $process) { $process.Dispose() }
 }
 
 if ($exitCode -ne 0) {
     Write-RedactedLogTail -Path $logPath
     throw "Unity failed with exit code $exitCode. Log: $logPath"
+}
+if (-not (Test-Path -LiteralPath $logPath -PathType Leaf)) {
+    throw 'Unity did not write a compiler log.'
 }
 if (Select-String -LiteralPath $logPath -Pattern '\b(?:AD0001|AD0002|CS8032|CS8034|CS9057)\b' -Quiet) {
     Write-RedactedLogTail -Path $logPath
@@ -161,18 +194,19 @@ if (-not (Test-Path -LiteralPath $resultsPath -PathType Leaf)) {
     Write-RedactedLogTail -Path $logPath
     throw "Unity did not write an EditMode result file. Log: $logPath"
 }
-[xml]$results = Get-Content -LiteralPath $resultsPath -Raw
-$testRun = $results.SelectSingleNode('/test-run')
-if ($null -eq $testRun -or $testRun.GetAttribute('result') -ne 'Passed' -or [int]$testRun.GetAttribute('passed') -le 0) {
-    throw 'Unity did not report a passing EditMode run with executed tests.'
+try {
+    $results = Read-UnityNUnitResult -Path $resultsPath
+    $passed = Assert-PassingUnityNUnitResult -Document $results
+} catch {
+    throw (ConvertTo-SafeUnityReport -Text $_.Exception.Message)
 }
 foreach ($test in @(
     'AllExpectedAssembliesUseThePinnedAnalyzers',
     'AssemblyDefinitionsMatchTheCompilerReferenceGraph',
     'EditorOnlyAssembliesContainNoConcreteMonoBehaviours'
 )) {
-    $evidence = $results.SelectSingleNode("//test-case[@name='$test']")
-    if ($null -eq $evidence -or $evidence.GetAttribute('result') -ne 'Passed') {
+    $evidence = $results.SelectNodes("//test-case[@fullname='WallstopStudios.DxAudio.Tests.Editor.AnalyzerActivation.$test']")
+    if ($evidence.Count -ne 1 -or $evidence[0].GetAttribute('result') -ne 'Passed') {
         throw "Unity did not report a passing $test control."
     }
 }
@@ -183,4 +217,4 @@ $expectIntegration = -not [string]::IsNullOrWhiteSpace($DxMessagingVersion)
 if (($null -ne $integrationSuite) -ne $expectIntegration -or ($expectIntegration -and [int]$integrationSuite.GetAttribute('passed') -le 0)) {
     throw 'The EditMode results do not match the expected DxMessaging test state.'
 }
-Write-Host "EditMode passed $($testRun.GetAttribute('passed')) tests on $runName."
+Write-Host "EditMode passed $passed tests on $runName."

@@ -55,6 +55,7 @@
         "unity.unity-code-snippets",
         // Quality of life
         "editorconfig.editorconfig",
+        "esbenp.prettier-vscode",
         "usernamehw.errorlens",
         "streetsidesoftware.code-spell-checker",
         "gruntfuggly.todo-tree",
@@ -100,6 +101,30 @@
         "editor.detectIndentation": false,
         "[csharp]": {
           "editor.defaultFormatter": "csharpier.csharpier"
+        },
+        "[javascript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[json]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[jsonc]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[markdown]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[yaml]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[powershell]": {
+          "editor.formatOnSave": false
+        },
+        "[shellscript]": {
+          "editor.formatOnSave": false
+        },
+        "[xml]": {
+          "editor.formatOnSave": false
         },
         // ============================================================
         // Files: hide machine-local agent config noise

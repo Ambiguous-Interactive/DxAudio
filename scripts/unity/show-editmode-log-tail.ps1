@@ -34,21 +34,22 @@ Write-RedactedLogTail -Path $LogPath
 if ($ResultsPath -and (Test-Path -LiteralPath $ResultsPath -PathType Leaf)) {
     Write-Host "Unity EditMode failures:"
     try {
-        [xml]$results = Get-Content -LiteralPath $ResultsPath -Raw
+        $results = Read-UnityNUnitResult -Path $ResultsPath
         $failed = 0
         foreach ($case in $results.SelectNodes('//test-case[@result="Failed" or @result="Error"]')) {
             ++$failed
             $message = ''
             $failure = $case.SelectSingleNode('failure/message')
             if ($null -ne $failure) {
-                $message = ($failure.InnerText -replace '\s+', ' ').Trim()
+                $message = (ConvertTo-SafeUnityReport -Text $failure.InnerText) -replace '\s+', ' '
             }
-            Write-Host "  $($case.fullname): $message"
+            $name = (ConvertTo-SafeUnityReport -Text $case.GetAttribute('fullname')) -replace '\s+', ' '
+            Write-Host "  | ${name}: $($message.Trim())"
         }
         Write-Host "  $failed failed case(s)."
     } catch {
-        Write-Host "  Could not read $ResultsPath : $_"
+        Write-Host "  | $(ConvertTo-SafeUnityReport -Text "Could not read result: $($_.Exception.Message)")"
     }
 } else {
-    Write-Host "Unity EditMode failures: no result file at $ResultsPath."
+    Write-Host 'Unity EditMode failures: no result file.'
 }

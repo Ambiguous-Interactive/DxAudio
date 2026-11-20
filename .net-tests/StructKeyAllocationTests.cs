@@ -1,4 +1,4 @@
-﻿namespace WallstopStudios.DxAudio.Tests
+namespace WallstopStudios.DxAudio.Tests
 {
     using System;
     using NUnit.Framework;

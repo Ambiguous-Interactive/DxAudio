@@ -50,4 +50,4 @@ A new trust configuration expires unless a publish uses it within 2 days. Run it
 
 ## Related
 
-- [ship-changes](./ship-changes/SKILL.md) - the general validation ladder
+- [ship-changes](../ship-changes/SKILL.md) - the general validation ladder

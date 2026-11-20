@@ -1,4 +1,4 @@
-﻿namespace WallstopStudios.DxAudio
+namespace WallstopStudios.DxAudio
 {
     using System;
     using System.Collections.Generic;
@@ -108,43 +108,7 @@
         public bool TryCreateGraph(out DspGraph graph)
         {
             graph = null;
-            if (_nodes.Count == 0)
-            {
-                return false;
-            }
-
-            int input = IndexOfNode(_inputNode);
-            int output = IndexOfNode(_outputNode);
-            if (input < 0 || output < 0)
-            {
-                return false;
-            }
-
-            DspGraph built = new();
-            for (int index = 0; index < _nodes.Count; index++)
-            {
-                DspGraphNode node = _nodes[index];
-                if (node == null || HasEarlierNodeNamed(index, node.Name))
-                {
-                    return false;
-                }
-
-                if (!built.TryAddNode(node.CreateChain(), out int placed) || placed != index)
-                {
-                    return false;
-                }
-            }
-
-            foreach (DspGraphEdge edge in _edges)
-            {
-                if (edge == null || !built.TryAddEdge(IndexOfNode(edge.From), IndexOfNode(edge.To)))
-                {
-                    return false;
-                }
-            }
-
-            graph = built;
-            return true;
+            return TryCreateGraphCore(out graph);
         }
 
         /// <summary>What stops this asset from playing, as one line per problem; empty means it can be built.</summary>
@@ -364,6 +328,52 @@
             }
 
             return false;
+        }
+
+        private bool TryCreateGraphCore(out DspGraph graph)
+        {
+            if (_nodes.Count == 0)
+            {
+                graph = null;
+                return false;
+            }
+
+            int input = IndexOfNode(_inputNode);
+            int output = IndexOfNode(_outputNode);
+            if (input < 0 || output < 0)
+            {
+                graph = null;
+                return false;
+            }
+
+            DspGraph built = new();
+            for (int index = 0; index < _nodes.Count; index++)
+            {
+                DspGraphNode node = _nodes[index];
+                if (node == null || HasEarlierNodeNamed(index, node.Name))
+                {
+                    graph = null;
+                    return false;
+                }
+
+                if (!built.TryAddNode(node.CreateChain(), out int placed) || placed != index)
+                {
+                    graph = null;
+                    return false;
+                }
+            }
+
+            foreach (DspGraphEdge edge in _edges)
+            {
+                if (edge == null || !built.TryAddEdge(IndexOfNode(edge.From), IndexOfNode(edge.To)))
+                {
+                    graph = null;
+                    return false;
+                }
+            }
+
+            graph = built;
+            return true;
         }
     }
 }

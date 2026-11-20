@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 
 
@@ -14,24 +15,49 @@ VERSION = "2021.3.45f1"
 FAKE_EDITOR = """
 $ErrorActionPreference = 'Stop'
 $project = $args[$args.IndexOf('-projectPath') + 1]
+$log = $args[$args.IndexOf('-logFile') + 1]
+Set-Content -LiteralPath $log -Value 'Unity fake compiler'
+if ($args[$args.IndexOf('-password') + 1] -cne $env:UNITY_PASSWORD -or -not (Test-Path -LiteralPath $project)) {
+    exit 2
+}
+if ($env:CONTROL -eq 'timeout') {
+    $child = Join-Path $PSScriptRoot 'late-child.ps1'
+    Start-Process -FilePath ([Environment]::ProcessPath) -ArgumentList ('-NoProfile -NonInteractive -File "' + $child + '"')
+    Add-Content -LiteralPath $log -Value 'Started descendant'
+    Start-Sleep -Seconds 20
+    exit 0
+}
 if ($args -contains '-runTests') {
-    $xml = '<test-run result="Passed" passed="2">'
+    if ($args -contains '-quit' -or $args -contains '-executeMethod') { exit 2 }
+    $failed = if ($env:CONTROL -eq 'contradictory-result') { 1 } else { 0 }
+    $passed = if ($env:DXMESSAGING_VERSION) { 4 } else { 3 }
+    $xml = '<test-run result="Passed" passed="' + $passed + '" total="' + $passed + '" failed="' + $failed + '" skipped="0" inconclusive="0">'
+    $scope = 'WallstopStudios.DxAudio.Tests.Editor.AnalyzerActivation.'
     if ($env:CONTROL -ne 'missing-activation') {
-        $xml += '<test-case name="AllExpectedAssembliesUseThePinnedAnalyzers" result="Passed"/>'
+        $name = if ($env:CONTROL -eq 'wrong-scope') { 'OtherSuite.' } else { $scope }
+        $xml += '<test-case fullname="' + $name + 'AllExpectedAssembliesUseThePinnedAnalyzers" result="Passed"/>'
+    } else {
+        $xml += '<test-case fullname="OtherPassedCase" result="Passed"/>'
     }
     if ($env:CONTROL -ne 'missing-reference-graph') {
-        $xml += '<test-case name="AssemblyDefinitionsMatchTheCompilerReferenceGraph" result="Passed"/>'
+        $xml += '<test-case fullname="' + $scope + 'AssemblyDefinitionsMatchTheCompilerReferenceGraph" result="Passed"/>'
+    } else {
+        $xml += '<test-case fullname="OtherPassingReferenceCase" result="Passed"/>'
     }
-    $xml += '<test-case name="EditorOnlyAssembliesContainNoConcreteMonoBehaviours" result="Passed"/>'
+    $xml += '<test-case fullname="' + $scope + 'EditorOnlyAssembliesContainNoConcreteMonoBehaviours" result="Passed"/>'
     if ($env:DXMESSAGING_VERSION -and $env:CONTROL -ne 'missing-integration') {
-        $xml += '<test-suite type="Assembly" name="WallstopStudios.DxAudio.Tests.Integration.DxMessaging.dll" passed="1"/>'
+        $xml += '<test-suite type="Assembly" name="WallstopStudios.DxAudio.Tests.Integration.DxMessaging.dll" passed="1"><test-case result="Passed"/></test-suite>'
+    } elseif ($env:DXMESSAGING_VERSION) {
+        $xml += '<test-case fullname="OtherTestOutsideIntegration" result="Passed"/>'
     }
     $xml += '</test-run>'
+    if ($env:CONTROL -eq 'external-entity') { $xml = '<!DOCTYPE test-run [<!ENTITY control SYSTEM "file:///missing.xml">]>' + $xml }
     Set-Content -LiteralPath $args[$args.IndexOf('-testResults') + 1] -Value $xml
-    if ($env:CONTROL -eq 'broken-analyzer') { Write-Output 'warning CS8032: invalid analyzer' }
+    if ($env:CONTROL -eq 'broken-analyzer') { Add-Content -LiteralPath $log -Value 'warning CS8032: invalid analyzer' }
 } elseif ($env:CONTROL -ne 'missing-receipt') {
+    if ($args -contains '-runTests' -or $args -notcontains '-quit') { exit 2 }
     if (-not (Test-Path (Join-Path $project 'Packages/dxaudio.tgz'))) { exit 1 }
-    Write-Output 'DxAudio archive and player script validation passed.'
+    Add-Content -LiteralPath $log -Value 'DxAudio archive and player script validation passed.'
 }
 exit 0
 """
@@ -46,7 +72,7 @@ for name in ("WallstopStudios.UnityHelpers.Analyzers.dll", "nunit.analyzers.dll"
 
 class UnityRunnerTests(unittest.TestCase):
     def setUp(self):
-        directory = tempfile.TemporaryDirectory(prefix="dxaudio-unity-controls-")
+        directory = tempfile.TemporaryDirectory(prefix="dxaudio unity controls ")
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
         self.fixture = self.root / "checkout"
@@ -75,10 +101,11 @@ class UnityRunnerTests(unittest.TestCase):
             "UNITY_TEST_LABEL": "control",
             "UNITY_SERIAL": "dummy-serial",
             "UNITY_EMAIL": "dummy-email",
-            "UNITY_PASSWORD": "dummy-password",
+            "UNITY_PASSWORD": 'dummy password "quoted"',
             "DXMESSAGING_VERSION": integration,
             "DXAUDIO_CONSUMER_ARCHIVE": str(archive),
             "CONTROL": control,
+            "LATE_RECEIPT": str(self.root / "late-receipt"),
         }
         output = subprocess.run(
             ["pwsh", "-NoProfile", "-File", str(ROOT / "scripts" / "unity" / "run-editmode-tests.ps1"), *args],
@@ -101,9 +128,12 @@ class UnityRunnerTests(unittest.TestCase):
     def test_lost_analyzer_or_integration_evidence_fails(self):
         cases = (
             ("missing-activation", "", "AllExpectedAssembliesUseThePinnedAnalyzers control."),
+            ("wrong-scope", "", "AllExpectedAssembliesUseThePinnedAnalyzers control."),
             ("missing-reference-graph", "", "AssemblyDefinitionsMatchTheCompilerReferenceGraph control."),
             ("broken-analyzer", "", "reported an analyzer load failure"),
             ("missing-integration", "3.3.0", "do not match the expected DxMessaging test state"),
+            ("contradictory-result", "", "does not account for each test"),
+            ("external-entity", "", "DtdProcessing"),
         )
         for control, integration, expected in cases:
             with self.subTest(control=control):
@@ -127,6 +157,65 @@ class UnityRunnerTests(unittest.TestCase):
         status, log = self.run_validation("-ArchiveSmoke")
         self.assertNotEqual(status, 0, log)
         self.assertIn("pristine consumer tarball is missing", log)
+
+    def test_timeout_kills_the_editor_and_descendant(self):
+        child = self.root / "late-child.ps1"
+        child.write_text("Start-Sleep -Seconds 2; Set-Content -LiteralPath $env:LATE_RECEIPT -Value 'alive'\n")
+        status, log = self.run_validation("-EditorTimeoutSeconds", "1", control="timeout")
+        self.assertNotEqual(status, 0, log)
+        self.assertIn("Started descendant", log)
+        self.assertIn("did not exit within 1 seconds", log)
+        time.sleep(2.3)
+        self.assertFalse((self.root / "late-receipt").exists())
+
+    def test_stage_failure_cannot_reuse_a_previous_receipt(self):
+        status, log = self.run_validation()
+        self.assertEqual(status, 0, log)
+        results = self.root / f"dxaudio-results-{VERSION}-control" / "editmode-results.xml"
+        self.assertTrue(results.is_file())
+        (self.fixture / ".net-tests" / "prepare_analyzers.py").write_text("raise SystemExit(1)\n", encoding="utf-8")
+        status, log = self.run_validation()
+        self.assertNotEqual(status, 0, log)
+        self.assertFalse(results.exists())
+
+    def test_redacts_duplicate_credentials_in_log_and_test_failure(self):
+        log = self.root / "unity.log"
+        xml = self.root / "results.xml"
+        secrets = [
+            "SC-0000-SYNTHETIC",
+            "SYNTHETIC_access-token...",
+            "ghp_fakefakefakefake12345678",
+            "synthetic-password",
+            "AKIA0000FAKE0000FAKE",
+            "NONREAL123TOKEN",
+            "FAKE-LICENSE-0000-0000",
+            "FakeBase64Secret1234==",
+        ]
+        text = (
+            f"before Access token: {secrets[1]} UNITY_PASSWORD={secrets[3]} after\n"
+            f"{secrets[4]} Authorization: Bearer {secrets[5]}\n"
+            f'<License id="{secrets[6]}">\n'
+            f'-----BEGIN PRIVATE KEY-----\n{secrets[7]}\n-----END PRIVATE KEY-----\n'
+        )
+        log.write_text(secrets[0] + "\n" + text, encoding="utf-8")
+        xml.write_text(
+            '<test-run><test-case fullname="' + secrets[2] + '" result="Failed"><failure><message><![CDATA[' + text
+            + ']]></message></failure></test-case></test-run>',
+            encoding="utf-8",
+        )
+        command = ROOT / "scripts" / "unity" / "show-editmode-log-tail.ps1"
+        output = subprocess.run(
+            ["pwsh", "-NoProfile", "-File", str(command), "-LogPath", str(log), "-ResultsPath", str(xml)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        self.assertEqual(output.returncode, 0, output.stdout + output.stderr)
+        for secret in secrets:
+            self.assertNotIn(secret, output.stdout)
+        self.assertIn("before Access token:", output.stdout)
+        self.assertIn("after", output.stdout)
+        self.assertIn("1 failed case(s)", output.stdout)
 
 
 if __name__ == "__main__":

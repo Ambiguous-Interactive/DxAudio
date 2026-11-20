@@ -25,7 +25,6 @@ class CoverageTests(TestCase):
         self.inventory = {"revision": "pin", "checks": {"lint": ["unsafe"]}}
         self.coverage = {
             "revision": "pin",
-            "complete_registries": True,
             "gates": {
                 "gate": {"path": ".github/workflows/ci.yml", "job": "check", "run": "python3 gate.py", "files": ["gate.py"]}
             },
@@ -48,11 +47,11 @@ class CoverageTests(TestCase):
         coverage["mappings"].clear()
         errors, pending, _ = audit(self.root, self.inventory, coverage)
         self.assertEqual(pending, {("lint", "unsafe")})
-        self.assertIn("registry check lint/unsafe has no decision", errors)
+        self.assertIn("upstream check lint/unsafe has no decision", errors)
         self.inventory["checks"]["lint"].append("new-check")
         errors, pending, _ = audit(self.root, self.inventory, self.coverage)
         self.assertEqual(pending, {("lint", "new-check")})
-        self.assertIn("registry check lint/new-check has no decision", errors)
+        self.assertIn("upstream check lint/new-check has no decision", errors)
 
     def test_disabled_steps_do_not_prove_a_gate(self) -> None:
         for guard in ("if: false", "continue-on-error: true"):

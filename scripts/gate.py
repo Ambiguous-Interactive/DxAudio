@@ -190,6 +190,8 @@ LANES: Tuple[Tuple[str, Tuple[Step, ...]], ...] = (
                 (*_PYTHON_LAUNCHER, "scripts/lint_assembly_warnings.py", "--verbose"),
                 ("assembly.policy",),
             ),
+            Step("harness.text", "Repository text checks", (*_PYTHON_LAUNCHER, ".github/scripts/check_text_files.py"), ("markdown.format",)),
+            Step("harness.spelling", "Product documentation spelling", ("npm", "run", "lint:spelling"), ("markdown.format",)),
             Step("harness.upstream-coverage", "Pinned upstream checks", (*_PYTHON_LAUNCHER, ".github/checks/unity_helpers_coverage.py", "--validate"), ("csharp.format",)),
             Step(
                 "csharp.playmode",

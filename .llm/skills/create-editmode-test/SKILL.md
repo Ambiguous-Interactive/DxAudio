@@ -67,8 +67,8 @@ The batchmode command deliberately omits `-quit`; with it, Unity shuts down befo
 
 ## Related
 
-- [measure-audio-behaviour](./measure-audio-behaviour/SKILL.md) - allocation and timing probes
-- [voice-arbitration](./voice-arbitration/SKILL.md) - the policy these tests pin
+- [measure-audio-behaviour](../measure-audio-behaviour/SKILL.md) - allocation and timing probes
+- [voice-arbitration](../voice-arbitration/SKILL.md) - the policy these tests pin
 
 ## PlayMode sources
 

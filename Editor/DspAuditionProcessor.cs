@@ -1,4 +1,4 @@
-﻿namespace WallstopStudios.DxAudio.Editor
+namespace WallstopStudios.DxAudio.Editor
 {
     using System;
     using System.Threading;
@@ -168,16 +168,17 @@
 
             if (active.LatencyFrames == candidate.LatencyFrames)
             {
-                newGain = Math.Min(1f, (float)_transitionFrame / _crossfadeFrames);
-                oldGain = 1f - newGain;
-            }
-            else
-            {
-                oldGain = Math.Max(0f, 1f - (float)_transitionFrame / _dipFrames);
-                newGain = AudioMath.Clamp((float)(_transitionFrame - _dipFrames) / _dipFrames, 0f, 1f);
+                float nextGain = Math.Min(1f, (float)_transitionFrame / _crossfadeFrames);
+                ++_transitionFrame;
+                newGain = nextGain;
+                oldGain = 1f - nextGain;
+                return;
             }
 
-            ++_transitionFrame;
+            int frame = _transitionFrame++;
+            oldGain = Math.Max(0f, 1f - (float)frame / _dipFrames);
+            newGain = AudioMath.Clamp((float)(frame - _dipFrames) / _dipFrames, 0f, 1f);
+            return;
         }
 
         private void SetActive(Revision revision)

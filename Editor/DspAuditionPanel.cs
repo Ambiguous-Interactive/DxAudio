@@ -1,4 +1,4 @@
-﻿namespace WallstopStudios.DxAudio.Editor
+namespace WallstopStudios.DxAudio.Editor
 {
     using System;
     using UnityEditor;
@@ -151,19 +151,21 @@
 
         internal static bool TryEnableSceneAudio(out SceneView enabled)
         {
-            enabled = null;
             if (EditorApplication.isPlaying || HasSceneAudio())
             {
+                enabled = null;
                 return true;
             }
 
-            enabled = SceneView.lastActiveSceneView;
-            if (enabled == null)
+            SceneView active = SceneView.lastActiveSceneView;
+            if (active == null)
             {
+                enabled = active;
                 return false;
             }
 
-            enabled.audioPlay = true;
+            active.audioPlay = true;
+            enabled = active;
             return true;
         }
 

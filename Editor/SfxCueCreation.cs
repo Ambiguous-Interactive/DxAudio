@@ -1,4 +1,4 @@
-﻿namespace WallstopStudios.DxAudio.Editor
+namespace WallstopStudios.DxAudio.Editor
 {
     using System;
     using System.Collections.Generic;
@@ -78,7 +78,8 @@
             try
             {
                 string source = AssetDatabase.GetAssetPath(selected[0]);
-                string folder = Path.GetDirectoryName(source)?.Replace('\\', '/');
+                int separator = source?.LastIndexOf('/') ?? -1;
+                string folder = 0 <= separator ? source.Substring(0, separator) : null;
                 if (
                     string.IsNullOrEmpty(folder)
                     || (!string.Equals(folder, "Assets", StringComparison.Ordinal) && !folder.StartsWith("Assets/", StringComparison.Ordinal))

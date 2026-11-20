@@ -140,5 +140,5 @@ float VoiceGainDb(AudioSource voice) {
 
 ## Related
 
-- [allocation-free-audio](./allocation-free-audio/SKILL.md) - what to fix
-- [create-editmode-test](./create-editmode-test/SKILL.md) - where the test lives
+- [allocation-free-audio](../allocation-free-audio/SKILL.md) - what to fix
+- [create-editmode-test](../create-editmode-test/SKILL.md) - where the test lives

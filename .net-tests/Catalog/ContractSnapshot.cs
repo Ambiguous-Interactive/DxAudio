@@ -17,7 +17,7 @@ namespace WallstopStudios.DxAudio.Tooling
             {
                 foreach (string path in Directory.EnumerateFiles(Path.Combine(root, directory), "*", SearchOption.AllDirectories))
                 {
-                    string relative = Path.GetRelativePath(root, path).Replace('\\', '/');
+                    string relative = Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, '/');
                     if (Path.GetFileName(path) is "csc.rsp.meta" or "WarningsAsErrors.ruleset.meta")
                     {
                         continue;

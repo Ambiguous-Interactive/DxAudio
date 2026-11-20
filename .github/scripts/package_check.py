@@ -10,7 +10,7 @@ npm never takes a version back, so everything a bad release could ship is checke
   The runtime dependency map is empty;
 - with --tag, the tag names package.json's version and CHANGELOG.md has a section for it.
 
-    python3 .github/scripts/package_check.py                      # check the packed file list
+    python3 .github/scripts/package_check.py                      # check the actual npm archive
     python3 .github/scripts/package_check.py --tag v1.2.3 --out dist  # also pack and write notes
 
 With --out, it writes the tarball, its .sha256 and the release notes into that folder, and when
@@ -23,6 +23,8 @@ import json
 import os
 import re
 import subprocess
+import tarfile
+import tempfile
 import sys
 from pathlib import Path, PurePosixPath
 
@@ -54,6 +56,38 @@ def pack(destination: Path | None) -> dict:
     return packed[0] if isinstance(packed, list) else packed[NAME]
 
 
+def archive_paths(tarball: Path) -> tuple[set[str], list[str]]:
+    files: set[str] = set()
+    directories: set[str] = set()
+    seen: set[str] = set()
+    problems: list[str] = []
+    with tarfile.open(tarball, "r:gz") as archive:
+        for entry in archive:
+            name = entry.name.rstrip("/")
+            parts = name.split("/")
+            if parts[0] != "package" or any(part in {"", ".", ".."} or "\\" in part or ":" in part for part in parts):
+                problems.append(f"nonlocal npm archive member: {entry.name}")
+                continue
+            relative = "/".join(parts[1:])
+            if name.casefold() in seen:
+                problems.append(f"duplicate npm archive member: {entry.name}")
+                continue
+            seen.add(name.casefold())
+            if entry.isdir():
+                directories.add(relative)
+            elif len(parts) > 1 and entry.isfile():
+                files.add(relative)
+            else:
+                problems.append(f"unsupported npm archive member: {entry.name}")
+    file_names = {name.casefold() for name in files}
+    for name in files | directories:
+        if any(str(parent).casefold() in file_names for parent in PurePosixPath(name).parents):
+            problems.append(f"npm archive member is nested under a file: {name}")
+    if not files:
+        problems.append("npm archive contains no files")
+    return files, problems
+
+
 def unity_visible(path: str) -> bool:
     return not any(part.startswith(".") or part.endswith("~") for part in PurePosixPath(path).parts)
 
@@ -72,9 +106,18 @@ def tooling_problems(paths: set[str], *, unity_visible_only: bool = False) -> li
     return problems
 
 
-def tracked_paths() -> set[str]:
-    result = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, check=True, capture_output=True)
-    return {path for path in result.stdout.decode("utf-8").split("\0") if path}
+def git_package_problems() -> list[str]:
+    result = subprocess.run(["git", "ls-files", "--stage", "-z"], cwd=ROOT, check=True, capture_output=True)
+    paths = set()
+    problems = []
+    for record in result.stdout.decode("utf-8").split("\0"):
+        if not record:
+            continue
+        metadata, _, path = record.partition("\t")
+        paths.add(path)
+        if unity_visible(path) and metadata.startswith(("120000 ", "160000 ")):
+            problems.append(f"Unity-visible Git content contains a link or submodule: {path}")
+    return problems + tooling_problems(paths, unity_visible_only=True)
 
 
 def payload_problems(paths: set[str]) -> list[str]:
@@ -169,23 +212,34 @@ def main() -> int:
         if not notes:
             problems.append(f"CHANGELOG.md has no '## [{version}]' section with notes")
 
-    if args.out:
-        args.out.mkdir(parents=True, exist_ok=True)
-    packed = pack(args.out if args.out and not problems else None)
-    paths = {entry["path"] for entry in packed["files"]}
-    problems += payload_problems(paths)
-    problems += tooling_problems(tracked_paths(), unity_visible_only=True)
+    with tempfile.TemporaryDirectory(prefix="dxaudio-package-") as directory:
+        scratch = Path(directory)
+        packed = pack(scratch)
+        filename = packed["filename"]
+        if Path(filename).name != filename:
+            raise ValueError(f"npm returned a nonlocal archive name: {filename}")
+        tarball = scratch / filename
+        paths, archive_problems = archive_paths(tarball)
+        problems += archive_problems
+        if paths != {entry["path"] for entry in packed["files"]}:
+            problems.append("npm pack metadata disagrees with the actual archive")
+        problems += payload_problems(paths)
+        problems += git_package_problems()
 
-    for problem in problems:
-        print(f"::error::{problem}", file=sys.stderr)
-    if problems:
-        return 1
+        for problem in problems:
+            print(f"::error::{problem}", file=sys.stderr)
+        if problems:
+            return 1
+        if args.out:
+            args.out.mkdir(parents=True, exist_ok=True)
+            output_archive = args.out / filename
+            output_archive.write_bytes(tarball.read_bytes())
     dependencies = manifest.get("dependencies", {})
     listed = ", ".join(f"{name}@{v}" for name, v in sorted(dependencies.items())) or "none"
     print(f"{NAME}@{version}: {len(paths)} files, {packed['size']} bytes packed, dependencies: {listed}")
 
     if args.out:
-        tarball = args.out / packed["filename"]
+        tarball = output_archive
         digest = hashlib.sha256(tarball.read_bytes()).hexdigest()
         tarball.with_name(tarball.name + ".sha256").write_text(f"{digest}  {tarball.name}\n", encoding="utf-8")
         (args.out / "notes.md").write_text(notes + "\n", encoding="utf-8")

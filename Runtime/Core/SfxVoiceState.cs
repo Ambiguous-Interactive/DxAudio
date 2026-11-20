@@ -1,4 +1,4 @@
-﻿namespace WallstopStudios.DxAudio
+namespace WallstopStudios.DxAudio
 {
     /// <summary>What one pooled voice is doing, as much of it as choosing the next voice needs.</summary>
     /// <remarks>

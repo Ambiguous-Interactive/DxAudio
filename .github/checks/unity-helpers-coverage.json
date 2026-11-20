@@ -1,6 +1,5 @@
 {
   "revision": "072d2dddd79b4a9210aa2812ae5761bf9a5e28c8",
-  "complete_registries": true,
   "gates": {
     "upstream-source": {
       "path": ".github/workflows/ci.yml",
@@ -10,7 +9,9 @@
         ".github/checks/unity_helpers_source_checks.py",
         ".github/checks/test_unity_helpers_coverage.py",
         ".github/checks/unity_helpers_unsafe.cjs",
-        ".github/checks/portable_csharp_checks.py"
+        ".github/checks/portable_csharp_checks.py",
+        ".github/checks/portable_doc_checks.py",
+        ".github/checks/portable_tool_checks.py"
       ]
     },
     "core": {
@@ -30,6 +31,12 @@
       "job": "unity-tests",
       "run": "./scripts/unity/run-editmode-tests.ps1",
       "files": ["scripts/unity/run-editmode-tests.ps1", ".net-tests/UnityValidation/test_runner.py"]
+    },
+    "unity-controls": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "run": "python3 .net-tests/UnityValidation/test_runner.py",
+      "files": [".net-tests/UnityValidation/test_runner.py"]
     },
     "unity-archive": {
       "path": ".github/workflows/unity-tests.yml",
@@ -55,11 +62,23 @@
       "run": "uv run scripts/markdown_check.py ${{ github.event_name == 'push' && 'all' || steps.check-scope.outputs.markdown-files }}",
       "files": ["scripts/markdown_check.py", "scripts/tests/test_markdown_check.py"]
     },
+    "workflow-yaml": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "uses": "ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c",
+      "files": [".github/scripts/yamllint.yml"]
+    },
     "text-files": {
       "path": ".github/workflows/ci.yml",
       "job": "package-checks",
       "run": "python3 .github/scripts/check_text_files.py",
       "files": [".github/scripts/check_text_files.py"]
+    },
+    "spelling": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "run": "npm run lint:spelling",
+      "files": [".github/scripts/cspell.json"]
     },
     "release": {
       "path": ".github/workflows/release.yml",
@@ -85,18 +104,7 @@
           "drawer-multiobject-test",
           "unity-file-naming-test"
         ],
-        "contract": ["lint-comparison-direction", "lint-preserve-attributes"],
-        "command": [
-          "lint:comparison-direction",
-          "lint:conditional-call-chains",
-          "lint:drawer-multiobject",
-          "lint:preserve-attributes",
-          "lint:unity-file-naming",
-          "test:lint-comparison-direction",
-          "test:drawer-multiobject",
-          "test:lint-preserve-attributes",
-          "test:lint-unity-file-naming"
-        ]
+        "contract": ["lint-comparison-direction", "lint-preserve-attributes"]
       }
     },
     {
@@ -105,20 +113,7 @@
       "evidence": "Pinned portable C# policies scan DxAudio and reject explicit bad naming, duplicate imports, misplaced types, hidden test hooks, repeated XML summaries, and multiline line-comments.",
       "checks": {
         "lint": ["comment-block-form", "csharp-naming", "csharp-naming-test", "duplicate-usings", "nested-type-placement", "production-test-hooks", "xml-doc-summaries"],
-        "contract": ["lint-comment-block-form", "lint-duplicate-usings", "lint-nested-type-placement", "lint-production-test-hooks", "lint-xml-doc-summaries"],
-        "command": [
-          "lint:comment-block-form",
-          "lint:csharp-naming",
-          "lint:duplicate-usings",
-          "lint:nested-type-placement",
-          "lint:production-test-hooks",
-          "lint:xml-doc-summaries",
-          "test:lint-comment-block-form",
-          "test:lint-duplicate-usings",
-          "test:lint-nested-type-placement",
-          "test:lint-production-test-hooks",
-          "test:lint-xml-doc-summaries"
-        ]
+        "contract": ["lint-comment-block-form", "lint-duplicate-usings", "lint-nested-type-placement", "lint-production-test-hooks", "lint-xml-doc-summaries"]
       }
     },
     {
@@ -128,7 +123,67 @@
       "checks": {
         "lint": ["asmdef", "concurrent-cache-fill", "concurrent-cache-fill-test"],
         "contract": ["asmdef", "lint-concurrent-cache-fill"],
-        "command": ["lint:concurrent-cache-fill", "test:asmdef", "test:lint-concurrent-cache-fill"]
+        "command": ["test:lint-concurrent-cache-fill"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Pinned PowerShell checks validate workflow repository names, release lock and Unity secret scope, and live PR cancellation. Planted forbidden guards, leaked license secret and missing concurrency each fail.",
+      "checks": {
+        "contract": ["pr-workflow-concurrency", "workflow-license-secret-scope", "workflow-repository-guard"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Pinned path normalization detects raw backslash-to-slash conversions. DxAudio consumes already normalized Unity asset paths.",
+      "checks": {
+        "lint": ["path-normalization", "path-normalization-test"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Pinned workflow-expression and devcontainer validators check actual project workflows, installed formatter configuration and both PowerShell archive architectures with controls.",
+      "checks": {
+        "lint": ["workflow-run-expression-length", "devcontainer-config", "devcontainer-urls", "devcontainer-urls-test"],
+        "contract": ["lint-workflow-run-expression-length", "validate-devcontainer-urls", "validate-devcontainer-config"],
+        "command": ["test:validate-devcontainer-urls"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "workflow-yaml",
+      "evidence": "CI parses workflow YAML files with the pinned strict yamllint action.",
+      "checks": {
+        "lint": ["yaml"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The actual pinned comment-mask fixture suite runs and the adapted upstream out-parameter scan proves both named DxAudio anchors and every built-in control.",
+      "checks": {
+        "lint": ["comment-stripping"],
+        "contract": ["out-parameters"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Pinned upstream Markdown, language-fence and namespace/assembly identifier checks run with planted bad references and missing fence-language controls.",
+      "checks": {
+        "lint": ["code-fence-syntax", "doc-code-samples", "doc-identifiers", "markdown"],
+        "contract": ["check-code-fence-syntax", "extract-code-samples", "lint-doc-identifiers", "lint-markdown"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "spelling",
+      "evidence": "CI runs the pinned dictionary tool on the public README, manual, and sample documentation.",
+      "checks": {
+        "lint": ["spelling"]
       }
     },
     {
@@ -146,7 +201,7 @@
       "evidence": "The pinned upstream Roslyn syntax gate rejects unsafe compiler switches, unsafe access, disabled IL2CPP safety checks, and unbounded stackalloc, with planted controls.",
       "checks": {
         "lint": ["unsafe-code", "unsafe-code-test"],
-        "command": ["lint:unsafe-code", "test:lint-unsafe-code"]
+        "command": ["lint:unsafe-code"]
       }
     },
     {
@@ -201,8 +256,7 @@
       "gate": "package",
       "evidence": "DxAudio checks its declared and optional asmdef references plus payload and tracked Unity assets. Package tests plant forbidden DLLs and a mandatory dependency.",
       "checks": {
-        "lint": ["npm-package", "bundled-assemblies"],
-        "command": ["validate:npm-package", "lint:bundled-assemblies"]
+        "lint": ["npm-package", "bundled-assemblies"]
       }
     },
     {
@@ -213,7 +267,7 @@
         "lint": ["unity-nunit-results", "unity-compiler-warnings"],
         "contract": ["unity-nunit-results", "test-result-evidence", "analyzer-placement"],
         "typecheck": ["runtime", "editor", "editor-tests", "integrations"],
-        "command": ["unity:compile", "unity:test:editmode", "test:unity-nunit-results", "test:unity-compiler-warnings", "test:analyzer-placement", "test:test-result-evidence"]
+        "command": ["unity:compile", "unity:test:editmode", "test:unity-compiler-warnings"]
       }
     },
     {
@@ -223,22 +277,22 @@
       "checks": {
         "lint": ["typecheck-asmdef-references", "editor-assembly-monobehaviours", "editor-assembly-monobehaviours-test"],
         "contract": ["lint-typecheck-asmdef-references"],
-        "command": [
-          "lint:typecheck-asmdef-references",
-          "test:lint-typecheck-asmdef-references",
-          "lint:editor-assembly-monobehaviours",
-          "test:lint-editor-assembly-monobehaviours",
-          "typecheck:tests:asmdef-references"
-        ]
+        "command": ["typecheck:tests:asmdef-references"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-controls",
+      "evidence": "The Unity runner's executable fake editor controls enforce process tree timeout, raw artifact credential redaction, and current parseable NUnit receipts.",
+      "checks": {
+        "contract": ["unity-timeout", "redact-unity-artifacts", "unity-artifact-redaction", "unity-framework"]
       }
     },
     {
       "status": "enforced",
       "gate": "unity-archive",
       "evidence": "A pristine archive importer must produce the clean compile receipt. The runner test covers rejected receipt and staged package leakage.",
-      "checks": {
-        "command": ["test:unity-package-export"]
-      }
+      "checks": {}
     },
     {
       "status": "enforced",
@@ -255,7 +309,7 @@
       "checks": {
         "lint": ["skill-sizes", "changelog"],
         "contract": ["lint-changelog"],
-        "command": ["lint:llm", "lint:changelog", "test:lint-changelog"]
+        "command": ["lint:llm"]
       }
     },
     {
@@ -264,7 +318,7 @@
       "evidence": "The required package job checks Prettier-managed JSON, YAML and Markdown and final newlines for text files.",
       "checks": {
         "lint": ["format-json", "format-js", "format-yaml", "final-newline"],
-        "command": ["format:json:check", "format:js:check", "format:yaml:check", "test:final-newline"]
+        "command": ["test:final-newline"]
       }
     },
     {
@@ -272,8 +326,7 @@
       "gate": "markdown-format",
       "evidence": "CI runs source-scoped Prettier Markdown checks and has a dedicated harness test.",
       "checks": {
-        "lint": ["format-md"],
-        "command": ["format:md:check"]
+        "lint": ["format-md"]
       }
     },
     {
@@ -281,8 +334,7 @@
       "gate": "release",
       "evidence": "Release packing validates tag, published manifest version, and versioned changelog before publishing.",
       "checks": {
-        "contract": ["verify-release-tag", "npm-package-changelog"],
-        "command": ["test:verify-release-tag", "test:npm-package-changelog"]
+        "contract": ["verify-release-tag", "npm-package-changelog"]
       }
     },
     {
@@ -291,7 +343,7 @@
       "checks": {
         "lint": ["wproto-claim-catalog"],
         "contract": ["protobuf-candidate", "wproto-annotations", "wproto-evidence", "run-wproto-evidence", "wproto-corpus"],
-        "command": ["typecheck:unity:proto-only", "test:protobuf-candidate", "test:wproto-annotations", "test:wproto-evidence", "test:wproto-corpus", "test:run-wproto-evidence"]
+        "command": ["typecheck:unity:proto-only"]
       }
     },
     {
@@ -299,30 +351,21 @@
       "reason": "Requires the Odin editor integration, its compatibility typecheck configurations, and Odin-specific Undo fixtures.",
       "checks": {
         "lint": ["odin-undo-safety", "odin-undo-safety-test"],
-        "command": [
-          "lint:odin-undo-safety",
-          "test:odin-undo-safety",
-          "typecheck:unity:odin",
-          "typecheck:editor:odin",
-          "typecheck:editor-tests:odin",
-          "typecheck:unity:odin-bases-disabled"
-        ]
+        "command": ["typecheck:unity:odin", "typecheck:editor:odin", "typecheck:editor-tests:odin", "typecheck:unity:odin-bases-disabled"]
       }
     },
     {
       "status": "inapplicable",
       "reason": "Requires unity-helpers' typed enum source generator and emitted generator artifacts. DxAudio uses a source enum invariant check.",
       "checks": {
-        "lint": ["enum-generator"],
-        "command": ["test:enum-generator"]
+        "lint": ["enum-generator"]
       }
     },
     {
       "status": "inapplicable",
       "reason": "Requires the upstream browser persistent storage bridge and its WebGL browser export fixtures. DxAudio has no storage bridge.",
       "checks": {
-        "contract": ["browser-storage", "browser-consumer"],
-        "command": ["test:browser-storage", "test:browser-consumer"]
+        "contract": ["browser-storage", "browser-consumer"]
       }
     },
     {
@@ -330,22 +373,14 @@
       "reason": "Tests unity-helpers' own random generator, stream, arithmetic sampler, and TestU01 fixtures. DxAudio has no shipped PRNG implementation.",
       "checks": {
         "contract": ["bounded-sampling-parser", "random-periods", "evaluate-testu01", "random-quality-stream", "random-quality-outcomes"],
-        "command": [
-          "test:bounded-sampling",
-          "test:random-periods",
-          "test:evaluate-testu01",
-          "test:random-quality-stream",
-          "test:random-quality-outcomes",
-          "typecheck:random-quality"
-        ]
+        "command": ["typecheck:random-quality"]
       }
     },
     {
       "status": "inapplicable",
       "reason": "Requires the upstream durable file API and its injected storage failure fixtures. DxAudio ships no persistent file API.",
       "checks": {
-        "contract": ["durable-file"],
-        "command": ["test:durable-file"]
+        "contract": ["durable-file"]
       }
     },
     {
@@ -353,16 +388,21 @@
       "reason": "Requires GitHub Pages or wiki publishing assets. DxAudio documentation is distributed from the repository and package.",
       "checks": {
         "lint": ["github-pages-css"],
-        "contract": ["validate-github-pages-css", "github-pages-sortable", "wiki-generation"],
-        "command": ["test:validate-github-pages-css", "test:github-pages-sortable", "test:wiki-generation"]
+        "contract": ["validate-github-pages-css", "github-pages-sortable", "wiki-generation"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires an explicit unsigned marker in the manifest for the unity-helpers signature lifecycle. DxAudio uses npm provenance and does not emit that marker.",
+      "checks": {
+        "contract": ["npm-package-signature"]
       }
     },
     {
       "status": "inapplicable",
       "reason": "Requires the upstream unitypackage archive exporter. DxAudio ships npm/UPM archives with its own clean consumer import check.",
       "checks": {
-        "contract": ["release-export-only", "create-unitypackage"],
-        "command": ["test:release-export-only", "test:create-unitypackage"]
+        "contract": ["release-export-only", "create-unitypackage"]
       }
     },
     {
@@ -370,8 +410,7 @@
       "reason": "Requires committing generated analyzer DLLs as part of the product's published package. DxAudio verifies the development pin and rejects these artifacts from the consumer payload.",
       "checks": {
         "lint": ["shipped-analyzers"],
-        "contract": ["verify-shipped-analyzers"],
-        "command": ["verify:shipped-analyzers", "verify:shipped-analyzers:fix", "test:verify-shipped-analyzers"]
+        "contract": ["verify-shipped-analyzers"]
       }
     },
     {
@@ -395,21 +434,21 @@
       "checks": {
         "lint": ["doc-counts", "readme-mirror-test", "readme-mirror"],
         "contract": ["sync-readme-mirror", "lint-doc-counts"],
-        "command": ["lint:doc-counts", "lint:readme-mirror", "test:lint-doc-counts", "test:sync-readme-mirror"]
+        "command": ["test:sync-readme-mirror"]
       }
     },
     {
       "status": "pending",
       "reason": "Needs a DxAudio compiler or semantic rule and a planted source control.",
       "checks": {
-        "contract": ["out-parameters", "csharp-syntax", "csharp-lints", "typecheck-controls"]
+        "contract": ["csharp-syntax", "csharp-lints", "typecheck-controls"]
       }
     },
     {
       "status": "pending",
       "reason": "Needs a portable formatting or language policy and negative fixtures for DxAudio's source and configuration trees.",
       "checks": {
-        "lint": ["yaml", "lint-error-codes", "lint-error-codes-test", "path-normalization", "path-normalization-test", "eol", "license-headers", "license-years"],
+        "lint": ["lint-error-codes", "lint-error-codes-test", "eol", "license-headers", "license-years"],
         "contract": ["yaml-controls", "validate-formatting", "check-eol", "validate-lint-error-codes", "license-year-rename", "license-year-copy-detection"]
       }
     },
@@ -417,17 +456,8 @@
       "status": "pending",
       "reason": "Needs the equivalent docs, examples, or documentation corpus check with a red control. Existing relative link and sample GUID checks cover part of the contract.",
       "checks": {
-        "lint": ["doc-links-test", "deprecated-external-links", "doc-links", "code-fence-syntax", "markdown", "doc-code-samples", "doc-identifiers", "spelling", "spelling-config"],
-        "contract": [
-          "check-code-fence-syntax",
-          "lint-doc-identifiers",
-          "extract-code-samples",
-          "extract-doc-samples",
-          "empty-corpus-gates",
-          "markdown-fence-repair",
-          "lint-markdown",
-          "doc-link-test-launcher"
-        ]
+        "lint": ["doc-links-test", "deprecated-external-links", "doc-links", "spelling-config"],
+        "contract": ["extract-doc-samples", "empty-corpus-gates", "markdown-fence-repair", "doc-link-test-launcher"]
       }
     },
     {
@@ -445,7 +475,6 @@
           "native-fault-capture"
         ],
         "contract": [
-          "unity-framework",
           "native-build-readback",
           "native-fault-capture",
           "lint-unity-test-modules",
@@ -459,9 +488,6 @@
           "il2cpp-conversion-inputs",
           "unity-grouped-modes",
           "standalone-scene-provision",
-          "unity-timeout",
-          "redact-unity-artifacts",
-          "unity-artifact-redaction",
           "unity-license-cache-location",
           "build-lock-action-inputs",
           "build-lock-action-input-parser",
@@ -511,17 +537,13 @@
       "status": "enforced",
       "gate": "text-files",
       "evidence": "The required format check covers Markdown, JSON, YAML, and JavaScript.",
-      "checks": {
-        "workflow:prettier-autofix/autofix": ["8 Prettier check (Markdown)", "9 Prettier check (JSON / asmdef / asmref)", "10 Prettier check (YAML)", "11 Prettier check (JS)"]
-      }
+      "checks": {}
     },
     {
       "status": "enforced",
       "gate": "upstream-source",
       "evidence": "Runs the pinned upstream analyzer fixture project and requires a nonzero result.",
-      "checks": {
-        "workflow:wproto-generator/generator": ["9 Test the WUH analyzers"]
-      }
+      "checks": {}
     },
     {
       "status": "inapplicable",
@@ -602,11 +624,7 @@
       "checks": {
         "lint": [
           "catastrophic-pattern-sync",
-          "comment-stripping",
           "dependabot",
-          "devcontainer-config",
-          "devcontainer-urls",
-          "devcontainer-urls-test",
           "gitignore-docs",
           "hook-patterns",
           "hook-permissions",
@@ -617,8 +635,7 @@
           "meta-exclusions",
           "post-create",
           "pwsh-invocations",
-          "skill-sizes-test",
-          "workflow-run-expression-length"
+          "skill-sizes-test"
         ]
       }
     },
@@ -650,13 +667,10 @@
           "lint-dependabot",
           "lint-pwsh-invocations",
           "lint-tests",
-          "lint-workflow-run-expression-length",
           "meta-generation",
           "node-bin",
           "normalize-container-git-config",
-          "npm-package-signature",
           "postinstall-hooks",
-          "pr-workflow-concurrency",
           "python-compatibility",
           "python-policy",
           "read-stdin-sync",
@@ -672,16 +686,12 @@
           "typecheck-iterate",
           "unity-mcp",
           "unity-package-export",
-          "validate-devcontainer-config",
-          "validate-devcontainer-urls",
           "validate-git-push-config",
           "validate-hook-permissions",
           "validate-hook-sync-calls",
           "validate-mcp-config",
           "verify-devcontainer-tools",
           "version-sync",
-          "workflow-license-secret-scope",
-          "workflow-repository-guard",
           "zai-mcp"
         ]
       }
@@ -702,144 +712,19 @@
           "check:reference-upstream-drift",
           "check:upm-changelog",
           "format:csharp:check",
-          "lint:code-samples",
           "lint:code-samples:verbose",
-          "lint:comment-block-form:fix",
-          "lint:comparison-direction:fix",
-          "lint:csharp-syntax",
-          "lint:csharp-syntax:fix",
-          "lint:dependabot",
-          "lint:doc-identifiers",
           "lint:doc-links",
           "lint:doc-samples",
           "lint:doc-samples:reuse-checks",
           "lint:docs",
-          "lint:license-headers",
-          "lint:llm:fix",
           "lint:llm:verbose",
-          "lint:markdown",
-          "lint:nested-type-placement:fix",
-          "lint:path-normalization",
-          "lint:pwsh-invocations",
-          "lint:python",
           "lint:repo",
-          "lint:skill-sizes",
-          "lint:spelling",
-          "lint:spelling:add",
-          "lint:spelling:config",
-          "lint:spelling:config:fix",
           "lint:spelling:verbose",
-          "lint:tests",
-          "lint:workflow-run-expression-length",
-          "lint:yaml",
-          "test:accelerator",
-          "test:add-cspell-word",
-          "test:agent-check",
-          "test:agent-preflight",
-          "test:agent-skill-migration",
           "test:ai-backends",
-          "test:asmdef-discovery",
-          "test:assembly-launchers",
-          "test:asset-postprocessor-reachability",
-          "test:auto-publish-release",
-          "test:build-lock-action-input-parser",
-          "test:build-lock-action-inputs",
-          "test:catastrophic-pattern-sync",
-          "test:check-code-fence-syntax",
-          "test:check-eol",
-          "test:check-registries",
-          "test:check-runner",
-          "test:compiler-tooling",
-          "test:configure-git-defaults",
-          "test:csharp-lints",
           "test:deprecated-external-links",
-          "test:devcontainer-persistence",
-          "test:doc-links-launcher",
-          "test:empty-corpus-gates",
-          "test:extract-code-samples",
-          "test:extract-doc-samples",
-          "test:fixture-assets",
-          "test:format-on-demand-workflow",
-          "test:frozen-files",
-          "test:git-path-helpers",
-          "test:git-staging-helpers",
-          "test:github-mcp",
-          "test:github-token",
-          "test:gitignore-docs",
-          "test:il2cpp-conversion-inputs",
-          "test:license-cache",
-          "test:license-year-copy-detection",
-          "test:license-year-rename",
-          "test:lint-bundled-assemblies",
-          "test:lint-dependabot",
-          "test:lint-doc-identifiers",
-          "test:lint-markdown",
-          "test:lint-path-normalization",
-          "test:lint-pwsh-invocations",
-          "test:lint-unity-test-modules",
-          "test:lint-workflow-run-expression-length",
-          "test:lint-yaml",
-          "test:markdown-fence-repair",
-          "test:meta-generation",
-          "test:native-debugger-download",
-          "test:native-fault-capture",
-          "test:node-bin",
-          "test:normalize-container-git-config",
-          "test:npm-package-signature",
-          "test:nullable-consumer-matrix",
-          "test:out-parameters",
-          "test:perf-tools",
-          "test:portable-cleanup-classifier",
           "test:post-create",
-          "test:postinstall-hooks",
-          "test:pr-workflow-concurrency",
-          "test:pre-push-changed-files",
-          "test:precommit-integration",
-          "test:project-workspace",
-          "test:python-compatibility",
-          "test:read-stdin-sync",
-          "test:redact-unity-artifacts",
-          "test:reference-upstream-drift",
-          "test:release-tools",
-          "test:run-contract-tests",
-          "test:run-repo-lint",
-          "test:runner-maintenance",
-          "test:shell-portability",
-          "test:skill-sizes",
-          "test:skill-stubs",
-          "test:standalone-scene-provision",
-          "test:sync-mcp",
-          "test:sync-script-contracts",
-          "test:typecheck-controls",
-          "test:typecheck-iterate",
-          "test:unity-acceptance-evidence",
-          "test:unity-acceptance-runner",
           "test:unity-acceptance-workflow",
-          "test:unity-acceptance-workflow:predicates",
-          "test:unity-artifact-redaction",
-          "test:unity-framework",
-          "test:unity-frozen-player-provenance",
-          "test:unity-grouped-modes",
-          "test:unity-license-cache-location",
-          "test:unity-mcp",
-          "test:unity-modes",
-          "test:unity-test-filter",
-          "test:unity-timeout",
-          "test:unity-workflow-matrix-contract",
-          "test:validate-devcontainer-config",
-          "test:validate-devcontainer-urls",
-          "test:validate-formatting",
-          "test:validate-git-push-config",
-          "test:validate-hook-permissions",
-          "test:validate-hook-sync-calls",
           "test:validate-lint-error-codes",
-          "test:validate-mcp-config",
-          "test:verify-devcontainer-tools",
-          "test:version-sync",
-          "test:watchdog-cancellation",
-          "test:workflow-license-secret-scope",
-          "test:workflow-repository-guard",
-          "test:zai-mcp",
           "typecheck:controls",
           "typecheck:editor",
           "typecheck:editor-tests",
@@ -873,14 +758,11 @@
           "validate:hook-perms",
           "validate:hook-spell-parity",
           "validate:hook-sync",
-          "validate:lint-error-codes",
           "validate:local",
-          "validate:mcp-config",
           "validate:prepush",
           "validate:tests",
           "validate:tests:fast",
           "validate:tests:hook-regressions",
-          "validate:tests:native-build-readback",
           "verify:tools"
         ]
       }
@@ -896,7 +778,7 @@
       "status": "pending",
       "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
       "checks": {
-        "workflow:build-publish-devcontainer/publish-devcontainer": ["3 Validate Dockerfile download URLs", "4 Validate devcontainer config", "5 Validate post-create script"]
+        "workflow:build-publish-devcontainer/publish-devcontainer": ["4 Validate devcontainer config"]
       }
     },
     {
@@ -970,7 +852,6 @@
         "workflow:local-gates/contract-suites": [
           "6 Require centrally approved build-lock action pins",
           "10 Require the installed .NET SDK",
-          "12 Validate migrated Python scripts",
           "13 Select GNU timeout for process-group controls",
           "14 Run bounded-random arithmetic proof",
           "16 Require the installed CSharpier SDK",
@@ -1032,7 +913,7 @@
       "status": "pending",
       "reason": "Match this workflow validation to a live DxAudio job or document its missing product prerequisite.",
       "checks": {
-        "workflow:prettier-autofix/autofix": ["5 Run Prettier (write fixes)", "6 Markdownlint (auto-fix)", "12 Markdown lint (CI gate)", "13 Enforce EOL (CRLF) and No BOM"]
+        "workflow:prettier-autofix/autofix": ["5 Run Prettier (write fixes)", "6 Markdownlint (auto-fix)", "13 Enforce EOL (CRLF) and No BOM"]
       }
     },
     {
@@ -1467,7 +1348,6 @@
         "workflow:wproto-generator/generator": [
           "5 Require the installed .NET SDK",
           "8 Verify every shipped compiler input against its sources",
-          "10 Verify where the analyzer is placed",
           "14 Compile consumers with the Roslyn 3.8 API floor",
           "16 Test candidate build controls"
         ]

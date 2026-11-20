@@ -31,9 +31,9 @@ Never stealing between equals is deliberate: cutting an audible sound is worse t
 1. Write the failing test first in `Tests/Editor/Core/SfxVoiceArbiterTests.cs` (engine-free) or `Tests/Editor/Unity/PlayerTests.cs` (player).
 2. Update the table in `README.md` if user-visible behavior changes.
 3. Add a `CHANGELOG.md` entry; this is observable behavior.
-4. Re-measure the play path with [measure-audio-behaviour](./measure-audio-behaviour/SKILL.md); stealing must not allocate.
+4. Re-measure the play path with [measure-audio-behaviour](../measure-audio-behaviour/SKILL.md); stealing must not allocate.
 
 ## Related
 
-- [allocation-free-audio](./allocation-free-audio/SKILL.md) - zero-allocation play path
-- [duck-composition](./duck-composition/SKILL.md) - the music-side equivalent
+- [allocation-free-audio](../allocation-free-audio/SKILL.md) - zero-allocation play path
+- [duck-composition](../duck-composition/SKILL.md) - the music-side equivalent

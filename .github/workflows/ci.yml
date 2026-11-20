@@ -59,13 +59,19 @@ jobs:
       - name: Check spelling in product docs
         run: npm run lint:spelling
       - name: Check text formatting
-        run: python3 .github/scripts/check_text_files.py
+        run: |
+          python3 .github/scripts/test_text_files.py
+          python3 .github/scripts/check_text_files.py
       - name: Check formatting
         run: |
           dotnet tool restore
           dotnet csharpier check .
       - name: Check every package asset has a .meta file
         run: python3 .github/scripts/meta_files.py --check
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.12.10"
+          enable-cache: false
       - name: Verify upstream checks and analyzer fixtures
         run: python3 .github/checks/unity_helpers_coverage.py --validate --analyzer-fixtures
       - name: Check Unity runner controls

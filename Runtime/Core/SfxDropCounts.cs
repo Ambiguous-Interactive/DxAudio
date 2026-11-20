@@ -1,4 +1,4 @@
-﻿namespace WallstopStudios.DxAudio
+namespace WallstopStudios.DxAudio
 {
     /// <summary>How many cues were dropped, one count per reason, for a diagnostic.</summary>
     /// <remarks>

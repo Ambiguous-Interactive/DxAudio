@@ -1,4 +1,4 @@
-﻿namespace WallstopStudios.DxAudio.Samples
+namespace WallstopStudios.DxAudio.Samples
 {
     using UnityEngine;
 
