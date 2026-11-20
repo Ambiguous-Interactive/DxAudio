@@ -6,12 +6,13 @@ namespace WallstopStudios.DxAudio.Editor
 
     internal sealed class DspEqCurvePlot : IMGUIContainer
     {
+        private const float PlotHeight = 196f;
+        private const float TargetLimitDecibels = 24f;
+
+        internal event System.Action TargetChanged;
         internal static Color TargetColor => EditorGUIUtility.isProSkin ? new Color(0.38f, 0.80f, 1f) : new Color(0f, 0.32f, 0.57f);
         internal static Color FitColor => EditorGUIUtility.isProSkin ? new Color(1f, 0.73f, 0.39f) : new Color(0.58f, 0.23f, 0f);
         internal static Color SavedColor => EditorGUIUtility.isProSkin ? new Color(0.60f, 0.93f, 0.66f) : new Color(0.12f, 0.39f, 0.18f);
-
-        private const float PlotHeight = 196f;
-        private const float TargetLimitDecibels = 24f;
         private static readonly float[] TickFrequencies = { 20f, 100f, 1_000f, 10_000f, 20_000f };
         private readonly Vector3[] _targetLine = new Vector3[DspEqCurveFit.SampleCount];
         private readonly Vector3[] _fitLine = new Vector3[DspEqCurveFit.PreviewSampleCount];
@@ -25,13 +26,26 @@ namespace WallstopStudios.DxAudio.Editor
         private float _plotLimitDecibels = TargetLimitDecibels;
         private float _strokeLimitDecibels;
 
-        internal event System.Action TargetChanged;
-
         internal DspEqCurvePlot()
         {
             name = "dx-audio-eq-plot";
             style.height = PlotHeight;
             onGUIHandler = Draw;
+        }
+
+        private static void DrawCurve(Rect plot, float[] curve, Vector3[] line, float limit, Color color, float width)
+        {
+            for (int index = 0; index < curve.Length; ++index)
+            {
+                float x = Mathf.Lerp(plot.xMin, plot.xMax, (float)index / (curve.Length - 1));
+                float y = Mathf.Lerp(plot.yMax, plot.yMin, Mathf.InverseLerp(-limit, limit, curve[index]));
+                line[index] = new Vector3(x, y, 0f);
+            }
+
+            using (new Handles.DrawingScope(color))
+            {
+                Handles.DrawAAPolyLine(width, line);
+            }
         }
 
         internal void Show(float[] target, float[] fit, float[] saved, int sampleRate)
@@ -164,21 +178,6 @@ namespace WallstopStudios.DxAudio.Editor
                 string label = frequency < 1_000f ? $"{frequency:0} Hz" : $"{frequency / 1_000f:0} kHz";
                 GUI.Label(new Rect(x - 23f, plot.yMax + 2f, 49f, 18f), label, EditorStyles.centeredGreyMiniLabel);
                 previousLabel = x;
-            }
-        }
-
-        private static void DrawCurve(Rect plot, float[] curve, Vector3[] line, float limit, Color color, float width)
-        {
-            for (int index = 0; index < curve.Length; ++index)
-            {
-                float x = Mathf.Lerp(plot.xMin, plot.xMax, (float)index / (curve.Length - 1));
-                float y = Mathf.Lerp(plot.yMax, plot.yMin, Mathf.InverseLerp(-limit, limit, curve[index]));
-                line[index] = new Vector3(x, y, 0f);
-            }
-
-            using (new Handles.DrawingScope(color))
-            {
-                Handles.DrawAAPolyLine(width, line);
             }
         }
     }

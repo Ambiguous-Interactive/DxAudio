@@ -1,4 +1,4 @@
-﻿namespace WallstopStudios.DxAudio.Tests.Editor
+namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System.Collections.Generic;
     using NUnit.Framework;
@@ -8,6 +8,11 @@
 
     public sealed class DspGraphEditsTests
     {
+        private static DspGraphAsset Graph(MadeObjects made)
+        {
+            return made.Track(DspGraphAsset.Create(new[] { new DspGraphNode("In", null), new DspGraphNode("Out", null) }, new[] { new DspGraphEdge("In", "Out") }, "In", "Out"));
+        }
+
         [Test]
         public void RenamingAnEndpointUpdatesItsReferencesInOneUndo()
         {
@@ -155,11 +160,6 @@
             {
                 AssetDatabase.DeleteAsset(path);
             }
-        }
-
-        private static DspGraphAsset Graph(MadeObjects made)
-        {
-            return made.Track(DspGraphAsset.Create(new[] { new DspGraphNode("In", null), new DspGraphNode("Out", null) }, new[] { new DspGraphEdge("In", "Out") }, "In", "Out"));
         }
     }
 }

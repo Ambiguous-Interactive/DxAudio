@@ -6,9 +6,7 @@
       "rulesetId": 27288634,
       "rulesetName": "Required CI - Unity Tests (default branch)",
       "enforcement": "active",
-      "requiredContexts": [
-        "Unity CI Success"
-      ],
+      "requiredContexts": ["Unity CI Success"],
       "bypassActors": []
     }
   ]

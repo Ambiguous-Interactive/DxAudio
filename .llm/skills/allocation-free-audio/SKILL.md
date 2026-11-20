@@ -43,4 +43,4 @@ The player contract is that `SfxPlayer.Play` does not allocate. Measure before a
 
 ## Related
 
-- [measure-audio-behaviour](./measure-audio-behaviour/SKILL.md) - how to prove it
+- [measure-audio-behaviour](../measure-audio-behaviour/SKILL.md) - how to prove it

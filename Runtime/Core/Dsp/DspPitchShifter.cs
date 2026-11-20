@@ -46,28 +46,6 @@ namespace WallstopStudios.DxAudio
         /// </remarks>
         private const float TransitionSeconds = 0.01f;
 
-        private float _semitones;
-        private float _windowSeconds;
-        private float _ratio;
-        private int _channels;
-        private int _windowFrames;
-        private int _halfWindowFrames;
-        private int _capacityFrames;
-        private int _latencyFrames;
-        private int _writeFrame;
-        private double _phase;
-        private double _parkBlend;
-        private double _parkStep;
-        private float[] _line;
-
-        public DspPitchShifter()
-        {
-            _semitones = 0f;
-            _windowSeconds = DefaultWindowSeconds;
-            _ratio = 1f;
-            _line = Array.Empty<float>();
-        }
-
         public override string DisplayName => "Pitch Shifter";
 
         /// <summary>How far the stage moves the pitch, in semitones; zero delays the signal and changes nothing else.</summary>
@@ -82,8 +60,10 @@ namespace WallstopStudios.DxAudio
                 }
 
                 _semitones = AudioMath.Clamp(value, MinimumSemitones, MaximumSemitones);
-                // One ratio is the whole setting: a block reads it once and gets both the mode and the speed from it,
-                // so a knob move cannot leave the two disagreeing inside a block.
+                /*
+                    One ratio is the whole setting: a block reads it once and gets both the mode and the speed from it,
+                    so a knob move cannot leave the two disagreeing inside a block.
+                */
                 _ratio = UnisonToleranceSemitones < Math.Abs(_semitones) ? (float)Math.Pow(2.0, _semitones / 12.0) : 1f;
             }
         }
@@ -115,115 +95,26 @@ namespace WallstopStudios.DxAudio
         /// </remarks>
         public override int LatencySamples => _latencyFrames;
 
-        protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
+        private float _semitones;
+        private float _windowSeconds;
+        private float _ratio;
+        private int _channels;
+        private int _windowFrames;
+        private int _halfWindowFrames;
+        private int _capacityFrames;
+        private int _latencyFrames;
+        private int _writeFrame;
+        private double _phase;
+        private double _parkBlend;
+        private double _parkStep;
+        private float[] _line;
+
+        public DspPitchShifter()
         {
-            _channels = channels;
-            // Two heads sit half a window apart, so an even window makes that gap a whole number of frames. The two
-            // spare frames hold the write and the interpolated neighbour apart at the longest delay.
-            int window = (int)Math.Round(_windowSeconds * sampleRate);
-            if (window < 2)
-            {
-                window = 2;
-            }
-
-            if (0 < (window & 1))
-            {
-                window++;
-            }
-
-            _windowFrames = window;
-            _halfWindowFrames = window / 2;
-            _capacityFrames = window + 2;
-            _latencyFrames = _halfWindowFrames + (int)MinimumDelayFrames;
-            _parkStep = 1.0 / (TransitionSeconds * sampleRate);
-            _line = new float[_capacityFrames * channels];
-            Reset();
-        }
-
-        public override void Process(float[] buffer, int offset, int count, int channels)
-        {
-            if (buffer == null || channels <= 0 || channels != _channels || offset < 0 || count <= 0 || count % channels != 0 || buffer.Length - count < offset)
-            {
-                return;
-            }
-
-            // One setting for the whole block, so a knob set on the main thread cannot split a block between two
-            // speeds. Every tap position advances per frame either way, so block size never changes the sound.
-            float ratio = _ratio;
-            bool shifting = 1f != ratio;
-            double step = shifting ? 1.0 - ratio : 0.0;
-            int frames = count / channels;
-            int stride = channels;
-            for (int frame = 0; frame < frames; frame++)
-            {
-                int frameStart = offset + (frame * stride);
-                int writeStart = _writeFrame * stride;
-                for (int channel = 0; channel < stride; channel++)
-                {
-                    _line[writeStart + channel] = buffer[frameStart + channel];
-                }
-
-                if (_parkBlend <= 0.0)
-                {
-                    for (int channel = 0; channel < stride; channel++)
-                    {
-                        buffer[frameStart + channel] = Read(_latencyFrames, channel, stride);
-                    }
-                }
-                else
-                {
-                    float firstDelay = (float)_phase + MinimumDelayFrames;
-                    float secondDelay = (float)WrapPhase(_phase + _halfWindowFrames, _windowFrames) + MinimumDelayFrames;
-                    float firstGain = TriangleGain(_phase, _windowFrames);
-                    float secondGain = 1f - firstGain;
-                    // A jump to or from unison would splice the wave, so the settled read takes over over a short fade.
-                    float mix = (float)_parkBlend;
-                    float parkedGain = 1f - mix;
-                    for (int channel = 0; channel < stride; channel++)
-                    {
-                        float shifted = (firstGain * Read(firstDelay, channel, stride)) + (secondGain * Read(secondDelay, channel, stride));
-                        float parked = Read(_latencyFrames, channel, stride);
-                        buffer[frameStart + channel] = (mix * shifted) + (parkedGain * parked);
-                    }
-                }
-
-                if (shifting)
-                {
-                    _phase = WrapPhase(_phase + step, _windowFrames);
-                    if (_parkBlend < 1.0)
-                    {
-                        _parkBlend = Math.Min(1.0, _parkBlend + _parkStep);
-                    }
-                }
-                else if (0.0 < _parkBlend)
-                {
-                    _parkBlend = Math.Max(0.0, _parkBlend - _parkStep);
-                    if (_parkBlend == 0.0)
-                    {
-                        // The output is already the settled read, so moving the sweep now changes nothing heard.
-                        _phase = NearestParkPhase(_phase, _windowFrames, _halfWindowFrames);
-                    }
-                }
-
-                _writeFrame++;
-                if (_writeFrame == _capacityFrames)
-                {
-                    _writeFrame = 0;
-                }
-            }
-        }
-
-        public override void Reset()
-        {
-            _writeFrame = 0;
-            // A fresh voice starts parked: one head is silent and the other reads the signal back at exactly the
-            // reported delay, so a pooled voice does not fade in from a stale sweep.
-            _phase = 0.0;
-            _parkBlend = 0.0;
-            if (_line != null)
-            {
-                Array.Clear(_line, 0, _line.Length);
-            }
+            _semitones = 0f;
+            _windowSeconds = DefaultWindowSeconds;
+            _ratio = 1f;
+            _line = Array.Empty<float>();
         }
 
         /// <summary>A triangular window over one sweep, so a head is silent at the start and the end of its pass.</summary>
@@ -258,6 +149,123 @@ namespace WallstopStudios.DxAudio
         {
             double toStart = Math.Min(phase, windowFrames - phase);
             return Math.Abs(phase - halfWindowFrames) <= toStart ? halfWindowFrames : 0.0;
+        }
+
+        public override void Process(float[] buffer, int offset, int count, int channels)
+        {
+            if (buffer == null || channels <= 0 || channels != _channels || offset < 0 || count <= 0 || count % channels != 0 || buffer.Length - count < offset)
+            {
+                return;
+            }
+
+            /*
+                One setting for the whole block, so a knob set on the main thread cannot split a block between two
+                speeds. Every tap position advances per frame either way, so block size never changes the sound.
+            */
+            float ratio = _ratio;
+            bool shifting = 1f != ratio;
+            double step = shifting ? 1.0 - ratio : 0.0;
+            int frames = count / channels;
+            int stride = channels;
+            for (int frame = 0; frame < frames; ++frame)
+            {
+                int frameStart = offset + (frame * stride);
+                int writeStart = _writeFrame * stride;
+                for (int channel = 0; channel < stride; ++channel)
+                {
+                    _line[writeStart + channel] = buffer[frameStart + channel];
+                }
+
+                if (_parkBlend <= 0.0)
+                {
+                    for (int channel = 0; channel < stride; ++channel)
+                    {
+                        buffer[frameStart + channel] = Read(_latencyFrames, channel, stride);
+                    }
+                }
+                else
+                {
+                    float firstDelay = (float)_phase + MinimumDelayFrames;
+                    float secondDelay = (float)WrapPhase(_phase + _halfWindowFrames, _windowFrames) + MinimumDelayFrames;
+                    float firstGain = TriangleGain(_phase, _windowFrames);
+                    float secondGain = 1f - firstGain;
+                    // A jump to or from unison would splice the wave, so the settled read takes over over a short fade.
+                    float mix = (float)_parkBlend;
+                    float parkedGain = 1f - mix;
+                    for (int channel = 0; channel < stride; ++channel)
+                    {
+                        float shifted = (firstGain * Read(firstDelay, channel, stride)) + (secondGain * Read(secondDelay, channel, stride));
+                        float parked = Read(_latencyFrames, channel, stride);
+                        buffer[frameStart + channel] = (mix * shifted) + (parkedGain * parked);
+                    }
+                }
+
+                if (shifting)
+                {
+                    _phase = WrapPhase(_phase + step, _windowFrames);
+                    if (_parkBlend < 1.0)
+                    {
+                        _parkBlend = Math.Min(1.0, _parkBlend + _parkStep);
+                    }
+                }
+                else if (0.0 < _parkBlend)
+                {
+                    _parkBlend = Math.Max(0.0, _parkBlend - _parkStep);
+                    if (_parkBlend == 0.0)
+                    {
+                        // The output is already the settled read, so moving the sweep now changes nothing heard.
+                        _phase = NearestParkPhase(_phase, _windowFrames, _halfWindowFrames);
+                    }
+                }
+
+                ++_writeFrame;
+                if (_writeFrame == _capacityFrames)
+                {
+                    _writeFrame = 0;
+                }
+            }
+        }
+
+        public override void Reset()
+        {
+            _writeFrame = 0;
+            /*
+                A fresh voice starts parked: one head is silent and the other reads the signal back at exactly the
+                reported delay, so a pooled voice does not fade in from a stale sweep.
+            */
+            _phase = 0.0;
+            _parkBlend = 0.0;
+            if (_line != null)
+            {
+                Array.Clear(_line, 0, _line.Length);
+            }
+        }
+
+        protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
+        {
+            _channels = channels;
+            /*
+                Two heads sit half a window apart, so an even window makes that gap a whole number of frames. The two
+                spare frames hold the write and the interpolated neighbour apart at the longest delay.
+            */
+            int window = (int)Math.Round(_windowSeconds * sampleRate);
+            if (window < 2)
+            {
+                window = 2;
+            }
+
+            if (0 < (window & 1))
+            {
+                ++window;
+            }
+
+            _windowFrames = window;
+            _halfWindowFrames = window / 2;
+            _capacityFrames = window + 2;
+            _latencyFrames = _halfWindowFrames + (int)MinimumDelayFrames;
+            _parkStep = 1.0 / (TransitionSeconds * sampleRate);
+            _line = new float[_capacityFrames * channels];
+            Reset();
         }
 
         /// <summary>Reads one channel at a fractional delay behind the write, interpolating between the two frames.</summary>

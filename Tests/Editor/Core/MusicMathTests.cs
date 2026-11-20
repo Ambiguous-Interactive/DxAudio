@@ -11,12 +11,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public static IEnumerable<MusicEase> Eases()
         {
             MusicEase[] values = (MusicEase[])Enum.GetValues(typeof(MusicEase));
-            for (int index = 0; index < values.Length; ++index)
+            foreach (MusicEase value in values)
             {
                 // The unset sentinel is not a fade curve; its own case asserts it renders as linear.
-                if (values[index] != default)
+                if (value != default)
                 {
-                    yield return values[index];
+                    yield return value;
                 }
             }
         }
@@ -36,7 +36,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(MusicEasing.Evaluate(ease, -3f), Is.EqualTo(0f).Within(Tolerance), "clamped below");
             Assert.That(MusicEasing.Evaluate(ease, 4f), Is.EqualTo(1f).Within(Tolerance), "clamped above");
             float previous = 0f;
-            for (int step = 1; step <= 100; step++)
+            for (int step = 1; step <= 100; ++step)
             {
                 float value = MusicEasing.Evaluate(ease, step / 100f);
                 Assert.That(value, Is.GreaterThanOrEqualTo(previous - Tolerance), $"{ease} went back at step {step}");

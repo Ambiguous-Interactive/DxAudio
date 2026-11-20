@@ -8,10 +8,9 @@ FROM mcr.microsoft.com/devcontainers/dotnet@sha256:7572080d1ce09283b8bc2504e3e88
 # Use bash with pipefail so failed downloads in pipelines are surfaced.
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# Pinned checksum for Microsoft package repository bootstrap package.
-ARG MS_PACKAGES_DEB_SHA256=8434dcb8c346dc95fbd63dbece056c343704590b58b6a5c323d39acf52bf0b48
 # Pinned uv release (provides uvx for the fetch/git MCP servers).
 ARG UV_VERSION=0.12.10
+ARG TARGETARCH
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -60,17 +59,38 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 # =============================================================================
-# LAYER 2: Add Microsoft signed apt feed and install PowerShell (repo lint scripts)
+# LAYER 2: Install the same pinned PowerShell release on both architectures
+# =============================================================================
+RUN POWERSHELL_VERSION="7.6.9" \
+    && case "${TARGETARCH}" in \
+        amd64) POWERSHELL_ARCH="x64"; POWERSHELL_SHA256="1da6d6d6035d651f20e70ddee7c4c15ac6ab8b9fb40ee92240d91263f28a884b" ;; \
+        arm64) POWERSHELL_ARCH="arm64"; POWERSHELL_SHA256="02eb9991af447c7e7fe881acde195961afd397c40b8eb1c2b3856b84ec2d85f2" ;; \
+        *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL "https://github.com/PowerShell/PowerShell/releases/download/v${POWERSHELL_VERSION}/powershell-${POWERSHELL_VERSION}-linux-${POWERSHELL_ARCH}.tar.gz" --retry 4 --connect-timeout 30 -o /tmp/powershell.tar.gz \
+    && echo "${POWERSHELL_SHA256}  /tmp/powershell.tar.gz" | sha256sum -c - \
+    && mkdir -p /opt/microsoft/powershell/7 \
+    && tar -xzf /tmp/powershell.tar.gz -C /opt/microsoft/powershell/7 \
+    && chmod +x /opt/microsoft/powershell/7/pwsh \
+    && ln -sf /opt/microsoft/powershell/7/pwsh /usr/local/bin/pwsh \
+    && rm /tmp/powershell.tar.gz \
+    && pwsh -NoLogo -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
+
+# =============================================================================
+# Pinned .NET SDK for package analysis (see .net-tests/global.json)
 # =============================================================================
 RUN set -eux; \
-    wget -q --tries=5 --waitretry=2 --timeout=30 "https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb" -O /tmp/packages-microsoft-prod.deb; \
-    echo "${MS_PACKAGES_DEB_SHA256}  /tmp/packages-microsoft-prod.deb" | sha256sum -c -; \
-    dpkg -i /tmp/packages-microsoft-prod.deb; \
-    rm /tmp/packages-microsoft-prod.deb; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends powershell; \
-    apt-get clean; \
-    rm -rf /var/lib/apt/lists/*
+    case "$(dpkg --print-architecture)" in \
+        amd64) sdk_arch=x64; sdk_hash=577d0eb17fec33d029104c5c63a1ab0accc3e28776274abef2218dbac5af18d2109b5406d26b31d76f5c245215e3ba0926a94c20246c672c41847c9e1eb1dc50 ;; \
+        arm64) sdk_arch=arm64; sdk_hash=3533a3869da219cac45c567aadac3d8e96cdf1c6a04fe1c1d5fdeefea5d45af8424488f0144730d11b4a751f7ad546fb11e4c2b2725cd8401efee726711f8f11 ;; \
+        *) exit 1 ;; \
+    esac; \
+    wget -q --tries=5 --waitretry=2 --timeout=45 "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.404/dotnet-sdk-10.0.404-linux-${sdk_arch}.tar.gz" -O /tmp/dxaudio-dotnet.tar.gz; \
+    echo "${sdk_hash}  /tmp/dxaudio-dotnet.tar.gz" | sha512sum -c -; \
+    mkdir -p /opt/dxaudio-dotnet; \
+    tar -xzf /tmp/dxaudio-dotnet.tar.gz -C /opt/dxaudio-dotnet; \
+    rm /tmp/dxaudio-dotnet.tar.gz
+ENV PATH="/opt/dxaudio-dotnet:${PATH}"
 
 # =============================================================================
 # LAYER 3: uv from PyPI (pinned)
@@ -159,6 +179,7 @@ RUN echo '' >> /etc/bash.bashrc \
 # =============================================================================
 RUN echo "=== Environment Verification ===" \
     && echo "--- .NET SDKs ---" && dotnet --list-sdks \
+    && test "$(dotnet --version)" = "10.0.404" \
     && echo "--- Node.js Tooling ---" && node --version && npm --version \
     && nanocoder --version && opencode --version && codex --version && claude --version \
     && echo "--- PowerShell ---" && pwsh --version \

@@ -1,0 +1,2 @@
+T:System.Linq.Enumerable; Use concrete loops to avoid hidden allocations in audio code and tests.
+T:System.Linq.Queryable; Use concrete loops to avoid hidden allocations in audio code and tests.

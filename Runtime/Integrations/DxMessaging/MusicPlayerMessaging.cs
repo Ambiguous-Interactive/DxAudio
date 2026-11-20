@@ -18,8 +18,6 @@ namespace WallstopStudios.DxAudio.Integration
     [RequireComponent(typeof(MusicPlayer))]
     public sealed class MusicPlayerMessaging : MessageAwareComponent
     {
-        private MusicPlayerMessagingCore _core;
-
         /// <summary>The relay this component enables and disables, or <see langword="null"/> before it is built.</summary>
         public MusicPlayerMessagingCore Core
         {
@@ -46,13 +44,16 @@ namespace WallstopStudios.DxAudio.Integration
         {
             get { return false; }
         }
+        private MusicPlayerMessagingCore _core;
 
         protected override void RegisterMessageHandlers()
         {
             base.RegisterMessageHandlers();
 
-            // Built here, after the base resolved this component's bus, so a fact is announced on the bus the request
-            // arrived on.
+            /*
+                Built here, after the base resolved this component's bus, so a fact is announced on the bus the request
+                arrived on.
+            */
             _core = new MusicPlayerMessagingCore(GetComponent<MusicPlayer>(), gameObject, _configuredMessageBus, _configuredMessageBusProvider);
             _core.Register(_messageRegistrationToken);
         }

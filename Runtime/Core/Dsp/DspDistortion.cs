@@ -20,27 +20,6 @@ namespace WallstopStudios.DxAudio
 
         private const float SmoothingSeconds = 0.01f;
 
-        private float _drive;
-        private float _toneHz;
-        private float _toneCoefficient;
-        private float _activeDrive;
-        private float _activeToneCoefficient;
-        private float _smoothingCoefficient;
-        private float[] _toneState;
-        private int _sampleRate;
-        private int _channels;
-
-        public DspDistortion()
-        {
-            _drive = 1f;
-            _toneHz = OpenToneHz;
-            _toneCoefficient = 1f;
-            _activeDrive = 1f;
-            _activeToneCoefficient = 1f;
-            _smoothingCoefficient = 1f;
-            _toneState = Array.Empty<float>();
-        }
-
         public override string DisplayName => "Distortion";
 
         /// <summary>Pre-gain into the wave shaper; one is the shape's own curve, higher is more bend.</summary>
@@ -72,52 +51,25 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
+        private float _drive;
+        private float _toneHz;
+        private float _toneCoefficient;
+        private float _activeDrive;
+        private float _activeToneCoefficient;
+        private float _smoothingCoefficient;
+        private float[] _toneState;
+        private int _sampleRate;
+        private int _channels;
+
+        public DspDistortion()
         {
-            _sampleRate = sampleRate;
-            _channels = channels;
-            _toneState = new float[channels];
-            _toneCoefficient = Coefficient(CappedToneHz(_toneHz, sampleRate), sampleRate);
-            _smoothingCoefficient = AudioMath.OnePoleCoefficient(SmoothingSeconds, sampleRate);
-            Reset();
-        }
-
-        public override void Process(float[] buffer, int offset, int count, int channels)
-        {
-            if (buffer == null || channels <= 0 || channels != _channels || offset < 0 || count <= 0 || count % channels != 0 || buffer.Length - count < offset)
-            {
-                return;
-            }
-
-            int stride = channels;
-
-            int frames = count / stride;
-            for (int frame = 0; frame < frames; frame++)
-            {
-                // A knob move is a ramp, not a step: the block reads one drive and one tone, reached over
-                // SmoothingSeconds, so a sweep does not click.
-                _activeDrive += (_drive - _activeDrive) * _smoothingCoefficient;
-                _activeToneCoefficient += (_toneCoefficient - _activeToneCoefficient) * _smoothingCoefficient;
-                int frameStart = offset + (frame * stride);
-                for (int channel = 0; channel < stride; channel++)
-                {
-                    int index = frameStart + channel;
-                    float shaped = (float)Math.Tanh(_activeDrive * buffer[index]);
-                    float filtered = _toneState[channel] + ((shaped - _toneState[channel]) * _activeToneCoefficient);
-                    _toneState[channel] = filtered;
-                    buffer[index] = filtered;
-                }
-            }
-        }
-
-        public override void Reset()
-        {
-            _activeDrive = _drive;
-            _activeToneCoefficient = _toneCoefficient;
-            if (_toneState != null)
-            {
-                Array.Clear(_toneState, 0, _toneState.Length);
-            }
+            _drive = 1f;
+            _toneHz = OpenToneHz;
+            _toneCoefficient = 1f;
+            _activeDrive = 1f;
+            _activeToneCoefficient = 1f;
+            _smoothingCoefficient = 1f;
+            _toneState = Array.Empty<float>();
         }
 
         private static float MaxToneHz(int sampleRate)
@@ -138,6 +90,56 @@ namespace WallstopStudios.DxAudio
             }
 
             return AudioMath.OnePoleCoefficient(1f / (2f * (float)Math.PI * toneHz), sampleRate);
+        }
+
+        public override void Process(float[] buffer, int offset, int count, int channels)
+        {
+            if (buffer == null || channels <= 0 || channels != _channels || offset < 0 || count <= 0 || count % channels != 0 || buffer.Length - count < offset)
+            {
+                return;
+            }
+
+            int stride = channels;
+
+            int frames = count / stride;
+            for (int frame = 0; frame < frames; ++frame)
+            {
+                /*
+                    A knob move is a ramp, not a step: the block reads one drive and one tone, reached over
+                    SmoothingSeconds, so a sweep does not click.
+                */
+                _activeDrive += (_drive - _activeDrive) * _smoothingCoefficient;
+                _activeToneCoefficient += (_toneCoefficient - _activeToneCoefficient) * _smoothingCoefficient;
+                int frameStart = offset + (frame * stride);
+                for (int channel = 0; channel < stride; ++channel)
+                {
+                    int index = frameStart + channel;
+                    float shaped = (float)Math.Tanh(_activeDrive * buffer[index]);
+                    float filtered = _toneState[channel] + ((shaped - _toneState[channel]) * _activeToneCoefficient);
+                    _toneState[channel] = filtered;
+                    buffer[index] = filtered;
+                }
+            }
+        }
+
+        public override void Reset()
+        {
+            _activeDrive = _drive;
+            _activeToneCoefficient = _toneCoefficient;
+            if (_toneState != null)
+            {
+                Array.Clear(_toneState, 0, _toneState.Length);
+            }
+        }
+
+        protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
+        {
+            _sampleRate = sampleRate;
+            _channels = channels;
+            _toneState = new float[channels];
+            _toneCoefficient = Coefficient(CappedToneHz(_toneHz, sampleRate), sampleRate);
+            _smoothingCoefficient = AudioMath.OnePoleCoefficient(SmoothingSeconds, sampleRate);
+            Reset();
         }
     }
 }

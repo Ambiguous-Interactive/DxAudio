@@ -44,39 +44,6 @@ namespace WallstopStudios.DxAudio
         /// <summary>How long a knob move takes to close about 63% of its step, in seconds.</summary>
         private const float SmoothingSeconds = 0.01f;
 
-        private DspFilterMode _mode;
-        private float _frequencyHz;
-        private float _quality;
-        private float _peakDecibels;
-        private float _targetG;
-        private float _targetK;
-        private float _targetPeakGain;
-        private float _activeG;
-        private float _activeK;
-        private float _activePeakGain;
-        private float _smoothingCoefficient;
-        private float[] _integratorOne;
-        private float[] _integratorTwo;
-        private int _sampleRate;
-        private int _channels;
-
-        public DspFilter()
-        {
-            _mode = DspFilterMode.LowPass;
-            _frequencyHz = DefaultFrequencyHz;
-            _quality = DefaultQuality;
-            _peakDecibels = 0f;
-            _targetG = 0f;
-            _targetK = 1f / DefaultQuality;
-            _targetPeakGain = 1f;
-            _activeG = 0f;
-            _activeK = _targetK;
-            _activePeakGain = 1f;
-            _smoothingCoefficient = 1f;
-            _integratorOne = Array.Empty<float>();
-            _integratorTwo = Array.Empty<float>();
-        }
-
         public override string DisplayName => "Filter";
 
         /// <summary>Which part of the spectrum the stage keeps.</summary>
@@ -137,15 +104,63 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
+        private DspFilterMode _mode;
+        private float _frequencyHz;
+        private float _quality;
+        private float _peakDecibels;
+        private float _targetG;
+        private float _targetK;
+        private float _targetPeakGain;
+        private float _activeG;
+        private float _activeK;
+        private float _activePeakGain;
+        private float _smoothingCoefficient;
+        private float[] _integratorOne;
+        private float[] _integratorTwo;
+        private int _sampleRate;
+        private int _channels;
+
+        public DspFilter()
         {
-            _sampleRate = sampleRate;
-            _channels = channels;
-            _integratorOne = new float[channels];
-            _integratorTwo = new float[channels];
-            _smoothingCoefficient = AudioMath.OnePoleCoefficient(SmoothingSeconds, sampleRate);
-            RecomputeTargets();
-            Reset();
+            _mode = DspFilterMode.LowPass;
+            _frequencyHz = DefaultFrequencyHz;
+            _quality = DefaultQuality;
+            _peakDecibels = 0f;
+            _targetG = 0f;
+            _targetK = 1f / DefaultQuality;
+            _targetPeakGain = 1f;
+            _activeG = 0f;
+            _activeK = _targetK;
+            _activePeakGain = 1f;
+            _smoothingCoefficient = 1f;
+            _integratorOne = Array.Empty<float>();
+            _integratorTwo = Array.Empty<float>();
+        }
+
+        private static float Shape(DspFilterMode mode, float input, float band, float low, float damping, float peakGain)
+        {
+            switch (mode)
+            {
+                case DspFilterMode.LowPass:
+                    return low;
+                case DspFilterMode.HighPass:
+                    return input - (damping * band) - low;
+                case DspFilterMode.BandPass:
+                    // The band output of this core peaks at the quality; the damping turns that into unity.
+                    return damping * band;
+                case DspFilterMode.Notch:
+                    return input - (damping * band);
+                case DspFilterMode.Peak:
+                case DspFilterMode.Bell:
+                    /*
+                        Both mix the band under the dry signal; a bell moves the damping with the gain, so the skirts
+                        mirror. At the corner the band reads 1 / damping, which leaves exactly the gain for either mode.
+                    */
+                    return input + ((peakGain - 1f) * damping * band);
+                default:
+                    // An unset mode passes the block through rather than guessing a band the author did not ask for.
+                    return input;
+            }
         }
 
         public override void Process(float[] buffer, int offset, int count, int channels)
@@ -164,23 +179,25 @@ namespace WallstopStudios.DxAudio
             float peakGain = _activePeakGain;
             float smoothing = _smoothingCoefficient;
             DspFilterMode mode = _mode;
-            for (int frame = 0; frame < frames; frame++)
+            for (int frame = 0; frame < frames; ++frame)
             {
                 g += (_targetG - g) * smoothing;
                 k += (_targetK - k) * smoothing;
                 peakGain += (_targetPeakGain - peakGain) * smoothing;
 
-                // The integrator coefficients follow from the smoothed corner every frame, so a moving corner never
-                // jumps between two sets of poles.
-                // A bell moves its damping with the gain, so an equally sized boost and cut have the same width. The
-                // gain is clamped to -24 dB, so its square root never reaches zero on the audio thread.
+                /*
+                    The integrator coefficients follow from the smoothed corner every frame, so a moving corner never
+                    jumps between two sets of poles.
+                    A bell moves its damping with the gain, so an equally sized boost and cut have the same width. The
+                    gain is clamped to -24 dB, so its square root never reaches zero on the audio thread.
+                */
                 float damping = mode == DspFilterMode.Bell ? k / (float)Math.Sqrt(peakGain) : k;
                 float a1 = 1f / (1f + (g * (g + damping)));
                 float a2 = g * a1;
                 float a3 = g * a2;
 
                 int frameStart = offset + (frame * stride);
-                for (int channel = 0; channel < stride; channel++)
+                for (int channel = 0; channel < stride; ++channel)
                 {
                     int index = frameStart + channel;
                     float input = buffer[index];
@@ -214,28 +231,15 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        private static float Shape(DspFilterMode mode, float input, float band, float low, float damping, float peakGain)
+        protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
         {
-            switch (mode)
-            {
-                case DspFilterMode.LowPass:
-                    return low;
-                case DspFilterMode.HighPass:
-                    return input - (damping * band) - low;
-                case DspFilterMode.BandPass:
-                    // The band output of this core peaks at the quality; the damping turns that into unity.
-                    return damping * band;
-                case DspFilterMode.Notch:
-                    return input - (damping * band);
-                case DspFilterMode.Peak:
-                case DspFilterMode.Bell:
-                    // Both mix the band under the dry signal; a bell moves the damping with the gain, so the skirts
-                    // mirror. At the corner the band reads 1 / damping, which leaves exactly the gain for either mode.
-                    return input + ((peakGain - 1f) * damping * band);
-                default:
-                    // An unset mode passes the block through rather than guessing a band the author did not ask for.
-                    return input;
-            }
+            _sampleRate = sampleRate;
+            _channels = channels;
+            _integratorOne = new float[channels];
+            _integratorTwo = new float[channels];
+            _smoothingCoefficient = AudioMath.OnePoleCoefficient(SmoothingSeconds, sampleRate);
+            RecomputeTargets();
+            Reset();
         }
 
         private void RecomputeTargets()

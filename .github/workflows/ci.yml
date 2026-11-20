@@ -20,27 +20,91 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          dotnet-version: 9.0.x
-      - name: Test the engine-free core
-        run: dotnet test .net-tests --configuration Release
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: .net-tests/global.json
+          cache: true
+          cache-dependency-path: .net-tests/**/packages.lock.json
+      - name: Compile and analyze Core and run the .NET tests
+        run: python3 .net-tests/run_checks.py --clean
 
   package-checks:
     name: Format and meta files
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          dotnet-version: 9.0.x
-      - name: Check formatting
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: .net-tests/global.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Install the pinned formatter
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Validate workflow expressions
+        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7
+      - name: Lint workflow YAML
+        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c
+        with:
+          file_or_dir: .github/workflows
+          config_file: .github/scripts/yamllint.yml
+          strict: true
+      - name: Check spelling in product docs
+        run: npm run lint:spelling
+      - name: Check text formatting
+        run: |
+          python3 .github/scripts/test_text_files.py
+          python3 .github/scripts/check_text_files.py
+      - name: Check formatting with the pinned SDK
+        working-directory: .net-tests
         run: |
           dotnet tool restore
-          dotnet csharpier check .
+          dotnet csharpier check ..
       - name: Check every package asset has a .meta file
-        run: python3 .github/scripts/meta_files.py --check
-      - name: Check what npm would publish
-        run: python3 .github/scripts/package_check.py
+        run: |
+          python3 .github/scripts/test_meta_files.py
+          python3 .github/scripts/meta_files.py --check
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.12.10"
+          enable-cache: false
+      - name: Check Unity workflow decisions
+        run: uv run --no-project --with pyyaml==6.0.3 python .github/scripts/test_unity_workflow.py
+      - name: Check strict Python policy
+        run: uv run --project scripts/python~ --isolated --locked python scripts/python~/check.py
+      - name: Verify upstream checks and analyzer fixtures
+        id: upstream-checks
+        run: python3 .github/checks/unity_helpers_coverage.py --validate --analyzer-fixtures --require-complete
+      - name: Retain unsafe code analysis report
+        if: ${{ always() && (steps.upstream-checks.outcome == 'success' || steps.upstream-checks.outcome == 'failure') }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: dxaudio-unsafe-code-sarif
+          path: ${{ runner.temp }}/dxaudio-unsafe-code.sarif
+          if-no-files-found: error
+      - name: Check Unity runner controls
+        run: python3 .net-tests/UnityValidation/test_runner.py
+      - name: Check the consumer package
+        run: |
+          python3 .github/scripts/test_package_check.py
+          python3 .github/scripts/package_check.py
+
+  build-package-safety:
+    name: Build and package safety
+    needs: [core-tests, package-checks]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require both validation jobs
+        env:
+          CORE_RESULT: ${{ needs.core-tests.result }}
+          PACKAGE_RESULT: ${{ needs.package-checks.result }}
+        run: test "$CORE_RESULT" = success && test "$PACKAGE_RESULT" = success

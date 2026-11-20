@@ -39,5 +39,5 @@ metadata:
 
 ## Related
 
-- [voice-arbitration](./voice-arbitration/SKILL.md) - the sound-effects-side policy
-- [measure-audio-behaviour](./measure-audio-behaviour/SKILL.md) - prove no per-frame allocation
+- [voice-arbitration](../voice-arbitration/SKILL.md) - the sound-effects-side policy
+- [measure-audio-behaviour](../measure-audio-behaviour/SKILL.md) - prove no per-frame allocation

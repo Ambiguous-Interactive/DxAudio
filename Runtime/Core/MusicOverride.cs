@@ -18,6 +18,13 @@ namespace WallstopStudios.DxAudio
     public sealed class MusicOverride<TTrack> : IMusicOverrideIssuer
         where TTrack : class
     {
+        /// <summary>The music wanted now: the override when there is one, otherwise the context's.</summary>
+        /// <remarks>A destroyed override track no longer counts, so the context's music is wanted.</remarks>
+        public TTrack Current => UnityObjects.IsGone(_overrideTrack) ? _contextTrack : _overrideTrack;
+
+        public TTrack ContextTrack => _contextTrack;
+
+        public bool IsOverridden => _activeId != MusicOverrideLease.NoneId;
         private readonly IEqualityComparer<TTrack> _sameMusic;
         private readonly Action<TTrack> _onSelectionChanged;
         private readonly Func<TTrack, bool> _isPlayable;
@@ -43,14 +50,6 @@ namespace WallstopStudios.DxAudio
             _sameMusic = sameMusic ?? EqualityComparer<TTrack>.Default;
             _isPlayable = isPlayable;
         }
-
-        /// <summary>The music wanted now: the override when there is one, otherwise the context's.</summary>
-        /// <remarks>A destroyed override track no longer counts, so the context's music is wanted.</remarks>
-        public TTrack Current => UnityObjects.IsGone(_overrideTrack) ? _contextTrack : _overrideTrack;
-
-        public TTrack ContextTrack => _contextTrack;
-
-        public bool IsOverridden => _activeId != MusicOverrideLease.NoneId;
 
         /// <summary>Sets the context's music and clears any override.</summary>
         /// <returns>Whether the wanted music changed.</returns>
@@ -129,6 +128,10 @@ namespace WallstopStudios.DxAudio
 
         public static readonly MusicOverrideLease None = new();
 
+        public bool IsValid => _id != NoneId && _issuer != null;
+
+        internal long Id => _id;
+
         private readonly long _id;
         private readonly IMusicOverrideIssuer _issuer;
 
@@ -136,15 +139,6 @@ namespace WallstopStudios.DxAudio
         {
             _id = id;
             _issuer = issuer;
-        }
-
-        public bool IsValid => _id != NoneId && _issuer != null;
-
-        internal long Id => _id;
-
-        internal bool IssuedBy(IMusicOverrideIssuer issuer)
-        {
-            return ReferenceEquals(_issuer, issuer);
         }
 
         public void Dispose()
@@ -174,6 +168,11 @@ namespace WallstopStudios.DxAudio
         public override string ToString()
         {
             return IsValid ? $"music override #{_id}" : "no override";
+        }
+
+        internal bool IssuedBy(IMusicOverrideIssuer issuer)
+        {
+            return ReferenceEquals(_issuer, issuer);
         }
     }
 }

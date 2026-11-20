@@ -26,6 +26,8 @@ namespace WallstopStudios.DxAudio
 
         public static readonly MusicAttenuation Silent = new(SilentVolumeScale, OpenLowPassCutoffHz, OpenHighPassCutoffHz);
 
+        public bool IsUnattenuated => Equals(Unattenuated);
+
         public readonly float volumeScale;
         public readonly float lowPassCutoffHz;
         public readonly float highPassCutoffHz;
@@ -40,8 +42,6 @@ namespace WallstopStudios.DxAudio
             this.lowPassCutoffHz = BandedCutoffHz(lowPassCutoffHz);
             this.highPassCutoffHz = Math.Min(BandedCutoffHz(highPassCutoffHz), this.lowPassCutoffHz);
         }
-
-        public bool IsUnattenuated => Equals(Unattenuated);
 
         public static float BandedCutoffHz(float cutoffHz)
         {
@@ -66,6 +66,18 @@ namespace WallstopStudios.DxAudio
             float lowPass = LerpLog(from.lowPassCutoffHz, to.lowPassCutoffHz, clamped);
             float highPass = LerpLog(from.highPassCutoffHz, to.highPassCutoffHz, clamped);
             return new MusicAttenuation(volume, lowPass, highPass);
+        }
+
+        private static int Quantized(float value, float quantum)
+        {
+            return (int)Math.Round(value / quantum);
+        }
+
+        private static float LerpLog(float from, float to, float t)
+        {
+            double logFrom = Math.Log(Math.Max(from, OpenHighPassCutoffHz));
+            double logTo = Math.Log(Math.Max(to, OpenHighPassCutoffHz));
+            return (float)Math.Exp(logFrom + ((logTo - logFrom) * t));
         }
 
         public bool Equals(MusicAttenuation other)
@@ -94,18 +106,6 @@ namespace WallstopStudios.DxAudio
         public override string ToString()
         {
             return $"volume x{volumeScale:0.###}, low-pass {lowPassCutoffHz:0}Hz, high-pass {highPassCutoffHz:0}Hz";
-        }
-
-        private static int Quantized(float value, float quantum)
-        {
-            return (int)Math.Round(value / quantum);
-        }
-
-        private static float LerpLog(float from, float to, float t)
-        {
-            double logFrom = Math.Log(Math.Max(from, OpenHighPassCutoffHz));
-            double logTo = Math.Log(Math.Max(to, OpenHighPassCutoffHz));
-            return (float)Math.Exp(logFrom + ((logTo - logFrom) * t));
         }
     }
 }

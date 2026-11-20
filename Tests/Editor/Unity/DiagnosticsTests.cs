@@ -11,6 +11,58 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         /// <summary>Samples per heap probe. Unity's Mono reports nothing for a few hundred KB, so the loop is long.</summary>
         private const int SampleCount = 20_000;
 
+        /// <summary>
+        /// The heap growth of <paramref name="samples"/> samples of an enabled overlay, after a collection. Unity's Mono
+        /// reports zero from <c>GC.GetAllocatedBytesForCurrentThread</c>, so the heap is the probe that can move here.
+        /// </summary>
+        /// <remarks>
+        /// Every sampled report is kept and both ends of the window force a collection, so the probe reads live bytes.
+        /// A plain heap reading was order dependent: a full suite run reported 0 to 16 KB for the same work. Unity's
+        /// Mono also reports nothing for a few hundred KB of new strings, so the loop runs 20,000 samples.
+        /// </remarks>
+        private static long HeapGrowth(AudioDiagnosticsOverlay overlay, int samples)
+        {
+            string[] kept = new string[samples];
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            long before = GC.GetTotalMemory(forceFullCollection: true);
+            for (int index = 0; index < samples; ++index)
+            {
+                overlay.Sample();
+                kept[index] = overlay.Text;
+            }
+
+            long growth = GC.GetTotalMemory(forceFullCollection: true) - before;
+            GC.KeepAlive(kept);
+            return growth;
+        }
+
+        private static AudioDiagnosticsOverlay Overlay(MadeObjects made, SfxPlayer sfx, MusicPlayer music)
+        {
+            AudioDiagnosticsOverlay overlay = made.Track(new GameObject("diagnostics")).AddComponent<AudioDiagnosticsOverlay>();
+            overlay.Sfx = sfx;
+            overlay.Music = music;
+            return overlay;
+        }
+
+        private static SfxPlayer SfxPlayer(MadeObjects made, SfxLibrary library)
+        {
+            made.Track(library);
+            SfxPlayer player = made.Track(new GameObject("sfx")).AddComponent<SfxPlayer>();
+            player.Library = library;
+            return player;
+        }
+
+        private static SfxCue Cue(MadeObjects made, bool loop, SfxPriority priority = SfxPriority.Medium, float minimumIntervalSeconds = 0f)
+        {
+            return made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, priority: priority, minimumIntervalSeconds: minimumIntervalSeconds, loop: loop));
+        }
+
+        private static AudioClip Clip(MadeObjects made)
+        {
+            return made.Track(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
+        }
+
         [Test]
         public void DroppedCuesAreCountedByReason()
         {
@@ -85,14 +137,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             AudioDiagnosticsOverlay overlay = Overlay(made, sfx, music);
 
             Assert.That(overlay.Enabled, Is.False);
-            for (int index = 0; index < 32; index++)
+            for (int index = 0; index < 32; ++index)
             {
                 overlay.Sample();
                 Assert.That(overlay.Text, Is.SameAs(string.Empty), "a switched-off overlay rebuilds no report");
             }
 
             overlay.Enabled = true;
-            for (int index = 0; index < 32; index++)
+            for (int index = 0; index < 32; ++index)
             {
                 overlay.Sample();
             }
@@ -126,58 +178,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             serialized.ApplyModifiedPropertiesWithoutUndo();
             Assert.That(overlay.useGUILayout, Is.False, "an Inspector edit to Enabled stops the layout pass too");
             Assert.That(overlay.Text, Is.Empty, "and it clears the report");
-        }
-
-        /// <summary>
-        /// The heap growth of <paramref name="samples"/> samples of an enabled overlay, after a collection. Unity's Mono
-        /// reports zero from <c>GC.GetAllocatedBytesForCurrentThread</c>, so the heap is the probe that can move here.
-        /// </summary>
-        /// <remarks>
-        /// Every sampled report is kept and both ends of the window force a collection, so the probe reads live bytes.
-        /// A plain heap reading was order dependent: a full suite run reported 0 to 16 KB for the same work. Unity's
-        /// Mono also reports nothing for a few hundred KB of new strings, so the loop runs 20,000 samples.
-        /// </remarks>
-        private static long HeapGrowth(AudioDiagnosticsOverlay overlay, int samples)
-        {
-            string[] kept = new string[samples];
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            long before = GC.GetTotalMemory(forceFullCollection: true);
-            for (int index = 0; index < samples; index++)
-            {
-                overlay.Sample();
-                kept[index] = overlay.Text;
-            }
-
-            long growth = GC.GetTotalMemory(forceFullCollection: true) - before;
-            GC.KeepAlive(kept);
-            return growth;
-        }
-
-        private static AudioDiagnosticsOverlay Overlay(MadeObjects made, SfxPlayer sfx, MusicPlayer music)
-        {
-            AudioDiagnosticsOverlay overlay = made.Track(new GameObject("diagnostics")).AddComponent<AudioDiagnosticsOverlay>();
-            overlay.Sfx = sfx;
-            overlay.Music = music;
-            return overlay;
-        }
-
-        private static SfxPlayer SfxPlayer(MadeObjects made, SfxLibrary library)
-        {
-            made.Track(library);
-            SfxPlayer player = made.Track(new GameObject("sfx")).AddComponent<SfxPlayer>();
-            player.Library = library;
-            return player;
-        }
-
-        private static SfxCue Cue(MadeObjects made, bool loop, SfxPriority priority = SfxPriority.Medium, float minimumIntervalSeconds = 0f)
-        {
-            return made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, priority: priority, minimumIntervalSeconds: minimumIntervalSeconds, loop: loop));
-        }
-
-        private static AudioClip Clip(MadeObjects made)
-        {
-            return made.Track(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
         }
     }
 }

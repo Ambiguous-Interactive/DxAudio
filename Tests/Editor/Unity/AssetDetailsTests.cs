@@ -11,6 +11,64 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
     public sealed class AssetDetailsTests
     {
+        private static AudioClip ConstantTake(MadeObjects made, float amplitude, int leadIn = 0)
+        {
+            AudioClip clip = made.Track(AudioClip.Create("Level fixture", 1_600, 1, 8_000, false));
+            float[] samples = new float[clip.samples];
+            for (int index = leadIn, samplesLength = samples.Length; index < samplesLength; ++index)
+            {
+                samples[index] = amplitude;
+            }
+            Assert.That(clip.SetData(samples, 0), Is.True);
+            return clip;
+        }
+
+        private static SceneView FindOrCreateSceneView(MadeObjects made)
+        {
+            SceneView view = SceneView.lastActiveSceneView;
+            return view != null ? view : made.Track(ScriptableObject.CreateInstance<SceneView>());
+        }
+
+        private static Button FindButton(VisualElement panel, string title)
+        {
+            Button button = panel.Query<Button>().Where(candidate => string.Equals(candidate.text, title, System.StringComparison.Ordinal)).First();
+            Assert.That(button != null, Is.True, title);
+            return button;
+        }
+
+        private static void Press(VisualElement panel, string title)
+        {
+            Button button = FindButton(panel, title);
+            Assert.That(button.enabledSelf, Is.True, title);
+
+            // Use the registered click handler without an EditorWindow or event loop.
+            MethodInfo invoke = typeof(Clickable).GetMethod("Invoke", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(invoke != null, Is.True);
+            invoke.Invoke(button.clickable, new object[] { null });
+        }
+
+        private static AudioSource FindPreviewSource(AudioClip clip)
+        {
+            AudioSource[] sources = Resources.FindObjectsOfTypeAll<AudioSource>();
+            foreach (AudioSource source in sources)
+            {
+                if (source.clip == clip && source.TryGetComponent<DspAuditionFilter>(out _))
+                {
+                    return source;
+                }
+            }
+
+            Assert.Fail($"No cue audition source was configured for {clip.name}.");
+            return null;
+        }
+
+        private static void AssertPreview(SfxPlayback draw)
+        {
+            AudioSource source = FindPreviewSource(draw.Variant.Clip);
+            Assert.That(source.pitch, Is.EqualTo(draw.Pitch).Within(0.0001f));
+            Assert.That(source.volume, Is.EqualTo(draw.Volume).Within(0.0001f));
+        }
+
         [Test]
         public void LibrarySearchMatchesKeysAndNamesAndKeepsMembershipOrder()
         {
@@ -126,7 +184,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 Press(panel, "Play Cue");
                 AssertPreview(firstDraw);
                 Press(panel, "Stop");
-                panel.Query<Toggle>().Where(toggle => toggle.label == "Bypass variation on replay").First().SetValueWithoutNotify(true);
+                panel
+                    .Query<Toggle>()
+                    .Where(toggle => string.Equals(toggle.label, "Bypass variation on replay", System.StringComparison.Ordinal))
+                    .First()
+                    .SetValueWithoutNotify(true);
                 Press(panel, "Replay Last");
                 AudioSource replay = FindPreviewSource(firstDraw.Variant.Clip);
                 Assert.That(replay.pitch, Is.EqualTo(1f));
@@ -370,18 +432,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(one.Variation.UseShuffle, Is.False);
         }
 
-        private static AudioClip ConstantTake(MadeObjects made, float amplitude, int leadIn = 0)
-        {
-            AudioClip clip = made.Track(AudioClip.Create("Level fixture", 1_600, 1, 8_000, false));
-            float[] samples = new float[clip.samples];
-            for (int index = leadIn; index < samples.Length; ++index)
-            {
-                samples[index] = amplitude;
-            }
-            Assert.That(clip.SetData(samples, 0), Is.True);
-            return clip;
-        }
-
         [Test]
         public void EditingATrimInvalidatesTheCapturedComparison()
         {
@@ -444,52 +494,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                     view.audioPlay = true;
                 }
             }
-        }
-
-        private static SceneView FindOrCreateSceneView(MadeObjects made)
-        {
-            SceneView view = SceneView.lastActiveSceneView;
-            return view != null ? view : made.Track(ScriptableObject.CreateInstance<SceneView>());
-        }
-
-        private static Button FindButton(VisualElement panel, string title)
-        {
-            Button button = panel.Query<Button>().Where(candidate => candidate.text == title).First();
-            Assert.That(button != null, Is.True, title);
-            return button;
-        }
-
-        private static void Press(VisualElement panel, string title)
-        {
-            Button button = FindButton(panel, title);
-            Assert.That(button.enabledSelf, Is.True, title);
-
-            // Use the registered click handler without an EditorWindow or event loop.
-            MethodInfo invoke = typeof(Clickable).GetMethod("Invoke", BindingFlags.Instance | BindingFlags.NonPublic);
-            Assert.That(invoke != null, Is.True);
-            invoke.Invoke(button.clickable, new object[] { null });
-        }
-
-        private static AudioSource FindPreviewSource(AudioClip clip)
-        {
-            AudioSource[] sources = Resources.FindObjectsOfTypeAll<AudioSource>();
-            foreach (AudioSource source in sources)
-            {
-                if (source.clip == clip && source.GetComponent<DspAuditionFilter>() != null)
-                {
-                    return source;
-                }
-            }
-
-            Assert.Fail($"No cue audition source was configured for {clip.name}.");
-            return null;
-        }
-
-        private static void AssertPreview(SfxPlayback draw)
-        {
-            AudioSource source = FindPreviewSource(draw.Variant.Clip);
-            Assert.That(source.pitch, Is.EqualTo(draw.Pitch).Within(0.0001f));
-            Assert.That(source.volume, Is.EqualTo(draw.Volume).Within(0.0001f));
         }
     }
 }

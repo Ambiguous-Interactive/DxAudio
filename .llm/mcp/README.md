@@ -230,7 +230,7 @@ Run `npm run unity:mcp:doctor` on the **host** for pinned `unity status` and `un
 the HTTP/MCP canary. Discovery errors can describe pending package loading, Safe Mode, unreadable discovery files or a
 wrong account; retain the actual codes. Container diagnostics cannot query the host process registry. The doctor uses
 the advertised status tool, including `unity-cli-status`, and preserves its error text. See
-[lifecycle diagnosis](../references/unity-bridge-lifecycle.md).
+[troubleshooting the Unity bridge](../skills/unity-mcp/SKILL.md#troubleshooting).
 
 The bridge now forwards Unity's tool-catalog changes over authenticated GET `/mcp` SSE streams. Initialization returns
 `Mcp-Session-Id`; clients send it on later requests. Each session has one active stream, notification storage is

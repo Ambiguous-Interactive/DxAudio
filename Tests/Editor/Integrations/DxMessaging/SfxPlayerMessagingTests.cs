@@ -37,6 +37,63 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         private MessageBus _bus;
 
+        private static int PlayingVoices(SfxPlayer player)
+        {
+            int playing = 0;
+            for (int voice = 0; voice < player.VoiceCount; ++voice)
+            {
+                if (player.TryGetVoiceState(voice, out SfxVoiceState state, out _) && state.isPlaying)
+                {
+                    ++playing;
+                }
+            }
+
+            return playing;
+        }
+
+        private static AudioSource PlayingSource(SfxPlayer player)
+        {
+            AudioSource[] sources = player.GetComponentsInChildren<AudioSource>();
+            foreach (AudioSource source in sources)
+            {
+                if (source.isPlaying)
+                {
+                    return source;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>The smallest heap growth of <see cref="Windows"/> runs of <paramref name="count"/> calls.</summary>
+        /// <remarks>
+        /// The same probe as <c>AllocationTests</c>: a collection at the end would reclaim the churn this looks for,
+        /// so the raw heap is read, and the smallest window wins because Mono commits segments in coarse steps.
+        /// </remarks>
+        private static long HeapGrowth(Action emit, int count)
+        {
+            emit();
+            long smallest = long.MaxValue;
+            for (int window = 0; window < Windows; ++window)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                long before = GC.GetTotalMemory(forceFullCollection: false);
+                for (int index = 0; index < count; ++index)
+                {
+                    emit();
+                }
+
+                long growth = GC.GetTotalMemory(forceFullCollection: false) - before;
+                if (growth < smallest)
+                {
+                    smallest = growth;
+                }
+            }
+
+            return smallest;
+        }
+
         [SetUp]
         public void SetUp()
         {
@@ -46,23 +103,23 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TearDown]
         public void TearDown()
         {
-            for (int index = 0; index < _relays.Count; ++index)
+            foreach (SfxPlayerMessagingCore relay in _relays)
             {
-                _relays[index].Dispose();
+                relay.Dispose();
             }
 
             _relays.Clear();
-            for (int index = 0; index < _tokens.Count; ++index)
+            foreach (MessageRegistrationToken token in _tokens)
             {
-                _tokens[index].Dispose();
+                token.Dispose();
             }
 
             _tokens.Clear();
-            for (int index = 0; index < _made.Count; ++index)
+            foreach (Object made in _made)
             {
-                if (_made[index] != null)
+                if (made != null)
                 {
-                    Object.DestroyImmediate(_made[index]);
+                    Object.DestroyImmediate(made);
                 }
             }
 
@@ -328,63 +385,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             MessageRegistrationHandle registration = token.RegisterGameObjectBroadcast<T>(source, handler);
             token.Enable();
             return registration;
-        }
-
-        private static int PlayingVoices(SfxPlayer player)
-        {
-            int playing = 0;
-            for (int voice = 0; voice < player.VoiceCount; ++voice)
-            {
-                if (player.TryGetVoiceState(voice, out SfxVoiceState state, out _) && state.isPlaying)
-                {
-                    ++playing;
-                }
-            }
-
-            return playing;
-        }
-
-        private static AudioSource PlayingSource(SfxPlayer player)
-        {
-            AudioSource[] sources = player.GetComponentsInChildren<AudioSource>();
-            for (int index = 0; index < sources.Length; ++index)
-            {
-                if (sources[index].isPlaying)
-                {
-                    return sources[index];
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>The smallest heap growth of <see cref="Windows"/> runs of <paramref name="count"/> calls.</summary>
-        /// <remarks>
-        /// The same probe as <c>AllocationTests</c>: a collection at the end would reclaim the churn this looks for,
-        /// so the raw heap is read, and the smallest window wins because Mono commits segments in coarse steps.
-        /// </remarks>
-        private static long HeapGrowth(Action emit, int count)
-        {
-            emit();
-            long smallest = long.MaxValue;
-            for (int window = 0; window < Windows; ++window)
-            {
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-                long before = GC.GetTotalMemory(forceFullCollection: false);
-                for (int index = 0; index < count; ++index)
-                {
-                    emit();
-                }
-
-                long growth = GC.GetTotalMemory(forceFullCollection: false) - before;
-                if (growth < smallest)
-                {
-                    smallest = growth;
-                }
-            }
-
-            return smallest;
         }
 
         private SfxPlayer Player(SfxCue cue, int voiceCount, int loopingVoiceLimit = 4)

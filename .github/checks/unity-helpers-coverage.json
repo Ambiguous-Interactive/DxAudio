@@ -1,0 +1,2009 @@
+{
+  "revision": "072d2dddd79b4a9210aa2812ae5761bf9a5e28c8",
+  "gates": {
+    "upstream-source": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "run": "python3 .github/checks/unity_helpers_coverage.py --validate --analyzer-fixtures --require-complete",
+      "files": [
+        ".github/checks/portable_build_lock.py",
+        ".github/checks/portable_csharp_checks.py",
+        ".github/checks/portable_doc_checks.py",
+        ".github/checks/portable_git_checks.py",
+        ".github/checks/portable_test_checks.py",
+        ".github/checks/portable_tool_checks.py",
+        ".github/checks/test_unity_helpers_coverage.py",
+        ".github/checks/unity_helpers_source_checks.py",
+        ".github/checks/unity_helpers_unsafe.cjs"
+      ]
+    },
+    "core": {
+      "path": ".github/workflows/ci.yml",
+      "job": "core-tests",
+      "run": "python3 .net-tests/run_checks.py --clean",
+      "files": [".net-tests/UnityHelpers.ruleset", ".net-tests/Compatibility/DxAudio.Core.Compatibility.csproj"]
+    },
+    "package": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "run": "python3 .github/scripts/package_check.py",
+      "files": [".github/scripts/package_check.py", ".github/scripts/test_package_check.py"]
+    },
+    "unity": {
+      "path": ".github/workflows/unity-tests.yml",
+      "job": "unity-tests",
+      "run": "./scripts/unity/run-editmode-tests.ps1",
+      "files": [
+        ".net-tests/UnityValidation/test_runner.py",
+        "scripts/unity/run-editmode-tests.ps1",
+        "scripts/unity/show-editmode-log-tail.ps1",
+        "scripts/unity/unity-log.ps1",
+        "scripts/unity/unity-process.ps1"
+      ]
+    },
+    "unity-controls": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "run": "python3 .net-tests/UnityValidation/test_runner.py",
+      "files": [".net-tests/UnityValidation/test_runner.py", "scripts/unity/unity-process.ps1", "scripts/unity/unity-log.ps1"]
+    },
+    "unity-archive": {
+      "path": ".github/workflows/unity-tests.yml",
+      "job": "unity-tests",
+      "run": "./scripts/unity/run-editmode-tests.ps1 -ArchiveSmoke",
+      "files": ["scripts/unity/run-editmode-tests.ps1", ".net-tests/UnityValidation/test_runner.py"]
+    },
+    "metadata": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "run": "python3 .github/scripts/meta_files.py --check",
+      "files": [".github/scripts/meta_files.py"]
+    },
+    "repo-lints": {
+      "path": ".github/workflows/llm-lint.yml",
+      "job": "lint",
+      "run": "uv run scripts/run_ci_lints.py",
+      "files": ["scripts/run_ci_lints.py", "scripts/lint_meta_companions.py"]
+    },
+    "markdown-format": {
+      "path": ".github/workflows/llm-lint.yml",
+      "job": "lint",
+      "run": "uv run scripts/markdown_check.py ${{ github.event_name == 'push' && 'all' || steps.check-scope.outputs.markdown-files }}",
+      "files": ["scripts/markdown_check.py", "scripts/tests/test_markdown_check.py"]
+    },
+    "workflow-yaml": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "uses": "ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c",
+      "files": [".github/scripts/yamllint.yml"]
+    },
+    "text-files": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "run": "python3 .github/scripts/check_text_files.py",
+      "files": [".github/scripts/check_text_files.py"]
+    },
+    "spelling": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "run": "npm run lint:spelling",
+      "files": [".github/scripts/cspell.json"]
+    },
+    "release": {
+      "path": ".github/workflows/release.yml",
+      "job": "release",
+      "run": "python3 .github/scripts/package_check.py --tag \"${TAG}\" --out dist",
+      "files": [".github/scripts/package_check.py"]
+    },
+    "unity-online-runner": {
+      "path": ".github/workflows/unity-tests.yml",
+      "job": "runner-preflight",
+      "uses": "Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/check-unity-runner-availability@720ef47f9ab352fbc9403363ca63ae8c487a2442 # v1.18.1"
+    },
+    "unity-current-head": {
+      "path": ".github/workflows/unity-tests.yml",
+      "job": "unity-tests",
+      "uses": "Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/require-current-pr-head@720ef47f9ab352fbc9403363ca63ae8c487a2442 # v1.18.1"
+    },
+    "unity-installed-editor": {
+      "path": ".github/workflows/unity-tests.yml",
+      "job": "unity-tests",
+      "uses": "Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/ensure-unity-editor@720ef47f9ab352fbc9403363ca63ae8c487a2442 # v1.18.1"
+    },
+    "unity-license-validation": {
+      "path": ".github/workflows/unity-tests.yml",
+      "job": "unity-tests",
+      "uses": "Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/validate-unity-license@720ef47f9ab352fbc9403363ca63ae8c487a2442 # v1.18.1"
+    },
+    "unity-lock": {
+      "path": ".github/workflows/unity-tests.yml",
+      "job": "unity-tests",
+      "uses": "Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/acquire-build-lock@720ef47f9ab352fbc9403363ca63ae8c487a2442 # v1.18.1"
+    },
+    "unity-license-return": {
+      "path": ".github/workflows/unity-tests.yml",
+      "job": "unity-tests",
+      "uses": "Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/return-unity-license@720ef47f9ab352fbc9403363ca63ae8c487a2442 # v1.18.1"
+    },
+    "unity-cleanup": {
+      "path": ".github/workflows/unity-tests.yml",
+      "job": "unity-tests",
+      "uses": "Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/classify-unity-cleanup-evidence@720ef47f9ab352fbc9403363ca63ae8c487a2442 # v1.18.1"
+    },
+    "unity-lock-release": {
+      "path": ".github/workflows/unity-tests.yml",
+      "job": "unity-tests",
+      "uses": "Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/release-build-lock@720ef47f9ab352fbc9403363ca63ae8c487a2442 # v1.18.1"
+    },
+    "unity-cleanup-verdict": {
+      "path": ".github/workflows/unity-tests.yml",
+      "job": "unity-tests",
+      "uses": "Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/require-confirmed-unity-cleanup@720ef47f9ab352fbc9403363ca63ae8c487a2442 # v1.18.1"
+    },
+    "unity-aggregate": {
+      "path": ".github/workflows/unity-tests.yml",
+      "job": "unity-ci-success",
+      "run": "test \"${UNITY_TESTS_RESULT}\" = success"
+    },
+    "unity-failure-report": {
+      "path": ".github/workflows/unity-tests.yml",
+      "job": "unity-tests",
+      "run": "./scripts/unity/show-editmode-log-tail.ps1",
+      "files": ["scripts/unity/unity-log.ps1", ".net-tests/UnityValidation/test_runner.py"]
+    },
+    "harness-self-tests": {
+      "path": ".github/workflows/llm-lint.yml",
+      "job": "lint",
+      "run": "uv run scripts/tests/run_all.py --names \"${{ steps.check-scope.outputs.selection }}\"",
+      "files": ["scripts/tests/test_unity_mcp_host.py", "scripts/tests/test_unity_mcp_doctor.py"]
+    },
+    "harness-tests": {
+      "path": ".github/workflows/llm-lint.yml",
+      "job": "lint",
+      "run": "uv run scripts/tests/run_all.py --names \"${{ steps.check-scope.outputs.selection }}\"",
+      "files": ["scripts/tests/run_all.py", "scripts/tests/test_harness_scope.py", "scripts/tests/test_run_all.py", "scripts/tests/test_mcp_sync.py"]
+    },
+    "openai-review": {
+      "path": ".github/workflows/openai-review.yml",
+      "job": "review",
+      "uses": "Ambiguous-Interactive/review-tools/.github/workflows/openai-review.yml@d8aab4dc3655924360ff17ebb04bbc3a844a493f # v1.1.0",
+      "files": []
+    },
+    "actionlint": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "uses": "raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7",
+      "files": []
+    },
+    "external-links": {
+      "path": ".github/workflows/doc-links.yml",
+      "job": "external-links",
+      "uses": "lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8",
+      "files": [".github/checks/lychee.toml"]
+    },
+    "unity-integration-player": {
+      "path": ".github/workflows/unity-tests.yml",
+      "job": "unity-tests",
+      "run": "./scripts/unity/run-editmode-tests.ps1 -IntegrationPlayerSmoke -Label consumer-archive-integration -DxMessagingVersion \"3.3.0\"",
+      "files": [".net-tests/UnityValidation/ArchiveSmoke.cs", ".net-tests/UnityValidation/test_runner.py", "scripts/unity/run-editmode-tests.ps1"]
+    },
+    "csharpier": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "run": "dotnet csharpier check ..",
+      "files": [".config/dotnet-tools.json"]
+    },
+    "meta-generation": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "run": "python3 .github/scripts/test_meta_files.py",
+      "files": [".github/scripts/meta_files.py", ".github/scripts/test_meta_files.py"]
+    },
+    "release-tag-target": {
+      "path": ".github/workflows/release.yml",
+      "job": "release",
+      "run": "test \"$(git rev-parse 'FETCH_HEAD^{commit}')\" = \"$(git rev-parse HEAD)\"",
+      "files": []
+    },
+    "release-asset-bytes": {
+      "path": ".github/workflows/release.yml",
+      "job": "release",
+      "run": "cmp \"$TARBALL\" \"$assets_dir/$archive_name\"",
+      "files": []
+    },
+    "release-inputs": {
+      "path": ".github/workflows/release.yml",
+      "job": "release",
+      "run": "test -s dist/notes.md",
+      "files": [".github/scripts/package_check.py", ".github/scripts/test_package_check.py"]
+    },
+    "unsafe-code-report": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "run": "python3 .github/checks/unity_helpers_coverage.py --validate --analyzer-fixtures --require-complete",
+      "files": [".github/checks/unity_helpers_unsafe.cjs", ".github/checks/unity_helpers_source_checks.py"]
+    },
+    "strict-python": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "run": "uv run --project scripts/python~ --isolated --locked python scripts/python~/check.py",
+      "files": ["scripts/python~/check.py", "scripts/python~/pyproject.toml", "scripts/python~/uv.lock", ".net-tests/run_checks.py", ".net-tests/prepare_analyzers.py"]
+    },
+    "windows-strict-python": {
+      "path": ".github/workflows/llm-lint.yml",
+      "job": "lint",
+      "run": "uv run --project scripts/python~ --isolated --locked python scripts/python~/check.py",
+      "files": ["scripts/python~/check.py"]
+    },
+    "windows-metadata": {
+      "path": ".github/workflows/llm-lint.yml",
+      "job": "lint",
+      "run": "uv run --no-project python .github/scripts/test_meta_files.py",
+      "files": [".github/scripts/test_meta_files.py"]
+    },
+    "windows-orchestration": {
+      "path": ".github/workflows/llm-lint.yml",
+      "job": "lint",
+      "run": "uv run --no-project python .net-tests/UnityValidation/test_runner.py",
+      "files": [".net-tests/UnityValidation/test_runner.py", "scripts/unity/unity-process.ps1", "scripts/unity/unity-log.ps1"]
+    },
+    "unity-workflow-controls": {
+      "path": ".github/workflows/ci.yml",
+      "job": "package-checks",
+      "run": "uv run --no-project --with pyyaml==6.0.3 python .github/scripts/test_unity_workflow.py",
+      "files": [".github/scripts/test_unity_workflow.py"]
+    },
+    "unity-late-current-head": {
+      "path": ".github/workflows/unity-tests.yml",
+      "job": "unity-tests",
+      "uses": "Ambiguous-Interactive/ambiguous-organization-build-lock/.github/actions/require-current-pr-head@720ef47f9ab352fbc9403363ca63ae8c487a2442 # v1.18.1",
+      "files": [".github/scripts/test_unity_workflow.py"]
+    },
+    "build-safety": {
+      "path": ".github/workflows/ci.yml",
+      "job": "build-package-safety",
+      "run": "test \"$CORE_RESULT\" = success && test \"$PACKAGE_RESULT\" = success",
+      "files": []
+    }
+  },
+  "mappings": [
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Pinned upstream check functions run on real DxAudio C# and six planted red/green controls.",
+      "checks": {
+        "lint": [
+          "comparison-direction",
+          "conditional-call-chains",
+          "drawer-multiobject",
+          "no-regions",
+          "preserve-attributes",
+          "unity-file-naming",
+          "no-regions-controls",
+          "drawer-multiobject-test",
+          "unity-file-naming-test"
+        ],
+        "contract": ["lint-comparison-direction", "lint-preserve-attributes"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Pinned portable C# policies scan DxAudio and reject explicit bad naming, duplicate imports, misplaced types, hidden test hooks, repeated XML summaries, and multiline line-comments.",
+      "checks": {
+        "lint": ["comment-block-form", "csharp-naming", "csharp-naming-test", "duplicate-usings", "nested-type-placement", "production-test-hooks", "xml-doc-summaries"],
+        "contract": ["lint-comment-block-form", "lint-duplicate-usings", "lint-nested-type-placement", "lint-production-test-hooks", "lint-xml-doc-summaries"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The native upstream asmdef and cache-fill checks scan DxAudio and have wrong-name and nonatomic-population controls.",
+      "checks": {
+        "lint": ["asmdef", "concurrent-cache-fill", "concurrent-cache-fill-test"],
+        "contract": ["asmdef", "lint-concurrent-cache-fill"],
+        "command": ["test:lint-concurrent-cache-fill"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Pinned PowerShell checks validate workflow repository names, release lock and Unity secret scope, and live PR cancellation. Planted forbidden guards, leaked license secret and missing concurrency each fail.",
+      "checks": {
+        "contract": ["pr-workflow-concurrency", "workflow-license-secret-scope", "workflow-repository-guard"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Pinned path normalization detects raw backslash-to-slash conversions. DxAudio consumes already normalized Unity asset paths.",
+      "checks": {
+        "lint": ["path-normalization", "path-normalization-test"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Pinned workflow-expression and devcontainer validators check actual project workflows, installed formatter configuration and both PowerShell archive architectures with controls.",
+      "checks": {
+        "lint": ["workflow-run-expression-length", "devcontainer-config", "devcontainer-urls", "devcontainer-urls-test"],
+        "contract": ["lint-workflow-run-expression-length", "validate-devcontainer-urls", "validate-devcontainer-config"],
+        "command": ["test:validate-devcontainer-urls"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "workflow-yaml",
+      "evidence": "CI parses workflow YAML files with the pinned strict yamllint action.",
+      "checks": {
+        "lint": ["yaml"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The actual pinned comment-mask fixture suite runs and the adapted upstream out-parameter scan proves both named DxAudio anchors and every built-in control.",
+      "checks": {
+        "lint": ["comment-stripping"],
+        "contract": ["out-parameters"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Pinned upstream Markdown, language-fence and namespace/assembly identifier checks run with planted bad references and missing fence-language controls.",
+      "checks": {
+        "lint": ["code-fence-syntax", "doc-code-samples", "doc-identifiers", "markdown"],
+        "contract": ["check-code-fence-syntax", "extract-code-samples", "lint-doc-identifiers", "lint-markdown"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "spelling",
+      "evidence": "CI runs the pinned dictionary tool on the public README, manual, and sample documentation.",
+      "checks": {
+        "lint": ["spelling"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Immutable action references and missing, disconnected, or unrecognized coverage cases have planted controls.",
+      "checks": {
+        "lint": ["workflow-action-pins"],
+        "contract": ["check-registries"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The pinned upstream Roslyn syntax gate rejects unsafe compiler switches, unsafe access, disabled IL2CPP safety checks, and unbounded stackalloc, with planted controls.",
+      "checks": {
+        "lint": ["unsafe-code", "unsafe-code-test"],
+        "command": ["lint:unsafe-code"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The exact pinned analyzer fixture project compiles and runs in a disposable copy with a positive test count.",
+      "checks": {
+        "command": ["test:analyzers"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "core",
+      "evidence": "The compiler must load the pinned DLL, verify all IDs against the ruleset, and run the configured analyzer rules.",
+      "checks": {
+        "diagnostic": [
+          "WUH001",
+          "WUH002",
+          "WUH003",
+          "WUH004",
+          "WUH005",
+          "WUH006",
+          "WUH007",
+          "WUH008",
+          "WUH009",
+          "WUH010",
+          "WUH011",
+          "WUH012",
+          "WUH013",
+          "WUH014",
+          "WUH015",
+          "WUH016",
+          "WUH017",
+          "WUH018",
+          "WUH019",
+          "WUH020",
+          "WUH021",
+          "WUH022",
+          "WUH023",
+          "WUH024",
+          "WUH025",
+          "WUH026",
+          "WUH027",
+          "WUH028",
+          "WUH029",
+          "WUH030"
+        ]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "package",
+      "evidence": "DxAudio checks its declared and optional asmdef references plus payload and tracked Unity assets. Package tests plant forbidden DLLs and a mandatory dependency.",
+      "checks": {
+        "lint": ["npm-package", "bundled-assemblies"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity",
+      "evidence": "The real editor compiles package asmdefs and tests with both optional dependency states. The runner rejects missing results and a missing analyzer activation receipt.",
+      "checks": {
+        "lint": ["unity-nunit-results", "unity-compiler-warnings"],
+        "contract": ["unity-nunit-results", "test-result-evidence", "analyzer-placement"],
+        "typecheck": ["runtime", "editor", "editor-tests", "integrations"],
+        "command": ["unity:compile", "unity:test:editmode", "test:unity-compiler-warnings"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity",
+      "evidence": "Live Unity reference parity and Editor-only MonoBehaviour tests pass and were verified with a planted extra reference and a planted editor-only Runtime assembly.",
+      "checks": {
+        "lint": ["typecheck-asmdef-references", "editor-assembly-monobehaviours", "editor-assembly-monobehaviours-test"],
+        "contract": ["lint-typecheck-asmdef-references"],
+        "command": ["typecheck:tests:asmdef-references"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-controls",
+      "evidence": "The Unity runner's executable fake editor controls enforce process tree timeout, raw artifact credential redaction, and current parseable NUnit receipts.",
+      "checks": {
+        "contract": ["unity-timeout", "redact-unity-artifacts", "unity-artifact-redaction", "unity-framework"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "metadata",
+      "evidence": "CI rejects missing or orphaned filesystem meta companions for package imports.",
+      "checks": {
+        "lint": ["meta-files"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "repo-lints",
+      "evidence": "DxAudio's lint checks generated skills, release-note shape, and the local meta companion policy.",
+      "checks": {
+        "lint": ["skill-sizes", "changelog"],
+        "contract": ["lint-changelog"],
+        "command": ["lint:llm"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "text-files",
+      "evidence": "The required package job checks Prettier-managed JSON, YAML and Markdown and final newlines for text files.",
+      "checks": {
+        "lint": ["format-json", "format-js", "format-yaml", "final-newline"],
+        "command": ["test:final-newline"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "markdown-format",
+      "evidence": "CI runs source-scoped Prettier Markdown checks and has a dedicated harness test.",
+      "checks": {
+        "lint": ["format-md"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "release",
+      "evidence": "Release packing validates tag, published manifest version, and versioned changelog before publishing.",
+      "checks": {
+        "contract": ["verify-release-tag", "npm-package-changelog"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the unity-helpers WProto generator, Protobuf candidate branches, and WProto contract fixtures. DxAudio ships no Protobuf generator or schema.",
+      "checks": {
+        "lint": ["wproto-claim-catalog"],
+        "contract": ["protobuf-candidate", "wproto-annotations", "wproto-evidence", "run-wproto-evidence", "wproto-corpus"],
+        "command": ["typecheck:unity:proto-only"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the Odin editor integration, its compatibility typecheck configurations, and Odin-specific Undo fixtures.",
+      "checks": {
+        "lint": ["odin-undo-safety", "odin-undo-safety-test"],
+        "command": ["typecheck:unity:odin", "typecheck:editor:odin", "typecheck:editor-tests:odin", "typecheck:unity:odin-bases-disabled"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires unity-helpers' typed enum source generator and emitted generator artifacts. DxAudio uses a source enum invariant check.",
+      "checks": {
+        "lint": ["enum-generator"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the upstream browser persistent storage bridge and its WebGL browser export fixtures. DxAudio has no storage bridge.",
+      "checks": {
+        "contract": ["browser-storage", "browser-consumer"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Tests unity-helpers' own random generator, stream, arithmetic sampler, and TestU01 fixtures. DxAudio has no shipped PRNG implementation.",
+      "checks": {
+        "contract": ["bounded-sampling-parser", "random-periods", "evaluate-testu01", "random-quality-stream", "random-quality-outcomes"],
+        "command": ["typecheck:random-quality"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the upstream durable file API and its injected storage failure fixtures. DxAudio ships no persistent file API.",
+      "checks": {
+        "contract": ["durable-file"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires GitHub Pages or wiki publishing assets. DxAudio documentation is distributed from the repository and package.",
+      "checks": {
+        "lint": ["github-pages-css"],
+        "contract": ["validate-github-pages-css", "github-pages-sortable", "wiki-generation"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires an explicit unsigned marker in the manifest for the unity-helpers signature lifecycle. DxAudio uses npm provenance and does not emit that marker.",
+      "checks": {
+        "contract": ["npm-package-signature"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the upstream unitypackage archive exporter. DxAudio ships npm/UPM archives with its own clean consumer import check.",
+      "checks": {
+        "contract": ["release-export-only", "create-unitypackage"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires committing generated analyzer DLLs as part of the product's published package. DxAudio verifies the development pin and rejects these artifacts from the consumer payload.",
+      "checks": {
+        "lint": ["shipped-analyzers"],
+        "contract": ["verify-shipped-analyzers"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires a Tests/Runtime assembly or a legacy Reflex integration. DxAudio currently has Editor suites and an optional DxMessaging integration.",
+      "checks": {
+        "typecheck": ["tests"],
+        "command": ["typecheck:integrations:legacy-reflex"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires unity-helpers' domain-specific data structure and asset canonicalization APIs, which DxAudio does not publish.",
+      "checks": {
+        "command": ["test:intmap", "test:enumeration", "test:stable-assets"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the upstream wiki/readme mirror and generated documentation counters. DxAudio owns a single README and its package documentation.",
+      "checks": {
+        "lint": ["doc-counts", "readme-mirror-test", "readme-mirror"],
+        "contract": ["sync-readme-mirror", "lint-doc-counts"],
+        "command": ["test:sync-readme-mirror"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity",
+      "evidence": "Real Unity EditMode validation checks the matrix, analyzer receipt, and result XML.",
+      "checks": {
+        "workflow:unity-compatibility/unity-tests": ["12 run_editmode", "34 verify_editmode"],
+        "workflow:unity-tests/unity-tests": ["12 run_editmode", "34 verify_editmode"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-archive",
+      "evidence": "The package consumer import runs in a clean project with an explicit compile receipt.",
+      "checks": {
+        "workflow:unity-tests/unitypackage-smoke-aggregate": ["1 Require package smoke result"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "package",
+      "evidence": "The release runs DxAudio's package gate before publication.",
+      "checks": {
+        "workflow:release/validate-package": ["5 Run release package validation"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "release",
+      "evidence": "The release check validates an exact tag and versioned changelog.",
+      "checks": {
+        "workflow:release/verify-tag": ["5 verify"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the generated wiki or Pages artifact and the corresponding deployment workflow.",
+      "checks": {
+        "workflow:deploy-pages/build": ["5 Build with MkDocs", "6 Validate build output"],
+        "workflow:deploy-wiki/check-wiki": ["1 check"],
+        "workflow:deploy-wiki/sync-wiki": [
+          "3 Require wiki publisher credentials",
+          "7 Generate sidebar",
+          "8 Generate footer",
+          "9 Validate wiki content",
+          "10 changes",
+          "12 Summary"
+        ],
+        "workflow:deploy-wiki/notify-failure": ["1 Create failure summary"],
+        "workflow:validate-docs/build-mkdocs-test": ["4 Build MkDocs site", "5 Verify build output"],
+        "workflow:validate-wiki-links/validate": [
+          "3 Generate wiki page names and validate structure",
+          "4 Validate internal documentation links",
+          "5 Test wiki generation logic (bash)",
+          "6 Test wiki Python scripts"
+        ]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Runs statistics and compatibility checks for unity-helpers' shipped PRNG algorithms.",
+      "checks": {
+        "workflow:random-quality/resolve": ["3 Require the installed .NET SDK", "5 resolve"],
+        "workflow:random-quality/practrand": ["2 Build PractRand from the pinned archive", "3 Verify the pinned battery version"],
+        "workflow:random-quality/testu01": [
+          "3 Require the installed .NET SDK",
+          "8 Build TestU01 if needed, and prove it can fail",
+          "9 Run SmallCrush over the inventory",
+          "10 Report"
+        ],
+        "workflow:random-quality/battery": ["2 Require the installed .NET SDK", "5 Run the battery"],
+        "workflow:random-quality/evaluate": ["5 compare", "8 Fail the run on a mismatch"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the protobuf generator or an upstream WProto-only standalone deployment.",
+      "checks": {
+        "workflow:unity-compatibility/unity-tests": [
+          "23 proto_only_head",
+          "24 run_proto_only",
+          "45 verify_proto_only",
+          "46 redact_proto_only",
+          "48 Require WProto-only Standalone acceptance",
+          "51 reverify_wproto_acceptance"
+        ],
+        "workflow:unity-tests/unity-tests": [
+          "23 proto_only_head",
+          "24 run_proto_only",
+          "45 verify_proto_only",
+          "46 redact_proto_only",
+          "48 Require WProto-only Standalone acceptance",
+          "51 reverify_wproto_acceptance"
+        ],
+        "workflow:wproto-generator/generator": [
+          "3 Require the retained protobuf compiler SDK",
+          "11 Test the generator against protobuf-net 3.2.56",
+          "12 Admit retained Dox consumer contracts against protobuf-net v3",
+          "13 Compile exported schemas and cross-read with protoc",
+          "15 Test the generator against protobuf-net 2.4.9",
+          "17 Build the pinned current protobuf candidate",
+          "18 Test the generator against the current protobuf candidate",
+          "19 Verify shipped protobuf matches its source build",
+          "20 Admit retained Dox contracts against current protobuf"
+        ]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-online-runner",
+      "evidence": "DxAudio invokes the same pinned organization runner-availability action with its licensed runner labels before scheduling Unity.",
+      "checks": {
+        "workflow:runner-bootstrap/runner-preflight": ["1 Require the selected Unity runner online"],
+        "workflow:unity-benchmarks/runner-preflight": ["1 Require an online Unity runner"],
+        "workflow:unity-compatibility/runner-preflight": ["1 Require an online Unity runner"],
+        "workflow:unity-tests/runner-preflight": ["1 Require an online Unity runner"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-current-head",
+      "evidence": "The same organization action checks the current trusted PR head at setup and before acquiring the license lock.",
+      "checks": {
+        "workflow:unity-compatibility/unity-tests": ["1 Require current PR head before setup", "8 Require current PR head before lock acquisition"],
+        "workflow:unity-tests/unity-tests": ["1 Require current PR head before setup", "8 Require current PR head before lock acquisition"],
+        "workflow:unity-tests/unitypackage-smoke": ["1 Require current PR head before setup", "9 Require current PR head before lock acquisition"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-installed-editor",
+      "evidence": "The pinned organization action requires a healthy editor matching the exact matrix version.",
+      "checks": {
+        "workflow:unity-benchmarks/benchmarks": ["1 ensure_unity_editor"],
+        "workflow:unity-compatibility/unity-tests": ["2 ensure_unity_editor"],
+        "workflow:unity-tests/unity-tests": ["2 ensure_unity_editor"],
+        "workflow:unity-tests/unitypackage-smoke": ["2 ensure_unity_editor"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-license-validation",
+      "evidence": "The pinned organization action validates Unity credentials before license-lock acquisition.",
+      "checks": {
+        "workflow:unity-benchmarks/benchmarks": ["5 Validate Unity license secrets"],
+        "workflow:unity-compatibility/unity-tests": ["7 Validate Unity license secrets"],
+        "workflow:unity-tests/unity-tests": ["7 Validate Unity license secrets"],
+        "workflow:unity-tests/unitypackage-smoke": ["8 Validate Unity license secrets"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-lock",
+      "evidence": "The pinned organization action acquires the shared lock before any editor run.",
+      "checks": {
+        "workflow:unity-benchmarks/benchmarks": ["6 unity_lock", "10 release_unity_lock"],
+        "workflow:unity-compatibility/unity-tests": ["9 unity_lock", "10 require_unity_lock", "27 release_unity_lock"],
+        "workflow:unity-tests/unity-tests": ["9 unity_lock", "10 require_unity_lock", "27 release_unity_lock"],
+        "workflow:unity-tests/unitypackage-smoke": ["10 unity_lock", "14 release_unity_lock"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-license-return",
+      "evidence": "The pinned organization action returns a license when the run acquired a holder, even after validation failure.",
+      "checks": {
+        "workflow:unity-benchmarks/benchmarks": ["8 return_unity_license"],
+        "workflow:unity-compatibility/unity-tests": ["25 return_unity_license"],
+        "workflow:unity-tests/unity-tests": ["25 return_unity_license"],
+        "workflow:unity-tests/unitypackage-smoke": ["12 return_unity_license"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-cleanup",
+      "evidence": "The pinned organization classifier receives Unity return evidence and supplies the release verdict.",
+      "checks": {
+        "workflow:unity-benchmarks/benchmarks": ["9 cleanup_classification"],
+        "workflow:unity-compatibility/unity-tests": ["26 cleanup_classification"],
+        "workflow:unity-tests/unity-tests": ["26 cleanup_classification"],
+        "workflow:unity-tests/unitypackage-smoke": ["13 cleanup_classification"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-cleanup-verdict",
+      "evidence": "The pinned organization verdict action fails the job if required license cleanup cannot be confirmed.",
+      "checks": {
+        "workflow:unity-benchmarks/benchmarks": ["18 Require confirmed Unity cleanup"],
+        "workflow:unity-compatibility/unity-tests": ["55 Require confirmed Unity cleanup"],
+        "workflow:unity-tests/unity-tests": ["72 Require confirmed Unity cleanup"],
+        "workflow:unity-tests/unitypackage-smoke": ["18 Require confirmed Unity cleanup"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-aggregate",
+      "evidence": "DxAudio runs the same result requirement for its licensed editor matrix and runner preflight. Synthetic Bash inputs proved success for the valid trusted and fork shapes and failure for missing or unexpected licensed results.",
+      "checks": {
+        "workflow:unity-compatibility/unity-tests-aggregate": ["1 Require Unity tests result"],
+        "workflow:unity-tests/unity-tests-aggregate": ["1 Require Unity tests result"],
+        "workflow:unity-tests/unity-ci-success": ["2 Require every expected Unity CI job result"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-failure-report",
+      "evidence": "The published EditMode log tail and NUnit failure details both use the sanitizer. Hosted controls plant Unity, GitHub and AWS credentials, authorization tokens and a PEM private key. Raw Unity logs stay on the runner.",
+      "checks": {
+        "workflow:unity-compatibility/unity-tests": ["38 redact_editmode"],
+        "workflow:unity-tests/unity-tests": ["38 redact_editmode"],
+        "workflow:unity-tests/unity-tests-single-threaded": ["29 redact_editmode"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-controls",
+      "evidence": "The disposable runner controls exercise missing and stale test receipts, wrong fixture identities, integration mode and isolation from the checkout.",
+      "checks": {
+        "contract": ["unity-test-filter", "project-workspace"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity",
+      "evidence": "Real EditMode loads the staged package using pinned Unity Test Framework versions and required built-in modules. Both integration states pass on the local Unity editor. Omitting IMGUI from the pristine fixture produced compiler errors.",
+      "checks": {
+        "contract": ["lint-unity-test-modules"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity",
+      "evidence": "The disposable Unity project creates its required built-in Audio and IMGUI modules, then compiles all expected assemblies. Omitting IMGUI was a real red control.",
+      "checks": {
+        "workflow:unity-compatibility/matrix-config": ["12 Validate Unity test-project module manifest"],
+        "workflow:unity-tests/matrix-config": ["13 Validate Unity test-project module manifest"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity",
+      "evidence": "DxAudio projects the upstream type-check targets onto real licensed Unity compilation; both integration states verify Runtime, Editor, sample and the active test asmdefs.",
+      "checks": {
+        "command": [
+          "typecheck:unity",
+          "typecheck:unity:default",
+          "typecheck:editor",
+          "typecheck:editor:default",
+          "typecheck:editor-tests",
+          "typecheck:editor-tests:default",
+          "typecheck:integrations",
+          "typecheck:integrations:default",
+          "typecheck:tests",
+          "typecheck:tests:default",
+          "unity:test"
+        ]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-archive",
+      "evidence": "Importing the pristine archive in the disposable editor covers the no-test-framework Editor case and compiles non-Editor player scripts.",
+      "checks": {
+        "command": ["typecheck:editor:no-test-framework"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-archive",
+      "evidence": "The scheduled smoke packs and verifies the exact npm tarball before importing it into a fresh Unity consumer.",
+      "checks": {
+        "workflow:unity-tests/unitypackage-smoke": ["7 Stage release package payload"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-license-validation",
+      "evidence": "The pinned organization workflow validates license credentials before lock acquisition and actual licensing happens in the disposable editor.",
+      "checks": {
+        "command": ["unity:validate"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "harness-self-tests",
+      "evidence": "The CI harness runs Unity MCP transport, workspace pin, readiness and error-redaction controls when their inputs change.",
+      "checks": {
+        "contract": ["unity-mcp"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "The pinned check selects a legacy Protobuf, Odin, Reflex or SINGLE_THREADED source variant. DxAudio has no corresponding implementation or build switch.",
+      "checks": {
+        "command": [
+          "typecheck:editor:legacy",
+          "typecheck:editor:singlethreaded",
+          "typecheck:tests:legacy",
+          "typecheck:tests:odin",
+          "typecheck:tests:singlethreaded",
+          "typecheck:unity:legacy",
+          "typecheck:unity:singlethreaded"
+        ]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "DxAudio defines EditMode test asmdefs and a standalone compile smoke. The pinned check requires an authored PlayMode test assembly or executable standalone NUnit fixture, which DxAudio does not define.",
+      "checks": {
+        "command": ["unity:test:all", "unity:test:playmode"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "This check requires an older native Build receipt or a separately launched native acceptance player. DxAudio only produces a disposable managed player script compile receipt, with no retained native acceptance executable or Build receipt.",
+      "checks": {
+        "contract": [
+          "native-build-readback",
+          "native-fault-capture",
+          "unity-frozen-player-provenance",
+          "unity-acceptance-runner",
+          "unity-acceptance-evidence",
+          "unity-acceptance-workflow",
+          "nullable-consumer-matrix",
+          "il2cpp-conversion-inputs",
+          "standalone-scene-provision"
+        ],
+        "lint": ["native-debugger-download", "native-fault-capture"],
+        "command": ["test:unity-acceptance-workflow"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "The pinned validation coordinates concurrent grouped PlayMode, Standalone and EditMode shards. DxAudio selects one EditMode suite with sequential dependency states and does not define those test modes or shards.",
+      "checks": {
+        "lint": ["unity-mode-coordinator"],
+        "contract": ["unity-grouped-modes"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "This recovery check moves a reusable Unity Library aside and restores it. DxAudio starts each run with a fresh disposable project, so the reusable Library and its recovery path do not exist.",
+      "checks": {
+        "lint": ["unity-configure-upm-retry"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "DxAudio has no package-owned activation cache, Accelerator lease, or queue-watchdog redispatch implementation. The existing organization actions own hosted licensing and cleanup.",
+      "checks": {
+        "contract": ["unity-license-cache-location", "license-cache", "accelerator", "watchdog-cancellation"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Upstream produces and compares committed Unity performance snapshots on a dedicated benchmark workflow. DxAudio has no benchmark snapshot producer or comparison input. Its allocation regressions run in EditMode.",
+      "checks": {
+        "contract": ["perf-tools"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Upstream job selects a standalone binary, native debugger, loader-snaps experiment, native acceptance protocol or multiple executable NUnit modes. DxAudio runs the current EditMode suite and a managed player-script compile smoke.",
+      "checks": {
+        "workflow:unity-compatibility/matrix-config": [
+          "4 Validate Build readback source selection",
+          "5 Validate native comparison selection",
+          "6 Validate Standalone native diagnostic selection",
+          "7 Validate Standalone Direct control selection",
+          "8 Validate Standalone debugger heap selection",
+          "9 Validate Standalone debugger attachment selection"
+        ],
+        "workflow:unity-compatibility/unity-tests": [
+          "11 run_modes",
+          "13 native_capture",
+          "14 Restore native loader-snaps comparison",
+          "15 playmode_head",
+          "16 run_playmode",
+          "17 standalone_head",
+          "18 run_standalone",
+          "21 native_build_capture",
+          "22 run_acceptance",
+          "29 Report slowest PlayMode tests",
+          "30 Report slowest Standalone tests",
+          "35 verify_playmode",
+          "36 verify_standalone",
+          "41 redact_playmode",
+          "43 redact_standalone",
+          "49 verify_acceptance",
+          "50 redact_acceptance",
+          "53 Require requested native acceptance"
+        ],
+        "workflow:unity-tests/native-historical-readback": [
+          "2 Validate historical readback selection",
+          "3 readback_selection",
+          "6 readback_host_idle",
+          "7 Read historical acceptance process evidence",
+          "8 Read historical standalone process and package sources",
+          "9 Read exact historical native Build evidence",
+          "11 redact_native_readback"
+        ],
+        "workflow:unity-tests/matrix-config": [
+          "4 Validate Build readback source selection",
+          "6 Validate native comparison selection",
+          "7 Validate Standalone native diagnostic selection",
+          "8 Validate Standalone Direct control selection",
+          "9 Validate Standalone debugger heap selection",
+          "10 Validate Standalone debugger attachment selection"
+        ],
+        "workflow:unity-tests/unity-tests": [
+          "11 run_modes",
+          "13 native_capture",
+          "14 Restore native loader-snaps comparison",
+          "15 playmode_head",
+          "16 run_playmode",
+          "17 standalone_head",
+          "18 run_standalone",
+          "21 native_build_capture",
+          "22 run_acceptance",
+          "29 Report slowest PlayMode tests",
+          "30 Report slowest Standalone tests",
+          "35 verify_playmode",
+          "36 verify_standalone",
+          "41 redact_playmode",
+          "43 redact_standalone",
+          "49 verify_acceptance",
+          "50 redact_acceptance",
+          "53 Require requested native acceptance",
+          "55 Report slowest EditMode tests (SINGLE_THREADED)",
+          "56 Report slowest PlayMode tests (SINGLE_THREADED)",
+          "57 Report slowest Standalone tests (SINGLE_THREADED)",
+          "61 verify_st_editmode",
+          "62 verify_st_playmode",
+          "63 verify_st_standalone",
+          "64 redact_st_editmode",
+          "67 redact_st_playmode",
+          "69 redact_st_standalone",
+          "71 require_st_modes"
+        ],
+        "workflow:unity-tests/unity-tests-single-threaded": [
+          "11 run_modes",
+          "13 playmode_head",
+          "14 run_playmode",
+          "15 standalone_head",
+          "16 run_standalone",
+          "20 Report slowest EditMode tests (SINGLE_THREADED)",
+          "21 Report slowest PlayMode tests (SINGLE_THREADED)",
+          "22 Report slowest Standalone tests (SINGLE_THREADED)",
+          "27 verify_playmode",
+          "28 verify_standalone",
+          "32 redact_playmode",
+          "34 redact_standalone"
+        ]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "The pinned job is the Single-Threaded build variant. DxAudio does not define the unity-helpers SINGLE_THREADED switch.",
+      "checks": {
+        "workflow:unity-tests/unity-tests-single-threaded": [
+          "1 Require current PR head before setup",
+          "2 ensure_unity_editor",
+          "7 Validate Unity license secrets",
+          "8 Require current PR head before lock acquisition",
+          "9 unity_lock",
+          "10 require_unity_lock",
+          "12 run_editmode",
+          "17 return_unity_license",
+          "18 cleanup_classification",
+          "19 release_unity_lock",
+          "26 verify_editmode",
+          "36 require_selected_modes",
+          "37 Require confirmed Unity cleanup"
+        ],
+        "workflow:unity-tests/unity-tests-single-threaded-aggregate": ["1 Require the selected single-threaded result"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "This step requires the Unity .unitypackage exporter and native package receipt. DxAudio publishes an npm-compatible UPM tarball.",
+      "checks": {
+        "workflow:unity-tests/unitypackage-smoke": ["11 export_unitypackage", "16 redact_unity_artifacts"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "The upstream job builds a persisted benchmark baseline and perf-delta report. DxAudio uses EditMode allocation regression tests and has no baseline artifact publisher.",
+      "checks": {
+        "workflow:unity-benchmarks/matrix-config": ["3 resolve"],
+        "workflow:unity-benchmarks/benchmarks": ["7 run_tests", "12 Verify tests actually ran", "13 Stage perf results for commit", "15 redact_unity_artifacts"],
+        "workflow:unity-benchmarks/benchmarks-aggregate": ["1 Enforce Unity benchmark and preflight results"],
+        "workflow:unity-benchmarks/commit-perf-results": ["5 assemble", "8 perf_deltas", "10 Require valid benchmark comparison"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "The pinned operation installs or maintains editors through the repository bootstrap workflow. DxAudio validates centrally installed runner editors and has no repository-owned bootstrap or host maintenance job.",
+      "checks": {
+        "workflow:runner-bootstrap/matrix-config": ["3 matrix"],
+        "workflow:runner-bootstrap/bootstrap-host": ["3 Confirm runner identity (hard-fail on wrong target)", "4 Maintain host prerequisites"],
+        "workflow:runner-bootstrap/maintain-unity": ["3 Confirm runner identity (hard-fail on wrong target)", "4 Maintain Unity ${{ matrix.unity-version }}"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "The pinned operation redispatches Unity jobs through a repository watchdog. DxAudio cancels superseded jobs through workflow concurrency and has no repository-owned redispatch automation.",
+      "checks": {
+        "workflow:stuck-job-watchdog/audit-queue": ["4 Audit + cancel-and-redispatch"],
+        "workflow:unstick-run/unstick": ["1 Validate, cancel, and optionally re-dispatch"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "These selection/configuration hooks need upstream native acceptance plans, mode bundles, or a release package export version. The DxAudio workflow uses a literal two-editor matrix and a separate archive smoke.",
+      "checks": {
+        "workflow:unity-compatibility/matrix-config": ["10 assemblies", "13 release_version", "14 resolve"],
+        "workflow:unity-tests/matrix-config": ["5 Validate combined sibling selection", "11 assemblies", "14 release_version", "15 resolve"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "GNU timeout selection is specific to the upstream Bash/Docker Unity runners. DxAudio runs PowerShell on the licensed Windows worker and uses the .NET process-tree timeout with a planted descendant.",
+      "checks": {
+        "workflow:local-gates/contract-suites": ["13 Select GNU timeout for process-group controls"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "The upstream export contract asserts Unity .unitypackage export and receipt inputs. DxAudio publishes only an npm-compatible UPM tarball, which its separate archive smoke validates.",
+      "checks": {
+        "contract": ["unity-package-export"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-aggregate",
+      "evidence": "The hosted control requires the Unity job to pass. Its sequential EditMode steps require both integration states, and the scheduled archive step also fails the job when its selected scope fails.",
+      "checks": {
+        "workflow:unity-compatibility/unity-tests": ["54 require_selected_modes"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-aggregate",
+      "evidence": "The hosted control requires the Unity job to pass. Its sequential EditMode steps require both integration states, and the scheduled archive step also fails the job when its selected scope fails.",
+      "checks": {
+        "workflow:unity-tests/unity-tests": ["54 require_selected_modes"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Exact pinned Targets mode checks real paths across repository docs and has a missing-target control. The pinned EOL inspector checks worktree/index files using DxAudio's LF attributes and rejects CRLF and BOM controls. Jekyll link-format rules do not apply to DxAudio's package docs.",
+      "checks": {
+        "lint": ["doc-links", "doc-links-test", "eol"],
+        "contract": ["doc-link-test-launcher", "check-eol"],
+        "command": ["lint:doc-links"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "harness-tests",
+      "evidence": "DxAudio's scoped harness tests prove bounded selection and comprehensive fallback, gate reachability, skill boundaries, Unity metadata exclusions, portable devcontainer bootstrap and MCP setup. Fixtures cover missing runners, broken settings, failed children, credential refs, wrong host or token, and retained user config.",
+      "checks": {
+        "lint": ["meta-exclusions", "mcp-config", "post-create", "skill-sizes-test"],
+        "contract": ["agent-check", "check-runner", "run-contract-tests", "run-repo-lint", "sync-mcp", "validate-mcp-config"],
+        "command": ["test:post-create"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "repo-lints",
+      "evidence": "The CI lint ladder runs instruction validation with the local verbose reporting option.",
+      "checks": {
+        "command": ["lint:llm:verbose"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "openai-review",
+      "evidence": "DxAudio calls the identical immutable org review workflow under a trusted, non-draft PR guard.",
+      "checks": {
+        "workflow:openai-review/review": ["1 Ambiguous-Interactive/review-tools/.github/workflows/openai-review.yml@d8aab4dc3655924360ff17ebb04bbc3a844a493f # v1.1.0"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "actionlint",
+      "evidence": "Pinned actionlint validates all workflow execution expressions.",
+      "checks": {
+        "workflow:repo-lint/repo-lint": ["8 actionlint"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "workflow-yaml",
+      "evidence": "Pinned yamllint validates workflow YAML with a DXAudio strict configuration.",
+      "checks": {
+        "workflow:repo-lint/repo-lint": ["9 yamllint"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires a Dependabot configuration file and dependency groups to lint. DxAudio has no Dependabot updater configuration.",
+      "checks": {
+        "lint": ["dependabot"],
+        "contract": ["lint-dependabot"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires a repo-controlled format bot and a workflow that mutates contributor branches. DxAudio uses read-only formatting checks.",
+      "checks": {
+        "contract": ["format-on-demand-workflow"],
+        "workflow:csharpier-autofix/format_fork": ["4 Run CSharpier (format repository)", "6 Create bot branch and push to base repo"],
+        "workflow:format-on-demand/by_comment": [
+          "2 Exit if not authorized",
+          "8 Apply Prettier fixes",
+          "9 Apply markdownlint fixes",
+          "10 Apply CSharpier formatting",
+          "13 Create bot branch and PR (fork)",
+          "14 Open/Update formatting PR (fork)",
+          "16 No-op comment (nothing to change)"
+        ],
+        "workflow:format-on-demand/by_dispatch": [
+          "7 Apply Prettier fixes",
+          "8 Apply markdownlint fixes",
+          "9 Apply CSharpier formatting",
+          "12 Create bot branch and PR (fork)",
+          "13 Open/Update formatting PR (fork)"
+        ],
+        "workflow:prettier-autofix/autofix_fork": ["6 Run Prettier (write fixes)", "7 Markdownlint (auto-fix)", "9 Create bot branch and push to base repo"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires source-controlled shell or PowerShell Git hook implementations and npm post-install setup. DxAudio installs generated pre-commit hooks with its devcontainer bootstrap.",
+      "checks": {
+        "lint": ["hook-patterns", "hook-permissions", "hook-spell-parity", "hook-sync-calls"],
+        "contract": ["postinstall-hooks", "validate-hook-permissions", "validate-hook-sync-calls"],
+        "command": ["validate:hook-sync", "validate:hook-perms", "validate:hook-spell-parity", "validate:cspell-files-parity"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires a Docker GitHub MCP launcher and a local GH CLI fallback token store. DxAudio uses authenticated HTTP transport and environment credential aliases.",
+      "checks": {
+        "contract": ["github-mcp", "github-token"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires opt-in documentation extraction markers identifying separately compiled snippets. DxAudio has no such marker-based fixture corpus; generic sample extraction is enforced independently.",
+      "checks": {
+        "contract": ["extract-doc-samples", "markdown-fence-repair"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires generated skill stubs for agent-specific directories or a migration from their old layout. DxAudio has static agent pointers and a generated skills index.",
+      "checks": {
+        "contract": ["skill-stubs", "agent-skill-migration"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires an authored AssetPostprocessor subclass. DxAudio does not ship an asset postprocessor.",
+      "checks": {
+        "contract": ["asset-postprocessor-reachability"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires persistent image fixture generation with known pixel data and Unity GUIDs. DxAudio tests audio and editor behavior using its own object and audio fixtures.",
+      "checks": {
+        "contract": ["fixture-assets"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires an agent-environment backup archive/checksum/restore lifecycle. DxAudio validates devcontainer initialization and local backend state without backup archives.",
+      "checks": {
+        "contract": ["devcontainer-persistence"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires per-file copyright headers and year mutations tracked from repository history. DxAudio is licensed MIT-0 using its root license.",
+      "checks": {
+        "lint": ["license-headers", "license-years"],
+        "contract": ["license-year-rename", "license-year-copy-detection"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the unity-helpers implementation-reference manifest with pinned upstream sort and random algorithms. DxAudio tracks pinned analysis tool source in its own inventory.",
+      "checks": {
+        "contract": ["reference-upstream-drift"],
+        "command": ["check:reference-upstream-drift"],
+        "workflow:reference-upstream-drift/check": ["3 check", "5 Fail on unresolved drift"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires a Node test launcher that buffers stdin through the upstream read-stdin-sync helper. DxAudio does not use that launcher.",
+      "checks": {
+        "contract": ["read-stdin-sync"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "external-links",
+      "evidence": "The scheduled/manual Lychee action checks fragments and external URLs on DxAudio's public docs with the same immutable upstream action. Local proof saw 76 links with zero errors.",
+      "checks": {
+        "workflow:lint-doc-links/external-links": ["2 Check external links (lychee)"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "text-files",
+      "evidence": "The package job runs Prettier and its real byte checks; coverage fixtures reject CRLF, BOM, missing final newline, and redundant dictionary words.",
+      "checks": {
+        "lint": ["spelling-config"],
+        "contract": ["validate-formatting"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The pinned upstream PowerShell AST/text checks scan DxAudio and reject a planted '--' command-line separator while accepting correct named parameters.",
+      "checks": {
+        "lint": ["pwsh-invocations"],
+        "contract": ["lint-pwsh-invocations"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity",
+      "evidence": "Both successful and failed EditMode receipts report the 30 slowest fixtures and cases and a GitHub step summary. Controls cover finite durations, descending ranking, redaction and the upstream 120-second fixture warning. The reporter read both real Unity 6000.6.7f1 receipts.",
+      "checks": {
+        "lint": ["report-slow-tests"],
+        "workflow:unity-compatibility/unity-tests": ["28 Report slowest EditMode tests"],
+        "workflow:unity-tests/unity-tests": ["28 Report slowest EditMode tests"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-integration-player",
+      "evidence": "On schedule and dispatch, a disposable project opts into DxMessaging and compiles the integration player assembly from the pristine npm tarball. The real Windows player-script compile passed on Unity 6000.6.7f1, and hosted controls reject the wrong smoke receipt.",
+      "checks": {
+        "command": ["typecheck:integrations:player"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Pinned Roslyn syntax checker validates every preprocessor combination on 149 real sources, with 24 compiled and diagnostic controls, and the approved rewrite preserved 156 normalized source fingerprints and 1,508 contract rows.",
+      "checks": {
+        "contract": ["csharp-syntax"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Pinned NUnit/Unity test lint scans package tests with DxAudio scoped ownership, teardown, and finally cleanup support. Red exercises all twelve non-feature-specific rule IDs and green exercises scoped and teardown cleanup.",
+      "checks": {
+        "lint": ["lint-tests-test"],
+        "contract": ["lint-tests"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Checks the pinned Git ignored-doc and generated tooling contracts on DxAudio paths, with ignored public-doc and generated config red controls.",
+      "checks": {
+        "lint": ["gitignore-docs"],
+        "contract": ["gitignore-docs"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Pinned central action approval/input validation checks 10 live action calls and rejects missing and extra lock inputs.",
+      "checks": {
+        "contract": ["build-lock-action-inputs", "build-lock-action-input-parser"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "harness-tests",
+      "evidence": "The hosted harness proves package-version drift detection and repair and tests the local agent backend installers against synthetic inputs.",
+      "checks": {
+        "contract": ["version-sync"],
+        "command": ["test:ai-backends"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "csharpier",
+      "evidence": "CI runs the exact pinned CSharpier version over the repository and reports formatting drift.",
+      "checks": {
+        "command": ["format:csharp:check"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires an upstream cspell dictionary mutation CLI. DxAudio edits its checked-in dictionary directly and enforces case redundancy.",
+      "checks": {
+        "contract": ["add-cspell-word"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Pinned portable upstream fixtures ran 45 YAML controls and 48 C# conditional/discovery controls. Upstream-specific legacy launchers, per-file copyright, and Odin integration are outside these product adapters.",
+      "checks": {
+        "contract": ["yaml-controls", "csharp-lints"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "csharpier",
+      "evidence": "Equivalent pinned CSharpier verification runs read-only in normal PR checks.",
+      "checks": {
+        "workflow:csharpier-autofix/format": ["6 Verify formatting (CI gate)"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "text-files",
+      "evidence": "DxAudio's read-only EOF/index check uses its own repository-wide LF and no-BOM policy.",
+      "checks": {
+        "workflow:prettier-autofix/autofix": ["13 Enforce EOL (CRLF) and No BOM"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The pinned inventory and manifest gate runs the selected DxAudio repository and workflow adaptations with red/green controls.",
+      "checks": {
+        "workflow:repo-lint/repo-lint": ["10 checks"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires GitHub App credentials and an automated GitHub release preparation/publishing workflow. DxAudio validates a maintainer-created release tag before publishing.",
+      "checks": {
+        "contract": ["auto-publish-release"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires release preparation workflow inputs, a bot-generated release PR, or the prepared-release marker. DxAudio publishes validated tags.",
+      "checks": {
+        "workflow:release-drafter/update_release_draft": ["3 Create changelog extraction script", "5 Update release with changelog"],
+        "workflow:release-prepare/prepare": [
+          "1 Require default branch dispatch",
+          "2 Check auto-commit GitHub App credentials",
+          "8 Prepare release files",
+          "9 Sync generated version references",
+          "10 Validate prepared release tree",
+          "13 Push release branch and open PR"
+        ]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires a repository-owned banner or issue-template version generator. DxAudio has a package manifest and generated instruction context version.",
+      "checks": {
+        "workflow:sync-banner-version/validate-banner-version": ["3 Validate banner version matches package.json"],
+        "workflow:sync-issue-template/sync-versions": ["3 Test version synchronization", "4 Run sync script", "5 diff"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires a scheduled tool-update workflow that opens maintenance PRs. DxAudio pins its dev toolchain and updates it through reviewable changes.",
+      "checks": {
+        "workflow:update-dotnet-tools/update-tools": ["4 Update local dotnet tools", "6 Normalize EOL (dotnet tools manifest)", "9 PR created summary", "10 No changes summary"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires an upstream bot that edits branches in place. DxAudio runs read-only formatting checks.",
+      "checks": {
+        "workflow:csharpier-autofix/format": ["4 Run CSharpier (format repository)"],
+        "workflow:prettier-autofix/autofix": ["5 Run Prettier (write fixes)", "6 Markdownlint (auto-fix)"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires a downstream native artifact reader that freezes editor/player build inputs and performs historical readback. DxAudio uses current disposable CI projects and a pristine consumer fixture.",
+      "checks": {
+        "contract": ["frozen-files"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the upstream interactive typecheck iteration launcher and cached file variant compilation. DxAudio exposes the active deterministic compile and Unity validation lanes.",
+      "checks": {
+        "contract": ["typecheck-iterate"],
+        "command": ["typecheck:iterate"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the opt-in automatic release preparing, GitHub artifact identity, and version synchronization tooling from unity-helpers. DxAudio validates its tag, release notes, and archive before publication.",
+      "checks": {
+        "contract": ["release-tools"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the optional cross-repository agent metrics collector workflow. DxAudio runs review and harness tests without agent metrics publishing.",
+      "checks": {
+        "workflow:agent-metrics/metrics": ["1 Ambiguous-Interactive/review-tools/.github/workflows/agent-metrics.yml@d8aab4dc3655924360ff17ebb04bbc3a844a493f # v1.1.0"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "meta-generation",
+      "evidence": "Check restores missing metadata with stable GUIDs and rejects invisible package-ancestor fixture artifacts.",
+      "checks": {
+        "contract": ["meta-generation"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Imports all thirteen literal redirects from the pinned upstream test case data and verifies them against 47 DxAudio documents. The obsolete URL red case is exercised directly.",
+      "checks": {
+        "lint": ["deprecated-external-links"],
+        "command": ["test:deprecated-external-links"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "package",
+      "evidence": "DxAudio rejects all binaries in the consumer payload. Package tests plant managed and native binary and importer/manifest bypass cases.",
+      "checks": {
+        "contract": ["lint-bundled-assemblies"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Upstream corpus controls exercise absent/empty roots, and the portable adapters refuse empty C#, package, test, workflow, and documentation inputs.",
+      "checks": {
+        "contract": ["empty-corpus-gates"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires repo-owned legacy PowerShell compatibility launchers for the assembly Python tools. DxAudio calls its native assembly and package validation directly.",
+      "checks": {
+        "contract": ["assembly-launchers"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the upstream repo's register of declared linter error codes with a documentation entry per code. DxAudio consumes the immutable upstream identifiers and verifies the WUH catalog and applicable fixture codes.",
+      "checks": {
+        "lint": ["lint-error-codes", "lint-error-codes-test"],
+        "contract": ["validate-lint-error-codes"],
+        "command": ["test:validate-lint-error-codes"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires source-controlled push-default normalization, push URL configuration, or a shared Git staging helper API. DxAudio invokes Git directly and validates the package and user repository boundaries separately.",
+      "checks": {
+        "contract": ["configure-git-defaults", "git-path-helpers", "git-staging-helpers", "normalize-container-git-config", "validate-git-push-config"],
+        "command": ["validate:git-push-config"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires legacy shell, JavaScript, and Python migration adapters with release-specific command and output compatibility. DxAudio maintains its own native gate and launcher tests.",
+      "checks": {
+        "contract": ["python-compatibility"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires an IDE/agent destructive-command blocklist contract with a regex mirror. DxAudio uses tool permissions and canonical instructions without a repo-owned catastrophic-pattern mirror.",
+      "checks": {
+        "lint": ["catastrophic-pattern-sync"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "release-tag-target",
+      "evidence": "Release checks that the fetched tag peels to the exact checkout commit before creating release attachments and immediately before npm publication.",
+      "checks": {
+        "workflow:release/publish": ["5 Verify release tag target before publish"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "release-asset-bytes",
+      "evidence": "Downloads the GitHub Release npm archive and adjacent SHA-256 receipt, requiring both to byte-match the actual validated publish inputs before npm publication.",
+      "checks": {
+        "workflow:release/publish": ["8 Verify GitHub Release assets"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Upstream release automation accepts a free-form source-ref dispatch input and may create or retarget tags. DxAudio's release workflow consumes existing version tags and performs no tag mutation.",
+      "checks": {
+        "workflow:release/verify-tag": ["1 Validate source ref input"],
+        "workflow:release/prepare-tag": ["2 Recheck release artifacts before tag mutation", "3 Create or retarget release tag"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires a native .unitypackage release asset and associated native export receipt. DxAudio releases its npm-format Unity package archive.",
+      "checks": {
+        "workflow:release/unitypackage": ["4 Create Unity package"],
+        "workflow:release/native-validation": ["3 Require exact-source native export and cleanup"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The pinned setup-dotnet action installs the SDK from .net-tests/global.json. The check resolves dotnet --version from that directory and compares it with the required pin before building any fixtures.",
+      "checks": {
+        "workflow:repo-lint/repo-lint": ["7 Require the installed .NET SDK"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The mandatory package job fails directly on action lint, YAML, unsafe-code or upstream repository check failure. The always-running aggregate rejects unsuccessful core and package job conclusions.",
+      "checks": {
+        "workflow:repo-lint/repo-lint": ["13 Gate"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the generated _upm changelog mirror or source-marked documentation snippet publishing projects. DxAudio uses a tracked CHANGELOG and Markdown code examples.",
+      "checks": {
+        "command": ["check:upm-changelog", "lint:doc-samples", "lint:doc-samples:reuse-checks"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The exact pinned extract-only scanner checks the real DxAudio Markdown C# examples. The upstream alias only increases output verbosity.",
+      "checks": {
+        "command": ["lint:code-samples:verbose"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "spelling",
+      "evidence": "The pinned CSpell command checks DxAudio's shipped documentation. The upstream alias only enables suggestions in diagnostic output.",
+      "checks": {
+        "command": ["lint:spelling:verbose"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The pinned shell checker scans DxAudio Bash and PowerShell sources for nonportable grep, literal home paths, swallowed child failures, fragile filename transport and lost executable bits. Controls reject both malformed BRE and an executable-mode regression. Docker-runner and native export fixtures require Unity Helpers' separate wrapper; the DxAudio packager and direct runner have their own controls.",
+      "checks": {
+        "contract": ["shell-portability"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "The exact contract exercises Unity Helpers' custom Node binary dispatcher and shim resolution. DxAudio npm scripts use package-manager binary resolution directly.",
+      "checks": {
+        "contract": ["node-bin"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "release-inputs",
+      "evidence": "The local publish pipeline verifies the actual archive manifest name/version, tar member safety, nonempty release notes and the adjacent SHA-256 receipt before release. DxAudio packages this one npm asset and uses no upstream native .unitypackage asset.",
+      "checks": {
+        "workflow:release/publish": ["4 artifacts"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unsafe-code-report",
+      "evidence": "The exact upstream emitter records package-owned findings and control receipts in SARIF 2.1.0. An unsafe probe demonstrated a real failing exit and repository-relative source location. CI retains the report with a required immutable upload step.",
+      "checks": {
+        "workflow:repo-lint/repo-lint": ["11 safety"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "strict-python",
+      "evidence": "The locked upstream Ruff, mypy and Pyright settings gate the adapted strict Python registry. Every tracked or unignored Python source and stub requires a declared scope; a planted unregistered stub is rejected. Three files are strict and 105 existing Python files are explicitly recorded for migration.",
+      "checks": {
+        "contract": ["python-policy"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "repo-lints",
+      "evidence": "The required repository lint runs the size gate and verifies that regenerating .llm/skills/index.md leaves the tracked index unchanged.",
+      "checks": {
+        "workflow:llm-instructions-lint/lint-llm-instructions": ["11 Check skill file sizes", "12 Validate skills index is up-to-date"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "harness-tests",
+      "evidence": "The hosted harness runs the LLM instructions and skill-size fixture suites on their owned paths, with full-selection fallback for unmapped changes.",
+      "checks": {
+        "workflow:llm-instructions-lint/lint-llm-instructions": ["7 Test LLM instructions lint", "9 Test skill size linter"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires upstream's PR feedback reporting script and its report schema. DxAudio delegates PR review to the centrally pinned workflow.",
+      "checks": {
+        "workflow:llm-instructions-lint/lint-llm-instructions": ["6 Test feedback report"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires Unity Helpers' repository-authorship rule set and protected authorship policy files. DxAudio maintains a different agent instructions policy.",
+      "checks": {
+        "workflow:llm-instructions-lint/lint-llm-instructions": ["8 Validate authorship policy"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires generated per-agent skill stubs and their split/rename migration tool. DxAudio checks its canonical skill source, pointer instructions, and generated index.",
+      "checks": {
+        "workflow:llm-instructions-lint/lint-llm-instructions": ["10 Test agent skill migration and discovery"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Proves Unity Helpers' bounded random sampler implementation. DxAudio uses separate audio variation algorithms with its own deterministic correctness tests.",
+      "checks": {
+        "workflow:local-gates/contract-suites": ["14 Run bounded-random arithmetic proof"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires Unity Helpers' stable-asset scene registry and integer map source implementations.",
+      "checks": {
+        "workflow:local-gates/typecheck-phases": ["9 Verify scene canonicalization and reference identity", "10 Run integer-map correctness without Unity"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the Unity Helpers WProto source generator and its candidate compiler payload publication workflow. DxAudio compiles consumers and verifies an external pinned analyzer but ships no generator.",
+      "checks": {
+        "workflow:wproto-generator/generator": [
+          "5 Require the installed .NET SDK",
+          "8 Verify every shipped compiler input against its sources",
+          "14 Compile consumers with the Roslyn 3.8 API floor",
+          "16 Test candidate build controls"
+        ]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The pinned upstream build-lock checker validates every called action against the current central approval list and tests exact/incorrect input sets.",
+      "checks": {
+        "workflow:local-gates/contract-suites": ["6 Require centrally approved build-lock action pins"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The package job explicitly compares dotnet --version within the SDK-pinned project directory to the mandated pin. Compiler fixture builds consume that same pin. Formatting uses the same installed SDK.",
+      "checks": {
+        "workflow:local-gates/contract-suites": ["10 Require the installed .NET SDK", "16 Require the installed CSharpier SDK"],
+        "workflow:local-gates/typecheck-phases": ["3 Require the installed .NET SDK"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "core",
+      "evidence": "The hosted core gate compiles all .NET check projects with warning and analyzer policy, fully exercises the engine-free runtime and tests, and runs explicit no-allocation controls.",
+      "checks": {
+        "workflow:local-gates/typecheck-phases": ["7 Type-check the runtime and test sources", "8 Verify value enumeration and allocation controls"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "harness-tests",
+      "evidence": "The CI harness selects contract tests using actual changed paths and prints the matched scopes and selected suites. Licensed Unity coverage is reported by its independent workflow.",
+      "checks": {
+        "workflow:local-gates/contract-suites": ["18 Record task selection and native coverage proposal"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The pinned devcontainer check validates the local formatter/config contract. Publishing its image is tracked separately as an absent feature.",
+      "checks": {
+        "workflow:build-publish-devcontainer/publish-devcontainer": ["4 Validate devcontainer config"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "These commands validate Unity Helpers' repository-owned cached-token helper and local Git push policy. DxAudio uses its development container's credential routing and framework-managed pre-push hooks.",
+      "checks": {
+        "command": ["check:container-git-credentials", "validate:prepush"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "The regression suite tests upstream's repository-owned hook implementations, mutation modes, and upload of their changed-path selections. DxAudio uses pre-commit-generated hooks and a native hosted scope harness.",
+      "checks": {
+        "hook": ["agent-preflight", "pre-push-changed-files", "precommit-integration"],
+        "command": ["validate:tests:hook-regressions"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires Unity Helpers' runner-maintenance matrix and Unity CLI maintenance workflow. DxAudio delegates estate maintenance to the organization, and validates the runner and editor before running its own Unity jobs.",
+      "checks": {
+        "contract": ["runner-maintenance"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Requires the upstream Z.AI stdio/MCP Remote launcher and private temporary credential-header file implementation. DxAudio uses configured HTTP endpoints and separately tests its image MCP server.",
+      "checks": {
+        "contract": ["zai-mcp"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "Validates publication and replacement of repository-owned compiler DLLs. DxAudio fetches a checksummed dev analyzer and never packages or publishes a compiler DLL.",
+      "checks": {
+        "workflow:local-gates/windows-tool-phases": ["9 Verify compiler payload publication on Windows"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "Pinned asmdef repository discovery validates the real DxAudio package definitions including a deliberately malformed name fixture. The licensed live AssemblyDefinitionsMatchTheCompilerReferenceGraph test separately checks loaded declarations against Unity's compiler graph.",
+      "checks": {
+        "contract": ["asmdef-discovery"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The pinned Targets scanner verifies local documentation references against the tree. The coverage gate records every upstream lint and verifies that each enforced check has a real CI entry point. Jekyll format checks require a separate hosted site.",
+      "checks": {
+        "command": ["lint:docs", "lint:repo"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-controls",
+      "evidence": "Native process controls require completion XML and witness timeout, quiet stall, normal exit, and terminal grace. Licensing diagnostics report the three upstream patterns and retry only a before-project no-result 20111 startup failure. Scratch controls reject ambiguous retry paths. A real 6000.5.2f1 test run passed 474 tests and reported licensing warnings independently.",
+      "checks": {
+        "lint": ["process-watchdog", "unity-environment-warnings", "unity-license-activation-retry"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "windows-strict-python",
+      "evidence": "Windows hosted matrix requires the same pinned strict Python profile.",
+      "checks": {
+        "workflow:local-gates/windows-tool-phases": ["5 Check strict Python policies on Windows"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "windows-metadata",
+      "evidence": "Windows executes the package tree and metadata validator with positive and planted missing-file cases. In the same step, runner controls verify the actual staged assembly and receipt boundaries.",
+      "checks": {
+        "workflow:local-gates/windows-tool-phases": ["6 Verify assembly discovery on Windows", "8 Verify metadata validation on Windows"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "windows-orchestration",
+      "evidence": "Both the Windows strict Python/metadata commands and the actual PowerShell process and log controls are mandatory in one non-optional Windows-hosted step. Local controls prove workspace traversal, failure evidence, quoting, timeout, and redaction.",
+      "checks": {
+        "workflow:local-gates/windows-tool-phases": ["7 Verify workspace and log adapters on Windows", "10 Verify process orchestration on Windows"],
+        "workflow:local-gates/assembly-tools-windows": ["1 Require both Windows tool phases"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "core",
+      "evidence": "CI compiles and tests from a fresh MSBuild output and analyzer directory on every run, with shared compilation disabled for the entire graph. This prevents stale compiler, analyzer and test outputs. Red probes and all 305 tests passed in a local clean run.",
+      "checks": {
+        "command": ["typecheck:unity:clean"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-workflow-controls",
+      "evidence": "Hosted unlicensed tests validate the real trust and editor-version matrix and reject a missing supported floor. They execute the actual Unity CI Success result guard against eight trust/job-result inputs.",
+      "checks": {
+        "contract": ["unity-workflow-matrix-contract"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-late-current-head",
+      "evidence": "Trusted PRs run the canonical immutable PR-head action after editor validation and before the mandatory cleanup suffix. The aggregate requires that job to succeed, and the workflow control verifies the late action's position, trust condition, and event head.",
+      "checks": {
+        "workflow:unity-tests/unity-ci-success": ["1 late_superseded"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "unity-current-head",
+      "evidence": "The ordinary PR and scheduled-floor Unity share one matrix workflow. The canonical current-PR-head action gates trusted PR matrix jobs before Unity execution; scheduled jobs have no PR to supersede.",
+      "checks": {
+        "workflow:unity-tests/matrix-config": ["12 superseded"],
+        "workflow:unity-compatibility/matrix-config": ["11 superseded"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "build-safety",
+      "evidence": "The required build aggregate always runs and accepts only exact success from the job containing clean source builds and compiler controls and the separate job running the pinned analyzer's test suite.",
+      "checks": {
+        "workflow:local-gates/typecheck": ["1 Require both type-check phases"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "core",
+      "evidence": "The clean hosted build injects real compiler, BCL, analyzer and NUnit defects into each DxAudio .NET type-check target and requires the explicit diagnostics and nonzero result. Unity verifies each assembly carries the expected concrete source anchor, its analyzer and reference graph. A planted WUH029 issue fails a staged archive compile. Upstream WProto projects are absent.",
+      "checks": {
+        "workflow:local-gates/typecheck-phases": ["11 Prove each type-check gate can still fail"],
+        "command": ["typecheck:controls"],
+        "contract": ["typecheck-controls"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The required package job runs exact applicable upstream pinned contract and source fixtures, including C#, PowerShell, YAML and Python. The hosted scoped harness separately executes native DxAudio contract fixtures with full fallback; framework-specific upstream hook fixtures are excluded as recorded.",
+      "checks": {
+        "workflow:local-gates/contract-suites": ["19 Run contract suites"],
+        "command": ["validate:tests", "validate:tests:fast"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The required package job runs applicable pinned content checks for links, code samples, Markdown, fences, protected documents, YAML, asmdefs, PowerShell, and workflow expressions. Sister steps run text formatting, changelog/package, and spelling gates. Site-specific and generated Upm mirror checks require absent project features.",
+      "checks": {
+        "command": ["validate:content"]
+      }
+    },
+    {
+      "status": "inapplicable",
+      "reason": "The fixture suite requires Unity Helpers' generated doc-count/version writers, repository-owned hook restaging, split validation functions, and Odin and local CI wrappers. DxAudio uses read-only instruction and formatting policies, exact text byte checks, and its own CI and release fixtures.",
+      "checks": {
+        "contract": ["sync-script-contracts"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The exact upstream fixture runs the 11 classifier and nine terminal verdict cases against the immutable central runtime used by DxAudio's licensed workflow. It also asserts every Unity license return feeds one classifier, releases one lock, and requires the terminal verdict without masking failure.",
+      "checks": {
+        "contract": ["portable-cleanup-classifier"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "upstream-source",
+      "evidence": "The portable config, pinned architecture URL, and exact Dockerfile verification commands run in CI with controls that remove one of 18 required tools or supply the wrong .NET SDK. Hosted harness tests also validate local bootstrap installation and AI backend setup. The actual Docker build executes the same &&-chained command with installed tools.",
+      "checks": {
+        "command": ["validate:devcontainer", "verify:tools"],
+        "contract": ["verify-devcontainer-tools"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "core",
+      "evidence": "CI compiles from an isolated artifacts and analyzer directory with disabled shared compilation, exercises actual analyzer failure diagnostics, and verifies the pin. The package job checks pinned CSharpier, and Unity validates staged analyzer placement and physical source anchors. Upstream clean-path custom npm forwarding, removed wrappers, and WProto tooling do not exist in DxAudio.",
+      "checks": {
+        "contract": ["compiler-tooling"]
+      }
+    },
+    {
+      "status": "enforced",
+      "gate": "build-safety",
+      "evidence": "The combined required Core and package checks validate the applicable local source, compilation, formatting, spelling, text, metadata, and portable contract controls. The npm check:gate and check:upstream commands provide local entry points. Unity Helpers' auto-mutating hooks and mirrors have separate inapplicable prerequisites.",
+      "checks": {
+        "command": ["validate:local"]
+      }
+    }
+  ]
+}

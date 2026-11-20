@@ -1,0 +1,8 @@
+max_concurrency = 4
+include_mail = false
+timeout = 30
+max_retries = 3
+retry_wait_time = 3
+accept = ["200..=299", "429", "500..=599"]
+scheme = ["https", "http"]
+exclude = ["^https?://localhost", "^http://127\\.0\\.0\\.1"]

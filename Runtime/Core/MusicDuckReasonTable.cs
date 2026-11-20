@@ -43,6 +43,7 @@ namespace WallstopStudios.DxAudio
 
         private sealed class Reason : IMusicDuckReason
         {
+            public MusicDuckHolders Holders { get; }
             private readonly TKey _key;
 
             internal Reason(TKey key, MusicDuckHolders holders)
@@ -50,8 +51,6 @@ namespace WallstopStudios.DxAudio
                 _key = key;
                 Holders = holders;
             }
-
-            public MusicDuckHolders Holders { get; }
 
             public override string ToString()
             {

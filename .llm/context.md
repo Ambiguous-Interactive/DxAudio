@@ -154,7 +154,7 @@ or `Feature`. Bodies stay under 300 lines; bulk material moves to `.llm/referenc
 ```bash
 npm run check:fast     # changed files: format, lints, scoped self-tests
 npm run check:gate     # full local gate before push
-dotnet test .net-tests --configuration Release
+npm run check:analysis
 npm run unity:tests    # EditMode through the host bridge, or batchmode when no bridge runs
 ```
 

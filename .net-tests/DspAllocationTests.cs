@@ -17,6 +17,70 @@ namespace WallstopStudios.DxAudio.Tests
         private const int Channels = 2;
         private const int Blocks = 10_000;
 
+        private static int AddNode(DspGraph graph, DspChain chain)
+        {
+            if (!graph.TryAddNode(chain, out int index))
+            {
+                throw new AssertionException("The graph fixture could not add a node.");
+            }
+
+            return index;
+        }
+
+        private static DspAuditionProcessor.Revision FullGraphRevision(int number, int blockFrames)
+        {
+            DspGraph graph = new();
+            for (int index = 0; index < DspGraph.MaximumNodes; ++index)
+            {
+                DspChain chain = new();
+                chain.Add(
+                    new DspFilter
+                    {
+                        Mode = DspFilterMode.Bell,
+                        FrequencyHz = 1_200f,
+                        PeakDecibels = number % 2 == 0 ? 4f : 5f,
+                    }
+                );
+                chain.Add(new DspCompressor());
+                chain.Add(new DspLimiter { LookaheadSeconds = 0f });
+                Assert.That(graph.TryAddNode(chain, out _), Is.True);
+            }
+
+            for (int distance = 1; graph.EdgeCount < DspGraph.MaximumEdges; ++distance)
+            {
+                for (int index = 0; index + distance < graph.NodeCount && graph.EdgeCount < DspGraph.MaximumEdges; ++index)
+                {
+                    Assert.That(graph.TryAddEdge(index, index + distance), Is.True);
+                }
+            }
+
+            Assert.That(graph.TryPrepare(SampleRate, blockFrames, Channels, 0, graph.NodeCount - 1), Is.True);
+            DspAuditionProcessor.Path[] shapes = { null, new DspAuditionProcessor.Path(blockFrames, Channels, null, graph) };
+            return new DspAuditionProcessor.Revision(number, shapes);
+        }
+
+        private static long AllocatedBy(DspChain chain, float[] block)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int pass = 0; pass < Blocks; ++pass)
+            {
+                chain.Process(block, 0, block.Length, Channels);
+            }
+
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        }
+
+        private static float[] Sine()
+        {
+            float[] block = new float[BlockFrames * Channels];
+            for (int frame = 0, blockLength = block.Length; frame < blockLength; ++frame)
+            {
+                block[frame] = (float)Math.Sin((2 * Math.PI * 1_000 * frame) / SampleRate);
+            }
+
+            return block;
+        }
+
         [Test]
         public void AChainOfEveryEffectDoesNotAllocatePerBlock()
         {
@@ -56,10 +120,10 @@ namespace WallstopStudios.DxAudio.Tests
             dynamicsBranch.Add(new DspBitCrusher { Bits = 6, RateReduction = 2 });
 
             DspGraph graph = new();
-            _ = graph.TryAddNode(new DspChain(), out int input);
-            _ = graph.TryAddNode(shifterBranch, out int left);
-            _ = graph.TryAddNode(dynamicsBranch, out int right);
-            _ = graph.TryAddNode(new DspChain(), out int output);
+            int input = AddNode(graph, new DspChain());
+            int left = AddNode(graph, shifterBranch);
+            int right = AddNode(graph, dynamicsBranch);
+            int output = AddNode(graph, new DspChain());
             _ = graph.TryAddEdge(input, left);
             _ = graph.TryAddEdge(input, right);
             _ = graph.TryAddEdge(left, output);
@@ -70,7 +134,7 @@ namespace WallstopStudios.DxAudio.Tests
             graph.Process(block, 0, block.Length, Channels);
 
             long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int pass = 0; pass < Blocks; pass++)
+            for (int pass = 0; pass < Blocks; ++pass)
             {
                 graph.Process(block, 0, block.Length, Channels);
             }
@@ -88,7 +152,7 @@ namespace WallstopStudios.DxAudio.Tests
             DspAuditionProcessor processor = new(SampleRate, PreviewFrames, Channels);
             float[] input = new float[PreviewFrames * Channels];
             float[] block = new float[input.Length];
-            for (int index = 0; index < input.Length; ++index)
+            for (int index = 0, inputLength = input.Length; index < inputLength; ++index)
             {
                 input[index] = 0.05f * (float)Math.Sin(2d * Math.PI * 1_000 * (index / Channels) / SampleRate);
             }
@@ -131,60 +195,6 @@ namespace WallstopStudios.DxAudio.Tests
                 $"{Samples} warmed swaps at {SampleRate} Hz, {Channels} channels, {PreviewFrames} frames: "
                     + $"p50 {p50:F3} ms, p95 {p95:F3} ms, callback allocations {allocated} bytes, planted allocation {control} bytes."
             );
-        }
-
-        private static DspAuditionProcessor.Revision FullGraphRevision(int number, int blockFrames)
-        {
-            DspGraph graph = new();
-            for (int index = 0; index < DspGraph.MaximumNodes; ++index)
-            {
-                DspChain chain = new();
-                chain.Add(
-                    new DspFilter
-                    {
-                        Mode = DspFilterMode.Bell,
-                        FrequencyHz = 1_200f,
-                        PeakDecibels = number % 2 == 0 ? 4f : 5f,
-                    }
-                );
-                chain.Add(new DspCompressor());
-                chain.Add(new DspLimiter { LookaheadSeconds = 0f });
-                Assert.That(graph.TryAddNode(chain, out _), Is.True);
-            }
-
-            for (int distance = 1; graph.EdgeCount < DspGraph.MaximumEdges; ++distance)
-            {
-                for (int index = 0; index + distance < graph.NodeCount && graph.EdgeCount < DspGraph.MaximumEdges; ++index)
-                {
-                    Assert.That(graph.TryAddEdge(index, index + distance), Is.True);
-                }
-            }
-
-            Assert.That(graph.TryPrepare(SampleRate, blockFrames, Channels, 0, graph.NodeCount - 1), Is.True);
-            DspAuditionProcessor.Path[] shapes = { null, new DspAuditionProcessor.Path(blockFrames, Channels, null, graph) };
-            return new DspAuditionProcessor.Revision(number, shapes);
-        }
-
-        private static long AllocatedBy(DspChain chain, float[] block)
-        {
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int pass = 0; pass < Blocks; pass++)
-            {
-                chain.Process(block, 0, block.Length, Channels);
-            }
-
-            return GC.GetAllocatedBytesForCurrentThread() - before;
-        }
-
-        private static float[] Sine()
-        {
-            float[] block = new float[BlockFrames * Channels];
-            for (int frame = 0; frame < block.Length; frame++)
-            {
-                block[frame] = (float)Math.Sin((2 * Math.PI * 1_000 * frame) / SampleRate);
-            }
-
-            return block;
         }
     }
 }

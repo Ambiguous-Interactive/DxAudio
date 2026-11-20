@@ -14,6 +14,73 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     /// </remarks>
     public sealed class AudioMixBusTests
     {
+        private static DspChainAsset Chain(MadeObjects made, params DspEffectAsset[] effects)
+        {
+            return made.Track(DspChainAsset.Create(effects));
+        }
+
+        private static AudioFilterHost Host(MadeObjects made, DspChainAsset chain)
+        {
+            AudioFilterHost host = made.Track(new GameObject("host")).AddComponent<AudioFilterHost>();
+            host.Chain = chain;
+            return host;
+        }
+
+        private static AudioMixBus Bus(MadeObjects made, DspChainAsset chain)
+        {
+            AudioMixBus bus = made.Track(new GameObject("mix bus")).AddComponent<AudioMixBus>();
+            bus.Chain = chain;
+            return bus;
+        }
+
+        private static float[] Sum(float[] left, float[] right)
+        {
+            float[] sum = new float[left.Length];
+            for (int index = 0, leftLength = left.Length; index < leftLength; ++index)
+            {
+                sum[index] = left[index] + right[index];
+            }
+
+            return sum;
+        }
+
+        private static float[] FullScale(int count)
+        {
+            float[] block = new float[count];
+            for (int index = 0; index < count; ++index)
+            {
+                block[index] = 1f;
+            }
+
+            return block;
+        }
+
+        private static float[] Quiet(float level, int count)
+        {
+            float[] block = new float[count];
+            for (int index = 0; index < count; ++index)
+            {
+                block[index] = level;
+            }
+
+            return block;
+        }
+
+        private static float Peak(float[] samples)
+        {
+            float peak = 0f;
+            foreach (float sample in samples)
+            {
+                float magnitude = Mathf.Abs(sample);
+                if (peak < magnitude)
+                {
+                    peak = magnitude;
+                }
+            }
+
+            return peak;
+        }
+
         [Test]
         public void AMixBusHoldsACeilingThatTheSumOfTwoVoicesPasses()
         {
@@ -199,73 +266,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(bus.LiveChain.Count, Is.EqualTo(1));
             Assert.That(bus.SkippedBlocks, Is.Zero);
-        }
-
-        private static DspChainAsset Chain(MadeObjects made, params DspEffectAsset[] effects)
-        {
-            return made.Track(DspChainAsset.Create(effects));
-        }
-
-        private static AudioFilterHost Host(MadeObjects made, DspChainAsset chain)
-        {
-            AudioFilterHost host = made.Track(new GameObject("host")).AddComponent<AudioFilterHost>();
-            host.Chain = chain;
-            return host;
-        }
-
-        private static AudioMixBus Bus(MadeObjects made, DspChainAsset chain)
-        {
-            AudioMixBus bus = made.Track(new GameObject("mix bus")).AddComponent<AudioMixBus>();
-            bus.Chain = chain;
-            return bus;
-        }
-
-        private static float[] Sum(float[] left, float[] right)
-        {
-            float[] sum = new float[left.Length];
-            for (int index = 0; index < left.Length; ++index)
-            {
-                sum[index] = left[index] + right[index];
-            }
-
-            return sum;
-        }
-
-        private static float[] FullScale(int count)
-        {
-            float[] block = new float[count];
-            for (int index = 0; index < count; ++index)
-            {
-                block[index] = 1f;
-            }
-
-            return block;
-        }
-
-        private static float[] Quiet(float level, int count)
-        {
-            float[] block = new float[count];
-            for (int index = 0; index < count; ++index)
-            {
-                block[index] = level;
-            }
-
-            return block;
-        }
-
-        private static float Peak(float[] samples)
-        {
-            float peak = 0f;
-            for (int index = 0; index < samples.Length; ++index)
-            {
-                float magnitude = Mathf.Abs(samples[index]);
-                if (peak < magnitude)
-                {
-                    peak = magnitude;
-                }
-            }
-
-            return peak;
         }
     }
 }

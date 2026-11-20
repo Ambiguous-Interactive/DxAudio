@@ -33,19 +33,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             );
         }
 
-        [TestCaseSource(nameof(Cases))]
-        public void ChoosesTheExpectedVoice(SfxVoiceState[] voices, SfxPriority incoming, int roundRobin, int expectedIndex, bool expectedInterrupts)
-        {
-            bool chosen = SfxVoiceArbiter.TryChoose(voices, incoming, roundRobin, out int index, out bool interrupts);
-
-            Assert.That(chosen, Is.EqualTo(0 <= expectedIndex), "whether a voice was chosen");
-            if (chosen)
-            {
-                Assert.That(index, Is.EqualTo(expectedIndex));
-                Assert.That(interrupts, Is.EqualTo(expectedInterrupts));
-            }
-        }
-
         private static SfxVoiceState Busy(SfxPriority priority, float startedAt)
         {
             return new SfxVoiceState(isUsable: true, isPlaying: true, isHeld: false, priority, startedAt);
@@ -59,6 +46,19 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static SfxVoiceState Paused(SfxPriority priority)
         {
             return new SfxVoiceState(isUsable: true, isPlaying: false, isHeld: false, priority, startedAtUnscaledTime: 0f, isPaused: true);
+        }
+
+        [TestCaseSource(nameof(Cases))]
+        public void ChoosesTheExpectedVoice(SfxVoiceState[] voices, SfxPriority incoming, int roundRobin, int expectedIndex, bool expectedInterrupts)
+        {
+            bool chosen = SfxVoiceArbiter.TryChoose(voices, incoming, roundRobin, out int index, out bool interrupts);
+
+            Assert.That(chosen, Is.EqualTo(0 <= expectedIndex), "whether a voice was chosen");
+            if (chosen)
+            {
+                Assert.That(index, Is.EqualTo(expectedIndex));
+                Assert.That(interrupts, Is.EqualTo(expectedInterrupts));
+            }
         }
     }
 }

@@ -56,10 +56,10 @@ jobs:
 
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
-          dotnet-version: 9.0.x
+          global-json-file: .net-tests/global.json
 
       - name: Test the engine-free core
-        run: dotnet test .net-tests --configuration Release
+        run: python3 .net-tests/run_checks.py --clean
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -71,6 +71,15 @@ jobs:
       - name: Check the package and pack it
         id: pack
         run: python3 .github/scripts/package_check.py --tag "${TAG}" --out dist
+
+      - name: Verify the release inputs
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: |
+          test -s dist/notes.md
+          (cd "$(dirname "$TARBALL")" && sha256sum --check "$(basename "$TARBALL").sha256")
+          git fetch --no-tags origin "refs/tags/${TAG}"
+          test "$(git rev-parse 'FETCH_HEAD^{commit}')" = "$(git rev-parse HEAD)"
 
       - name: Create the GitHub Release
         env:
@@ -93,6 +102,19 @@ jobs:
               gh release upload "${TAG}" "${file}"
             fi
           done
+
+      - name: Verify uploaded release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: |
+          assets_dir="$(mktemp -d)"
+          archive_name="$(basename "$TARBALL")"
+          gh release download "$TAG" --dir "$assets_dir" --pattern "$archive_name" --pattern "$archive_name.sha256"
+          cmp "$TARBALL" "$assets_dir/$archive_name"
+          cmp "$TARBALL.sha256" "$assets_dir/$archive_name.sha256"
+          git fetch --no-tags origin "refs/tags/${TAG}"
+          test "$(git rev-parse 'FETCH_HEAD^{commit}')" = "$(git rev-parse HEAD)"
 
       - name: Publish to npm
         env:

@@ -10,6 +10,12 @@ namespace WallstopStudios.DxAudio
         private int _remaining;
         private int _revision;
 
+        private static int DrawIndex(int count, float draw)
+        {
+            double scaled = (double)AudioMath.Clamp(draw, 0f, 1f) * count;
+            return (int)Math.Min(scaled, count - 1);
+        }
+
         internal void Reserve(int capacity)
         {
             if (_tickets.Length < capacity)
@@ -53,12 +59,6 @@ namespace WallstopStudios.DxAudio
             int chosen = _tickets[index];
             _tickets[index] = _tickets[--_remaining];
             return chosen;
-        }
-
-        private static int DrawIndex(int count, float draw)
-        {
-            double scaled = (double)AudioMath.Clamp(draw, 0f, 1f) * count;
-            return (int)Math.Min(scaled, count - 1);
         }
     }
 }

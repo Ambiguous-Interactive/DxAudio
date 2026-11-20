@@ -217,9 +217,8 @@ namespace WallstopStudios.DxAudio.Editor
 
             AudioFilterHost[] hosts = Hosts();
             float[] reductions = null;
-            for (int index = 0; index < hosts.Length; ++index)
+            foreach (AudioFilterHost host in hosts)
             {
-                AudioFilterHost host = hosts[index];
                 // A stopped voice keeps its chain and its last reading, so it must not speak for a sounding one.
                 if (!host.IsSounding)
                 {
@@ -240,9 +239,8 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             AudioMixBus[] buses = MixBuses();
-            for (int index = 0; index < buses.Length; ++index)
+            foreach (AudioMixBus bus in buses)
             {
-                AudioMixBus bus = buses[index];
                 // A mix bus has no voice that starts or stops: it runs as long as the listener's object is enabled.
                 if (bus.isActiveAndEnabled && bus.Chain == asset)
                 {

@@ -110,7 +110,7 @@ namespace WallstopStudios.DxAudio.Editor
                     {
                         AssetDatabase.AddObjectToAsset(stage, chain);
                         // Unity reports IsSubAsset only after the first save.
-                        if (!AssetDatabase.Contains(stage) || AssetDatabase.GetAssetPath(stage) != path)
+                        if (!AssetDatabase.Contains(stage) || !string.Equals(AssetDatabase.GetAssetPath(stage), path, StringComparison.Ordinal))
                         {
                             throw new InvalidOperationException("Unity could not add the new EQ band.");
                         }
@@ -230,7 +230,7 @@ namespace WallstopStudios.DxAudio.Editor
             }
             catch
             {
-                if (!string.IsNullOrEmpty(createdGuid) && AssetDatabase.AssetPathToGUID(path) == createdGuid)
+                if (!string.IsNullOrEmpty(createdGuid) && string.Equals(AssetDatabase.AssetPathToGUID(path), createdGuid, StringComparison.Ordinal))
                 {
                     AssetDatabase.DeleteAsset(path);
                 }
@@ -254,7 +254,7 @@ namespace WallstopStudios.DxAudio.Editor
 
         private static bool BelongsToChain(DspEffectAsset stage, string path)
         {
-            return AssetDatabase.IsSubAsset(stage) && AssetDatabase.GetAssetPath(stage) == path;
+            return AssetDatabase.IsSubAsset(stage) && string.Equals(AssetDatabase.GetAssetPath(stage), path, StringComparison.Ordinal);
         }
 
         private static DspFilterAsset CreateBand(DspEqCurveFit.Band band, int index)

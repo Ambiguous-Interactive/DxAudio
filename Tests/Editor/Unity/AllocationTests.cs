@@ -33,6 +33,74 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static readonly List<string> _plants = new();
         private long _planted;
 
+        /// <summary>The smallest heap growth of <paramref name="Windows"/> runs of <paramref name="count"/> calls.</summary>
+        /// <remarks>
+        /// A collection at the end would reclaim exactly the churn the test looks for, so the second reading is the raw
+        /// heap. Unity's Mono counts in coarse segments and occasionally commits one inside a window, which made a
+        /// single window fail in a full-suite run; a real regression grows every window, so the smallest one is taken.
+        /// </remarks>
+        private static long HeapGrowth(Action play, int count)
+        {
+            // The first call through the delegate compiles its invoke stub, so it runs outside the measured windows.
+            play();
+            long smallest = long.MaxValue;
+            for (int window = 0; window < Windows; ++window)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                long before = GC.GetTotalMemory(forceFullCollection: false);
+                for (int index = 0; index < count; ++index)
+                {
+                    play();
+                }
+
+                long growth = GC.GetTotalMemory(forceFullCollection: false) - before;
+                if (growth < smallest)
+                {
+                    smallest = growth;
+                }
+            }
+
+            return smallest;
+        }
+
+        /// <summary>The heap growth of <paramref name="count"/> strings that stay reachable while it measures.</summary>
+        /// <remarks>
+        /// One window is enough here: a collector cannot reclaim retained strings, so the reading cannot fall back to
+        /// zero the way a garbage-only window did on a CI runner (8 KB for 1.6 MB of churn).
+        /// </remarks>
+        private static long RetainedPlantGrowth(int count)
+        {
+            _plants.Clear();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            long before = GC.GetTotalMemory(forceFullCollection: true);
+            for (int index = 0; index < count; ++index)
+            {
+                _plants.Add(new string('x', PlantedChars));
+            }
+
+            return GC.GetTotalMemory(forceFullCollection: true) - before;
+        }
+
+        private static SfxPlayer SfxPlayer(MadeObjects made, SfxLibrary library)
+        {
+            made.Track(library);
+            SfxPlayer player = made.Track(new GameObject("sfx")).AddComponent<SfxPlayer>();
+            player.Library = library;
+            return player;
+        }
+
+        private static SfxCue Cue(MadeObjects made, string key = null)
+        {
+            return made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)), new SfxVariant(Clip(made)) }, key: key, loop: false, minimumIntervalSeconds: 0f));
+        }
+
+        private static AudioClip Clip(MadeObjects made)
+        {
+            return made.Track(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
+        }
+
         [OneTimeSetUp]
         public void MeasureThePlantedControl()
         {
@@ -62,7 +130,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 )
                 : Cue(made);
             SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
-            for (int index = 0; index < WarmupPlays; index++)
+            for (int index = 0; index < WarmupPlays; ++index)
             {
                 player.Play(cue);
             }
@@ -78,7 +146,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             using MadeObjects made = new();
             SfxCue cue = Cue(made, key: "hit");
             SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
-            for (int index = 0; index < WarmupPlays; index++)
+            for (int index = 0; index < WarmupPlays; ++index)
             {
                 player.Play("hit");
             }
@@ -95,7 +163,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             DspChainAsset chain = made.Track(DspChainAsset.Create(new DspEffectAsset[] { made.Track(DspLimiterAsset.Create()), made.Track(DspDistortionAsset.Create()) }));
             SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, minimumIntervalSeconds: 0f, chain: chain));
             SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
-            for (int index = 0; index < WarmupPlays; index++)
+            for (int index = 0; index < WarmupPlays; ++index)
             {
                 player.Play(cue);
             }
@@ -120,7 +188,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             );
             SfxCue cue = made.Track(SfxCue.CreateWithGraph(new[] { new SfxVariant(Clip(made)) }, graph: graph, minimumIntervalSeconds: 0f));
             SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
-            for (int index = 0; index < WarmupPlays; index++)
+            for (int index = 0; index < WarmupPlays; ++index)
             {
                 player.Play(cue);
             }
@@ -138,7 +206,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             AudioMixBus bus = made.Track(new GameObject("mix bus")).AddComponent<AudioMixBus>();
             bus.Chain = chain;
             float[] block = new float[64];
-            for (int index = 0; index < block.Length; ++index)
+            for (int index = 0, blockLength = block.Length; index < blockLength; ++index)
             {
                 block[index] = 1f;
             }
@@ -154,74 +222,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void TheHeapProbeSeesAPlantedAllocation()
         {
             Assert.That(_planted, Is.GreaterThan(Ceiling), $"a probe that cannot fail is not evidence; {PlayCount:N0} retained planted strings grew it by {_planted} bytes");
-        }
-
-        /// <summary>The smallest heap growth of <paramref name="Windows"/> runs of <paramref name="count"/> calls.</summary>
-        /// <remarks>
-        /// A collection at the end would reclaim exactly the churn the test looks for, so the second reading is the raw
-        /// heap. Unity's Mono counts in coarse segments and occasionally commits one inside a window, which made a
-        /// single window fail in a full-suite run; a real regression grows every window, so the smallest one is taken.
-        /// </remarks>
-        private static long HeapGrowth(Action play, int count)
-        {
-            // The first call through the delegate compiles its invoke stub, so it runs outside the measured windows.
-            play();
-            long smallest = long.MaxValue;
-            for (int window = 0; window < Windows; window++)
-            {
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-                long before = GC.GetTotalMemory(forceFullCollection: false);
-                for (int index = 0; index < count; index++)
-                {
-                    play();
-                }
-
-                long growth = GC.GetTotalMemory(forceFullCollection: false) - before;
-                if (growth < smallest)
-                {
-                    smallest = growth;
-                }
-            }
-
-            return smallest;
-        }
-
-        /// <summary>The heap growth of <paramref name="count"/> strings that stay reachable while it measures.</summary>
-        /// <remarks>
-        /// One window is enough here: a collector cannot reclaim retained strings, so the reading cannot fall back to
-        /// zero the way a garbage-only window did on a CI runner (8 KB for 1.6 MB of churn).
-        /// </remarks>
-        private static long RetainedPlantGrowth(int count)
-        {
-            _plants.Clear();
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            long before = GC.GetTotalMemory(forceFullCollection: true);
-            for (int index = 0; index < count; index++)
-            {
-                _plants.Add(new string('x', PlantedChars));
-            }
-
-            return GC.GetTotalMemory(forceFullCollection: true) - before;
-        }
-
-        private static SfxPlayer SfxPlayer(MadeObjects made, SfxLibrary library)
-        {
-            made.Track(library);
-            SfxPlayer player = made.Track(new GameObject("sfx")).AddComponent<SfxPlayer>();
-            player.Library = library;
-            return player;
-        }
-
-        private static SfxCue Cue(MadeObjects made, string key = null)
-        {
-            return made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)), new SfxVariant(Clip(made)) }, key: key, loop: false, minimumIntervalSeconds: 0f));
-        }
-
-        private static AudioClip Clip(MadeObjects made)
-        {
-            return made.Track(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
         }
     }
 }

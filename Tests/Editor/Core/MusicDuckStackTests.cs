@@ -102,7 +102,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             int dialogueCount = 0;
             bool sawA = false;
             bool sawB = false;
-            for (int index = 0; index < total; index++)
+            for (int index = 0; index < total; ++index)
             {
                 if (ReferenceEquals(reasons[index], menu))
                 {
@@ -111,8 +111,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 else if (ReferenceEquals(reasons[index], dialogue))
                 {
                     ++dialogueCount;
-                    sawA |= ReferenceEquals(holders[index], "a");
-                    sawB |= ReferenceEquals(holders[index], "b");
+                    sawA = sawA || ReferenceEquals(holders[index], "a");
+                    sawB = sawB || ReferenceEquals(holders[index], "b");
                 }
             }
 
@@ -141,6 +141,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         private sealed class Reason : IMusicDuckReason
         {
+            public MusicDuckHolders Holders { get; }
             private readonly string _name;
 
             public Reason(string name, MusicDuckHolders holders)
@@ -148,8 +149,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 _name = name;
                 Holders = holders;
             }
-
-            public MusicDuckHolders Holders { get; }
 
             public override string ToString()
             {

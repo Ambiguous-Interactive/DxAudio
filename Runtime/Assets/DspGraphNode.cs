@@ -1,4 +1,4 @@
-﻿namespace WallstopStudios.DxAudio
+namespace WallstopStudios.DxAudio
 {
     using System;
     using UnityEngine;
@@ -13,6 +13,12 @@
     [Serializable]
     public sealed class DspGraphNode
     {
+        /// <summary>The node's identity, which edges name.</summary>
+        public string Name => _name;
+
+        /// <summary>The chain this node runs, or null for a junction.</summary>
+        public DspChainAsset Chain => _chain;
+
         [SerializeField]
         [Tooltip("The name edges use. It must be unique in the graph, and a rename needs every edge updated.")]
         private string _name;
@@ -22,15 +28,15 @@
         private DspChainAsset _chain;
 
 #if UNITY_EDITOR
+        internal bool HasEditorPosition => _hasEditorPosition;
+
+        internal Vector2 EditorPosition => _editorPosition;
+
         [SerializeField, HideInInspector]
         private bool _hasEditorPosition = false;
 
         [SerializeField, HideInInspector]
         private Vector2 _editorPosition = Vector2.zero;
-
-        internal bool HasEditorPosition => _hasEditorPosition;
-
-        internal Vector2 EditorPosition => _editorPosition;
 #endif
 
         public DspGraphNode()
@@ -43,12 +49,6 @@
             _name = name ?? string.Empty;
             _chain = chain;
         }
-
-        /// <summary>The node's identity, which edges name.</summary>
-        public string Name => _name;
-
-        /// <summary>The chain this node runs, or null for a junction.</summary>
-        public DspChainAsset Chain => _chain;
 
         /// <summary>Builds this node's own chain, or an empty one for a junction.</summary>
         /// <remarks>

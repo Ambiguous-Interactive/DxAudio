@@ -43,4 +43,4 @@ Never hand-edit `.llm/skills/index.md`; it is generated. Never add `.meta` files
 
 ## Related
 
-- [ship-changes](./ship-changes/SKILL.md) - the validation ladder
+- [ship-changes](../ship-changes/SKILL.md) - the validation ladder

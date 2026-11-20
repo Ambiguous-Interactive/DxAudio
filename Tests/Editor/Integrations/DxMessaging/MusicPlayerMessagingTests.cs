@@ -27,6 +27,20 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         private MessageBus _bus;
 
+        private static AudioSource PlayingSource(MonoBehaviour player)
+        {
+            AudioSource[] sources = player.GetComponentsInChildren<AudioSource>();
+            foreach (AudioSource source in sources)
+            {
+                if (source.isPlaying)
+                {
+                    return source;
+                }
+            }
+
+            return null;
+        }
+
         [SetUp]
         public void SetUp()
         {
@@ -36,23 +50,23 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TearDown]
         public void TearDown()
         {
-            for (int index = 0; index < _relays.Count; ++index)
+            foreach (IDisposable relay in _relays)
             {
-                _relays[index].Dispose();
+                relay.Dispose();
             }
 
             _relays.Clear();
-            for (int index = 0; index < _tokens.Count; ++index)
+            foreach (MessageRegistrationToken token in _tokens)
             {
-                _tokens[index].Dispose();
+                token.Dispose();
             }
 
             _tokens.Clear();
-            for (int index = 0; index < _made.Count; ++index)
+            foreach (Object made in _made)
             {
-                if (_made[index] != null)
+                if (made != null)
                 {
-                    Object.DestroyImmediate(_made[index]);
+                    Object.DestroyImmediate(made);
                 }
             }
 
@@ -362,20 +376,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             MessageRegistrationHandle registration = token.RegisterGameObjectBroadcast<T>(source, handler);
             token.Enable();
             return registration;
-        }
-
-        private static AudioSource PlayingSource(MonoBehaviour player)
-        {
-            AudioSource[] sources = player.GetComponentsInChildren<AudioSource>();
-            for (int index = 0; index < sources.Length; ++index)
-            {
-                if (sources[index].isPlaying)
-                {
-                    return sources[index];
-                }
-            }
-
-            return null;
         }
 
         private MusicPlayer Player(MusicTrack track = null)

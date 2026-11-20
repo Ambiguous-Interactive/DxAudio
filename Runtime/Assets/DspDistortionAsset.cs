@@ -6,6 +6,10 @@ namespace WallstopStudios.DxAudio
     [CreateAssetMenu(fileName = "DspDistortion", menuName = "DxAudio/DSP/Distortion")]
     public sealed class DspDistortionAsset : DspEffectAsset
     {
+        public float Drive => _drive;
+
+        public float ToneHz => _toneHz;
+
         [Range(0.01f, 100f)]
         [SerializeField]
         [Tooltip("Pre-gain into the shape. One is its own curve; higher bends more of the signal.")]
@@ -15,10 +19,6 @@ namespace WallstopStudios.DxAudio
         [SerializeField]
         [Tooltip("The corner of the tone control, in hertz. Lower is darker; twenty kilohertz passes the shaper's top.")]
         private float _toneHz = DspDistortion.OpenToneHz;
-
-        public float Drive => _drive;
-
-        public float ToneHz => _toneHz;
 
         /// <summary>Builds a distortion asset in code, for tests and for games that author audio at runtime.</summary>
         public static DspDistortionAsset Create(float drive = 1f, float toneHz = DspDistortion.OpenToneHz)

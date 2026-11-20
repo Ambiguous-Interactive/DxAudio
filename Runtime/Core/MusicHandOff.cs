@@ -53,9 +53,8 @@ namespace WallstopStudios.DxAudio
     /// </remarks>
     public sealed class MusicStopSchedule
     {
-        private float? _deadline;
-
         public bool IsScheduled => _deadline.HasValue;
+        private float? _deadline;
 
         public void Arm(float now, float fadeSeconds)
         {

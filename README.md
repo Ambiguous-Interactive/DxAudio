@@ -371,7 +371,7 @@ game's own debug UI.
 Unity types. Use those types directly to build your own player, and test them on plain .NET:
 
 ```bash
-dotnet test .net-tests
+npm test
 ```
 
 The same tests, plus tests of the assets and players, run in Unity's Test Runner when the package is listed under
@@ -393,7 +393,8 @@ Then, in the container or the host:
 ```bash
 npm run check:gate      # format, lints, harness self-tests, npm payload
 npm run unity:tests     # EditMode suite through the local editor
-dotnet test .net-tests  # engine-free core on plain .NET
+npm run check:analysis  # C# 9 compatibility, static analysis, and Core tests
+npm run check:upstream  # pinned unity-helpers checks and analyzer fixtures
 ```
 
 See [.devcontainer/README.md](.devcontainer/README.md) for the container lifecycle and

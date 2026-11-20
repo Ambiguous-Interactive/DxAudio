@@ -9,6 +9,23 @@ namespace WallstopStudios.DxAudio.Editor
     [CustomPropertyDrawer(typeof(SfxVariant))]
     internal sealed class SfxVariantDrawer : PropertyDrawer
     {
+        private static SfxVariant Take(SfxCue cue, int index)
+        {
+            return cue != null && index < cue.Variants.Count ? cue.Variants[index] : null;
+        }
+
+        private static bool TryGetTakeIndex(string path, out int index)
+        {
+            int bracket = path.LastIndexOf('[');
+            if (0 <= bracket && path.EndsWith("]", StringComparison.Ordinal) && int.TryParse(path.Substring(bracket + 1, path.Length - bracket - 2), out int parsed))
+            {
+                index = parsed;
+                return 0 <= parsed;
+            }
+            index = default;
+            return false;
+        }
+
         public override VisualElement CreatePropertyGUI(SerializedProperty property)
         {
             SerializedProperty clip = property.FindPropertyRelative("_clip");
@@ -42,20 +59,6 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             return row;
-        }
-
-        private static SfxVariant Take(SfxCue cue, int index) => cue != null && index < cue.Variants.Count ? cue.Variants[index] : null;
-
-        private static bool TryGetTakeIndex(string path, out int index)
-        {
-            int bracket = path.LastIndexOf('[');
-            if (0 <= bracket && path.EndsWith("]", StringComparison.Ordinal) && int.TryParse(path.Substring(bracket + 1, path.Length - bracket - 2), out int parsed))
-            {
-                index = parsed;
-                return 0 <= parsed;
-            }
-            index = default;
-            return false;
         }
     }
 }

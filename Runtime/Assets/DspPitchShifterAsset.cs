@@ -6,6 +6,11 @@ namespace WallstopStudios.DxAudio
     [CreateAssetMenu(fileName = "DspPitchShifter", menuName = "DxAudio/DSP/Pitch Shifter")]
     public sealed class DspPitchShifterAsset : DspEffectAsset
     {
+        /// <summary>How far this stage moves the pitch, in semitones.</summary>
+        public float Semitones => _semitones;
+
+        public float WindowSeconds => _windowSeconds;
+
         [Range(DspPitchShifter.MinimumSemitones, DspPitchShifter.MaximumSemitones)]
         [SerializeField]
         [Tooltip("How far the pitch moves, in semitones. Zero delays the signal by half the window and changes nothing else.")]
@@ -15,11 +20,6 @@ namespace WallstopStudios.DxAudio
         [SerializeField]
         [Tooltip("How long each read head sweeps. The delay is half this window, so a short window lowers the latency and adds warble.")]
         private float _windowSeconds = DspPitchShifter.DefaultWindowSeconds;
-
-        /// <summary>How far this stage moves the pitch, in semitones.</summary>
-        public float Semitones => _semitones;
-
-        public float WindowSeconds => _windowSeconds;
 
         /// <summary>Builds a pitch shifter asset in code, for tests and for games that author audio at runtime.</summary>
         public static DspPitchShifterAsset Create(float semitones = 0f, float windowSeconds = DspPitchShifter.DefaultWindowSeconds)

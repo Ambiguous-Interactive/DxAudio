@@ -32,7 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # already promotes every warning, and a second suppression switch here would
 # give one policy two sources of truth.
 POLICY_RESPONSE_FILE = "csc.rsp"
-POLICY_RESPONSE_CONTENT = "-warn:5\n"
+POLICY_RESPONSE_CONTENT = "-warn:9999\n"
 POLICY_RULESET_FILE = "WarningsAsErrors.ruleset"
 POLICY_RULESET_CONTENT = (
     '<?xml version="1.0" encoding="utf-8"?>\n'
@@ -48,7 +48,7 @@ GENERATED_POLICY: Tuple[Tuple[str, str], ...] = (
 
 # Tool caches and build output hold no assembly, and Unity ignores a folder
 # whose name ends in ``~``.
-SKIPPED_DIRECTORY_NAMES = frozenset((".git", ".venv", "bin", "obj", "node_modules", "__pycache__"))
+SKIPPED_DIRECTORY_NAMES = frozenset((".git", ".artifacts", ".venv", "bin", "obj", "node_modules", "__pycache__"))
 
 
 def display_path(path: Path, repo_root: Path) -> str:

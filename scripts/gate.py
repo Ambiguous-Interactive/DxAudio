@@ -95,6 +95,7 @@ LANES: Tuple[Tuple[str, Tuple[Step, ...]], ...] = (
                 ("dotnet", "tool", "run", "csharpier", "--", "format", "."),
                 ("csharp.tool-restore",),
             ),
+            Step("csharp.analysis", "Locked C# compatibility and tests", (*_PYTHON_LAUNCHER, ".net-tests/run_checks.py"), ("csharp.format",)),
             Step(
                 "csharp.null-assertions",
                 "C# null-assertions lint",
@@ -189,6 +190,10 @@ LANES: Tuple[Tuple[str, Tuple[Step, ...]], ...] = (
                 (*_PYTHON_LAUNCHER, "scripts/lint_assembly_warnings.py", "--verbose"),
                 ("assembly.policy",),
             ),
+            Step("harness.python", "Strict Python policy", ("npm", "run", "lint:python")),
+            Step("harness.text", "Repository text checks", (*_PYTHON_LAUNCHER, ".github/scripts/check_text_files.py"), ("markdown.format",)),
+            Step("harness.spelling", "Product documentation spelling", ("npm", "run", "lint:spelling"), ("markdown.format",)),
+            Step("harness.upstream-coverage", "Pinned upstream checks", (*_PYTHON_LAUNCHER, ".github/checks/unity_helpers_coverage.py", "--validate", "--require-complete"), ("csharp.format",)),
             Step(
                 "csharp.playmode",
                 "PlayMode source policy",
@@ -209,7 +214,7 @@ LANES: Tuple[Tuple[str, Tuple[Step, ...]], ...] = (
     (
         "pack",
         (
-            Step("pack.npm-pack", "npm pack dry run", ("npm", "pack", "--dry-run", "--no-audit", "--no-fund")),
+            Step("pack.npm-pack", "Consumer package validation", (*_PYTHON_LAUNCHER, ".github/scripts/package_check.py")),
         ),
     ),
 )
@@ -246,6 +251,7 @@ class DiffScope:
     """
 
     changed_csharp: Optional[Tuple[str, ...]] = None
+    analysis_changed: Optional[bool] = None
     markdown_changed: Optional[bool] = None
     documentation_changed: Optional[bool] = None
     package_changed: Optional[bool] = None
@@ -295,7 +301,7 @@ def package_paths_changed(paths: Sequence[str], packaged_globs: Sequence[str]) -
     """Return whether any changed path can affect the packaged payload."""
     for path in paths:
         normalized = path.replace("\\", "/")
-        if normalized in ("package.json", "package-lock.json"):
+        if normalized in ("package.json", "package-lock.json") or normalized.startswith(".github/scripts/"):
             return True
         if "/" not in normalized and normalized.lower().startswith(_NPM_ALWAYS_INCLUDED_FILE_PREFIXES):
             return True
@@ -331,6 +337,7 @@ def scan_diff_scope(base_sha: str) -> DiffScope:
     selection = self_test_selection(paths, available_test_files())
     return DiffScope(
         changed_csharp=tuple(sorted(existing_csharp)),
+        analysis_changed=any(path.endswith(".cs") or path.startswith(".net-tests/") for path in paths),
         markdown_changed=markdown_paths_changed(paths),
         documentation_changed=documentation_paths_changed(paths),
         package_changed=package_paths_changed(paths, _packaged_globs()),
@@ -343,6 +350,7 @@ def scan_diff_scope(base_sha: str) -> DiffScope:
 # selects none of them skips the scan's git cost entirely.
 SCOPED_STEP_NAMES: frozenset[str] = frozenset(
     {
+        "csharp.analysis",
         "csharp.tool-restore",
         "csharp.format",
         *CSHARP_LINT_STEPS,
@@ -377,6 +385,8 @@ def scoped_lanes(scope: DiffScope) -> Tuple[Tuple[str, Tuple[Step, ...]], ...]:
             )
         else:
             drops.update({"csharp.tool-restore", "csharp.format", *CSHARP_LINT_STEPS})
+    if scope.analysis_changed is False or (scope.analysis_changed is None and scope.changed_csharp == ()):
+        drops.add("csharp.analysis")
     if scope.markdown_changed is False:
         # Both Markdown steps guard tracked Markdown: the formatter rewrites
         # it and the changelog lint reads it. No changed Markdown file means

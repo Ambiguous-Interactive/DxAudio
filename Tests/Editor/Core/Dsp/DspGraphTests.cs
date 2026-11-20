@@ -7,14 +7,71 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     {
         private const int SampleRate = 48_000;
 
+        /// <summary>A fan-out into two branches that fan back in to one output: nodes 0, 1, 2, then the output at 3.</summary>
+        private static DspGraph FanIn(DspChain first, DspChain second)
+        {
+            DspGraph graph = new();
+            int input = AddNode(graph, new DspChain());
+            int left = AddNode(graph, first);
+            int right = AddNode(graph, second);
+            int output = AddNode(graph, new DspChain());
+            Assert.That(graph.TryAddEdge(input, left), Is.True);
+            Assert.That(graph.TryAddEdge(input, right), Is.True);
+            Assert.That(graph.TryAddEdge(left, output), Is.True);
+            Assert.That(graph.TryAddEdge(right, output), Is.True);
+            return graph;
+        }
+
+        private static int AddNode(DspGraph graph, DspChain chain)
+        {
+            if (!graph.TryAddNode(chain, out int index))
+            {
+                throw new AssertionException("The graph fixture could not add a node.");
+            }
+
+            return index;
+        }
+
+        private static DspChain ChainOf(DspEffect effect)
+        {
+            DspChain chain = new();
+            chain.Add(effect);
+            return chain;
+        }
+
+        private static float[] Impulse(int frames, int channels, int frame, float value)
+        {
+            float[] block = new float[frames * channels];
+            for (int channel = 0; channel < channels; ++channel)
+            {
+                block[(frame * channels) + channel] = value;
+            }
+
+            return block;
+        }
+
+        private static int NonZeroCount(float[] block)
+        {
+            int count = 0;
+            foreach (float sample in block)
+            {
+                if (sample != 0f)
+                {
+                    ++count;
+                }
+            }
+
+            return count;
+        }
+
         [Test]
         public void AFanOutFeedsEveryBranch()
         {
             DspGraph graph = new();
-            _ = graph.TryAddNode(new DspChain(), out int input);
-            _ = graph.TryAddNode(ChainOf(new DelayEffect(3) { Gain = 0.25f }), out int quiet);
-            _ = graph.TryAddNode(ChainOf(new DelayEffect(7) { Gain = 0.75f }), out int loud);
-            _ = graph.TryAddNode(new DspChain(), out int output);
+            int input = AddNode(graph, new DspChain());
+            int quiet = AddNode(graph, ChainOf(new DelayEffect(3) { Gain = 0.25f }));
+            int loud = AddNode(graph, ChainOf(new DelayEffect(7) { Gain = 0.75f }));
+            int output = AddNode(graph, new DspChain());
             Assert.That(graph.TryAddEdge(input, quiet), Is.True);
             Assert.That(graph.TryAddEdge(input, loud), Is.True);
             Assert.That(graph.TryAddEdge(quiet, output), Is.True);
@@ -32,11 +89,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void ANodeFansOutAgainAfterAFanIn()
         {
             DspGraph graph = new();
-            _ = graph.TryAddNode(new DspChain(), out int input);
-            _ = graph.TryAddNode(ChainOf(new DelayEffect(0) { Gain = 2f }), out int first);
-            _ = graph.TryAddNode(ChainOf(new DelayEffect(0) { Gain = 3f }), out int second);
-            _ = graph.TryAddNode(ChainOf(new DelayEffect(0) { Gain = 5f }), out int third);
-            _ = graph.TryAddNode(new DspChain(), out int output);
+            int input = AddNode(graph, new DspChain());
+            int first = AddNode(graph, ChainOf(new DelayEffect(0) { Gain = 2f }));
+            int second = AddNode(graph, ChainOf(new DelayEffect(0) { Gain = 3f }));
+            int third = AddNode(graph, ChainOf(new DelayEffect(0) { Gain = 5f }));
+            int output = AddNode(graph, new DspChain());
             Assert.That(graph.TryAddEdge(input, first), Is.True);
             Assert.That(graph.TryAddEdge(first, second), Is.True);
             Assert.That(graph.TryAddEdge(first, third), Is.True);
@@ -96,9 +153,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void ACycleIsRefusedAtTheEdgeThatClosesIt()
         {
             DspGraph graph = new();
-            _ = graph.TryAddNode(new DspChain(), out int first);
-            _ = graph.TryAddNode(new DspChain(), out int second);
-            _ = graph.TryAddNode(new DspChain(), out int third);
+            int first = AddNode(graph, new DspChain());
+            int second = AddNode(graph, new DspChain());
+            int third = AddNode(graph, new DspChain());
 
             Assert.That(graph.TryAddEdge(first, second), Is.True);
             Assert.That(graph.TryAddEdge(second, third), Is.True);
@@ -114,9 +171,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void ANodeOffThePathIsRefused()
         {
             DspGraph stranded = new();
-            _ = stranded.TryAddNode(new DspChain(), out int input);
-            _ = stranded.TryAddNode(new DspChain(), out int middle);
-            _ = stranded.TryAddNode(new DspChain(), out int output);
+            int input = AddNode(stranded, new DspChain());
+            int middle = AddNode(stranded, new DspChain());
+            int output = AddNode(stranded, new DspChain());
             _ = stranded.TryAddNode(new DspChain(), out _);
             _ = stranded.TryAddEdge(input, middle);
             _ = stranded.TryAddEdge(middle, output);
@@ -166,7 +223,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void AnUnpreparedGraphPassesTheBlockThrough()
         {
             DspGraph graph = new();
-            _ = graph.TryAddNode(ChainOf(new DelayEffect(0) { Gain = 0f }), out int input);
+            int input = AddNode(graph, ChainOf(new DelayEffect(0) { Gain = 0f }));
 
             float[] block = Impulse(256, 1, 0, 1f);
             float[] before = (float[])block.Clone();
@@ -210,7 +267,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             float[] gathered = new float[64 * 8];
             float[] block = new float[64 + offset];
-            for (int pass = 0; pass < 8; pass++)
+            for (int pass = 0; pass < 8; ++pass)
             {
                 Array.Clear(block, 0, block.Length);
                 if (pass == 0)
@@ -324,7 +381,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void TheNodeCountIsBounded()
         {
             DspGraph graph = new();
-            for (int node = 0; node < DspGraph.MaximumNodes; node++)
+            for (int node = 0; node < DspGraph.MaximumNodes; ++node)
             {
                 Assert.That(graph.TryAddNode(new DspChain(), out _), Is.True);
             }
@@ -335,56 +392,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(graph.TryAddNode(null, out _), Is.False, "a null chain is not a node");
         }
 
-        /// <summary>A fan-out into two branches that fan back in to one output: nodes 0, 1, 2, then the output at 3.</summary>
-        private static DspGraph FanIn(DspChain first, DspChain second)
-        {
-            DspGraph graph = new();
-            _ = graph.TryAddNode(new DspChain(), out int input);
-            _ = graph.TryAddNode(first, out int left);
-            _ = graph.TryAddNode(second, out int right);
-            _ = graph.TryAddNode(new DspChain(), out int output);
-            Assert.That(graph.TryAddEdge(input, left), Is.True);
-            Assert.That(graph.TryAddEdge(input, right), Is.True);
-            Assert.That(graph.TryAddEdge(left, output), Is.True);
-            Assert.That(graph.TryAddEdge(right, output), Is.True);
-            return graph;
-        }
-
-        private static DspChain ChainOf(DspEffect effect)
-        {
-            DspChain chain = new();
-            chain.Add(effect);
-            return chain;
-        }
-
-        private static float[] Impulse(int frames, int channels, int frame, float value)
-        {
-            float[] block = new float[frames * channels];
-            for (int channel = 0; channel < channels; channel++)
-            {
-                block[(frame * channels) + channel] = value;
-            }
-
-            return block;
-        }
-
-        private static int NonZeroCount(float[] block)
-        {
-            int count = 0;
-            for (int sample = 0; sample < block.Length; sample++)
-            {
-                if (block[sample] != 0f)
-                {
-                    count++;
-                }
-            }
-
-            return count;
-        }
-
         /// <summary>Delays the signal by a whole number of frames, so a branch arrives late for real.</summary>
         private sealed class DelayEffect : DspEffect
         {
+            public float Gain { get; set; } = 1f;
+
+            public override string DisplayName => "Delay";
+
+            public override int LatencySamples => _frames;
             private readonly int _frames;
             private float[] _line = Array.Empty<float>();
             private int _position;
@@ -394,17 +409,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 _frames = frames;
             }
 
-            public float Gain { get; set; } = 1f;
-
-            public override string DisplayName => "Delay";
-
-            public override int LatencySamples => _frames;
-
             public override void Process(float[] buffer, int offset, int count, int channels)
             {
                 if (_frames == 0)
                 {
-                    for (int sample = 0; sample < count; sample++)
+                    for (int sample = 0; sample < count; ++sample)
                     {
                         buffer[offset + sample] *= Gain;
                     }
@@ -413,12 +422,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 }
 
                 int capacity = _line.Length;
-                for (int sample = 0; sample < count; sample++)
+                for (int sample = 0; sample < count; ++sample)
                 {
                     float held = _line[_position];
                     _line[_position] = buffer[offset + sample];
                     buffer[offset + sample] = held * Gain;
-                    _position++;
+                    ++_position;
                     if (_position == capacity)
                     {
                         _position = 0;
@@ -446,16 +455,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         /// <summary>Reports a delay it does not hold, so a graph can be made to reserve more than it may.</summary>
         private sealed class LatencyClaimEffect : DspEffect
         {
+            public override string DisplayName => "Claim";
+
+            public override int LatencySamples => _frames;
             private readonly int _frames;
 
             public LatencyClaimEffect(int frames)
             {
                 _frames = frames;
             }
-
-            public override string DisplayName => "Claim";
-
-            public override int LatencySamples => _frames;
 
             public override void Process(float[] buffer, int offset, int count, int channels) { }
 

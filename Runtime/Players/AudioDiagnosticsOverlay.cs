@@ -20,25 +20,6 @@ namespace WallstopStudios.DxAudio
         private const float OverlayY = 10f;
         private const float OverlayWidth = 620f;
 
-        [SerializeField]
-        [Tooltip("The sound-effects player to report on.")]
-        private SfxPlayer _sfx;
-
-        [SerializeField]
-        [Tooltip("The music player to report on.")]
-        private MusicPlayer _music;
-
-        [SerializeField]
-        [Tooltip("Draws the overlay. Sampling runs only while this is set.")]
-        private bool _enabled;
-
-        private readonly StringBuilder _builder = new();
-        private IMusicDuckReason[] _duckReasons;
-        private object[] _duckHolders;
-        private long[] _duckIds;
-        private string _text = string.Empty;
-        private Vector2 _scroll;
-
         /// <summary>Whether the overlay samples and draws. Switching it off stops both.</summary>
         public bool Enabled
         {
@@ -79,6 +60,60 @@ namespace WallstopStudios.DxAudio
         /// <summary>The last sampled report, or empty while the overlay is off.</summary>
         public string Text => _text;
 
+        [SerializeField]
+        [Tooltip("The sound-effects player to report on.")]
+        private SfxPlayer _sfx;
+
+        [SerializeField]
+        [Tooltip("The music player to report on.")]
+        private MusicPlayer _music;
+
+        [SerializeField]
+        [Tooltip("Draws the overlay. Sampling runs only while this is set.")]
+        private bool _enabled;
+
+        private readonly StringBuilder _builder = new();
+        private IMusicDuckReason[] _duckReasons;
+        private object[] _duckHolders;
+        private long[] _duckIds;
+        private string _text = string.Empty;
+        private Vector2 _scroll;
+
+        private static void AppendDropCount(StringBuilder text, SfxDropCounts counts, SfxDropReason reason, ref bool first)
+        {
+            int count = counts[reason];
+            if (count < 1)
+            {
+                return;
+            }
+
+            if (first)
+            {
+                first = false;
+            }
+            else
+            {
+                _ = text.Append(", ");
+            }
+
+            _ = text.Append(reason.ToString()).Append(' ').Append(count);
+        }
+
+        /// <summary>Rebuilds <see cref="Text"/>. Does nothing, and allocates nothing, while the overlay is off.</summary>
+        public void Sample()
+        {
+            if (!_enabled)
+            {
+                return;
+            }
+
+            PrepareBuffers();
+            _builder.Clear();
+            AppendSfx(_builder);
+            AppendMusic(_builder);
+            _text = _builder.ToString();
+        }
+
         private void OnEnable()
         {
             useGUILayout = _enabled;
@@ -110,21 +145,6 @@ namespace WallstopStudios.DxAudio
             Sample();
         }
 
-        /// <summary>Rebuilds <see cref="Text"/>. Does nothing, and allocates nothing, while the overlay is off.</summary>
-        public void Sample()
-        {
-            if (!_enabled)
-            {
-                return;
-            }
-
-            PrepareBuffers();
-            _builder.Clear();
-            AppendSfx(_builder);
-            AppendMusic(_builder);
-            _text = _builder.ToString();
-        }
-
         private void OnGUI()
         {
             if (!_enabled || _text.Length == 0)
@@ -150,7 +170,7 @@ namespace WallstopStudios.DxAudio
             }
 
             int busy = 0;
-            for (int index = 0; index < player.VoiceCount; index++)
+            for (int index = 0; index < player.VoiceCount; ++index)
             {
                 if (player.TryGetVoiceState(index, out SfxVoiceState state, out _) && state.isUsable && (state.isPlaying || state.isHeld))
                 {
@@ -160,7 +180,7 @@ namespace WallstopStudios.DxAudio
 
             _ = text.Append("Sfx: ").Append(player.VoiceCount).Append(" voices, ").Append(busy).Append(" busy, ").Append(player.HeldVoiceCount).AppendLine(" loop(s) held");
 
-            for (int index = 0; index < player.VoiceCount; index++)
+            for (int index = 0; index < player.VoiceCount; ++index)
             {
                 if (!player.TryGetVoiceState(index, out SfxVoiceState state, out int lease))
                 {
@@ -214,26 +234,6 @@ namespace WallstopStudios.DxAudio
             _ = text.AppendLine();
         }
 
-        private static void AppendDropCount(StringBuilder text, SfxDropCounts counts, SfxDropReason reason, ref bool first)
-        {
-            int count = counts[reason];
-            if (count < 1)
-            {
-                return;
-            }
-
-            if (first)
-            {
-                first = false;
-            }
-            else
-            {
-                _ = text.Append(", ");
-            }
-
-            _ = text.Append(reason.ToString()).Append(' ').Append(count);
-        }
-
         private void AppendMusic(StringBuilder text)
         {
             MusicPlayer player = _music;
@@ -268,7 +268,7 @@ namespace WallstopStudios.DxAudio
             int count = player.CopyDuckHolds(_duckReasons, _duckHolders, _duckIds);
             _ = text.Append("Ducks: ").Append(count).AppendLine();
             int shown = Math.Min(count, _duckReasons.Length);
-            for (int index = 0; index < shown; index++)
+            for (int index = 0; index < shown; ++index)
             {
                 IMusicDuckReason reason = _duckReasons[index];
                 _ = text.Append("  ");

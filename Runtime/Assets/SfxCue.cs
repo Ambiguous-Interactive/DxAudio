@@ -18,6 +18,72 @@ namespace WallstopStudios.DxAudio
     {
         private const float DefaultMinimumIntervalSeconds = 0.05f;
 
+        public string Key => _key;
+
+        public IReadOnlyList<SfxVariant> Variants => _variants;
+
+        public float Volume => _volume;
+
+        public float PitchJitter => _pitchJitter;
+
+        public SfxVariation Variation => _variation;
+
+        public float MinimumIntervalSeconds => _minimumIntervalSeconds;
+
+        public SfxPriority Priority => _priority;
+
+        /// <summary>Whether this cue is held for as long as its state lasts, rather than played once.</summary>
+        public bool IsLooping => _loop;
+
+        public bool IgnoresListenerPause => _ignoresListenerPause;
+
+        public AudioMixerGroup MixerGroupOverride => _mixerGroupOverride;
+
+        public float SpatialBlend => _spatialBlend;
+
+        public bool IsPositional => 0f < _spatialBlend;
+
+        public float FalloffStartUnits => _falloffStartUnits;
+
+        /// <summary>Distance past which a placed cue is silent, never nearer than its falloff start.</summary>
+        /// <remarks>
+        /// Held here rather than trusted, because Unity silently reorders <c>minDistance</c> and
+        /// <c>maxDistance</c> when they cross, and the cue is then audible everywhere.
+        /// </remarks>
+        public float FalloffEndUnits => Mathf.Max(_falloffStartUnits, _falloffEndUnits);
+
+        public bool IsHeardCentred => _heardCentred;
+
+        public SfxCue FollowsTakeOf => _followsTakeOf;
+
+        /// <summary>The effects this cue's voices run, or null to play the take untouched.</summary>
+        public DspChainAsset Chain => _chain;
+
+        /// <summary>The graph this cue's voices run after <see cref="Chain" />, or null to run none.</summary>
+        public DspGraphAsset Graph => _graph;
+
+        /// <summary>How many variants hold a clip. Selection draws from this, so an empty slot is never picked.</summary>
+        public int PlayableVariantCount
+        {
+            get
+            {
+                int count = 0;
+                foreach (SfxVariant variant in _variants)
+                {
+                    if (variant != null && variant.IsPlayable)
+                    {
+                        ++count;
+                    }
+                }
+
+                return count;
+            }
+        }
+
+        public bool IsPlayable => 0 < PlayableVariantCount;
+
+        internal int TakeRevision { get; private set; }
+
         [SerializeField]
         [Tooltip("Looks this cue up in an SfxLibrary. Optional when the cue is only played by reference.")]
         private string _key;
@@ -101,72 +167,6 @@ namespace WallstopStudios.DxAudio
                 + "voice builds its own copy, cleared at the start of every play."
         )]
         private DspGraphAsset _graph;
-
-        internal int TakeRevision { get; private set; }
-
-        public string Key => _key;
-
-        public IReadOnlyList<SfxVariant> Variants => _variants;
-
-        public float Volume => _volume;
-
-        public float PitchJitter => _pitchJitter;
-
-        public SfxVariation Variation => _variation;
-
-        public float MinimumIntervalSeconds => _minimumIntervalSeconds;
-
-        public SfxPriority Priority => _priority;
-
-        /// <summary>Whether this cue is held for as long as its state lasts, rather than played once.</summary>
-        public bool IsLooping => _loop;
-
-        public bool IgnoresListenerPause => _ignoresListenerPause;
-
-        public AudioMixerGroup MixerGroupOverride => _mixerGroupOverride;
-
-        public float SpatialBlend => _spatialBlend;
-
-        public bool IsPositional => 0f < _spatialBlend;
-
-        public float FalloffStartUnits => _falloffStartUnits;
-
-        /// <summary>Distance past which a placed cue is silent, never nearer than its falloff start.</summary>
-        /// <remarks>
-        /// Held here rather than trusted, because Unity silently reorders <c>minDistance</c> and
-        /// <c>maxDistance</c> when they cross, and the cue is then audible everywhere.
-        /// </remarks>
-        public float FalloffEndUnits => Mathf.Max(_falloffStartUnits, _falloffEndUnits);
-
-        public bool IsHeardCentred => _heardCentred;
-
-        public SfxCue FollowsTakeOf => _followsTakeOf;
-
-        /// <summary>The effects this cue's voices run, or null to play the take untouched.</summary>
-        public DspChainAsset Chain => _chain;
-
-        /// <summary>The graph this cue's voices run after <see cref="Chain" />, or null to run none.</summary>
-        public DspGraphAsset Graph => _graph;
-
-        /// <summary>How many variants hold a clip. Selection draws from this, so an empty slot is never picked.</summary>
-        public int PlayableVariantCount
-        {
-            get
-            {
-                int count = 0;
-                foreach (SfxVariant variant in _variants)
-                {
-                    if (variant != null && variant.IsPlayable)
-                    {
-                        count++;
-                    }
-                }
-
-                return count;
-            }
-        }
-
-        public bool IsPlayable => 0 < PlayableVariantCount;
 
         /// <summary>Builds a cue in code, for tests and for games that author cues at runtime.</summary>
         public static SfxCue Create(
@@ -319,7 +319,7 @@ namespace WallstopStudios.DxAudio
                         return true;
                     }
 
-                    seen++;
+                    ++seen;
                 }
             }
 

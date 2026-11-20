@@ -36,6 +36,40 @@ namespace WallstopStudios.DxAudio.Samples
         private bool _loopHeld;
         private string _message = "Start the scene to hear a cue, a loop and music.";
 
+        private static AudioClip MakeTone(string name, float frequencyHz, float seconds)
+        {
+            int sampleCount = Mathf.Max(1, Mathf.RoundToInt(SampleRate * seconds));
+            float[] samples = new float[sampleCount];
+            for (int index = 0; index < sampleCount; ++index)
+            {
+                // Fade both ends so a one-shot does not click and a loop does not restart audibly.
+                float position = index / (float)sampleCount;
+                float envelope = Mathf.Min(position * 20f, (1f - position) * 20f);
+                float secondsAtSample = index / (float)SampleRate;
+                samples[index] = Mathf.Sin(2f * Mathf.PI * frequencyHz * secondsAtSample) * 0.5f * envelope;
+            }
+
+            AudioClip clip = AudioClip.Create(name, sampleCount, 1, SampleRate, false);
+            clip.SetData(samples, 0);
+            return clip;
+        }
+
+        private static void DestroyRuntimeObject(Object target)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(target);
+                return;
+            }
+
+            DestroyImmediate(target);
+        }
+
         private void Start()
         {
             if (_sfx == null || _music == null)
@@ -146,40 +180,6 @@ namespace WallstopStudios.DxAudio.Samples
 
             _duckLease = _music.Duck(_duck, this);
             _message = "Held the duck. The music lowers and muffles.";
-        }
-
-        private static AudioClip MakeTone(string name, float frequencyHz, float seconds)
-        {
-            int sampleCount = Mathf.Max(1, Mathf.RoundToInt(SampleRate * seconds));
-            float[] samples = new float[sampleCount];
-            for (int index = 0; index < sampleCount; index++)
-            {
-                // Fade both ends so a one-shot does not click and a loop does not restart audibly.
-                float position = index / (float)sampleCount;
-                float envelope = Mathf.Min(position * 20f, (1f - position) * 20f);
-                float secondsAtSample = index / (float)SampleRate;
-                samples[index] = Mathf.Sin(2f * Mathf.PI * frequencyHz * secondsAtSample) * 0.5f * envelope;
-            }
-
-            AudioClip clip = AudioClip.Create(name, sampleCount, 1, SampleRate, false);
-            clip.SetData(samples, 0);
-            return clip;
-        }
-
-        private static void DestroyRuntimeObject(Object target)
-        {
-            if (target == null)
-            {
-                return;
-            }
-
-            if (Application.isPlaying)
-            {
-                Destroy(target);
-                return;
-            }
-
-            DestroyImmediate(target);
         }
     }
 }

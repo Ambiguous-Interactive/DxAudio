@@ -8,6 +8,29 @@ namespace WallstopStudios.DxAudio.Editor
     [CustomPropertyDrawer(typeof(SfxVariation))]
     internal sealed class SfxVariationDrawer : PropertyDrawer
     {
+        internal static void SetLowPass(SerializedObject asset, string variationPath, bool enabled)
+        {
+            const string UndoName = "Change Low-Pass Variation";
+            Undo.SetCurrentGroupName(UndoName);
+            UnityEngine.Object[] targets = asset.targetObjects;
+            Undo.RegisterCompleteObjectUndo(targets, UndoName);
+            foreach (UnityEngine.Object target in targets)
+            {
+                using SerializedObject edit = new(target);
+                SerializedProperty variation = edit.FindProperty(variationPath);
+                variation.FindPropertyRelative(nameof(SfxVariation.UseLowPass)).boolValue = enabled;
+                SerializedProperty lower = variation.FindPropertyRelative(nameof(SfxVariation.MinimumLowPassHertz));
+                SerializedProperty upper = variation.FindPropertyRelative(nameof(SfxVariation.MaximumLowPassHertz));
+                if (enabled && lower.floatValue == 0f && upper.floatValue == 0f)
+                {
+                    lower.floatValue = 8_000f;
+                    upper.floatValue = 16_000f;
+                }
+                edit.ApplyModifiedPropertiesWithoutUndo();
+            }
+            asset.Update();
+        }
+
         public override VisualElement CreatePropertyGUI(SerializedProperty property)
         {
             VisualElement root = new() { name = "DxAudioSfxVariation" };
@@ -106,29 +129,6 @@ namespace WallstopStudios.DxAudio.Editor
                 };
                 warning.style.display = values.HasInvalidBounds ? DisplayStyle.Flex : DisplayStyle.None;
             }
-        }
-
-        internal static void SetLowPass(SerializedObject asset, string variationPath, bool enabled)
-        {
-            const string UndoName = "Change Low-Pass Variation";
-            Undo.SetCurrentGroupName(UndoName);
-            UnityEngine.Object[] targets = asset.targetObjects;
-            Undo.RegisterCompleteObjectUndo(targets, UndoName);
-            foreach (UnityEngine.Object target in targets)
-            {
-                using SerializedObject edit = new(target);
-                SerializedProperty variation = edit.FindProperty(variationPath);
-                variation.FindPropertyRelative(nameof(SfxVariation.UseLowPass)).boolValue = enabled;
-                SerializedProperty lower = variation.FindPropertyRelative(nameof(SfxVariation.MinimumLowPassHertz));
-                SerializedProperty upper = variation.FindPropertyRelative(nameof(SfxVariation.MaximumLowPassHertz));
-                if (enabled && lower.floatValue == 0f && upper.floatValue == 0f)
-                {
-                    lower.floatValue = 8_000f;
-                    upper.floatValue = 16_000f;
-                }
-                edit.ApplyModifiedPropertiesWithoutUndo();
-            }
-            asset.Update();
         }
     }
 }

@@ -1,0 +1,9 @@
+is_global = true
+
+dotnet_diagnostic.CA2012.severity = error
+dotnet_diagnostic.CA2013.severity = error
+dotnet_diagnostic.CA2021.severity = error
+dotnet_diagnostic.CA2200.severity = error
+dotnet_diagnostic.RS0030.severity = error
+dotnet_diagnostic.ERP021.severity = error
+dotnet_diagnostic.EPS06.severity = error

@@ -36,6 +36,16 @@ namespace WallstopStudios.DxAudio
             _lastIndexByKey = new Dictionary<TKey, int>(_comparer);
         }
 
+        private static int ClampIndex(int value, int highest)
+        {
+            if (value < 0)
+            {
+                return 0;
+            }
+
+            return highest < value ? highest : value;
+        }
+
         /// <summary>Picks the next of <paramref name="variantCount"/> variants for <paramref name="key"/>.</summary>
         /// <param name="key">What the variants belong to. Only its own history is consulted.</param>
         /// <param name="variantCount">How many variants there are to choose from.</param>
@@ -68,7 +78,7 @@ namespace WallstopStudios.DxAudio
                 chosen = ClampIndex(drawn, variantCount - 2);
                 if (last <= chosen)
                 {
-                    chosen++;
+                    ++chosen;
                 }
             }
             else
@@ -129,16 +139,6 @@ namespace WallstopStudios.DxAudio
         internal void Remember(TKey key, int index)
         {
             _lastIndexByKey[key] = index;
-        }
-
-        private static int ClampIndex(int value, int highest)
-        {
-            if (value < 0)
-            {
-                return 0;
-            }
-
-            return highest < value ? highest : value;
         }
     }
 }

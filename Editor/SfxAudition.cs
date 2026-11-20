@@ -36,11 +36,46 @@ namespace WallstopStudios.DxAudio.Editor
             return PlayClip(cue, variant.Clip, cue.Volume * variant.Gain, cue.PlaybackStartSecondsFor(variant));
         }
 
-        internal static bool IsPlaying(Object owner) => owner != null && _previewOwner == owner && _previewSource != null && _previewSource.isPlaying;
+        /// <summary>Stops the preview source, if one exists.</summary>
+        public static void Stop()
+        {
+            if (_previewSource != null)
+            {
+                _previewSource.Stop();
+            }
+
+            ReleaseSceneAudio();
+        }
+
+        /// <summary>Destroys the preview source, so it does not outlive a test or an editor session.</summary>
+        public static void DestroyPreview()
+        {
+            Stop();
+            if (_previewSource != null)
+            {
+                Object.DestroyImmediate(_previewSource.gameObject);
+                _previewSource = null;
+            }
+
+            _previewOwner = null;
+        }
+
+        internal static bool IsPlaying(Object owner)
+        {
+            return owner != null && _previewOwner == owner && _previewSource != null && _previewSource.isPlaying;
+        }
 
         internal static AudioSource Play(MusicTrack track)
         {
             return track == null || track.Clip == null ? null : PlayClip(track, track.Clip, track.VolumeScale, track.StartTimeSeconds);
+        }
+
+        internal static void DestroyPreview(Object owner)
+        {
+            if (owner != null && _previewOwner == owner)
+            {
+                DestroyPreview();
+            }
         }
 
         private static AudioSource PlayClip(Object owner, AudioClip clip, float volume, float start)
@@ -66,38 +101,6 @@ namespace WallstopStudios.DxAudio.Editor
             source.time = start;
             source.Play();
             return source;
-        }
-
-        /// <summary>Stops the preview source, if one exists.</summary>
-        public static void Stop()
-        {
-            if (_previewSource != null)
-            {
-                _previewSource.Stop();
-            }
-
-            ReleaseSceneAudio();
-        }
-
-        /// <summary>Destroys the preview source, so it does not outlive a test or an editor session.</summary>
-        public static void DestroyPreview()
-        {
-            Stop();
-            if (_previewSource != null)
-            {
-                Object.DestroyImmediate(_previewSource.gameObject);
-                _previewSource = null;
-            }
-
-            _previewOwner = null;
-        }
-
-        internal static void DestroyPreview(Object owner)
-        {
-            if (owner != null && _previewOwner == owner)
-            {
-                DestroyPreview();
-            }
         }
 
         private static void ReleaseEndedPreview()

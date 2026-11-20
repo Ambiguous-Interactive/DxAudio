@@ -40,7 +40,7 @@ namespace WallstopStudios.DxAudio.Editor
                     )
                 );
             }
-            else if (bus.GetComponent<AudioSource>() != null)
+            else if (bus.TryGetComponent<AudioSource>(out _))
             {
                 root.Insert(
                     0,

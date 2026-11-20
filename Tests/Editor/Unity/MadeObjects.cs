@@ -22,11 +22,20 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             return made;
         }
 
+        public void DestroyNow(Object value)
+        {
+            if (!_made.Contains(value))
+            {
+                throw new ArgumentException("Only objects registered with this scope can be destroyed through it.", nameof(value));
+            }
+
+            Object.DestroyImmediate(value);
+        }
+
         public void Dispose()
         {
-            for (int index = 0; index < _made.Count; ++index)
+            foreach (Object made in _made)
             {
-                Object made = _made[index];
                 if (made != null)
                 {
                     Object.DestroyImmediate(made);

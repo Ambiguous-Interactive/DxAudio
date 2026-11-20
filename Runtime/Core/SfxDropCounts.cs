@@ -9,21 +9,6 @@ namespace WallstopStudios.DxAudio
     {
         public static readonly SfxDropCounts None = default;
 
-        public readonly int notPlayable;
-        public readonly int throttled;
-        public readonly int noVoice;
-        public readonly int loopLimit;
-        public readonly int wrongPlayMethod;
-
-        public SfxDropCounts(int notPlayable, int throttled, int noVoice, int loopLimit, int wrongPlayMethod)
-        {
-            this.notPlayable = notPlayable;
-            this.throttled = throttled;
-            this.noVoice = noVoice;
-            this.loopLimit = loopLimit;
-            this.wrongPlayMethod = wrongPlayMethod;
-        }
-
         /// <summary>Every cue that did not play, whatever the reason.</summary>
         public int Total => notPlayable + throttled + noVoice + loopLimit + wrongPlayMethod;
 
@@ -48,6 +33,21 @@ namespace WallstopStudios.DxAudio
                         return 0;
                 }
             }
+        }
+
+        public readonly int notPlayable;
+        public readonly int throttled;
+        public readonly int noVoice;
+        public readonly int loopLimit;
+        public readonly int wrongPlayMethod;
+
+        public SfxDropCounts(int notPlayable, int throttled, int noVoice, int loopLimit, int wrongPlayMethod)
+        {
+            this.notPlayable = notPlayable;
+            this.throttled = throttled;
+            this.noVoice = noVoice;
+            this.loopLimit = loopLimit;
+            this.wrongPlayMethod = wrongPlayMethod;
         }
     }
 }

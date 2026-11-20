@@ -1,4 +1,4 @@
-﻿namespace WallstopStudios.DxAudio.Editor
+namespace WallstopStudios.DxAudio.Editor
 {
     using System;
     using System.Collections.Generic;
@@ -31,7 +31,7 @@
                         effects =>
                         {
                             int index = effects.arraySize;
-                            effects.arraySize++;
+                            ++effects.arraySize;
                             effects.GetArrayElementAtIndex(index).objectReferenceValue = effect;
                         }
                     );
@@ -59,7 +59,7 @@
             _shown.Clear();
             _stages.Clear();
             bool editable = AssetDatabase.IsOpenForEdit(_chain);
-            for (int index = 0; index < effects.Count; index++)
+            for (int index = 0; index < effects.Count; ++index)
             {
                 DspEffectAsset effect = effects[index];
                 _shown.Add(effect);
@@ -96,7 +96,7 @@
                 return false;
             }
 
-            for (int index = 0; index < current.Count; index++)
+            for (int index = 0; index < current.Count; ++index)
             {
                 if (!ReferenceEquals(current[index], _shown[index]))
                 {

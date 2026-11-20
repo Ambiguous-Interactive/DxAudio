@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "dependencies": {
+    ".NETStandard,Version=v2.1": {
+      "ErrorProne.NET.CoreAnalyzers": {
+        "type": "Direct",
+        "requested": "[0.1.2, )",
+        "resolved": "0.1.2",
+        "contentHash": "RQdzUtFVhwLwisP2Du7Ugm7ldwAzc+QJrlZWNIwHXcgq4b5fLwZgdN1203RdYiHS8OOALophC6yWekxu3UgN2g=="
+      },
+      "ErrorProne.NET.Structs": {
+        "type": "Direct",
+        "requested": "[0.1.2, )",
+        "resolved": "0.1.2",
+        "contentHash": "2AuzqxkREpl8kBt249CeR1sM70ZxBwm6nMcqi8tikisn5jD9jQW2ZNv8Q7PwHzxQYwTSmeRuua8vbPfClqXCzA=="
+      },
+      "Microsoft.CodeAnalysis.BannedApiAnalyzers": {
+        "type": "Direct",
+        "requested": "[3.3.4, )",
+        "resolved": "3.3.4",
+        "contentHash": "0k2Jwpc8eq0hjOtX6TxRkHm9clkJ2PAQ3heEHgqIJZcsfdFosC/iyz18nsgTVDDWpID80rC7aiYK7ripx+Qndg=="
+      }
+    }
+  }
+}

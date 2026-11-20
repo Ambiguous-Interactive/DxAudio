@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <RootNamespace>WallstopStudios.DxAudio</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Runtime/Core/**/*.cs" />
+    <Compile Include="../WuhSuppressions.cs" Condition="Exists('../WuhSuppressions.cs')" />
+  </ItemGroup>
+</Project>

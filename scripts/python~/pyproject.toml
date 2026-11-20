@@ -1,0 +1,148 @@
+[project]
+name = "dxaudio-python-policy"
+version = "0.0.0"
+requires-python = ">=3.11.8"
+dependencies = []
+
+[dependency-groups]
+dev = ["mypy==2.4.1", "pyright==1.1.414", "ruff==0.17.5"]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E4", "E7", "E9", "F", "I", "UP", "B", "A", "C4", "DTZ", "FA", "ISC",
+    "ICN", "PIE", "PYI", "PT", "Q", "RET", "SIM", "TC", "ARG", "PTH", "RUF",
+    "ANN", "S", "PERF",
+]
+ignore = ["ISC001"]
+
+[tool.ruff.lint.per-file-ignores]
+"test_*.py" = ["S101", "S603"]
+"test-*.py" = ["S101", "S603"]
+
+[tool.mypy]
+strict = true
+disallow_any_explicit = true
+warn_unreachable = true
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "strict"
+# List every new Python source here. Keep the legacy inventory explicit while migrating it.
+include = ["../../.net-tests/prepare_analyzers.py", "../../.net-tests/run_checks.py", "check.py"]
+
+[tool.unity-helpers-python]
+legacy = [
+    ".devcontainer/_lifecycle_common.py",
+    ".devcontainer/ai_backends.py",
+    ".devcontainer/backend_state.py",
+    ".devcontainer/env_local.py",
+    ".devcontainer/install_npm_tools.py",
+    ".devcontainer/on_create.py",
+    ".devcontainer/post_create.py",
+    ".devcontainer/post_start.py",
+    ".devcontainer/recycle_stale_opencode_service.py",
+    ".devcontainer/update_content.py",
+    ".github/checks/portable_build_lock.py",
+    ".github/checks/portable_csharp_checks.py",
+    ".github/checks/portable_doc_checks.py",
+    ".github/checks/portable_git_checks.py",
+    ".github/checks/portable_test_checks.py",
+    ".github/checks/portable_tool_checks.py",
+    ".github/checks/test_unity_helpers_coverage.py",
+    ".github/checks/unity_helpers_coverage.py",
+    ".github/checks/unity_helpers_source_checks.py",
+    ".github/scripts/check_text_files.py",
+    ".github/scripts/meta_files.py",
+    ".github/scripts/package_check.py",
+    ".github/scripts/test_meta_files.py",
+    ".github/scripts/test_package_check.py",
+    ".github/scripts/test_text_files.py",
+    ".github/scripts/test_unity_workflow.py",
+    ".llm/mcp/sync_mcp.py",
+    ".llm/mcp/zai_image_mcp.py",
+    ".net-tests/UnityValidation/test_runner.py",
+    "scripts/fast_check.py",
+    "scripts/gate.py",
+    "scripts/generate_skills_index.py",
+    "scripts/harness_scope.py",
+    "scripts/lint_assembly_warnings.py",
+    "scripts/lint_changelog_length.py",
+    "scripts/lint_csharp_null_assertions.py",
+    "scripts/lint_csharp_source_policy.py",
+    "scripts/lint_csharp_usings.py",
+    "scripts/lint_docs_links.py",
+    "scripts/lint_enum_defaults.py",
+    "scripts/lint_file_lengths.py",
+    "scripts/lint_line_endings.py",
+    "scripts/lint_llm_instructions.py",
+    "scripts/lint_meta_companions.py",
+    "scripts/lint_playmode_sources.py",
+    "scripts/lint_release_secrets.py",
+    "scripts/llm_config.py",
+    "scripts/markdown_check.py",
+    "scripts/mcp_aliases.py",
+    "scripts/mcp_catalog.py",
+    "scripts/mcp_codex_config.py",
+    "scripts/mcp_configure.py",
+    "scripts/mcp_doctor.py",
+    "scripts/mcp_json_config.py",
+    "scripts/run_ci_lints.py",
+    "scripts/run_unity_validation.py",
+    "scripts/should_run_self_tests.py",
+    "scripts/sync_compiler_policy.py",
+    "scripts/tests/_test_helpers.py",
+    "scripts/tests/run_all.py",
+    "scripts/tests/test_ai_backends.py",
+    "scripts/tests/test_assembly_warnings.py",
+    "scripts/tests/test_backend_state.py",
+    "scripts/tests/test_changelog_length.py",
+    "scripts/tests/test_csharp_null_assertions.py",
+    "scripts/tests/test_csharp_source_policy.py",
+    "scripts/tests/test_csharp_usings.py",
+    "scripts/tests/test_devcontainer_lifecycle.py",
+    "scripts/tests/test_docs_links.py",
+    "scripts/tests/test_enum_defaults.py",
+    "scripts/tests/test_env_local_precedence.py",
+    "scripts/tests/test_fast_check.py",
+    "scripts/tests/test_file_lengths.py",
+    "scripts/tests/test_gate.py",
+    "scripts/tests/test_generate_skills_index.py",
+    "scripts/tests/test_harness_scope.py",
+    "scripts/tests/test_install_npm_tools.py",
+    "scripts/tests/test_line_endings.py",
+    "scripts/tests/test_lint_llm_instructions.py",
+    "scripts/tests/test_markdown_check.py",
+    "scripts/tests/test_mcp_aliases.py",
+    "scripts/tests/test_mcp_catalog.py",
+    "scripts/tests/test_mcp_codex_config.py",
+    "scripts/tests/test_mcp_credentials.py",
+    "scripts/tests/test_mcp_json_config.py",
+    "scripts/tests/test_mcp_sync.py",
+    "scripts/tests/test_meta_companions.py",
+    "scripts/tests/test_opencode_service_recycle.py",
+    "scripts/tests/test_playmode_sources.py",
+    "scripts/tests/test_release_secrets.py",
+    "scripts/tests/test_run_all.py",
+    "scripts/tests/test_run_ci_lints.py",
+    "scripts/tests/test_run_unity_validation.py",
+    "scripts/tests/test_test_helpers.py",
+    "scripts/tests/test_unity_mcp_doctor.py",
+    "scripts/tests/test_unity_mcp_host.py",
+    "scripts/tests/test_unity_mcp_host_python.py",
+    "scripts/tests/test_unity_mcp_settings.py",
+    "scripts/tests/test_uv_environment.py",
+    "scripts/tests/test_zai_image_mcp.py",
+    "scripts/unity/prepare-package.py",
+    "scripts/unity_mcp_doctor.py",
+    "scripts/unity_mcp_host.py",
+    "scripts/unity_mcp_settings.py",
+    "scripts/unity_tests.py",
+    "scripts/uv_environment.py",
+]

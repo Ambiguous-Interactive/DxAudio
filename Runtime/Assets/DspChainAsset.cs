@@ -12,14 +12,55 @@ namespace WallstopStudios.DxAudio
     [CreateAssetMenu(fileName = "DspChain", menuName = "DxAudio/DSP/Chain")]
     public sealed class DspChainAsset : ScriptableObject
     {
+        public IReadOnlyList<DspEffectAsset> Effects => _effects;
+
+        public int Count => _effects.Count;
+
         [SerializeField]
         [Tooltip("Effects in the order the signal meets them, first at the top. Empty slots are skipped, not silenced.")]
         private List<DspEffectAsset> _effects = new();
 
+        /// <summary>Builds a chain asset in code, for tests and for games that author audio at runtime.</summary>
+        public static DspChainAsset Create(IEnumerable<DspEffectAsset> effects)
+        {
+            DspChainAsset asset = CreateInstance<DspChainAsset>();
+            asset._effects = effects == null ? new List<DspEffectAsset>() : new List<DspEffectAsset>(effects);
+            return asset;
+        }
+
+        /// <summary>Builds a chain with one fresh effect for every authored stage, ready for <c>TryPrepare</c>.</summary>
+        public DspChain CreateChain()
+        {
+            DspChain chain = new();
+            foreach (DspEffectAsset effect in _effects)
+            {
+                if (effect != null)
+                {
+                    chain.Add(effect.CreateEffect());
+                }
+            }
+
+            return chain;
+        }
+
 #if UNITY_EDITOR
+        internal DrawnEqSettings DrawnEq => _drawnEq;
+
+        [SerializeField, HideInInspector]
+        private DrawnEqSettings _drawnEq;
+
+        internal void SetDrawnEq(DrawnEqSettings settings, List<DspEffectAsset> effects)
+        {
+            _drawnEq = settings;
+            _effects = effects;
+        }
+
         [System.Serializable]
         internal struct DrawnEqStage
         {
+            internal DspFilterAsset Filter => _filter;
+            internal int PrecedingManualStages => _precedingManualStages;
+
             [SerializeField]
             private DspFilterAsset _filter;
 
@@ -31,14 +72,16 @@ namespace WallstopStudios.DxAudio
                 _filter = filter;
                 _precedingManualStages = precedingManualStages;
             }
-
-            internal DspFilterAsset Filter => _filter;
-            internal int PrecedingManualStages => _precedingManualStages;
         }
 
         [System.Serializable]
         internal sealed class DrawnEqSettings
         {
+            internal float[] Target => _target;
+            internal int SampleRate => _sampleRate;
+            internal int BandLimit => _bandLimit;
+            internal DrawnEqStage[] GeneratedStages => _generatedStages;
+
             [SerializeField]
             private float[] _target;
 
@@ -58,50 +101,7 @@ namespace WallstopStudios.DxAudio
                 _bandLimit = bandLimit;
                 _generatedStages = generatedStages;
             }
-
-            internal float[] Target => _target;
-            internal int SampleRate => _sampleRate;
-            internal int BandLimit => _bandLimit;
-            internal DrawnEqStage[] GeneratedStages => _generatedStages;
-        }
-
-        [SerializeField, HideInInspector]
-        private DrawnEqSettings _drawnEq;
-
-        internal DrawnEqSettings DrawnEq => _drawnEq;
-
-        internal void SetDrawnEq(DrawnEqSettings settings, List<DspEffectAsset> effects)
-        {
-            _drawnEq = settings;
-            _effects = effects;
         }
 #endif
-
-        public IReadOnlyList<DspEffectAsset> Effects => _effects;
-
-        public int Count => _effects.Count;
-
-        /// <summary>Builds a chain with one fresh effect for every authored stage, ready for <c>TryPrepare</c>.</summary>
-        public DspChain CreateChain()
-        {
-            DspChain chain = new();
-            foreach (DspEffectAsset effect in _effects)
-            {
-                if (effect != null)
-                {
-                    chain.Add(effect.CreateEffect());
-                }
-            }
-
-            return chain;
-        }
-
-        /// <summary>Builds a chain asset in code, for tests and for games that author audio at runtime.</summary>
-        public static DspChainAsset Create(IEnumerable<DspEffectAsset> effects)
-        {
-            DspChainAsset asset = CreateInstance<DspChainAsset>();
-            asset._effects = effects == null ? new List<DspEffectAsset>() : new List<DspEffectAsset>(effects);
-            return asset;
-        }
     }
 }

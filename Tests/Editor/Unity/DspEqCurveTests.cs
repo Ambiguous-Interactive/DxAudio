@@ -12,6 +12,141 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     {
         private const int BlockFrames = 256;
 
+        private static long GetFileId(DspEffectAsset asset)
+        {
+            Assert.That(asset != null, Is.True);
+            Assert.That(AssetDatabase.TryGetGUIDAndLocalFileIdentifier(asset, out string _, out long fileId), Is.True);
+            return fileId;
+        }
+
+        private static float MeasurePeakToNyquist(DspEqCurveFit.Result fit, int sampleRate)
+        {
+            float peak = 0f;
+            for (int frequency = 1; frequency < sampleRate / 2; ++frequency)
+            {
+                float response = 0f;
+                foreach (DspEqCurveFit.Band band in fit.Bands)
+                {
+                    response += band.GetResponseDecibels(frequency, sampleRate);
+                }
+
+                peak = Math.Max(peak, Math.Abs(response));
+            }
+
+            return peak;
+        }
+
+        private static float[] CreateEndpointSpike(float gain)
+        {
+            float[] drawing = new float[DspEqCurveFit.SampleCount];
+            drawing[drawing.Length - 1] = gain;
+            return drawing;
+        }
+
+        private static float[] SampleTarget(int sampleRate, params DspEqCurveFit.Band[] bands)
+        {
+            float[] target = new float[DspEqCurveFit.SampleCount];
+            for (int index = 0, targetLength = target.Length; index < targetLength; ++index)
+            {
+                float frequency = DspEqCurveFit.FrequencyAt(index, sampleRate);
+                foreach (DspEqCurveFit.Band band in bands)
+                {
+                    target[index] += band.GetResponseDecibels(frequency, sampleRate);
+                }
+            }
+
+            return target;
+        }
+
+        private static DspChain PrepareBell(DspEqCurveFit.Band band, int sampleRate)
+        {
+            DspChain chain = new();
+            chain.Add(
+                new DspFilter
+                {
+                    Mode = DspFilterMode.Bell,
+                    FrequencyHz = band.FrequencyHz,
+                    Quality = band.Quality,
+                    PeakDecibels = band.GainDecibels,
+                }
+            );
+            Assert.That(chain.TryPrepare(sampleRate, BlockFrames, 1), Is.True);
+            return chain;
+        }
+
+        private static (float, float, int) MeasureCurveError(float[] reference, float[] response, double width = 1d)
+        {
+            double squaredError = 0d;
+            double maximum = 0d;
+            int maximumIndex = 0;
+            int referenceLength = reference.Length;
+            int responseLength = response.Length;
+            for (int index = 0; index < responseLength; ++index)
+            {
+                double position = index * width * (referenceLength - 1d) / (responseLength - 1d);
+                int left = (int)position;
+                int right = Math.Min(left + 1, referenceLength - 1);
+                double expected = reference[left] + ((position - left) * (reference[right] - reference[left]));
+                double error = Math.Abs(response[index] - expected);
+                if (maximum < error)
+                {
+                    maximum = error;
+                    maximumIndex = index;
+                }
+
+                squaredError += error * error;
+            }
+
+            return ((float)maximum, (float)Math.Sqrt(squaredError / responseLength), maximumIndex);
+        }
+
+        private static float MeasureToneDecibels(DspChain chain, float frequency, int sampleRate)
+        {
+            const int WarmFrames = 32_768;
+            const int MeasureFrames = 4_096;
+            const double Amplitude = 0.125;
+            double phaseStep = 2.0 * Math.PI * frequency / sampleRate;
+            float[] block = new float[BlockFrames];
+            double sineEnergy = 0.0;
+            double cosineEnergy = 0.0;
+            double cross = 0.0;
+            double outputSine = 0.0;
+            double outputCosine = 0.0;
+            chain.Reset();
+            for (int offset = 0; offset < WarmFrames + MeasureFrames; offset += BlockFrames)
+            {
+                for (int index = 0, blockLength = block.Length; index < blockLength; ++index)
+                {
+                    block[index] = (float)(Amplitude * Math.Sin((offset + index) * phaseStep));
+                }
+
+                chain.Process(block, 0, block.Length, 1);
+                if (offset < WarmFrames)
+                {
+                    continue;
+                }
+
+                // Fit both phases so the measurement works when the window holds a fraction of a cycle.
+                for (int index = 0, blockLength = block.Length; index < blockLength; ++index)
+                {
+                    double phase = (offset + index) * phaseStep;
+                    double sine = Math.Sin(phase);
+                    double cosine = Math.Cos(phase);
+                    sineEnergy += sine * sine;
+                    cosineEnergy += cosine * cosine;
+                    cross += sine * cosine;
+                    outputSine += block[index] * sine;
+                    outputCosine += block[index] * cosine;
+                }
+            }
+
+            double determinant = (sineEnergy * cosineEnergy) - (cross * cross);
+            double sineAmplitude = ((outputSine * cosineEnergy) - (outputCosine * cross)) / determinant;
+            double cosineAmplitude = ((outputCosine * sineEnergy) - (outputSine * cross)) / determinant;
+            double outputPower = (sineAmplitude * sineAmplitude) + (cosineAmplitude * cosineAmplitude);
+            return (float)(10.0 * Math.Log10(outputPower / (Amplitude * Amplitude)));
+        }
+
         [Test]
         public void AFlatTargetFitsWithoutShapingTheSignal()
         {
@@ -41,7 +176,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void LowerPreviewRatesMeasureErrorAgainstTheVisibleDrawing()
         {
             float[] drawing = new float[DspEqCurveFit.SampleCount];
-            for (int index = 0; index < drawing.Length; ++index)
+            for (int index = 0, drawingLength = drawing.Length; index < drawingLength; ++index)
             {
                 drawing[index] = 12f * index / (drawing.Length - 1);
             }
@@ -265,7 +400,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void BellsFollowABroadRampToThePreviewEdge(int sampleRate, float gain, int bandLimit, float errorLimit, float rmsLimit, float peakLimit)
         {
             float[] target = new float[DspEqCurveFit.SampleCount];
-            for (int index = 0; index < target.Length; index++)
+            for (int index = 0, targetLength = target.Length; index < targetLength; ++index)
             {
                 target[index] = gain * index / (target.Length - 1);
             }
@@ -294,7 +429,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             const int SampleRate = 32_000;
             float[] target = new float[DspEqCurveFit.SampleCount];
-            for (int index = 0; index < target.Length; index++)
+            for (int index = 0, targetLength = target.Length; index < targetLength; ++index)
             {
                 target[index] = 12f * (float)Math.Pow(index / (target.Length - 1d), 24d);
             }
@@ -456,139 +591,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(inspector.Q<PopupField<int>>("dx-audio-eq-band-limit").value, Is.Zero);
             Assert.That(inspector.Q<Button>("dx-audio-eq-apply").style.display.value, Is.EqualTo(DisplayStyle.None));
             Assert.That(chain.Effects[0] == stage, Is.True);
-        }
-
-        private static long GetFileId(DspEffectAsset asset)
-        {
-            Assert.That(asset != null, Is.True);
-            Assert.That(AssetDatabase.TryGetGUIDAndLocalFileIdentifier(asset, out string _, out long fileId), Is.True);
-            return fileId;
-        }
-
-        private static float MeasurePeakToNyquist(DspEqCurveFit.Result fit, int sampleRate)
-        {
-            float peak = 0f;
-            for (int frequency = 1; frequency < sampleRate / 2; frequency++)
-            {
-                float response = 0f;
-                foreach (DspEqCurveFit.Band band in fit.Bands)
-                {
-                    response += band.GetResponseDecibels(frequency, sampleRate);
-                }
-
-                peak = Math.Max(peak, Math.Abs(response));
-            }
-
-            return peak;
-        }
-
-        private static float[] CreateEndpointSpike(float gain)
-        {
-            float[] drawing = new float[DspEqCurveFit.SampleCount];
-            drawing[drawing.Length - 1] = gain;
-            return drawing;
-        }
-
-        private static float[] SampleTarget(int sampleRate, params DspEqCurveFit.Band[] bands)
-        {
-            float[] target = new float[DspEqCurveFit.SampleCount];
-            for (int index = 0; index < target.Length; ++index)
-            {
-                float frequency = DspEqCurveFit.FrequencyAt(index, sampleRate);
-                foreach (DspEqCurveFit.Band band in bands)
-                {
-                    target[index] += band.GetResponseDecibels(frequency, sampleRate);
-                }
-            }
-
-            return target;
-        }
-
-        private static DspChain PrepareBell(DspEqCurveFit.Band band, int sampleRate)
-        {
-            DspChain chain = new();
-            chain.Add(
-                new DspFilter
-                {
-                    Mode = DspFilterMode.Bell,
-                    FrequencyHz = band.FrequencyHz,
-                    Quality = band.Quality,
-                    PeakDecibels = band.GainDecibels,
-                }
-            );
-            Assert.That(chain.TryPrepare(sampleRate, BlockFrames, 1), Is.True);
-            return chain;
-        }
-
-        private static (float, float, int) MeasureCurveError(float[] reference, float[] response, double width = 1d)
-        {
-            double squaredError = 0d;
-            double maximum = 0d;
-            int maximumIndex = 0;
-            for (int index = 0; index < response.Length; ++index)
-            {
-                double position = index * width * (reference.Length - 1d) / (response.Length - 1d);
-                int left = (int)position;
-                int right = Math.Min(left + 1, reference.Length - 1);
-                double expected = reference[left] + ((position - left) * (reference[right] - reference[left]));
-                double error = Math.Abs(response[index] - expected);
-                if (maximum < error)
-                {
-                    maximum = error;
-                    maximumIndex = index;
-                }
-
-                squaredError += error * error;
-            }
-
-            return ((float)maximum, (float)Math.Sqrt(squaredError / response.Length), maximumIndex);
-        }
-
-        private static float MeasureToneDecibels(DspChain chain, float frequency, int sampleRate)
-        {
-            const int WarmFrames = 32_768;
-            const int MeasureFrames = 4_096;
-            const double Amplitude = 0.125;
-            double phaseStep = 2.0 * Math.PI * frequency / sampleRate;
-            float[] block = new float[BlockFrames];
-            double sineEnergy = 0.0;
-            double cosineEnergy = 0.0;
-            double cross = 0.0;
-            double outputSine = 0.0;
-            double outputCosine = 0.0;
-            chain.Reset();
-            for (int offset = 0; offset < WarmFrames + MeasureFrames; offset += BlockFrames)
-            {
-                for (int index = 0; index < block.Length; ++index)
-                {
-                    block[index] = (float)(Amplitude * Math.Sin((offset + index) * phaseStep));
-                }
-
-                chain.Process(block, 0, block.Length, 1);
-                if (offset < WarmFrames)
-                {
-                    continue;
-                }
-
-                // Fit both phases so the measurement works when the window holds a fraction of a cycle.
-                for (int index = 0; index < block.Length; ++index)
-                {
-                    double phase = (offset + index) * phaseStep;
-                    double sine = Math.Sin(phase);
-                    double cosine = Math.Cos(phase);
-                    sineEnergy += sine * sine;
-                    cosineEnergy += cosine * cosine;
-                    cross += sine * cosine;
-                    outputSine += block[index] * sine;
-                    outputCosine += block[index] * cosine;
-                }
-            }
-
-            double determinant = (sineEnergy * cosineEnergy) - (cross * cross);
-            double sineAmplitude = ((outputSine * cosineEnergy) - (outputCosine * cross)) / determinant;
-            double cosineAmplitude = ((outputCosine * sineEnergy) - (outputSine * cross)) / determinant;
-            double outputPower = (sineAmplitude * sineAmplitude) + (cosineAmplitude * cosineAmplitude);
-            return (float)(10.0 * Math.Log10(outputPower / (Amplitude * Amplitude)));
         }
     }
 }

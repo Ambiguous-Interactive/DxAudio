@@ -13,6 +13,11 @@ namespace WallstopStudios.DxAudio
     {
         public static readonly SfxVoiceState Idle = new(isUsable: true, isPlaying: false, isHeld: false, SfxPriority.Medium, startedAtUnscaledTime: 0f);
 
+        public bool IsFree => isUsable && !isPlaying && !isHeld && !isPaused;
+
+        /// <summary>Whether this voice may be taken from at all, before priority is considered.</summary>
+        public bool CanBeTakenFrom => isUsable && !isHeld;
+
         /// <summary>
         /// Whether the voice still exists. A destroyed <c>AudioSource</c> reports that it is not playing, so
         /// without this it would read as the freest voice in the pool and swallow every cue.
@@ -49,10 +54,5 @@ namespace WallstopStudios.DxAudio
             this.startedAtUnscaledTime = startedAtUnscaledTime;
             this.isPaused = isPaused;
         }
-
-        public bool IsFree => isUsable && !isPlaying && !isHeld && !isPaused;
-
-        /// <summary>Whether this voice may be taken from at all, before priority is considered.</summary>
-        public bool CanBeTakenFrom => isUsable && !isHeld;
     }
 }

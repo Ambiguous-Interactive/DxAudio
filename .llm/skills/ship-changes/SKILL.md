@@ -13,7 +13,7 @@ metadata:
 | ----------------- | ----------------- | ---------------------------------------- |
 | Fast check        | changed files     | `npm run check:fast`                     |
 | Full local gate   | every check       | `npm run check:gate`                     |
-| Engine-free tests | Runtime/Core      | `dotnet test .net-tests --configuration Release` |
+| C# analysis      | Runtime/Core      | `npm run check:analysis`                         |
 | Unity EditMode    | assets + players  | `npm run unity:tests`                    |
 | CI                | ubuntu + windows  | `.github/workflows/llm-lint.yml`         |
 
@@ -90,9 +90,9 @@ already reviewed to re-review, and when it stays stale, record who merged and wh
 
 ## Close the planning record
 
-Move completed work and evidence to `progress/`. Remove landed plan entries; leave `No task selected.` when the task ends. See [plan-hygiene](./plan-hygiene/SKILL.md).
+Move completed work and evidence to `progress/`. Remove landed plan entries; leave `No task selected.` when the task ends. See [plan-hygiene](../plan-hygiene/SKILL.md).
 
 ## Related
 
-- [bump-version-release](./bump-version-release/SKILL.md) - release flow
-- [create-editmode-test](./create-editmode-test/SKILL.md) - test conventions
+- [bump-version-release](../bump-version-release/SKILL.md) - release flow
+- [create-editmode-test](../create-editmode-test/SKILL.md) - test conventions

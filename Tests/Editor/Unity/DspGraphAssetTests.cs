@@ -11,6 +11,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     /// </remarks>
     public sealed class DspGraphAssetTests
     {
+        private static AudioClip Clip(MadeObjects made)
+        {
+            return made.Track(AudioClip.Create("test clip", 400, 1, 8_000, stream: false));
+        }
+
         [Test]
         public void AGraphAssetBuildsANodePerAuthoredNodeAndAFreshChainForEach()
         {
@@ -86,7 +91,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             using MadeObjects made = new();
             DspGraphNode[] nodes = new DspGraphNode[DspGraph.MaximumNodes + 1];
-            for (int index = 0; index < nodes.Length; ++index)
+            for (int index = 0, nodesLength = nodes.Length; index < nodesLength; ++index)
             {
                 nodes[index] = new DspGraphNode($"n{index}", null);
             }
@@ -102,16 +107,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void AGraphOverTheMemoryBudgetIsReported()
         {
             using MadeObjects made = new();
-            // Six branches of unequal length: every edge into the output waits for the longest one, so their lines
-            // together ask for more than the 2 MiB a prepared graph may reserve.
+            /*
+                Six branches of unequal length: every edge into the output waits for the longest one, so their lines
+                together ask for more than the 2 MiB a prepared graph may reserve.
+            */
             int[] stages = { 16, 12, 8, 4, 2, 1 };
             DspGraphNode[] nodes = new DspGraphNode[stages.Length + 2];
             DspGraphEdge[] edges = new DspGraphEdge[stages.Length * 2];
             nodes[0] = new DspGraphNode("in", null);
-            for (int branch = 0; branch < stages.Length; ++branch)
+            for (int branch = 0, stagesLength = stages.Length; branch < stagesLength; ++branch)
             {
                 DspEffectAsset[] effects = new DspEffectAsset[stages[branch]];
-                for (int index = 0; index < effects.Length; ++index)
+                for (int index = 0, effectsLength = effects.Length; index < effectsLength; ++index)
                 {
                     effects[index] = made.Track(DspPitchShifterAsset.Create(semitones: 0f, windowSeconds: 0.2f));
                 }
@@ -154,10 +161,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void AGraphAssetKeepsItsNodesEdgesAndChainReferencesInTheFile()
         {
+            using MadeObjects made = new();
             string folder = AssetDatabase.GUIDToAssetPath(AssetDatabase.CreateFolder("Assets", "DxAudioGraphTest"));
             try
             {
-                DspChainAsset branch = ScriptableObject.CreateInstance<DspChainAsset>();
+                DspChainAsset branch = made.Track(ScriptableObject.CreateInstance<DspChainAsset>());
                 string branchPath = folder + "/Branch.asset";
                 AssetDatabase.CreateAsset(branch, branchPath);
                 DspGraphAsset authored = DspGraphAsset.Create(
@@ -215,11 +223,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(MusicTrack.SameMusic(bare, sameGraph), Is.False, "a graph where the other track has none is heard differently");
             Assert.That(MusicTrack.SameMusic(sameGraph, otherGraph), Is.False, "a different graph is heard differently");
             Assert.That(MusicTrack.SameMusic(firstChained, secondChained), Is.False, "a different chain is heard differently");
-        }
-
-        private static AudioClip Clip(MadeObjects made)
-        {
-            return made.Track(AudioClip.Create("test clip", 400, 1, 8_000, stream: false));
         }
     }
 }

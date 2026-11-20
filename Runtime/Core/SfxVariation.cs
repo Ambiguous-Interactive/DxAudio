@@ -11,6 +11,11 @@ namespace WallstopStudios.DxAudio
         public const float LowestLowPassHertz = 500f;
         public const float HighestLowPassHertz = 20_000f;
 
+        public bool HasInvalidBounds =>
+            (UsePitchCents && Invalid(MinimumPitchCents, MaximumPitchCents, -PitchLimitCents, PitchLimitCents))
+            || Invalid(MinimumAttenuationDecibels, MaximumAttenuationDecibels, MinimumLevelDecibels, 0f)
+            || (UseLowPass && Invalid(MinimumLowPassHertz, MaximumLowPassHertz, LowestLowPassHertz, HighestLowPassHertz));
+
         public bool UsePitchCents;
         public float MinimumPitchCents;
         public float MaximumPitchCents;
@@ -38,10 +43,17 @@ namespace WallstopStudios.DxAudio
             MaximumLowPassHertz = 0f;
         }
 
-        public bool HasInvalidBounds =>
-            (UsePitchCents && Invalid(MinimumPitchCents, MaximumPitchCents, -PitchLimitCents, PitchLimitCents))
-            || Invalid(MinimumAttenuationDecibels, MaximumAttenuationDecibels, MinimumLevelDecibels, 0f)
-            || (UseLowPass && Invalid(MinimumLowPassHertz, MaximumLowPassHertz, LowestLowPassHertz, HighestLowPassHertz));
+        private static bool Invalid(float min, float max, float lower, float upper)
+        {
+            return !AudioMath.IsFinite(min) || !AudioMath.IsFinite(max) || min < lower || max < min || upper < max;
+        }
+
+        private static float Sample(float min, float max, float lower, float upper, float draw)
+        {
+            min = AudioMath.IsFinite(min) ? AudioMath.Clamp(min, lower, upper) : 0f;
+            max = AudioMath.IsFinite(max) ? AudioMath.Clamp(max, lower, upper) : 0f;
+            return AudioMath.Lerp(Math.Min(min, max), Math.Max(min, max), draw);
+        }
 
         internal float LowPassHertz(float draw)
         {
@@ -71,22 +83,15 @@ namespace WallstopStudios.DxAudio
             return (float)Math.Pow(2.0, cents / 1200.0);
         }
 
-        private float LevelDecibels(float draw) => Sample(MinimumAttenuationDecibels, MaximumAttenuationDecibels, MinimumLevelDecibels, 0f, draw);
-
         internal float Volume(float baseVolume, float draw, out float levelDecibels)
         {
             levelDecibels = LevelDecibels(draw);
             return levelDecibels == 0f ? baseVolume : baseVolume * AudioMath.DecibelsToLinear(levelDecibels);
         }
 
-        private static bool Invalid(float min, float max, float lower, float upper) =>
-            !AudioMath.IsFinite(min) || !AudioMath.IsFinite(max) || min < lower || max < min || upper < max;
-
-        private static float Sample(float min, float max, float lower, float upper, float draw)
+        private float LevelDecibels(float draw)
         {
-            min = AudioMath.IsFinite(min) ? AudioMath.Clamp(min, lower, upper) : 0f;
-            max = AudioMath.IsFinite(max) ? AudioMath.Clamp(max, lower, upper) : 0f;
-            return AudioMath.Lerp(Math.Min(min, max), Math.Max(min, max), draw);
+            return Sample(MinimumAttenuationDecibels, MaximumAttenuationDecibels, MinimumLevelDecibels, 0f, draw);
         }
     }
 }

@@ -73,7 +73,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             bool[] seen = new bool[variantCount];
             int previous = -1;
             const int Draws = 200;
-            for (int draw = 0; draw < Draws; draw++)
+            for (int draw = 0; draw < Draws; ++draw)
             {
                 float unitRandom = (draw * 0.37f) % 1f;
                 Assert.That(selection.TryNext("cue", variantCount, unitRandom, out int index), Is.True);

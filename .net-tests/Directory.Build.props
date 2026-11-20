@@ -1,0 +1,21 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>9.0</LangVersion>
+    <WarningLevel>9999</WarningLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPackable>false</IsPackable>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <EnableDxAudioAnalyzers Condition="'$(EnableDxAudioAnalyzers)' == ''">true</EnableDxAudioAnalyzers>
+    <EnableNETAnalyzers Condition="'$(EnableDxAudioAnalyzers)' == 'true'">true</EnableNETAnalyzers>
+    <CodeAnalysisRuleSet Condition="'$(EnableDxAudioAnalyzers)' == 'true'">$(MSBuildThisFileDirectory)UnityHelpers.ruleset</CodeAnalysisRuleSet>
+    <DxAudioAnalyzerDirectory Condition="'$(DxAudioAnalyzerDirectory)' == ''">$(MSBuildThisFileDirectory)../.artifacts/analyzers</DxAudioAnalyzerDirectory>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(EnableDxAudioAnalyzers)' == 'true'">
+    <GlobalAnalyzerConfigFiles Include="$(MSBuildThisFileDirectory)Analysis.globalconfig" />
+    <Analyzer Include="$(DxAudioAnalyzerDirectory)/WallstopStudios.UnityHelpers.Analyzers.dll" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+    <PackageReference Include="ErrorProne.NET.CoreAnalyzers" Version="0.1.2" PrivateAssets="all" IncludeAssets="analyzers" />
+    <PackageReference Include="ErrorProne.NET.Structs" Version="0.1.2" PrivateAssets="all" IncludeAssets="analyzers" />
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4" PrivateAssets="all" IncludeAssets="analyzers;build" />
+  </ItemGroup>
+</Project>

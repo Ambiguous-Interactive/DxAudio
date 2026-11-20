@@ -40,4 +40,4 @@ Good: "A Low cue no longer holds a voice a High cue needs. Priority now decides 
 
 ## Related
 
-- [llm-attribution](./llm-attribution/SKILL.md) - the disclosure line GitHub text needs
+- [llm-attribution](../llm-attribution/SKILL.md) - the disclosure line GitHub text needs

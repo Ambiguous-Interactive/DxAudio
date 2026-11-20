@@ -11,6 +11,40 @@ namespace WallstopStudios.DxAudio.Editor
     {
         private const string MenuPath = "Assets/DxAudio/Create Cue from Selected Clips";
 
+        internal static SfxCue Build(IReadOnlyList<AudioClip> clips)
+        {
+            if (clips == null || clips.Count == 0)
+            {
+                return null;
+            }
+
+            List<AudioClip> ordered = new(clips.Count);
+            HashSet<AudioClip> seen = new();
+            for (int index = 0; index < clips.Count; ++index)
+            {
+                AudioClip clip = clips[index];
+                if (clip != null && seen.Add(clip))
+                {
+                    ordered.Add(clip);
+                }
+            }
+            if (ordered.Count == 0)
+            {
+                return null;
+            }
+
+            ordered.Sort(CompareClips);
+            float[] attenuation = SfxCueClipDefaults.AttenuationsFor(ordered);
+            SfxVariant[] takes = new SfxVariant[ordered.Count];
+            for (int index = 0, takesLength = takes.Length; index < takesLength; ++index)
+            {
+                takes[index] = new SfxVariant(ordered[index], 0f, attenuation[index]);
+            }
+
+            SfxVariation variation = new(usePitchCents: true, 0f, 0f, 0f, 0f) { UseShuffle = 1 < takes.Length };
+            return SfxCue.CreateWithVariation(takes, variation);
+        }
+
         [MenuItem(MenuPath, true)]
         private static bool CanCreateFromSelection()
         {
@@ -44,10 +78,11 @@ namespace WallstopStudios.DxAudio.Editor
             try
             {
                 string source = AssetDatabase.GetAssetPath(selected[0]);
-                string folder = Path.GetDirectoryName(source)?.Replace('\\', '/');
+                int separator = source?.LastIndexOf('/') ?? -1;
+                string folder = 0 <= separator ? source.Substring(0, separator) : null;
                 if (
                     string.IsNullOrEmpty(folder)
-                    || (folder != "Assets" && !folder.StartsWith("Assets/", StringComparison.Ordinal))
+                    || (!string.Equals(folder, "Assets", StringComparison.Ordinal) && !folder.StartsWith("Assets/", StringComparison.Ordinal))
                     || !AssetDatabase.IsValidFolder(folder)
                     || !AssetDatabase.IsOpenForEdit(folder)
                 )
@@ -78,40 +113,9 @@ namespace WallstopStudios.DxAudio.Editor
             }
         }
 
-        private static bool IsProjectClip(Object item) => item is AudioClip && item != null && AssetDatabase.Contains(item);
-
-        internal static SfxCue Build(IReadOnlyList<AudioClip> clips)
+        private static bool IsProjectClip(Object item)
         {
-            if (clips == null || clips.Count == 0)
-            {
-                return null;
-            }
-
-            List<AudioClip> ordered = new(clips.Count);
-            HashSet<AudioClip> seen = new();
-            for (int index = 0; index < clips.Count; ++index)
-            {
-                AudioClip clip = clips[index];
-                if (clip != null && seen.Add(clip))
-                {
-                    ordered.Add(clip);
-                }
-            }
-            if (ordered.Count == 0)
-            {
-                return null;
-            }
-
-            ordered.Sort(CompareClips);
-            float[] attenuation = SfxCueClipDefaults.AttenuationsFor(ordered);
-            SfxVariant[] takes = new SfxVariant[ordered.Count];
-            for (int index = 0; index < takes.Length; ++index)
-            {
-                takes[index] = new SfxVariant(ordered[index], 0f, attenuation[index]);
-            }
-
-            SfxVariation variation = new(usePitchCents: true, 0f, 0f, 0f, 0f) { UseShuffle = 1 < takes.Length };
-            return SfxCue.CreateWithVariation(takes, variation);
+            return item is AudioClip && item != null && AssetDatabase.Contains(item);
         }
 
         private static int CompareClips(AudioClip left, AudioClip right)
@@ -128,8 +132,8 @@ namespace WallstopStudios.DxAudio.Editor
                 return byName;
             }
 
-            _ = AssetDatabase.TryGetGUIDAndLocalFileIdentifier(left, out _, out long leftId);
-            _ = AssetDatabase.TryGetGUIDAndLocalFileIdentifier(right, out _, out long rightId);
+            long leftId = AssetDatabase.TryGetGUIDAndLocalFileIdentifier(left, out _, out long leftLocalId) ? leftLocalId : 0L;
+            long rightId = AssetDatabase.TryGetGUIDAndLocalFileIdentifier(right, out _, out long rightLocalId) ? rightLocalId : 0L;
             return leftId.CompareTo(rightId);
         }
     }

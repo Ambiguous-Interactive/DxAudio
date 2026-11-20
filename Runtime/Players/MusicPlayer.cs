@@ -26,30 +26,15 @@ namespace WallstopStudios.DxAudio
         private const int VoiceCount = 3;
         private const float SweptReleaseSeconds = 0.5f;
 
-        [SerializeField]
-        private MusicLibrary _library;
+        /// <summary>Raised when the music that should sound changes to <c>track</c>. Additive.</summary>
+        /// <remarks>
+        /// The track is the selection the player now plays, which can be the context's music or an override. A
+        /// selection that names the same music as the one already sounding is not a change and raises nothing.
+        /// </remarks>
+        public event Action<MusicTrack> TrackChanged;
 
-        [SerializeField]
-        [Tooltip("Silences the music while set. It keeps playing underneath, so unmuting resumes in time.")]
-        private bool _muted;
-
-        [SerializeField]
-        [Tooltip("Keeps the music playing while AudioListener.pause is set, so a pause menu is not silent.")]
-        private bool _playsWhilePaused = true;
-
-        [SerializeField]
-        [Tooltip("A chain every music voice runs after its track's own, one voice at a time. It cannot hold the sum of the voices under a ceiling. Empty passes through.")]
-        private DspChainAsset _busChain;
-
-        private readonly MusicDuckStack _ducks = new();
-        private bool _paused;
-        private readonly Voice[] _voices = new Voice[VoiceCount];
-        private MusicOverride<MusicTrack> _selection;
-        private Voice _current;
-        private MusicAttenuation _rampFrom = MusicAttenuation.Unattenuated;
-        private MusicAttenuation _rampTo = MusicAttenuation.Unattenuated;
-        private MusicRamp _duckProgress = MusicRamp.At(1f);
-        private float _clock;
+        /// <summary>Raised when the music is stopped, finishes, or is silenced. Additive.</summary>
+        public event Action Stopped;
 
         public MusicLibrary Library
         {
@@ -73,16 +58,6 @@ namespace WallstopStudios.DxAudio
                 }
             }
         }
-
-        /// <summary>Raised when the music that should sound changes to <c>track</c>. Additive.</summary>
-        /// <remarks>
-        /// The track is the selection the player now plays, which can be the context's music or an override. A
-        /// selection that names the same music as the one already sounding is not a change and raises nothing.
-        /// </remarks>
-        public event Action<MusicTrack> TrackChanged;
-
-        /// <summary>Raised when the music is stopped, finishes, or is silenced. Additive.</summary>
-        public event Action Stopped;
 
         /// <summary>The game's music on/off setting.</summary>
         public bool Muted
@@ -151,6 +126,36 @@ namespace WallstopStudios.DxAudio
         public bool IsPlaying => _current != null && VoiceClip.IsSounding(_current.source);
 
         private MusicOverride<MusicTrack> Selection => _selection ??= new MusicOverride<MusicTrack>(OnSelectionChanged, SameMusicComparer.Instance, IsPlayable);
+
+        [SerializeField]
+        private MusicLibrary _library;
+
+        [SerializeField]
+        [Tooltip("Silences the music while set. It keeps playing underneath, so unmuting resumes in time.")]
+        private bool _muted;
+
+        [SerializeField]
+        [Tooltip("Keeps the music playing while AudioListener.pause is set, so a pause menu is not silent.")]
+        private bool _playsWhilePaused = true;
+
+        [SerializeField]
+        [Tooltip("A chain every music voice runs after its track's own, one voice at a time. It cannot hold the sum of the voices under a ceiling. Empty passes through.")]
+        private DspChainAsset _busChain;
+
+        private readonly MusicDuckStack _ducks = new();
+        private bool _paused;
+        private readonly Voice[] _voices = new Voice[VoiceCount];
+        private MusicOverride<MusicTrack> _selection;
+        private Voice _current;
+        private MusicAttenuation _rampFrom = MusicAttenuation.Unattenuated;
+        private MusicAttenuation _rampTo = MusicAttenuation.Unattenuated;
+        private MusicRamp _duckProgress = MusicRamp.At(1f);
+        private float _clock;
+
+        private static bool IsPlayable(MusicTrack track)
+        {
+            return track.IsPlayable;
+        }
 
         /// <summary>Plays the track the library lists for <paramref name="context"/>.</summary>
         /// <returns><see langword="false"/>, changing nothing, when the library lists none.</returns>
@@ -288,17 +293,21 @@ namespace WallstopStudios.DxAudio
 
                 if (voice.track != null && VoiceClip.HasLostSound(voice.source))
                 {
-                    // Unity clears the source's clip when the track's clip asset is destroyed, and keeps the source
-                    // reporting playback with no sound when its audio data is unloaded. Music asked for again starts
-                    // once a clip with data is back.
+                    /*
+                        Unity clears the source's clip when the track's clip asset is destroyed, and keeps the source
+                        reporting playback with no sound when its audio data is unloaded. Music asked for again starts
+                        once a clip with data is back.
+                    */
                     Silence(voice);
                     continue;
                 }
 
                 if (voice == _current && !_paused && voice.track != null && !voice.source.loop && !voice.source.isPlaying)
                 {
-                    // A one-shot track ended on its own. Clear it, so a listener hears the stop and the same context
-                    // can start again.
+                    /*
+                        A one-shot track ended on its own. Clear it, so a listener hears the stop and the same context
+                        can start again.
+                    */
                     Silence(voice);
                     continue;
                 }
@@ -325,8 +334,10 @@ namespace WallstopStudios.DxAudio
             {
                 if (voice != null && voice.source != null)
                 {
-                    // OnDestroy runs only in Play mode for this component, and Destroy is deferred, so a voice
-                    // already going down with the hierarchy is not destroyed twice.
+                    /*
+                        OnDestroy runs only in Play mode for this component, and Destroy is deferred, so a voice
+                        already going down with the hierarchy is not destroyed twice.
+                    */
                     Destroy(voice.source.gameObject);
                 }
             }
@@ -437,9 +448,11 @@ namespace WallstopStudios.DxAudio
                 return;
             }
 
-            // A voice not reporting playback (a clip still loading, a paused listener, a paused player) is stopped
-            // outright, so it cannot resume later under the music that replaced it. A paused voice is kept: the
-            // player is holding it on purpose, and its own stop schedule silences it while the pause lasts.
+            /*
+                A voice not reporting playback (a clip still loading, a paused listener, a paused player) is stopped
+                outright, so it cannot resume later under the music that replaced it. A paused voice is kept: the
+                player is holding it on purpose, and its own stop schedule silences it while the pause lasts.
+            */
             if (!voice.source.isPlaying && !_paused)
             {
                 Silence(voice);
@@ -534,15 +547,17 @@ namespace WallstopStudios.DxAudio
 
         private void EnsureVoices()
         {
-            for (int index = 0; index < VoiceCount; index++)
+            for (int index = 0; index < VoiceCount; ++index)
             {
                 if (_voices[index] != null && _voices[index].source != null)
                 {
                     continue;
                 }
 
-                // Never saved with a scene in edit mode. In Play mode the flag would hide the voices from
-                // FindObjectsOfType, so a game's own pause-all could not reach them.
+                /*
+                    Never saved with a scene in edit mode. In Play mode the flag would hide the voices from
+                    FindObjectsOfType, so a game's own pause-all could not reach them.
+                */
                 GameObject child = new($"Music Voice {index}") { hideFlags = Application.isPlaying ? HideFlags.None : HideFlags.DontSave };
                 child.transform.SetParent(transform, worldPositionStays: false);
                 AudioSource source = child.AddComponent<AudioSource>();
@@ -551,8 +566,10 @@ namespace WallstopStudios.DxAudio
                 source.mute = _muted;
                 AudioFilterHost host = child.AddComponent<AudioFilterHost>();
                 Voice voice = new(source, child.AddComponent<AudioLowPassFilter>(), child.AddComponent<AudioHighPassFilter>(), host);
-                // Registered before the warm pass, so a chain that throws while preparing cannot leave an untracked
-                // child behind and make the next attempt create another.
+                /*
+                    Registered before the warm pass, so a chain that throws while preparing cannot leave an untracked
+                    child behind and make the next attempt create another.
+                */
                 _voices[index] = voice;
                 host.BusChain = _busChain;
                 WarmChains(host);
@@ -569,7 +586,7 @@ namespace WallstopStudios.DxAudio
             }
 
             IReadOnlyList<MusicTrack> tracks = _library.Tracks;
-            for (int index = 0; index < tracks.Count; index++)
+            for (int index = 0; index < tracks.Count; ++index)
             {
                 MusicTrack track = tracks[index];
                 if (track != null)
@@ -600,11 +617,6 @@ namespace WallstopStudios.DxAudio
                 lowPass.enabled = false;
                 highPass.enabled = false;
             }
-        }
-
-        private static bool IsPlayable(MusicTrack track)
-        {
-            return track.IsPlayable;
         }
 
         private sealed class SameMusicComparer : System.Collections.Generic.IEqualityComparer<MusicTrack>
