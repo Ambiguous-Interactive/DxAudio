@@ -4,14 +4,14 @@ This page plays a cue and starts music in an empty scene. It takes about five mi
 
 ## 1. Make a cue
 
-1. Choose **Create > DxAudio > Sfx Cue** and name it `Door`.
+1. Choose **Create > Wallstop Studios > DxAudio > Sfx Cue** and name it `Door`.
 2. Give it the key `door`.
 3. Add one or more takes. Each take names an `AudioClip`. A take can start past the clip's lead-in with **Start Time
    Seconds**.
 
 ## 2. Make a library
 
-1. Choose **Create > DxAudio > Sfx Library** and name it `SoundLibrary`.
+1. Choose **Create > Wallstop Studios > DxAudio > Sfx Library** and name it `SoundLibrary`.
 2. Set **Voice Count** to `16`. This is how many sounds can play at once.
 3. Add the cue to the **Cues** list.
 
@@ -49,8 +49,8 @@ _sfx.Play("door", transform.position);
 
 ## 5. Add music
 
-1. Choose **Create > DxAudio > Music Track**. Set **Context** to `level-1` and assign the clip.
-2. Choose **Create > DxAudio > Music Library**, add the track, and set the fade times.
+1. Choose **Create > Wallstop Studios > DxAudio > Music Track**. Set **Context** to `level-1` and assign the clip.
+2. Choose **Create > Wallstop Studios > DxAudio > Music Library**, add the track, and set the fade times.
 3. Add a **Music Player** component to the `Audio` GameObject and assign the library.
 
 ```csharp

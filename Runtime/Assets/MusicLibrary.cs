@@ -10,7 +10,7 @@ namespace WallstopStudios.DxAudio
     /// A context is whatever a game changes music on: a screen, a level, an area. Each track names its own
     /// context, and <see cref="MusicPlayer.PlayContext"/> looks it up here.
     /// </remarks>
-    [CreateAssetMenu(fileName = "MusicLibrary", menuName = "DxAudio/Music Library")]
+    [CreateAssetMenu(fileName = "MusicLibrary", menuName = "Wallstop Studios/DxAudio/Music Library")]
     public sealed class MusicLibrary : ScriptableObject, ISerializationCallbackReceiver
     {
         private const int CurrentEaseVersion = 1;

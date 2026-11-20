@@ -90,7 +90,7 @@ namespace WallstopStudios.DxAudio.Editor
             return report;
         }
 
-        [MenuItem("Tools/DxAudio/Validate Libraries")]
+        [MenuItem("Tools/Wallstop Studios/DxAudio/Validate Libraries")]
         private static void Open()
         {
             DxAudioLibraryWindow window = GetWindow<DxAudioLibraryWindow>();

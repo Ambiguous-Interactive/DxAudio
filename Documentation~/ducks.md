@@ -5,7 +5,7 @@ systems duck and release without knowing about each other.
 
 ## Make a duck
 
-Choose **Create > DxAudio > Music Duck** and set:
+Choose **Create > Wallstop Studios > DxAudio > Music Duck** and set:
 
 | Field                       | Does                                                         |
 | --------------------------- | ------------------------------------------------------------ |

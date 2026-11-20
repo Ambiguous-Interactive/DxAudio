@@ -4,9 +4,9 @@
 
 ## Set up
 
-1. Choose **Create > DxAudio > Music Track**. Set **Context**, assign the clip, and set **Loop**, **Volume Scale** (the
+1. Choose **Create > Wallstop Studios > DxAudio > Music Track**. Set **Context**, assign the clip, and set **Loop**, **Volume Scale** (the
    track's trim) and **Start Time Seconds**.
-2. Choose **Create > DxAudio > Music Library**, add the tracks, and set **Fade In Seconds** and **Fade Out Seconds**
+2. Choose **Create > Wallstop Studios > DxAudio > Music Library**, add the tracks, and set **Fade In Seconds** and **Fade Out Seconds**
    with their ease curves.
 3. Add a **Music Player** component and assign the library.
 
@@ -32,7 +32,7 @@ Measured in the host editor on Unity 6000.6.7f1 with 44.1 kHz stereo clips:
 A decompressed clip holds about 170 KiB for each second of music, so a long track's memory grows with its length. A
 streaming clip keeps a small buffer and pays a disk read at each loop. The editor renders no audio, so the table covers
 memory and the main-thread load call, not the audible start. A mismatched clip still plays, because the import setting
-wins; **Tools > DxAudio > Validate Libraries** reports the mismatch, and the track inspector applies the track's choice.
+wins; **Tools > Wallstop Studios > DxAudio > Validate Libraries** reports the mismatch, and the track inspector applies the track's choice.
 The load type belongs to the clip, so every track and cue that uses it takes the same value.
 
 ## Play

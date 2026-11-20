@@ -53,7 +53,7 @@ namespace WallstopStudios.DxAudio.Editor
             }
         }
 
-        [MenuItem("Tools/DxAudio/Authoring")]
+        [MenuItem("Tools/Wallstop Studios/DxAudio/Authoring")]
         private static void OpenWindow()
         {
             Object selected = Selection.activeObject;

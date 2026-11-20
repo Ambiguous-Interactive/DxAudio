@@ -3,7 +3,7 @@ namespace WallstopStudios.DxAudio
     using UnityEngine;
 
     /// <summary>A compressor stage: a threshold, a ratio, and the times its gain follows the signal.</summary>
-    [CreateAssetMenu(fileName = "DspCompressor", menuName = "DxAudio/DSP/Compressor")]
+    [CreateAssetMenu(fileName = "DspCompressor", menuName = "Wallstop Studios/DxAudio/DSP/Compressor")]
     public sealed class DspCompressorAsset : DspEffectAsset
     {
         public float ThresholdDecibels => _thresholdDecibels;

@@ -7,7 +7,7 @@ namespace WallstopStudios.DxAudio
     /// Taken with <see cref="MusicPlayer.Duck"/> and released with the lease that returns. Every live duck
     /// composes into the most restrictive of each setting, so systems duck and release independently.
     /// </remarks>
-    [CreateAssetMenu(fileName = "MusicDuck", menuName = "DxAudio/Music Duck")]
+    [CreateAssetMenu(fileName = "MusicDuck", menuName = "Wallstop Studios/DxAudio/Music Duck")]
     public sealed class MusicDuck : ScriptableObject, IMusicDuckReason, ISerializationCallbackReceiver
     {
         private const int CurrentEaseVersion = 1;

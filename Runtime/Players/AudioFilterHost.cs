@@ -20,7 +20,7 @@ namespace WallstopStudios.DxAudio
     /// <see cref="AudioMixBus" />, which runs on the object that carries the listener.
     /// </remarks>
     [DisallowMultipleComponent]
-    [AddComponentMenu("DxAudio/Audio Filter Host")]
+    [AddComponentMenu("Wallstop Studios/DxAudio/Audio Filter Host")]
     public sealed class AudioFilterHost : MonoBehaviour
     {
         /// <summary>The chain this host runs, or null when it passes the block through.</summary>

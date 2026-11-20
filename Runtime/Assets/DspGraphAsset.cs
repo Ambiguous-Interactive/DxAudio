@@ -15,7 +15,7 @@ namespace WallstopStudios.DxAudio
     /// over another node. The name is the identity: two nodes may not share one, and an edge to a name no node holds
     /// is refused rather than guessed at.
     /// </remarks>
-    [CreateAssetMenu(fileName = "DspGraph", menuName = "DxAudio/DSP/Graph")]
+    [CreateAssetMenu(fileName = "DspGraph", menuName = "Wallstop Studios/DxAudio/DSP/Graph")]
     public sealed class DspGraphAsset : ScriptableObject
     {
         /// <summary>The rate <see cref="FindProblems" /> prepares at when it checks the memory budget.</summary>

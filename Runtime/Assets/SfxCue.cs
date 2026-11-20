@@ -13,7 +13,7 @@ namespace WallstopStudios.DxAudio
     /// <see cref="SfxLibrary"/>. The cue itself is the identity for rate limits and no-repeat memory, so two
     /// cues never share either.
     /// </remarks>
-    [CreateAssetMenu(fileName = "SfxCue", menuName = "DxAudio/Sfx Cue")]
+    [CreateAssetMenu(fileName = "SfxCue", menuName = "Wallstop Studios/DxAudio/Sfx Cue")]
     public sealed class SfxCue : ScriptableObject
     {
         private const float DefaultMinimumIntervalSeconds = 0.05f;

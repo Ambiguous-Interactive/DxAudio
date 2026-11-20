@@ -9,7 +9,7 @@ namespace WallstopStudios.DxAudio
     /// two voices playing the same asset run their own effect instances, because the state an effect keeps belongs to
     /// the voice that is playing. The cue, the track or the player's bus names the asset; nothing here runs audio.
     /// </remarks>
-    [CreateAssetMenu(fileName = "DspChain", menuName = "DxAudio/DSP/Chain")]
+    [CreateAssetMenu(fileName = "DspChain", menuName = "Wallstop Studios/DxAudio/DSP/Chain")]
     public sealed class DspChainAsset : ScriptableObject
     {
         public IReadOnlyList<DspEffectAsset> Effects => _effects;

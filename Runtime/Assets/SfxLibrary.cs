@@ -10,7 +10,7 @@ namespace WallstopStudios.DxAudio
     /// Cues are found by <see cref="SfxCue.Key"/>, so a game can name a sound in data or in a message without
     /// holding the asset. A cue played by reference does not need to be listed here at all.
     /// </remarks>
-    [CreateAssetMenu(fileName = "SfxLibrary", menuName = "DxAudio/Sfx Library")]
+    [CreateAssetMenu(fileName = "SfxLibrary", menuName = "Wallstop Studios/DxAudio/Sfx Library")]
     public sealed class SfxLibrary : ScriptableObject
     {
         private static event Action IndexesStale;

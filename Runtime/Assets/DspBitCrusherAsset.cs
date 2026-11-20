@@ -3,7 +3,7 @@ namespace WallstopStudios.DxAudio
     using UnityEngine;
 
     /// <summary>A bit crusher stage: the bit depth a sample keeps, and how many frames each kept sample lasts.</summary>
-    [CreateAssetMenu(fileName = "DspBitCrusher", menuName = "DxAudio/DSP/Bit Crusher")]
+    [CreateAssetMenu(fileName = "DspBitCrusher", menuName = "Wallstop Studios/DxAudio/DSP/Bit Crusher")]
     public sealed class DspBitCrusherAsset : DspEffectAsset
     {
         public int Bits => _bits;

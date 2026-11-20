@@ -9,7 +9,7 @@ namespace WallstopStudios.DxAudio.Samples
     /// The sample builds its clips, cues and libraries in code so it ships without audio files. A game authors the
     /// same assets with the Create menu and assigns them to the players in the inspector.
     /// </remarks>
-    [AddComponentMenu("DxAudio/Samples/Basic Usage Demo")]
+    [AddComponentMenu("Wallstop Studios/DxAudio/Samples/Basic Usage Demo")]
     public sealed class BasicUsageDemo : MonoBehaviour
     {
         private const int SampleRate = 44100;

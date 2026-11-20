@@ -47,7 +47,7 @@ namespace WallstopStudios.DxAudio
     /// <see cref="Play(SfxCue)"/>, and its sound setting to <see cref="Muted"/>.
     /// </remarks>
     [DisallowMultipleComponent]
-    [AddComponentMenu("DxAudio/Sfx Player")]
+    [AddComponentMenu("Wallstop Studios/DxAudio/Sfx Player")]
     public sealed class SfxPlayer : MonoBehaviour
     {
         /// <summary>Raised for every cue that did not play, and why.</summary>

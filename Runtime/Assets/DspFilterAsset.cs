@@ -3,7 +3,7 @@ namespace WallstopStudios.DxAudio
     using UnityEngine;
 
     /// <summary>A filter stage: the band it shapes, where its corner sits, how narrow the band is and how far it lifts.</summary>
-    [CreateAssetMenu(fileName = "DspFilter", menuName = "DxAudio/DSP/Filter")]
+    [CreateAssetMenu(fileName = "DspFilter", menuName = "Wallstop Studios/DxAudio/DSP/Filter")]
     public sealed class DspFilterAsset : DspEffectAsset
     {
         /// <summary>The band this stage shapes.</summary>
