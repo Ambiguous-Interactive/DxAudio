@@ -11,7 +11,7 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
-from auto_release import WORKFLOWS, WorkflowRun, classify, rotate, tag_release
+from auto_release import WORKFLOWS, WorkflowRun, classify, dispatch, rotate, tag_release
 from release_assets import build_unitypackage, npm_integrity, publish_npm, read_member
 
 
@@ -59,6 +59,17 @@ class PromotionTests(unittest.TestCase):
             "head_repository": {"full_name": self.repository},
             "html_url": "https://example.com/run",
         }
+
+    def test_dispatch_accepts_a_response_without_a_run_url(self) -> None:
+        with (
+            patch("auto_release.api", return_value=None) as api,
+            patch("auto_release.summary") as summary,
+        ):
+            dispatch("ci.yml", self.branch)
+        api.assert_called_once_with(
+            "actions/workflows/ci.yml/dispatches", method="POST", body={"ref": self.branch}
+        )
+        summary.assert_called_once_with(f"Dispatched ci.yml on {self.branch}.")
 
     def test_cannot_tag_until_every_check_passes(self) -> None:
         for conclusion in (None, "failure", "cancelled", "skipped", "success"):

@@ -204,9 +204,10 @@ def dispatch(workflow: str, ref: str, inputs: dict[str, str] | None = None) -> N
     if inputs is not None:
         body["inputs"] = inputs
     result = cast(
-        "PageLink", api(f"actions/workflows/{workflow}/dispatches", method="POST", body=body)
+        "PageLink | None", api(f"actions/workflows/{workflow}/dispatches", method="POST", body=body)
     )
-    summary(f"Dispatched {workflow} on {ref}. {result['html_url']}")
+    link = f" {result['html_url']}" if result else ""
+    summary(f"Dispatched {workflow} on {ref}.{link}")
 
 
 def validation_runs(branch: str, sha: str) -> dict[str, WorkflowRun | None]:

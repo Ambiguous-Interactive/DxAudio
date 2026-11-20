@@ -6,6 +6,8 @@ namespace WallstopStudios.DxAudio.Validation
 
     public static class UnityPackageSmoke
     {
+        private const string ImportStarted = "DxAudio.UnityPackageSmoke.ImportStarted";
+
         public static void Run()
         {
             string archive = Environment.GetEnvironmentVariable("DXAUDIO_UNITYPACKAGE");
@@ -14,14 +16,19 @@ namespace WallstopStudios.DxAudio.Validation
                 throw new InvalidOperationException("The DxAudio Unity import archive is missing.");
             }
 
-            AssetDatabase.importPackageCompleted += OnCompleted;
+            SessionState.SetBool(ImportStarted, true);
+            ResumeAfterReload();
             AssetDatabase.importPackageFailed += OnFailed;
             AssetDatabase.ImportPackage(archive, false);
         }
 
-        private static void OnCompleted(string packageName)
+        [InitializeOnLoadMethod]
+        private static void ResumeAfterReload()
         {
-            EditorApplication.update += VerifyImportedPackage;
+            if (SessionState.GetBool(ImportStarted, false))
+            {
+                EditorApplication.update += VerifyImportedPackage;
+            }
         }
 
         private static void VerifyImportedPackage()
@@ -40,6 +47,7 @@ namespace WallstopStudios.DxAudio.Validation
                 return;
             }
 
+            SessionState.EraseBool(ImportStarted);
             UnityEngine.Debug.Log("DxAudio Unity import validation passed.");
             EditorApplication.Exit(0);
         }

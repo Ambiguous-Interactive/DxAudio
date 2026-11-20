@@ -11,9 +11,8 @@ on:
         type: choice
         options: [preview, prepare, resume]
         default: preview
-  pull_request:
+  push:
     branches: [main]
-    types: [closed]
   workflow_run:
     workflows: [CI, Unity Tests, LLM Instructions Lint, External documentation links]
     branches: ["release-verify/v*"]
@@ -48,9 +47,7 @@ jobs:
     if: >-
       vars.AUTO_RELEASE_ENABLED == 'true' && github.ref == 'refs/heads/main' &&
       (github.event_name == 'schedule' || inputs.operation == 'resume' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.merged &&
-       github.event.pull_request.head.repo.full_name == github.repository &&
-       startsWith(github.event.pull_request.head.ref, 'release/weekly-')) ||
+      github.event_name == 'push' ||
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.event == 'workflow_dispatch' &&
        github.event.workflow_run.head_repository.full_name == github.repository))
@@ -69,13 +66,13 @@ jobs:
       - name: Reconcile validation and publication
         env:
           GH_TOKEN: ${{ github.token }}
-          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          MERGE_SHA: ${{ github.sha }}
           VALIDATION_SHA: ${{ github.event.workflow_run.head_sha }}
           VALIDATION_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           operation=resume
           case "$GITHUB_EVENT_NAME" in
-            pull_request) operation=merged ;;
+            push) operation=merged ;;
             workflow_run) operation=completed ;;
           esac
           python3 .github/scripts/auto_release.py "$operation"
