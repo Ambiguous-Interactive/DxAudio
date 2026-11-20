@@ -22,7 +22,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static float MeasurePeakToNyquist(DspEqCurveFit.Result fit, int sampleRate)
         {
             float peak = 0f;
-            for (int frequency = 1; frequency < sampleRate / 2; frequency++)
+            for (int frequency = 1; frequency < sampleRate / 2; ++frequency)
             {
                 float response = 0f;
                 foreach (DspEqCurveFit.Band band in fit.Bands)
@@ -400,7 +400,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void BellsFollowABroadRampToThePreviewEdge(int sampleRate, float gain, int bandLimit, float errorLimit, float rmsLimit, float peakLimit)
         {
             float[] target = new float[DspEqCurveFit.SampleCount];
-            for (int index = 0, targetLength = target.Length; index < targetLength; index++)
+            for (int index = 0, targetLength = target.Length; index < targetLength; ++index)
             {
                 target[index] = gain * index / (target.Length - 1);
             }
@@ -429,7 +429,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             const int SampleRate = 32_000;
             float[] target = new float[DspEqCurveFit.SampleCount];
-            for (int index = 0, targetLength = target.Length; index < targetLength; index++)
+            for (int index = 0, targetLength = target.Length; index < targetLength; ++index)
             {
                 target[index] = 12f * (float)Math.Pow(index / (target.Length - 1d), 24d);
             }

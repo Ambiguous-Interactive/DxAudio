@@ -6,8 +6,9 @@
     <IsPackable>false</IsPackable>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <EnableDxAudioAnalyzers Condition="'$(EnableDxAudioAnalyzers)' == ''">true</EnableDxAudioAnalyzers>
+    <EnableNETAnalyzers Condition="'$(EnableDxAudioAnalyzers)' == 'true'">true</EnableNETAnalyzers>
     <CodeAnalysisRuleSet Condition="'$(EnableDxAudioAnalyzers)' == 'true'">$(MSBuildThisFileDirectory)UnityHelpers.ruleset</CodeAnalysisRuleSet>
-    <DxAudioAnalyzerDirectory>$(MSBuildThisFileDirectory)../.artifacts/analyzers</DxAudioAnalyzerDirectory>
+    <DxAudioAnalyzerDirectory Condition="'$(DxAudioAnalyzerDirectory)' == ''">$(MSBuildThisFileDirectory)../.artifacts/analyzers</DxAudioAnalyzerDirectory>
   </PropertyGroup>
   <ItemGroup Condition="'$(EnableDxAudioAnalyzers)' == 'true'">
     <GlobalAnalyzerConfigFiles Include="$(MSBuildThisFileDirectory)Analysis.globalconfig" />

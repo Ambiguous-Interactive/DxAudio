@@ -113,7 +113,10 @@ namespace WallstopStudios.DxAudio.Editor
             }
         }
 
-        private static bool IsProjectClip(Object item) => item is AudioClip && item != null && AssetDatabase.Contains(item);
+        private static bool IsProjectClip(Object item)
+        {
+            return item is AudioClip && item != null && AssetDatabase.Contains(item);
+        }
 
         private static int CompareClips(AudioClip left, AudioClip right)
         {

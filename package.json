@@ -56,6 +56,7 @@
   ],
   "scripts": {
     "test": "uv run --no-project scripts/uv_environment.py --repair && uv run .net-tests/run_checks.py --test-only",
+    "check:upstream": "uv run --no-project scripts/uv_environment.py --repair && uv run .github/checks/unity_helpers_coverage.py --validate --analyzer-fixtures --require-complete",
     "check:analysis": "uv run --no-project scripts/uv_environment.py --repair && uv run .net-tests/run_checks.py",
     "env:check": "uv run --no-project scripts/uv_environment.py --check",
     "env:repair": "uv run --no-project scripts/uv_environment.py --repair",
@@ -69,6 +70,7 @@
     "lint:line-endings": "uv run --no-project scripts/uv_environment.py --repair && uv run scripts/lint_line_endings.py",
     "lint:changelog-length": "uv run --no-project scripts/uv_environment.py --repair && uv run scripts/lint_changelog_length.py",
     "lint:release-secrets": "uv run --no-project scripts/uv_environment.py --repair && uv run scripts/lint_release_secrets.py",
+    "lint:python": "uv run --no-project scripts/uv_environment.py --repair && uv run --project scripts/python~ --isolated --locked python scripts/python~/check.py",
     "lint:spelling": "cspell --config .github/scripts/cspell.json --no-progress README.md \"Documentation~/**/*.md\" \"Samples~/**/*.md\"",
     "format:md": "prettier --write \"**/*.md\"",
     "format:md:check": "prettier --check \"**/*.md\"",
@@ -85,6 +87,7 @@
   "devDependencies": {
     "cspell": "10.5.0",
     "markdownlint-cli": "0.50.0",
-    "prettier": "3.9.9"
+    "prettier": "3.9.9",
+    "yaml": "2.9.1"
   }
 }

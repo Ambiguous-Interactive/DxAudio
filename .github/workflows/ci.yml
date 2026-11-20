@@ -29,7 +29,7 @@ jobs:
           cache: true
           cache-dependency-path: .net-tests/**/packages.lock.json
       - name: Compile and analyze Core and run the .NET tests
-        run: python3 .net-tests/run_checks.py
+        run: python3 .net-tests/run_checks.py --clean
 
   package-checks:
     name: Format and meta files
@@ -62,18 +62,33 @@ jobs:
         run: |
           python3 .github/scripts/test_text_files.py
           python3 .github/scripts/check_text_files.py
-      - name: Check formatting
+      - name: Check formatting with the pinned SDK
+        working-directory: .net-tests
         run: |
           dotnet tool restore
-          dotnet csharpier check .
+          dotnet csharpier check ..
       - name: Check every package asset has a .meta file
-        run: python3 .github/scripts/meta_files.py --check
+        run: |
+          python3 .github/scripts/test_meta_files.py
+          python3 .github/scripts/meta_files.py --check
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: "0.12.10"
           enable-cache: false
+      - name: Check Unity workflow decisions
+        run: uv run --no-project --with pyyaml==6.0.3 python .github/scripts/test_unity_workflow.py
+      - name: Check strict Python policy
+        run: uv run --project scripts/python~ --isolated --locked python scripts/python~/check.py
       - name: Verify upstream checks and analyzer fixtures
-        run: python3 .github/checks/unity_helpers_coverage.py --validate --analyzer-fixtures
+        id: upstream-checks
+        run: python3 .github/checks/unity_helpers_coverage.py --validate --analyzer-fixtures --require-complete
+      - name: Retain unsafe code analysis report
+        if: ${{ always() && (steps.upstream-checks.outcome == 'success' || steps.upstream-checks.outcome == 'failure') }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: dxaudio-unsafe-code-sarif
+          path: ${{ runner.temp }}/dxaudio-unsafe-code.sarif
+          if-no-files-found: error
       - name: Check Unity runner controls
         run: python3 .net-tests/UnityValidation/test_runner.py
       - name: Check the consumer package

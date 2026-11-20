@@ -29,7 +29,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static float Peak(float[] samples, int from)
         {
             float peak = 0f;
-            for (int i = from, samplesLength = samples.Length; i < samplesLength; i++)
+            for (int i = from, samplesLength = samples.Length; i < samplesLength; ++i)
             {
                 float magnitude = Math.Abs(samples[i]);
                 if (peak < magnitude)
@@ -44,7 +44,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static float[] Constant(float value, int frames)
         {
             float[] block = new float[frames];
-            for (int frame = 0; frame < frames; frame++)
+            for (int frame = 0; frame < frames; ++frame)
             {
                 block[frame] = value;
             }
@@ -56,7 +56,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             float[] block = new float[frames];
             double step = (2 * Math.PI * hertz) / SampleRate;
-            for (int frame = 0; frame < frames; frame++)
+            for (int frame = 0; frame < frames; ++frame)
             {
                 block[frame] = amplitude * (float)Math.Sin(step * frame);
             }
@@ -75,7 +75,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             */
             float coefficient = AudioMath.OnePoleCoefficient(0.005f, SampleRate);
             float smoothed = 0f;
-            for (int frame = 0; frame < 240; frame++)
+            for (int frame = 0; frame < 240; ++frame)
             {
                 smoothed += (1f - smoothed) * coefficient;
             }
@@ -105,12 +105,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             int latency = limiter.LatencySamples;
             Assert.That(latency, Is.EqualTo(72));
-            for (int frame = 0; frame < latency; frame++)
+            for (int frame = 0; frame < latency; ++frame)
             {
                 Assert.That(output[frame], Is.Zero, "the lookahead delay is silent");
             }
 
-            for (int frame = latency, sourceLength = source.Length; frame < sourceLength; frame++)
+            for (int frame = latency, sourceLength = source.Length; frame < sourceLength; ++frame)
             {
                 Assert.That(output[frame], Is.EqualTo(source[frame - latency]), "a quiet signal is only delayed, never turned down");
             }
@@ -190,7 +190,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float largestReduction = 0f;
             float peak = 0f;
             float[] frame = new float[1];
-            for (int index = 0; index < source.Length; index++)
+            for (int index = 0; index < source.Length; ++index)
             {
                 frame[0] = source[index];
                 limiter.Process(frame, 0, 1, 1);
@@ -533,7 +533,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             };
             float[] source = Sine(1_000f, 1f, 4_800);
             float[] interleaved = new float[source.Length * 2];
-            for (int frame = 0, sourceLength = source.Length; frame < sourceLength; frame++)
+            for (int frame = 0, sourceLength = source.Length; frame < sourceLength; ++frame)
             {
                 interleaved[frame * 2] = source[frame];
                 interleaved[frame * 2 + 1] = source[frame] * 0.1f;
@@ -548,7 +548,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             float left = 0f;
             float right = 0f;
-            for (int frame = 1_200, sourceLength = source.Length; frame < sourceLength; frame++)
+            for (int frame = 1_200, sourceLength = source.Length; frame < sourceLength; ++frame)
             {
                 left = Math.Max(left, Math.Abs(interleaved[frame * 2]));
                 right = Math.Max(right, Math.Abs(interleaved[frame * 2 + 1]));

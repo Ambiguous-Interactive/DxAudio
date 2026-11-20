@@ -32,7 +32,7 @@ namespace WallstopStudios.DxAudio.Tests
 
             int begun = 0;
             long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int call = 0; call < Calls; call++)
+            for (int call = 0; call < Calls; ++call)
             {
                 // A second apart, so every TryBegin passes its 0.05 s window and writes its key.
                 begun += Exercise(throttle, selection, leader, follower, now: call + 1f);
@@ -52,11 +52,20 @@ namespace WallstopStudios.DxAudio.Tests
                 _id = id;
             }
 
-            public bool Equals(CueKey other) => _id == other._id;
+            public bool Equals(CueKey other)
+            {
+                return _id == other._id;
+            }
 
-            public override bool Equals(object obj) => obj is CueKey other && Equals(other);
+            public override bool Equals(object obj)
+            {
+                return obj is CueKey other && Equals(other);
+            }
 
-            public override int GetHashCode() => _id;
+            public override int GetHashCode()
+            {
+                return _id;
+            }
         }
     }
 }

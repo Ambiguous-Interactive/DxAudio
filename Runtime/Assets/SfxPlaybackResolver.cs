@@ -145,7 +145,10 @@ namespace WallstopStudios.DxAudio
                 _random = new Random(seed);
             }
 
-            public double NextDouble() => _random.NextDouble();
+            public double NextDouble()
+            {
+                return _random.NextDouble();
+            }
         }
     }
 }

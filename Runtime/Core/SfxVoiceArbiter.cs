@@ -31,7 +31,7 @@ namespace WallstopStudios.DxAudio
             if (0 < voiceCount)
             {
                 int start = AudioMath.PositiveMod(roundRobinStart, voiceCount);
-                for (int offset = 0; offset < voiceCount; offset++)
+                for (int offset = 0; offset < voiceCount; ++offset)
                 {
                     int candidate = (start + offset) % voiceCount;
                     if (voices[candidate].IsFree)
@@ -44,7 +44,7 @@ namespace WallstopStudios.DxAudio
             }
 
             int victim = -1;
-            for (int i = 0; i < voiceCount; i++)
+            for (int i = 0; i < voiceCount; ++i)
             {
                 SfxVoiceState state = voices[i];
                 if (!state.CanBeTakenFrom || incoming < state.priority || (incoming == state.priority && !state.isPaused))

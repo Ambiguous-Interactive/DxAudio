@@ -18,7 +18,7 @@ namespace WallstopStudios.DxAudio.Editor
         private static SerializedProperty Append(SerializedProperty array)
         {
             int index = array.arraySize;
-            array.arraySize++;
+            ++array.arraySize;
             return array.GetArrayElementAtIndex(index);
         }
 
@@ -139,7 +139,7 @@ namespace WallstopStudios.DxAudio.Editor
                 {
                     serialized.FindProperty("_nodes").GetArrayElementAtIndex(index).FindPropertyRelative("_name").stringValue = name;
                     SerializedProperty edges = serialized.FindProperty("_edges");
-                    for (int row = 0; row < edges.arraySize; row++)
+                    for (int row = 0; row < edges.arraySize; ++row)
                     {
                         SerializedProperty connection = edges.GetArrayElementAtIndex(row);
                         Replace(connection.FindPropertyRelative("_from"), previous, name);
@@ -289,7 +289,7 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             int match = -1;
-            for (int index = 0; index < _asset.NodeCount; index++)
+            for (int index = 0; index < _asset.NodeCount; ++index)
             {
                 if (string.Equals(_asset.Nodes[index]?.Name, name, StringComparison.Ordinal))
                 {
@@ -394,7 +394,7 @@ namespace WallstopStudios.DxAudio.Editor
 
             string source = _asset.Nodes[from].Name;
             string target = _asset.Nodes[to].Name;
-            for (int index = 0; index < _asset.EdgeCount; index++)
+            for (int index = 0; index < _asset.EdgeCount; ++index)
             {
                 DspGraphEdge existing = _asset.Edges[index];
                 if (
@@ -432,7 +432,7 @@ namespace WallstopStudios.DxAudio.Editor
                 return false;
             }
 
-            for (int index = 0; index < _asset.NodeCount; index++)
+            for (int index = 0; index < _asset.NodeCount; ++index)
             {
                 if (index != except && string.Equals(_asset.Nodes[index]?.Name, name, StringComparison.Ordinal))
                 {
@@ -481,7 +481,7 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             string name = _asset.Nodes[from].Name;
-            for (int index = 0; index < _asset.EdgeCount; index++)
+            for (int index = 0; index < _asset.EdgeCount; ++index)
             {
                 DspGraphEdge edge = _asset.Edges[index];
                 if (index != excludedEdge && edge != null && string.Equals(edge.From, name, StringComparison.Ordinal))

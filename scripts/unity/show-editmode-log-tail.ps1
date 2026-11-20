@@ -47,6 +47,7 @@ if ($ResultsPath -and (Test-Path -LiteralPath $ResultsPath -PathType Leaf)) {
             Write-Host "  | ${name}: $($message.Trim())"
         }
         Write-Host "  $failed failed case(s)."
+        Write-UnityNUnitTimings -Document $results
     } catch {
         Write-Host "  | $(ConvertTo-SafeUnityReport -Text "Could not read result: $($_.Exception.Message)")"
     }

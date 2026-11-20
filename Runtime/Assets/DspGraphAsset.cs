@@ -84,7 +84,7 @@ namespace WallstopStudios.DxAudio
                 return -1;
             }
 
-            for (int index = 0; index < _nodes.Count; index++)
+            for (int index = 0; index < _nodes.Count; ++index)
             {
                 DspGraphNode node = _nodes[index];
                 if (node != null && string.Equals(node.Name, name, StringComparison.Ordinal))
@@ -153,7 +153,7 @@ namespace WallstopStudios.DxAudio
                 Add(-1, -1, $"The graph holds {_edges.Count} edges, but a graph plays at most {DspGraph.MaximumEdges}.");
             }
 
-            for (int index = 0; index < _nodes.Count; index++)
+            for (int index = 0; index < _nodes.Count; ++index)
             {
                 DspGraphNode node = _nodes[index];
                 if (node == null)
@@ -184,7 +184,7 @@ namespace WallstopStudios.DxAudio
                 Add(-1, -1, string.IsNullOrWhiteSpace(_outputNode) ? "The graph has no output node." : $"The output node \"{_outputNode}\" is no node in this graph.");
             }
 
-            for (int index = 0; index < _edges.Count; index++)
+            for (int index = 0; index < _edges.Count; ++index)
             {
                 DspGraphEdge edge = _edges[index];
                 if (edge == null)
@@ -233,7 +233,7 @@ namespace WallstopStudios.DxAudio
                 _ = probe.TryAddNode(new DspChain(), out _);
             }
 
-            for (int index = 0; index < _edges.Count; index++)
+            for (int index = 0; index < _edges.Count; ++index)
             {
                 DspGraphEdge edge = _edges[index];
                 if (!probe.TryAddEdge(IndexOfNode(edge.From), IndexOfNode(edge.To)))
@@ -276,7 +276,7 @@ namespace WallstopStudios.DxAudio
                 }
             }
 
-            for (int index = 0; index < _nodes.Count; index++)
+            for (int index = 0; index < _nodes.Count; ++index)
             {
                 if (!reached[index] || !reaches[index])
                 {
@@ -318,7 +318,7 @@ namespace WallstopStudios.DxAudio
         /// <summary>Whether a node before <paramref name="index" /> already holds <paramref name="name" />.</summary>
         private bool HasEarlierNodeNamed(int index, string name)
         {
-            for (int earlier = 0; earlier < index; earlier++)
+            for (int earlier = 0; earlier < index; ++earlier)
             {
                 DspGraphNode node = _nodes[earlier];
                 if (node != null && string.Equals(node.Name, name, StringComparison.Ordinal))
@@ -347,7 +347,7 @@ namespace WallstopStudios.DxAudio
             }
 
             DspGraph built = new();
-            for (int index = 0; index < _nodes.Count; index++)
+            for (int index = 0; index < _nodes.Count; ++index)
             {
                 DspGraphNode node = _nodes[index];
                 if (node == null || HasEarlierNodeNamed(index, node.Name))

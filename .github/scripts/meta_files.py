@@ -15,6 +15,10 @@ import hashlib
 import sys
 from pathlib import Path
 
+sys.dont_write_bytecode = True
+
+from package_check import unity_visible
+
 ROOT = Path(__file__).resolve().parent.parent.parent
 PACKAGE_DIRS = ("Runtime", "Editor", "Tests")
 PACKAGE_FILES = ("package.json", "README.md", "CHANGELOG.md", "LICENSE.md")
@@ -55,7 +59,7 @@ def assets() -> list[Path]:
         found.extend(
             p
             for p in sorted(top.rglob("*"))
-            if p.suffix != ".meta" and not p.name.startswith(".") and not is_generated_policy(p)
+            if p.suffix != ".meta" and unity_visible(p.relative_to(ROOT).as_posix()) and not is_generated_policy(p)
         )
     return found
 
@@ -77,13 +81,18 @@ def main() -> int:
         if check:
             problems.append(f"missing: {meta.relative_to(ROOT)}")
         else:
-            meta.write_text(meta_text(asset), encoding="utf-8", newline="\n")
+            with meta.open("w", encoding="utf-8", newline="\n") as output:
+                output.write(meta_text(asset))
             print(f"wrote {meta.relative_to(ROOT)}")
 
     expected_metas = {asset.with_name(asset.name + ".meta") for asset in expected}
     for directory in PACKAGE_DIRS:
         for meta in (ROOT / directory).rglob("*.meta"):
-            if meta not in expected_metas and not is_generated_policy(meta):
+            if (
+                unity_visible(meta.relative_to(ROOT).as_posix())
+                and meta not in expected_metas
+                and not is_generated_policy(meta)
+            ):
                 problems.append(f"orphan: {meta.relative_to(ROOT)}")
 
     for problem in problems:

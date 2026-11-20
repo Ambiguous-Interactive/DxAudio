@@ -21,6 +21,10 @@ class TextFilePolicyTests(unittest.TestCase):
         self.assertEqual(["missing final newline"], check(b"text", final_newline=True))
         self.assertEqual(["invalid UTF-8"], check(b"\xff\n", final_newline=True))
 
+    def test_spelling_words_are_unique_ignoring_case(self):
+        self.assertEqual([], check_text_files.spelling_problems(["DxAudio", "multiband"]))
+        self.assertEqual(["case-redundant spelling word: dxaudio"], check_text_files.spelling_problems(["DxAudio", "dxaudio"]))
+
     def test_index_and_worktree_are_checked_separately(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

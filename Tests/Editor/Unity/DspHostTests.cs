@@ -213,7 +213,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             if (0 < (window & 1))
             {
-                window++;
+                ++window;
             }
 
             int expected = (window / 2) + 1;

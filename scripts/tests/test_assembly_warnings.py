@@ -120,7 +120,7 @@ def case_weakened_policy_fails() -> None:
     sandbox = LintSandbox()
     try:
         sandbox.sync()
-        sandbox.write("Runtime/csc.rsp", "-warn:5\n-nowarn:0618\n")
+        sandbox.write("Runtime/csc.rsp", "-warn:9999\n-nowarn:0618\n")
         sandbox.write(
             "Runtime/WarningsAsErrors.ruleset",
             '<?xml version="1.0" encoding="utf-8"?>\n<RuleSet Name="x"><IncludeAll Action="Warning" /></RuleSet>\n',
@@ -143,7 +143,7 @@ def case_sync_writes_the_strict_policy_once() -> None:
         ruleset = (sandbox.root / "Runtime" / "WarningsAsErrors.ruleset").read_text(encoding="utf-8")
         # Pin the literal policy: a weakened constant must fail here, not only in
         # a tree where someone also planted a matching suppression.
-        assert_true(response == "-warn:5\n", f"the response file must carry the maximum warning level: [{response}]")
+        assert_true(response == "-warn:9999\n", f"the response file must carry the maximum warning level: [{response}]")
         assert_true(
             '<IncludeAll Action="Error" />' in ruleset,
             f"the ruleset must promote every warning: [{ruleset}]",

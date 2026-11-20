@@ -547,7 +547,7 @@ namespace WallstopStudios.DxAudio
 
         private void EnsureVoices()
         {
-            for (int index = 0; index < VoiceCount; index++)
+            for (int index = 0; index < VoiceCount; ++index)
             {
                 if (_voices[index] != null && _voices[index].source != null)
                 {
@@ -586,7 +586,7 @@ namespace WallstopStudios.DxAudio
             }
 
             IReadOnlyList<MusicTrack> tracks = _library.Tracks;
-            for (int index = 0; index < tracks.Count; index++)
+            for (int index = 0; index < tracks.Count; ++index)
             {
                 MusicTrack track = tracks[index];
                 if (track != null)

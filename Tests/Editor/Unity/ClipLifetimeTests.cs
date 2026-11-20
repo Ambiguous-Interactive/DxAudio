@@ -64,7 +64,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(player.Play(cue), Is.True);
 
-            Object.DestroyImmediate(clip);
+            made.DestroyNow(clip);
 
             Assert.That(player.Play(cue), Is.False, "a cue whose every clip is released has nothing to play");
             Assert.That(drops, Is.EqualTo(new[] { SfxDropReason.NotPlayable }));
@@ -82,7 +82,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(player.TryPlayLooping(hum, out SfxLoopHandle held), Is.True);
             Assert.That(player.HeldVoiceCount, Is.EqualTo(1));
 
-            Object.DestroyImmediate(clip);
+            made.DestroyNow(clip);
 
             // The same entry point the component's Update calls each frame. A Unity message cannot run in EditMode.
             player.ReclaimLostHolds();
@@ -107,7 +107,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(player.Play(hit), Is.True, "the pool has one voice, and the cue takes it");
 
-            Object.DestroyImmediate(released);
+            made.DestroyNow(released);
 
             Assert.That(player.Play(next), Is.True, "a voice whose clip was released makes no sound, so it is free rather than busy");
         }
@@ -124,7 +124,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(player.PlayContext("town"), Is.True);
             Assert.That(player.IsPlaying, Is.True);
 
-            Object.DestroyImmediate(released);
+            made.DestroyNow(released);
 
             Assert.That(player.IsPlaying, Is.False, "a released clip is not music anyone can hear");
             player.Tick(0.016f);
@@ -146,7 +146,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(player.PlayContext("town"), Is.True);
             Assert.That(player.IsPlaying, Is.True);
-            Object.DestroyImmediate(released);
+            made.DestroyNow(released);
             Assert.That(player.IsPlaying, Is.False, "the released clip stopped the music");
 
             AudioClip returned = Clip(made);

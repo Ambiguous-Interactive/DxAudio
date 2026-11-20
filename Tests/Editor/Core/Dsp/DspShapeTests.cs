@@ -50,7 +50,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static float Rms(float[] samples, int from)
         {
             double sum = 0;
-            for (int i = from, samplesLength = samples.Length; i < samplesLength; i++)
+            for (int i = from, samplesLength = samples.Length; i < samplesLength; ++i)
             {
                 sum += (double)samples[i] * samples[i];
             }
@@ -68,7 +68,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             float[] block = new float[frames];
             double step = (2 * Math.PI * hertz) / SampleRate;
-            for (int frame = 0; frame < frames; frame++)
+            for (int frame = 0; frame < frames; ++frame)
             {
                 block[frame] = amplitude * (float)Math.Sin(step * frame);
             }
@@ -79,7 +79,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static float[] Ramp(float from, float to, int frames)
         {
             float[] block = new float[frames];
-            for (int frame = 0; frame < frames; frame++)
+            for (int frame = 0; frame < frames; ++frame)
             {
                 block[frame] = from + (((to - from) * frame) / (frames - 1));
             }
@@ -186,7 +186,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             DspDistortion distortion = new() { Drive = 1f, ToneHz = DspDistortion.OpenToneHz };
             Prepare(distortion);
             float[] steady = new float[256];
-            for (int frame = 0, steadyLength = steady.Length; frame < steadyLength; frame++)
+            for (int frame = 0, steadyLength = steady.Length; frame < steadyLength; ++frame)
             {
                 steady[frame] = 0.5f;
             }
@@ -243,7 +243,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Prepare(crusher);
             float[] output = Render(crusher, source);
 
-            for (int frame = 0, outputLength = output.Length; frame < outputLength; frame++)
+            for (int frame = 0, outputLength = output.Length; frame < outputLength; ++frame)
             {
                 int firstOfHold = frame - (frame % 4);
                 Assert.That(output[frame], Is.EqualTo(output[firstOfHold]), $"frame {frame} belongs to the hold that started at {firstOfHold}");

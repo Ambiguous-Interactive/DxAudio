@@ -170,7 +170,7 @@ namespace WallstopStudios.DxAudio
             }
 
             int busy = 0;
-            for (int index = 0; index < player.VoiceCount; index++)
+            for (int index = 0; index < player.VoiceCount; ++index)
             {
                 if (player.TryGetVoiceState(index, out SfxVoiceState state, out _) && state.isUsable && (state.isPlaying || state.isHeld))
                 {
@@ -180,7 +180,7 @@ namespace WallstopStudios.DxAudio
 
             _ = text.Append("Sfx: ").Append(player.VoiceCount).Append(" voices, ").Append(busy).Append(" busy, ").Append(player.HeldVoiceCount).AppendLine(" loop(s) held");
 
-            for (int index = 0; index < player.VoiceCount; index++)
+            for (int index = 0; index < player.VoiceCount; ++index)
             {
                 if (!player.TryGetVoiceState(index, out SfxVoiceState state, out int lease))
                 {
@@ -268,7 +268,7 @@ namespace WallstopStudios.DxAudio
             int count = player.CopyDuckHolds(_duckReasons, _duckHolders, _duckIds);
             _ = text.Append("Ducks: ").Append(count).AppendLine();
             int shown = Math.Min(count, _duckReasons.Length);
-            for (int index = 0; index < shown; index++)
+            for (int index = 0; index < shown; ++index)
             {
                 IMusicDuckReason reason = _duckReasons[index];
                 _ = text.Append("  ");

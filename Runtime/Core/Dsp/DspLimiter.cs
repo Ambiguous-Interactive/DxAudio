@@ -104,13 +104,13 @@ namespace WallstopStudios.DxAudio
             int stride = channels;
 
             int frames = count / stride;
-            for (int frame = 0; frame < frames; frame++)
+            for (int frame = 0; frame < frames; ++frame)
             {
                 int frameStart = offset + (frame * stride);
                 int slot = _delayIndex * stride;
                 float incomingPeak = 0f;
                 float outgoingPeak = 0f;
-                for (int channel = 0; channel < stride; channel++)
+                for (int channel = 0; channel < stride; ++channel)
                 {
                     float incoming = Math.Abs(buffer[frameStart + channel]);
                     if (incomingPeak < incoming)
@@ -166,7 +166,7 @@ namespace WallstopStudios.DxAudio
 
                 if (0 < _delayFrames)
                 {
-                    for (int channel = 0; channel < stride; channel++)
+                    for (int channel = 0; channel < stride; ++channel)
                     {
                         int index = frameStart + channel;
                         float delayed = _delay[slot + channel];
@@ -174,7 +174,7 @@ namespace WallstopStudios.DxAudio
                         buffer[index] = delayed * _gain;
                     }
 
-                    _delayIndex++;
+                    ++_delayIndex;
                     if (_delayIndex == _delayFrames)
                     {
                         _delayIndex = 0;
@@ -182,7 +182,7 @@ namespace WallstopStudios.DxAudio
                 }
                 else
                 {
-                    for (int channel = 0; channel < stride; channel++)
+                    for (int channel = 0; channel < stride; ++channel)
                     {
                         int index = frameStart + channel;
                         buffer[index] *= _gain;

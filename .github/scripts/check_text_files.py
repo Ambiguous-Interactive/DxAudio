@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -47,9 +48,22 @@ def index_problems() -> list[str]:
     return problems
 
 
+def spelling_problems(words: list[str]) -> list[str]:
+    seen = set()
+    problems = []
+    for word in words:
+        key = word.casefold()
+        if key in seen:
+            problems.append(f"case-redundant spelling word: {word}")
+        seen.add(key)
+    return problems
+
+
 def main() -> int:
     paths = inputs()
     problems = index_problems()
+    dictionary = json.loads((ROOT / ".github/scripts/cspell.json").read_text(encoding="utf-8"))
+    problems += spelling_problems(dictionary["words"])
     for path in paths:
         if path.suffix in TEXT:
             for problem in text_problems((ROOT / path).read_bytes(), final_newline=not generated(path)):

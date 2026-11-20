@@ -168,7 +168,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(player.Attenuation, Is.EqualTo(new MusicAttenuation(0.2f, 1_000f, MusicAttenuation.OpenHighPassCutoffHz)));
             Assert.That(player.IsDucked(dialogue), Is.True);
 
-            Object.DestroyImmediate(speaker);
+            made.DestroyNow(speaker);
             player.Tick(0.5f);
             Assert.That(player.IsDucked(dialogue), Is.False, "a holder destroyed without releasing is released for it");
             Assert.That(player.TargetAttenuation, Is.EqualTo(menu.Attenuation));
@@ -217,7 +217,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             _ = selection.SetContextTrack(town);
             MusicOverrideLease lease = selection.Take(boss);
 
-            Object.DestroyImmediate(boss);
+            made.DestroyNow(boss);
 
             Assert.That(selection.Current, Is.SameAs(town), "a destroyed override no longer counts");
             Assert.That(selection.Take(boss).IsValid, Is.False, "a destroyed track is refused");

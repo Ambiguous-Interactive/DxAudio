@@ -43,8 +43,10 @@ namespace WallstopStudios.DxAudio
             MaximumLowPassHertz = 0f;
         }
 
-        private static bool Invalid(float min, float max, float lower, float upper) =>
-            !AudioMath.IsFinite(min) || !AudioMath.IsFinite(max) || min < lower || max < min || upper < max;
+        private static bool Invalid(float min, float max, float lower, float upper)
+        {
+            return !AudioMath.IsFinite(min) || !AudioMath.IsFinite(max) || min < lower || max < min || upper < max;
+        }
 
         private static float Sample(float min, float max, float lower, float upper, float draw)
         {
@@ -87,6 +89,9 @@ namespace WallstopStudios.DxAudio
             return levelDecibels == 0f ? baseVolume : baseVolume * AudioMath.DecibelsToLinear(levelDecibels);
         }
 
-        private float LevelDecibels(float draw) => Sample(MinimumAttenuationDecibels, MaximumAttenuationDecibels, MinimumLevelDecibels, 0f, draw);
+        private float LevelDecibels(float draw)
+        {
+            return Sample(MinimumAttenuationDecibels, MaximumAttenuationDecibels, MinimumLevelDecibels, 0f, draw);
+        }
     }
 }

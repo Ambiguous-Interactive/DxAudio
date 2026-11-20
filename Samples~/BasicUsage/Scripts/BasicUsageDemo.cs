@@ -40,7 +40,7 @@ namespace WallstopStudios.DxAudio.Samples
         {
             int sampleCount = Mathf.Max(1, Mathf.RoundToInt(SampleRate * seconds));
             float[] samples = new float[sampleCount];
-            for (int index = 0; index < sampleCount; index++)
+            for (int index = 0; index < sampleCount; ++index)
             {
                 // Fade both ends so a one-shot does not click and a loop does not restart audibly.
                 float position = index / (float)sampleCount;

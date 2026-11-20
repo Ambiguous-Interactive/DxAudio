@@ -102,7 +102,7 @@ namespace WallstopStudios.DxAudio
             int stride = channels;
 
             int frames = count / stride;
-            for (int frame = 0; frame < frames; frame++)
+            for (int frame = 0; frame < frames; ++frame)
             {
                 /*
                     A knob move is a ramp, not a step: the block reads one drive and one tone, reached over
@@ -111,7 +111,7 @@ namespace WallstopStudios.DxAudio
                 _activeDrive += (_drive - _activeDrive) * _smoothingCoefficient;
                 _activeToneCoefficient += (_toneCoefficient - _activeToneCoefficient) * _smoothingCoefficient;
                 int frameStart = offset + (frame * stride);
-                for (int channel = 0; channel < stride; channel++)
+                for (int channel = 0; channel < stride; ++channel)
                 {
                     int index = frameStart + channel;
                     float shaped = (float)Math.Tanh(_activeDrive * buffer[index]);

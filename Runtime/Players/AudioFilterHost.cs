@@ -207,7 +207,7 @@ namespace WallstopStudios.DxAudio
         {
             if (instance != null)
             {
-                instance.ClearGeneration++;
+                ++instance.ClearGeneration;
             }
         }
 
@@ -257,7 +257,7 @@ namespace WallstopStudios.DxAudio
             {
                 if (runningInstance != null || graphInstance != null || busInstance != null)
                 {
-                    _skippedBlocks++;
+                    ++_skippedBlocks;
                 }
 
                 return;
@@ -545,7 +545,7 @@ namespace WallstopStudios.DxAudio
             public void Prepare(int sampleRate, int blockSize, int shapes)
             {
                 _graphs = new DspGraph[shapes];
-                for (int index = 0; index < shapes; index++)
+                for (int index = 0; index < shapes; ++index)
                 {
                     /*
                         An asset that cannot be built leaves an unprepared graph, which passes every block through, the

@@ -72,7 +72,7 @@ namespace WallstopStudios.DxAudio
                 {
                     if (variant != null && variant.IsPlayable)
                     {
-                        count++;
+                        ++count;
                     }
                 }
 
@@ -319,7 +319,7 @@ namespace WallstopStudios.DxAudio
                         return true;
                     }
 
-                    seen++;
+                    ++seen;
                 }
             }
 

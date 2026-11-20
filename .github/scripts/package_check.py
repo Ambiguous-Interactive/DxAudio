@@ -17,16 +17,20 @@ With --out, it writes the tarball, its .sha256 and the release notes into that f
 GITHUB_OUTPUT is set it records version, tarball and prerelease for later steps.
 """
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
-import sys
 from pathlib import Path, PurePosixPath
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 NAME = "com.wallstop-studios.dxaudio"
@@ -34,7 +38,9 @@ PACKAGE_DIRS = ("Runtime", "Editor", "Tests")
 ROOT_FILES = ("package.json", "README.md", "CHANGELOG.md", "LICENSE.md")
 # Lowercase prerelease names only: GitHub compares concurrency groups without case, so two tags that
 # differ only in case would share the release workflow's group.
-TAG = re.compile(r"^v(\d+\.\d+\.\d+(?:-[0-9a-z.-]+)?)$")
+NUMERIC_IDENTIFIER = r"(?:0|[1-9][0-9]*)"
+PRERELEASE_IDENTIFIER = rf"(?:{NUMERIC_IDENTIFIER}|[0-9a-z-]*[a-z-][0-9a-z-]*)"
+TAG = re.compile(rf"v{NUMERIC_IDENTIFIER}\.{NUMERIC_IDENTIFIER}\.{NUMERIC_IDENTIFIER}(?:-{PRERELEASE_IDENTIFIER}(?:\.{PRERELEASE_IDENTIFIER})*)?")
 DXMESSAGING = "com.wallstop-studios.dxmessaging"
 DXMESSAGING_ASSEMBLY = "WallstopStudios.DxMessaging"
 DXMESSAGING_DEFINE = "DXMESSAGING_PRESENT"
@@ -47,13 +53,27 @@ TEST_ASSEMBLIES = {"UnityEngine.TestRunner", "UnityEditor.TestRunner"}
 TEST_PRECOMPILED = {"nunit.framework.dll"}
 
 
-def pack(destination: Path | None) -> dict:
-    command = ["npm", "pack", "--json"]
-    command += ["--pack-destination", str(destination)] if destination else ["--dry-run"]
+def pack(destination: Path) -> dict:
+    npm = shutil.which("npm.cmd" if os.name == "nt" else "npm")
+    if npm is None:
+        raise FileNotFoundError("npm is required to verify the consumer archive")
+    command = [npm, "pack", "--json", "--ignore-scripts", "--pack-destination", str(destination)]
     result = subprocess.run(command, cwd=ROOT, check=True, capture_output=True, text=True)
     packed = json.loads(result.stdout)
     # npm 10 and 11 print a list of packages, npm 12 an object keyed by package name.
     return packed[0] if isinstance(packed, list) else packed[NAME]
+
+
+WINDOWS_RESERVED = re.compile(r"(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³]|CONIN\$|CONOUT\$)", re.IGNORECASE)
+
+
+def nonlocal_part(part: str) -> bool:
+    return (
+        part in {"", ".", ".."}
+        or part.endswith((" ", "."))
+        or re.search(r'[<>:"|?*\\\x00-\x1f]', part) is not None
+        or WINDOWS_RESERVED.fullmatch(part.partition(".")[0].rstrip()) is not None
+    )
 
 
 def archive_paths(tarball: Path) -> tuple[set[str], list[str]]:
@@ -65,7 +85,7 @@ def archive_paths(tarball: Path) -> tuple[set[str], list[str]]:
         for entry in archive:
             name = entry.name.rstrip("/")
             parts = name.split("/")
-            if parts[0] != "package" or any(part in {"", ".", ".."} or "\\" in part or ":" in part for part in parts):
+            if parts[0] != "package" or any(nonlocal_part(part) for part in parts):
                 problems.append(f"nonlocal npm archive member: {entry.name}")
                 continue
             relative = "/".join(parts[1:])
@@ -115,16 +135,35 @@ def git_package_problems() -> list[str]:
             continue
         metadata, _, path = record.partition("\t")
         paths.add(path)
-        if unity_visible(path) and metadata.startswith(("120000 ", "160000 ")):
+        if not unity_visible(path):
+            continue
+        if metadata.startswith(("120000 ", "160000 ")):
             problems.append(f"Unity-visible Git content contains a link or submodule: {path}")
+        asset = PurePosixPath(path.removesuffix(".meta"))
+        if asset.suffix.lower() in {".cs", ".asmdef", ".asmref"} and asset.parts[0] not in PACKAGE_DIRS:
+            problems.append(f"Unity compilation input is outside the package assembly trees: {path}")
     return problems + tooling_problems(paths, unity_visible_only=True)
 
 
-def payload_problems(paths: set[str]) -> list[str]:
+def assembly_paths(root: Path, pattern: str) -> list[Path]:
+    return sorted(
+        path
+        for folder in PACKAGE_DIRS
+        for path in (root / folder).rglob(pattern)
+        if unity_visible(path.relative_to(root).as_posix())
+    )
+
+
+def payload_problems(paths: set[str], root: Path = ROOT) -> list[str]:
     allowed = set(ROOT_FILES) | {f"{name}.meta" for name in ROOT_FILES + PACKAGE_DIRS}
     stray = {path for path in paths if path not in allowed and PurePosixPath(path).parts[0] not in PACKAGE_DIRS}
     problems = [f"not package content: {path}" for path in sorted(stray)]
     problems += tooling_problems(paths)
+    shipped_assemblies = {path.relative_to(root).as_posix() for path in assembly_paths(root, "*.asmdef")}
+    if not any(path.startswith("Runtime/") for path in shipped_assemblies):
+        problems.append("the package must have a Runtime assembly")
+    for path in sorted(shipped_assemblies - paths):
+        problems.append(f"assembly definition missing from the archive: {path}")
     # Unity imports neither a dot path nor anything under a folder ending in ~.
     paths = {path for path in paths - stray if unity_visible(path)}
     folders = {str(parent) for path in paths for parent in PurePosixPath(path).parents if str(parent) != "."}
@@ -150,7 +189,23 @@ def dependency_problems(manifest: dict, root: Path = ROOT) -> list[str]:
     problems = []
     if manifest.get("dependencies") != {}:
         problems.append("package.json must declare an empty runtime dependency map")
-    paths = sorted(path for folder in PACKAGE_DIRS for path in (root / folder).rglob("*.asmdef"))
+    for key in ("optionalDependencies", "peerDependencies"):
+        if manifest.get(key, {}) != {}:
+            problems.append(f"package.json must keep {key} empty")
+    for key in ("bundleDependencies", "bundledDependencies"):
+        if manifest.get(key, []) != [] and manifest[key] is not False:
+            problems.append(f"package.json must keep {key} empty")
+    scripts = manifest.get("scripts", {})
+    if not isinstance(scripts, dict):
+        problems.append("package.json scripts must be an object")
+    else:
+        for name in ("preinstall", "install", "postinstall", "prepare"):
+            if name in scripts:
+                problems.append(f"package.json must not run {name} in consumer installs")
+    for path in assembly_paths(root, "*.asmref"):
+        relative = path.relative_to(root).as_posix()
+        problems.append(f"{relative} bypasses the checked assembly definition graph")
+    paths = assembly_paths(root, "*.asmdef")
     asmdefs = {path: json.loads(path.read_text(encoding="utf-8")) for path in paths}
     own = {asmdef["name"]: asmdef for asmdef in asmdefs.values()}
     if len(own) != len(asmdefs):
@@ -162,8 +217,13 @@ def dependency_problems(manifest: dict, root: Path = ROOT) -> list[str]:
         guarded = dxmessaging_guarded(asmdef)
         for reference in asmdef.get("references", []):
             if reference in own:
-                if dxmessaging_guarded(own[reference]) and not guarded:
+                target = own[reference]
+                if dxmessaging_guarded(target) and not guarded:
                     problems.append(f"{where} references optional assembly {reference} without its DxMessaging guard")
+                if "UNITY_INCLUDE_TESTS" in target.get("defineConstraints", []) and not is_test:
+                    problems.append(f"{where} references test-only assembly {reference}")
+                if target.get("includePlatforms") == ["Editor"] and asmdef.get("includePlatforms") != ["Editor"]:
+                    problems.append(f"{where} references Editor-only assembly {reference}")
             elif is_test and reference in TEST_ASSEMBLIES:
                 continue
             elif reference != DXMESSAGING_ASSEMBLY or not guarded:
@@ -188,6 +248,44 @@ def release_notes(version: str) -> str:
     return (rest[: following.start()] if following else rest).strip()
 
 
+def manifest_object(pairs: list[tuple[str, object]]) -> dict:
+    fields = {}
+    for name, value in pairs:
+        if name in fields:
+            raise ValueError(f"package.json repeats {name!r}")
+        fields[name] = value
+    return fields
+
+
+def version_problems(version: object, tag: str | None) -> list[str]:
+    if not isinstance(version, str) or TAG.fullmatch(f"v{version}") is None:
+        return ["package.json version must be a complete release version"]
+    if tag is None or tag == f"v{version}":
+        return []
+    if TAG.fullmatch(tag) is None:
+        return [f"tag {tag!r} is not vX.Y.Z"]
+    return [f"tag {tag!r} does not name package.json's version {version}"]
+
+
+def changelog_problems(url: object, version: str, changelog: str) -> list[str]:
+    problems = []
+    try:
+        parsed = urlsplit(url) if isinstance(url, str) else None
+    except ValueError:
+        parsed = None
+    if (
+        parsed is None
+        or parsed.scheme != "https"
+        or parsed.hostname in (None, "raw.githubusercontent.com")
+        or "raw" in PurePosixPath(parsed.path).parts
+        or PurePosixPath(parsed.path).stem.casefold() != "changelog"
+    ):
+        problems.append("package.json changelogUrl must point to a rendered HTTPS changelog")
+    if not changelog.startswith("# ") or not re.search(rf"(?m)^## \[(?:Unreleased|{re.escape(version)})\](?: -[^\r\n]*)?$", changelog):
+        problems.append("CHANGELOG.md must have a title and an Unreleased or current version heading")
+    return problems
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--tag", help="the release tag, vX.Y.Z")
@@ -196,28 +294,37 @@ def main() -> int:
     if args.out:
         args.out = args.out.resolve()  # npm pack runs in ROOT, not in the caller's folder
 
-    manifest = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
-    version = manifest["version"]
-    problems = [] if manifest["name"] == NAME else [f"package.json names {manifest['name']}, not {NAME}"]
+    try:
+        manifest = json.loads((ROOT / "package.json").read_text(encoding="utf-8"), object_pairs_hook=manifest_object)
+    except (OSError, ValueError) as error:
+        print(f"::error::cannot read package.json: {error}", file=sys.stderr)
+        return 1
+    if not isinstance(manifest, dict):
+        print("::error::package.json must contain a JSON object", file=sys.stderr)
+        return 1
+    version = manifest.get("version")
+    problems = [] if manifest.get("name") == NAME else [f"package.json must name {NAME}"]
+    problems += version_problems(version, args.tag)
     problems += dependency_problems(manifest)
 
     notes = ""
-    if args.tag is not None:
-        match = TAG.fullmatch(args.tag)
-        if not match:
-            problems.append(f"tag {args.tag!r} is not vX.Y.Z")
-        elif match.group(1) != version:
-            problems.append(f"tag {args.tag} does not name package.json's version {version}")
+    if not problems:
+        problems += changelog_problems(manifest.get("changelogUrl"), version, (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))
+    if args.tag is not None and not problems:
         notes = release_notes(version)
         if not notes:
             problems.append(f"CHANGELOG.md has no '## [{version}]' section with notes")
+    if problems:
+        for problem in problems:
+            print(f"::error::{problem}", file=sys.stderr)
+        return 1
 
     with tempfile.TemporaryDirectory(prefix="dxaudio-package-") as directory:
         scratch = Path(directory)
         packed = pack(scratch)
-        filename = packed["filename"]
-        if Path(filename).name != filename:
-            raise ValueError(f"npm returned a nonlocal archive name: {filename}")
+        filename = f"{NAME}-{version}.tgz"
+        if packed["filename"] != filename:
+            raise ValueError(f"npm did not return the expected archive name: {filename}")
         tarball = scratch / filename
         paths, archive_problems = archive_paths(tarball)
         problems += archive_problems

@@ -55,11 +55,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static int DifferingSamples(float[] left, float[] right)
         {
             int differences = 0;
-            for (int i = 0, leftLength = left.Length; i < leftLength; i++)
+            for (int i = 0, leftLength = left.Length; i < leftLength; ++i)
             {
                 if (0.0001f < Math.Abs(left[i] - right[i]))
                 {
-                    differences++;
+                    ++differences;
                 }
             }
 
@@ -70,7 +70,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             float[] block = new float[frames];
             double step = (2 * Math.PI * hertz) / SampleRate;
-            for (int frame = 0; frame < frames; frame++)
+            for (int frame = 0; frame < frames; ++frame)
             {
                 block[frame] = amplitude * (float)Math.Sin(step * frame);
             }
@@ -429,12 +429,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             public override void Process(float[] buffer, int offset, int count, int channels)
             {
-                Processed++;
+                ++Processed;
             }
 
             public override void Reset()
             {
-                Resets++;
+                ++Resets;
                 Resetting?.Invoke();
             }
 

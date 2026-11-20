@@ -60,7 +60,10 @@ namespace WallstopStudios.DxAudio.Editor
             _previewOwner = null;
         }
 
-        internal static bool IsPlaying(Object owner) => owner != null && _previewOwner == owner && _previewSource != null && _previewSource.isPlaying;
+        internal static bool IsPlaying(Object owner)
+        {
+            return owner != null && _previewOwner == owner && _previewSource != null && _previewSource.isPlaying;
+        }
 
         internal static AudioSource Play(MusicTrack track)
         {

@@ -62,7 +62,7 @@ namespace WallstopStudios.DxAudio.Tests
         private static long AllocatedBy(DspChain chain, float[] block)
         {
             long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int pass = 0; pass < Blocks; pass++)
+            for (int pass = 0; pass < Blocks; ++pass)
             {
                 chain.Process(block, 0, block.Length, Channels);
             }
@@ -73,7 +73,7 @@ namespace WallstopStudios.DxAudio.Tests
         private static float[] Sine()
         {
             float[] block = new float[BlockFrames * Channels];
-            for (int frame = 0, blockLength = block.Length; frame < blockLength; frame++)
+            for (int frame = 0, blockLength = block.Length; frame < blockLength; ++frame)
             {
                 block[frame] = (float)Math.Sin((2 * Math.PI * 1_000 * frame) / SampleRate);
             }
@@ -134,7 +134,7 @@ namespace WallstopStudios.DxAudio.Tests
             graph.Process(block, 0, block.Length, Channels);
 
             long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int pass = 0; pass < Blocks; pass++)
+            for (int pass = 0; pass < Blocks; ++pass)
             {
                 graph.Process(block, 0, block.Length, Channels);
             }

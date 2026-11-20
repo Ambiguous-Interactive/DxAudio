@@ -179,6 +179,7 @@ RUN echo '' >> /etc/bash.bashrc \
 # =============================================================================
 RUN echo "=== Environment Verification ===" \
     && echo "--- .NET SDKs ---" && dotnet --list-sdks \
+    && test "$(dotnet --version)" = "10.0.404" \
     && echo "--- Node.js Tooling ---" && node --version && npm --version \
     && nanocoder --version && opencode --version && codex --version && claude --version \
     && echo "--- PowerShell ---" && pwsh --version \

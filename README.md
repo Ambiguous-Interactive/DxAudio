@@ -394,6 +394,7 @@ Then, in the container or the host:
 npm run check:gate      # format, lints, harness self-tests, npm payload
 npm run unity:tests     # EditMode suite through the local editor
 npm run check:analysis  # C# 9 compatibility, static analysis, and Core tests
+npm run check:upstream  # pinned unity-helpers checks and analyzer fixtures
 ```
 
 See [.devcontainer/README.md](.devcontainer/README.md) for the container lifecycle and

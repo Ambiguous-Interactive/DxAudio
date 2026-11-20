@@ -42,7 +42,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static float[] Impulse(int frames, int channels, int frame, float value)
         {
             float[] block = new float[frames * channels];
-            for (int channel = 0; channel < channels; channel++)
+            for (int channel = 0; channel < channels; ++channel)
             {
                 block[(frame * channels) + channel] = value;
             }
@@ -57,7 +57,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             {
                 if (sample != 0f)
                 {
-                    count++;
+                    ++count;
                 }
             }
 
@@ -267,7 +267,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             float[] gathered = new float[64 * 8];
             float[] block = new float[64 + offset];
-            for (int pass = 0; pass < 8; pass++)
+            for (int pass = 0; pass < 8; ++pass)
             {
                 Array.Clear(block, 0, block.Length);
                 if (pass == 0)
@@ -381,7 +381,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void TheNodeCountIsBounded()
         {
             DspGraph graph = new();
-            for (int node = 0; node < DspGraph.MaximumNodes; node++)
+            for (int node = 0; node < DspGraph.MaximumNodes; ++node)
             {
                 Assert.That(graph.TryAddNode(new DspChain(), out _), Is.True);
             }
@@ -413,7 +413,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             {
                 if (_frames == 0)
                 {
-                    for (int sample = 0; sample < count; sample++)
+                    for (int sample = 0; sample < count; ++sample)
                     {
                         buffer[offset + sample] *= Gain;
                     }
@@ -422,12 +422,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 }
 
                 int capacity = _line.Length;
-                for (int sample = 0; sample < count; sample++)
+                for (int sample = 0; sample < count; ++sample)
                 {
                     float held = _line[_position];
                     _line[_position] = buffer[offset + sample];
                     buffer[offset + sample] = held * Gain;
-                    _position++;
+                    ++_position;
                     if (_position == capacity)
                     {
                         _position = 0;

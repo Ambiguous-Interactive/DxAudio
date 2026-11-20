@@ -78,7 +78,7 @@ namespace WallstopStudios.DxAudio
                 chosen = ClampIndex(drawn, variantCount - 2);
                 if (last <= chosen)
                 {
-                    chosen++;
+                    ++chosen;
                 }
             }
             else

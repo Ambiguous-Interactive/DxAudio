@@ -44,12 +44,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             // The first call through the delegate compiles its invoke stub, so it runs outside the measured windows.
             play();
             long smallest = long.MaxValue;
-            for (int window = 0; window < Windows; window++)
+            for (int window = 0; window < Windows; ++window)
             {
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
                 long before = GC.GetTotalMemory(forceFullCollection: false);
-                for (int index = 0; index < count; index++)
+                for (int index = 0; index < count; ++index)
                 {
                     play();
                 }
@@ -75,7 +75,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             GC.Collect();
             GC.WaitForPendingFinalizers();
             long before = GC.GetTotalMemory(forceFullCollection: true);
-            for (int index = 0; index < count; index++)
+            for (int index = 0; index < count; ++index)
             {
                 _plants.Add(new string('x', PlantedChars));
             }
@@ -130,7 +130,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 )
                 : Cue(made);
             SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
-            for (int index = 0; index < WarmupPlays; index++)
+            for (int index = 0; index < WarmupPlays; ++index)
             {
                 player.Play(cue);
             }
@@ -146,7 +146,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             using MadeObjects made = new();
             SfxCue cue = Cue(made, key: "hit");
             SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
-            for (int index = 0; index < WarmupPlays; index++)
+            for (int index = 0; index < WarmupPlays; ++index)
             {
                 player.Play("hit");
             }
@@ -163,7 +163,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             DspChainAsset chain = made.Track(DspChainAsset.Create(new DspEffectAsset[] { made.Track(DspLimiterAsset.Create()), made.Track(DspDistortionAsset.Create()) }));
             SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, minimumIntervalSeconds: 0f, chain: chain));
             SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
-            for (int index = 0; index < WarmupPlays; index++)
+            for (int index = 0; index < WarmupPlays; ++index)
             {
                 player.Play(cue);
             }
@@ -188,7 +188,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             );
             SfxCue cue = made.Track(SfxCue.CreateWithGraph(new[] { new SfxVariant(Clip(made)) }, graph: graph, minimumIntervalSeconds: 0f));
             SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
-            for (int index = 0; index < WarmupPlays; index++)
+            for (int index = 0; index < WarmupPlays; ++index)
             {
                 player.Play(cue);
             }

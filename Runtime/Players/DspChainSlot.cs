@@ -32,7 +32,7 @@ namespace WallstopStudios.DxAudio
         /// <summary>Asks for this slot to be cleared before it next processes a block.</summary>
         public void RequestClear()
         {
-            ClearGeneration++;
+            ++ClearGeneration;
         }
 
         /// <summary>Whether a clear is owed to this slot, recording it as taken when one is.</summary>
@@ -52,7 +52,7 @@ namespace WallstopStudios.DxAudio
         public void Prepare(int sampleRate, int blockSize, int shapes)
         {
             _chains = new DspChain[shapes];
-            for (int index = 0; index < shapes; index++)
+            for (int index = 0; index < shapes; ++index)
             {
                 DspChain chain = Asset.CreateChain();
                 _ = chain.TryPrepare(sampleRate, blockSize, index + 1);

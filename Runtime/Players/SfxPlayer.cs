@@ -144,7 +144,7 @@ namespace WallstopStudios.DxAudio
                 }
 
                 _paused = value;
-                for (int index = 0; index < _voices.Length; index++)
+                for (int index = 0; index < _voices.Length; ++index)
                 {
                     AudioSource voice = _voices[index];
                     if (voice == null)
@@ -344,7 +344,7 @@ namespace WallstopStudios.DxAudio
         /// <summary>Stops every voice, loops included, and forgets every rate limit and take.</summary>
         public void StopAll()
         {
-            for (int index = 0; index < _voices.Length; index++)
+            for (int index = 0; index < _voices.Length; ++index)
             {
                 if (_held[index])
                 {
@@ -378,7 +378,7 @@ namespace WallstopStudios.DxAudio
                 return;
             }
 
-            for (int index = 0; index < _voices.Length; index++)
+            for (int index = 0; index < _voices.Length; ++index)
             {
                 if (!_held[index])
                 {
@@ -517,7 +517,7 @@ namespace WallstopStudios.DxAudio
             if (looping)
             {
                 _held[index] = true;
-                _heldCount++;
+                ++_heldCount;
                 started = new SfxLoopHandle(index, _leases[index]);
             }
 
@@ -581,7 +581,7 @@ namespace WallstopStudios.DxAudio
 
         private void ReadStates()
         {
-            for (int index = 0; index < _voices.Length; index++)
+            for (int index = 0; index < _voices.Length; ++index)
             {
                 _ = TryGetVoiceState(index, out _states[index], out _);
             }
@@ -607,19 +607,19 @@ namespace WallstopStudios.DxAudio
             switch (reason)
             {
                 case SfxDropReason.NotPlayable:
-                    _droppedNotPlayable++;
+                    ++_droppedNotPlayable;
                     break;
                 case SfxDropReason.Throttled:
-                    _droppedThrottled++;
+                    ++_droppedThrottled;
                     break;
                 case SfxDropReason.NoVoice:
-                    _droppedNoVoice++;
+                    ++_droppedNoVoice;
                     break;
                 case SfxDropReason.LoopLimit:
-                    _droppedLoopLimit++;
+                    ++_droppedLoopLimit;
                     break;
                 case SfxDropReason.WrongPlayMethod:
-                    _droppedWrongPlayMethod++;
+                    ++_droppedWrongPlayMethod;
                     break;
                 default:
                     break;
@@ -661,7 +661,7 @@ namespace WallstopStudios.DxAudio
                 _playback.SetSeed(PlaybackSeed(), _randomFactory);
             }
 
-            for (int index = 0; index < count; index++)
+            for (int index = 0; index < count; ++index)
             {
                 /*
                     Never saved with a scene in edit mode. In Play mode the flag would hide the voices from
@@ -713,7 +713,7 @@ namespace WallstopStudios.DxAudio
                     continue;
                 }
 
-                for (int cueIndex = 0; cueIndex < cues.Count; cueIndex++)
+                for (int cueIndex = 0; cueIndex < cues.Count; ++cueIndex)
                 {
                     SfxCue cue = cues[cueIndex];
                     if (cue != null)

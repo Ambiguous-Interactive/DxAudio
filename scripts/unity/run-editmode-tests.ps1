@@ -18,7 +18,11 @@ param(
     [string]$Label = $env:UNITY_TEST_LABEL,
     [string]$ConsumerArchive = $env:DXAUDIO_CONSUMER_ARCHIVE,
     [switch]$ArchiveSmoke,
-    [ValidateRange(1, 2400)][int]$EditorTimeoutSeconds = 2400
+    [switch]$IntegrationPlayerSmoke,
+    [ValidateRange(1, 2400)][int]$EditorTimeoutSeconds = 2400,
+    [ValidateRange(0, 2400)][int]$EditorStallSeconds = 300,
+    [ValidateRange(0, 2400)][int]$CompletionGraceSeconds = 120,
+    [ValidateRange(0, 360)][int]$ActivationRetryBudgetSeconds = 360
 )
 
 Set-StrictMode -Version Latest
@@ -28,6 +32,7 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 
 . (Join-Path $PSScriptRoot 'unity-log.ps1')
+. (Join-Path $PSScriptRoot 'unity-process.ps1')
 
 if ($UnityVersion -notmatch '^\d+\.\d+\.\d+f\d+$') {
     throw "UnityVersion must be an exact editor release, for example 6000.6.7f1."
@@ -70,12 +75,16 @@ $manifest = [ordered]@{
         'com.unity.modules.imgui' = '1.0.0'
     }
 }
-if ($ArchiveSmoke) {
+$playerSmoke = $ArchiveSmoke -or $IntegrationPlayerSmoke
+if ($playerSmoke) {
     if ([string]::IsNullOrWhiteSpace($ConsumerArchive) -or -not (Test-Path -LiteralPath $ConsumerArchive -PathType Leaf)) {
         throw 'The pristine consumer tarball is missing.'
     }
-    if (-not [string]::IsNullOrWhiteSpace($DxMessagingVersion)) {
+    if ($ArchiveSmoke -and ($IntegrationPlayerSmoke -or -not [string]::IsNullOrWhiteSpace($DxMessagingVersion))) {
         throw 'The consumer archive smoke requires the optional integration to be absent.'
+    }
+    if ($IntegrationPlayerSmoke -and [string]::IsNullOrWhiteSpace($DxMessagingVersion)) {
+        throw 'The integration player smoke requires a DxMessaging version.'
     }
     Copy-Item -LiteralPath $ConsumerArchive -Destination (Join-Path $packagesPath 'dxaudio.tgz')
     $manifest.dependencies['com.wallstop-studios.dxaudio'] = 'file:dxaudio.tgz'
@@ -124,9 +133,12 @@ $unityArgs = @(
     '-password'
     $env:UNITY_PASSWORD
 )
-if ($ArchiveSmoke) {
-    $unityArgs += @('-quit', '-executeMethod', 'WallstopStudios.DxAudio.Validation.ArchiveSmoke.Run')
-    $EditorTimeoutSeconds = [Math]::Min($EditorTimeoutSeconds, 900)
+$receipt = ''
+if ($playerSmoke) {
+    $method = if ($IntegrationPlayerSmoke) { 'RunWithIntegration' } else { 'Run' }
+    $receipt = if ($IntegrationPlayerSmoke) { 'DxAudio integration player script validation passed.' } else { 'DxAudio archive and player script validation passed.' }
+    $unityArgs += @('-quit', '-executeMethod', "WallstopStudios.DxAudio.Validation.ArchiveSmoke.$method")
+    $EditorTimeoutSeconds = [Math]::Min($EditorTimeoutSeconds, 420)
 } else {
     $unityArgs += @('-runTests', '-testPlatform', 'EditMode', '-testResults', $resultsPath)
 }
@@ -149,28 +161,46 @@ foreach ($item in $unityArgs) {
     $start.ArgumentList.Add($item)
 }
 $start.Environment['DXMESSAGING_VERSION'] = $DxMessagingVersion
-$process = $null
+$observationPath = Join-Path $artifactsPath 'process-observation.json'
+$launchClock = [Diagnostics.Stopwatch]::StartNew()
+$retryWindow = [Math]::Min($ActivationRetryBudgetSeconds, $EditorTimeoutSeconds)
+$attempt = 0
 try {
-    $process = [System.Diagnostics.Process]::Start($start)
-    [void]$process.StandardOutput.BaseStream.CopyToAsync([System.IO.Stream]::Null)
-    [void]$process.StandardError.BaseStream.CopyToAsync([System.IO.Stream]::Null)
-    if (-not $process.WaitForExit($EditorTimeoutSeconds * 1000)) {
-        try {
-            $process.Kill($true)
-        } catch [InvalidOperationException] {
-            if (-not $process.HasExited) { throw }
+    while ($true) {
+        $attempt++
+        $process = Invoke-UnityEditorProcess -Start $start -LogPath $logPath -ObservationPath $observationPath `
+            -TimeoutSeconds ($EditorTimeoutSeconds - $launchClock.Elapsed.TotalSeconds) `
+            -StallSeconds $EditorStallSeconds -CompletionGraceSeconds $CompletionGraceSeconds -WatchTestCompletion:(-not $playerSmoke)
+        if ($process.Origin -ne 'process-exit' -or $process.ExitCode -eq 0 -or
+            $retryWindow -le $launchClock.Elapsed.TotalSeconds -or
+            -not (Test-TransientUnityActivation -LogPath $logPath -ResultsPath $resultsPath)) {
+            break
         }
-        [void]$process.WaitForExit(5000)
-        throw "Unity did not exit within $EditorTimeoutSeconds seconds."
+        $remaining = $retryWindow - $launchClock.Elapsed.TotalSeconds
+        $delay = [Math]::Min([Math]::Min(60, 5 * [Math]::Pow(2, $attempt - 1)), $remaining / 2)
+        if ($delay -le 0) { break }
+        Write-Host '::warning::Unity activation hit its 20111 seat limit before project startup. Retrying within the activation budget.'
+        Start-Sleep -Seconds $delay
+        Remove-Item -LiteralPath $logPath
     }
-    $exitCode = $process.ExitCode
 } catch {
     Write-RedactedLogTail -Path $logPath
     throw (ConvertTo-SafeUnityReport -Text $_.Exception.Message)
-} finally {
-    if ($null -ne $process) { $process.Dispose() }
+}
+Write-UnityEnvironmentWarnings -Path $logPath
+if ($process.Origin -eq 'wall-timeout') {
+    Write-RedactedLogTail -Path $logPath
+    throw "Unity did not exit within $EditorTimeoutSeconds seconds."
+}
+if ($process.Origin -eq 'stall-timeout') {
+    Write-RedactedLogTail -Path $logPath
+    throw "Unity produced no log output for $EditorStallSeconds seconds before completion."
+}
+if ($process.Origin -eq 'completion-grace') {
+    Write-Host '::warning::Unity reported test completion but required shutdown after its grace period. The NUnit result remains mandatory.'
 }
 
+$exitCode = $process.ExitCode
 if ($exitCode -ne 0) {
     Write-RedactedLogTail -Path $logPath
     throw "Unity failed with exit code $exitCode. Log: $logPath"
@@ -182,10 +212,10 @@ if (Select-String -LiteralPath $logPath -Pattern '\b(?:AD0001|AD0002|CS8032|CS80
     Write-RedactedLogTail -Path $logPath
     throw 'Unity reported an analyzer load failure or exception.'
 }
-if ($ArchiveSmoke) {
-    if (-not (Select-String -LiteralPath $logPath -SimpleMatch 'DxAudio archive and player script validation passed.' -Quiet)) {
+if ($playerSmoke) {
+    if (-not (Select-String -LiteralPath $logPath -Pattern ('^' + [regex]::Escape($receipt) + '$') -Quiet)) {
         Write-RedactedLogTail -Path $logPath
-        throw 'Unity did not confirm the archive and player script validation.'
+        throw "Unity did not emit the expected player script validation receipt: $receipt"
     }
     return
 }
@@ -218,3 +248,4 @@ if (($null -ne $integrationSuite) -ne $expectIntegration -or ($expectIntegration
     throw 'The EditMode results do not match the expected DxMessaging test state.'
 }
 Write-Host "EditMode passed $passed tests on $runName."
+Write-UnityNUnitTimings -Document $results

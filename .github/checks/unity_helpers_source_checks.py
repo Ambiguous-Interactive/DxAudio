@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import importlib
+import json
 import os
+import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -26,6 +29,15 @@ MODULES = (
     "lint_unity_file_naming",
 )
 SOURCE_ROOTS = ("Runtime", "Editor", "Tests", "Samples~", ".net-tests")
+
+
+def check_pinned_sdk(root: Path) -> None:
+    tooling = root / ".net-tests"
+    sdk = json.loads((tooling / "global.json").read_text(encoding="utf-8"))["sdk"]
+    selected = subprocess.check_output(["dotnet", "--version"], cwd=tooling, text=True, timeout=15).strip()
+    if selected != sdk["version"]:
+        raise ValueError(f"Expected .NET SDK {sdk['version']}, selected {selected}")
+    print(f"[unity-helpers-coverage] selected .NET SDK {selected}")
 
 
 def fetch(upstream: Path, revision: str) -> None:
@@ -49,11 +61,22 @@ def stage_paths(upstream: Path, revision: str, destination: Path, paths: tuple[s
 def stage_modules(upstream: Path, revision: str, destination: Path) -> None:
     paths = tuple(f"scripts/{module}.py" for module in MODULES) + (
         "scripts/comment-stripping.ps1",
+        "scripts/tests/test-shell-portability.sh",
+        "scripts/lint_pwsh_invocations.py",
+        "scripts/lint_license_headers.py",
+        "scripts/lint_odin_undo_safety.py",
+        "scripts/lint_yaml.py",
+        "scripts/pwsh_invocation_asts.py",
+        "scripts/pwsh_invocation_text.py",
+        "scripts/read-pwsh-invocation-facts.ps1",
         "scripts/tests/test-comment-stripping.ps1",
+        "scripts/tests/test-deprecated-external-links.ps1",
         "scripts/tests/test-out-parameter-discipline.js",
         "scripts/tests/test-pr-workflow-concurrency.ps1",
         "scripts/tests/test-workflow-license-secret-scope.ps1",
         "scripts/tests/test-workflow-repository-guard.ps1",
+        "scripts/tests/test_csharp_lints.py",
+        "scripts/tests/test_yaml_lint.py",
     )
     stage_paths(upstream, revision, destination, paths)
 
@@ -61,6 +84,8 @@ def stage_modules(upstream: Path, revision: str, destination: Path) -> None:
 def run_contract_controls(root: Path, staged: Path) -> None:
     tests = staged / "scripts/tests"
     subprocess.run(["pwsh", "-NoProfile", "-File", str(tests / "test-comment-stripping.ps1")], check=True)
+    check_deprecated_references(root, tests / "test-deprecated-external-links.ps1")
+    check_shell_portability(root, tests / "test-shell-portability.sh")
 
     upstream = tests / "test-out-parameter-discipline.js"
     text = upstream.read_text(encoding="utf-8")
@@ -117,6 +142,130 @@ def run_contract_controls(root: Path, staged: Path) -> None:
         if result.returncode != 1 or diagnostic not in result.stdout:
             raise ValueError(f"{script} missed its negative workflow control: {result.stdout}{result.stderr}")
     fixture.unlink()
+
+    invocation_lint = [sys.executable, str(staged / "scripts/lint_pwsh_invocations.py"), "--verbose", "--repo-root"]
+    subprocess.run([*invocation_lint, str(root)], check=True)
+    with tempfile.TemporaryDirectory(prefix="dxaudio-pwsh-control-") as folder:
+        control = Path(folder)
+        scripts = control / "scripts"
+        scripts.mkdir()
+        specimen = scripts / "control.sh"
+        specimen.write_text("pwsh -NoProfile -File flags.ps1 -Paths input.txt\n", encoding="utf-8")
+        subprocess.run([*invocation_lint, folder], capture_output=True, check=True)
+        specimen.write_text("pwsh -NoProfile -File flags.ps1 -- input.txt\n", encoding="utf-8")
+        broken = subprocess.run([*invocation_lint, folder], capture_output=True, text=True, encoding="utf-8")
+        if broken.returncode != 1 or "control.sh:1:" not in broken.stdout:
+            raise ValueError(f"the PowerShell invocation check missed its negative control: {broken.stdout}{broken.stderr}")
+
+    # DxAudio normalizes the same input classes to LF. The upstream checker
+    # also inspects Git blobs, rejects BOMs, and safely skips deleted entries.
+    eol = importlib.import_module("check_eol")
+    eol.requires_lf = lambda _path: True
+    with tempfile.TemporaryDirectory(prefix="dxaudio-eol-control-") as folder:
+        control = Path(folder)
+        subprocess.run(["git", "init", "--quiet", str(control)], check=True)
+        (control / ".gitattributes").write_bytes(b"* text eol=lf\n")
+        specimen = control / "Control.cs"
+        specimen.write_bytes(b"class Control {}\n")
+        subprocess.run(["git", "-C", str(control), "add", ".gitattributes", "Control.cs"], check=True)
+        clean = eol.inspect(control)
+        if clean.failed or clean.subjects != 1:
+            raise ValueError("the EOL check rejected its positive control")
+        specimen.write_bytes(b"\xef\xbb\xbfclass Control {}\r\n")
+        broken = eol.inspect(control)
+        if len(broken.endings) != 1 or broken.boms != ["Control.cs"]:
+            raise ValueError("the EOL check missed its CRLF or BOM control")
+    checkout = eol.inspect(root)
+    if checkout.failed:
+        messages = checkout.endings + checkout.boms + checkout.blobs
+        raise ValueError("checkout LF and UTF-8 check failed: " + "; ".join(messages))
+    print(f"[unity-helpers-eol] checked {checkout.subjects} tracked text files")
+
+
+def check_shell_portability(root: Path, upstream: Path) -> None:
+    source = upstream.read_text(encoding="utf-8")
+    # DxAudio has a direct PowerShell runner and package-owned metadata tool.
+    # Reuse the shell corpus policies without Unity Helpers' Docker/export fixtures.
+    b2 = source.index("# B2: Unity test runner")
+    c1 = source.index("# Section C:", b2)
+    metadata = source.index("# Section G:", c1)
+    summary = source.index("# Summary", metadata)
+    source = source[:b2] + source[c1:metadata] + source[summary:]
+    for before, after in (
+        ('REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"', 'REPO_ROOT="$1"'),
+        ('find "$REPO_ROOT/scripts" -name \'*.sh\'', 'find "$REPO_ROOT/scripts" "$REPO_ROOT/.devcontainer" -name \'*.sh\''),
+        ('find "$REPO_ROOT/scripts/unity" -name \'*.sh\'', 'find "$REPO_ROOT/scripts" "$REPO_ROOT/.devcontainer" -name \'*.sh\''),
+    ):
+        if source.count(before) != 1:
+            raise ValueError("the pinned shell-portability corpus no longer matches the adapter")
+        source = source.replace(before, after)
+    script = upstream.with_name("dxaudio-shell-portability.sh")
+    script.write_text(source, encoding="utf-8")
+    subprocess.run(["bash", str(script), str(root)], check=True, timeout=30)
+    with tempfile.TemporaryDirectory(prefix="dxaudio-shell-control-") as folder:
+        control = Path(folder)
+        subprocess.run(["git", "init", "--quiet", folder], check=True)
+        scripts = control / "scripts"
+        scripts.mkdir()
+        specimen = scripts / "control.sh"
+        specimen.write_text("#!/usr/bin/env bash\ngrep -E 'a|b' input.txt\n", encoding="utf-8")
+        specimen.chmod(0o755)
+        subprocess.run(["git", "-C", folder, "add", "scripts/control.sh"], check=True)
+        command = ["bash", str(script), folder]
+        subprocess.run(command, capture_output=True, check=True, timeout=30)
+        specimen.write_text("#!/usr/bin/env bash\ngrep 'a\\|b' input.txt\n", encoding="utf-8")
+        specimen.chmod(0o644)
+        broken = subprocess.run(command, capture_output=True, text=True, timeout=30)
+        diagnostics = ("Found grep with BRE", "Found shell entrypoints without executable git metadata")
+        if broken.returncode != 1 or any(diagnostic not in broken.stdout for diagnostic in diagnostics):
+            raise ValueError(f"the shell portability checker missed a negative control: {broken.stdout}{broken.stderr}")
+
+
+def check_deprecated_references(root: Path, upstream: Path) -> None:
+    pattern = re.compile(r"DeprecatedUrl\s*=\s*'([^']+)'\s+ReplacementUrl\s*=\s*'([^']+)'")
+    cases = tuple(pattern.findall(upstream.read_text(encoding="utf-8-sig")))
+    if not cases:
+        raise ValueError("no legacy URL redirects were found in the pinned fixture")
+
+    def matches(text: str) -> list[tuple[str, str]]:
+        return [(old, new) for old, new in cases if old in text]
+
+    old, new = cases[0]
+    if matches(old) != [(old, new)] or matches(new):
+        raise ValueError("the deprecated-link check failed its controls")
+    data = subprocess.check_output(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "*.md"], cwd=root
+    )
+    seen = 0
+    problems = []
+    for name in sorted(set(os.fsdecode(item) for item in data.split(b"\0") if item)):
+        path = root / name
+        if not path.is_file():
+            continue
+        if not path.resolve().is_relative_to(root):
+            raise ValueError(f"documentation path escapes the repository: {name}")
+        seen += 1
+        problems.extend(f"{name}: use {preferred} for {legacy}" for legacy, preferred in matches(path.read_text(encoding="utf-8-sig")))
+    if not seen or problems:
+        raise ValueError("deprecated reference validation failed: " + "; ".join(problems))
+    print(f"[unity-helpers-references] {len(cases)} redirect policies checked in {seen} documents")
+
+
+def run_language_fixtures(staged: Path) -> None:
+    tests = staged / "scripts/tests"
+    command = [
+        "uv", "run", "--no-project", "--with", "pytest==9.2.0", "--with", "yamllint==1.38.0",
+        "--with", "pyyaml==6.0.3", "pytest", "-q",
+    ]
+    subprocess.run(
+        command + [str(tests / "test_yaml_lint.py"), "-k", "not foreign_directory_launcher"],
+        cwd=staged, check=True,
+    )
+    conditional = (
+        "conditional and not legacy or literals_and_comments or comment_attributes or corpus_requires "
+        "or generated_and_linked or invalid_encoding or unterminated_ordinary_literal"
+    )
+    subprocess.run(command + [str(tests / "test_csharp_lints.py"), "-k", conditional], cwd=staged, check=True)
 
 
 def run_source_checks(root: Path, modules: Path) -> list[str]:
@@ -176,14 +325,47 @@ UNSAFE_PATHS = (
     "Generator~/WallstopStudios.UnityHelpers.SyntaxPolicy",
     "Runtime/Analyzers",
 )
+SYNTAX_DIRECTORY = Path("Generator~/WallstopStudios.UnityHelpers.SyntaxPolicy")
+SYNTAX_NAME = "WallstopStudios.UnityHelpers.SyntaxPolicy"
 
 
 def run_unsafe_checks(root: Path, upstream: Path, revision: str, destination: Path) -> None:
     stage_paths(upstream, revision, destination, UNSAFE_PATHS)
+    shutil.copyfile(root / ".net-tests/global.json", destination / "global.json")
+    environment = dict(os.environ, DOTNET_ROLL_FORWARD="Major")
+    report_dir = Path(os.environ["RUNNER_TEMP"]) if os.environ.get("GITHUB_ACTIONS") == "true" else destination
+    report = report_dir / "dxaudio-unsafe-code.sarif"
+    report.unlink(missing_ok=True)
+    subprocess.run(
+        ["node", str(Path(__file__).with_name("unity_helpers_unsafe.cjs")), str(destination), str(root), str(report)],
+        cwd=destination, env=environment, check=True,
+    )
+    data = json.loads(report.read_text(encoding="utf-8"))
+    invocation = data["runs"][0]["invocations"][0]
+    if data["version"] != "2.1.0" or invocation["exitCode"] != 0:
+        raise ValueError(f"The unsafe-code scan did not produce a successful SARIF receipt: {report.name}")
+
+
+def run_syntax_checks(root: Path, destination: Path) -> None:
+    project = destination / SYNTAX_DIRECTORY
+    program = project / "Program.cs"
+    text = program.read_text(encoding="utf-8-sig")
+    for original, replacement in (
+        ('            "Generator~",\n', '            ".net-tests",\n'),
+        ('            "Styles",\n', ""),
+    ):
+        if text.count(original) != 1:
+            raise ValueError("upstream C# syntax policy source roots no longer match the pinned adapter")
+        text = text.replace(original, replacement)
+    program.write_text(text, encoding="utf-8")
     environment = dict(os.environ, DOTNET_ROLL_FORWARD="Major")
     subprocess.run(
-        ["node", str(Path(__file__).with_name("unity_helpers_unsafe.cjs")), str(destination), str(root)],
+        ["dotnet", "build", str(project / f"{SYNTAX_NAME}.csproj"), "-c", "Release", "--nologo"],
         cwd=destination, env=environment, check=True,
+    )
+    subprocess.run(
+        ["dotnet", str(project / "bin/Release/net9.0" / f"{SYNTAX_NAME}.dll")],
+        cwd=root, env=environment, check=True,
     )
 
 

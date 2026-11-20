@@ -134,7 +134,7 @@ namespace WallstopStudios.DxAudio
             {
                 if (slot != null)
                 {
-                    _skippedBlocks++;
+                    ++_skippedBlocks;
                 }
 
                 return;

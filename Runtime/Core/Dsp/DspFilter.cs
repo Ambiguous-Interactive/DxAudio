@@ -179,7 +179,7 @@ namespace WallstopStudios.DxAudio
             float peakGain = _activePeakGain;
             float smoothing = _smoothingCoefficient;
             DspFilterMode mode = _mode;
-            for (int frame = 0; frame < frames; frame++)
+            for (int frame = 0; frame < frames; ++frame)
             {
                 g += (_targetG - g) * smoothing;
                 k += (_targetK - k) * smoothing;
@@ -197,7 +197,7 @@ namespace WallstopStudios.DxAudio
                 float a3 = g * a2;
 
                 int frameStart = offset + (frame * stride);
-                for (int channel = 0; channel < stride; channel++)
+                for (int channel = 0; channel < stride; ++channel)
                 {
                     int index = frameStart + channel;
                     float input = buffer[index];

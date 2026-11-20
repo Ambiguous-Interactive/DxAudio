@@ -26,7 +26,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             GC.Collect();
             GC.WaitForPendingFinalizers();
             long before = GC.GetTotalMemory(forceFullCollection: true);
-            for (int index = 0; index < samples; index++)
+            for (int index = 0; index < samples; ++index)
             {
                 overlay.Sample();
                 kept[index] = overlay.Text;
@@ -137,14 +137,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             AudioDiagnosticsOverlay overlay = Overlay(made, sfx, music);
 
             Assert.That(overlay.Enabled, Is.False);
-            for (int index = 0; index < 32; index++)
+            for (int index = 0; index < 32; ++index)
             {
                 overlay.Sample();
                 Assert.That(overlay.Text, Is.SameAs(string.Empty), "a switched-off overlay rebuilds no report");
             }
 
             overlay.Enabled = true;
-            for (int index = 0; index < 32; index++)
+            for (int index = 0; index < 32; ++index)
             {
                 overlay.Sample();
             }

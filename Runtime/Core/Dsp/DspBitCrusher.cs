@@ -91,12 +91,12 @@ namespace WallstopStudios.DxAudio
             float step = _step;
             int levels = _levels;
             int frames = count / stride;
-            for (int frame = 0; frame < frames; frame++)
+            for (int frame = 0; frame < frames; ++frame)
             {
                 int frameStart = offset + (frame * stride);
                 if (_heldFor <= 0)
                 {
-                    for (int channel = 0; channel < stride; channel++)
+                    for (int channel = 0; channel < stride; ++channel)
                     {
                         _held[channel] = Quantize(buffer[frameStart + channel], step, levels);
                     }
@@ -104,7 +104,7 @@ namespace WallstopStudios.DxAudio
                     _heldFor = _rateReduction;
                 }
 
-                for (int channel = 0; channel < stride; channel++)
+                for (int channel = 0; channel < stride; ++channel)
                 {
                     buffer[frameStart + channel] = _held[channel];
                 }

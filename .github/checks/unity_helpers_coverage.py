@@ -15,12 +15,17 @@ from pathlib import Path
 
 from portable_csharp_checks import PORTABLE_PATHS, run_checks as run_portable_checks
 from portable_doc_checks import PORTABLE_DOC_PATHS, run_doc_checks
+from portable_git_checks import PORTABLE_GIT_PATHS, run_git_checks
+from portable_test_checks import PORTABLE_TEST_PATHS, run_test_checks
 from portable_tool_checks import PORTABLE_TOOL_PATHS, run_tool_checks
 from unity_helpers_source_checks import (
+    check_pinned_sdk,
     fetch,
     run_analyzer_fixtures,
     run_contract_controls,
+    run_language_fixtures,
     run_source_checks,
+    run_syntax_checks,
     run_unsafe_checks,
     stage_modules,
     stage_paths,
@@ -317,6 +322,8 @@ def main() -> int:
         expected = read_json(INVENTORY)
         problems, pending, totals = audit(ROOT, expected, coverage)
         if options.validate:
+            if options.analyzer_fixtures:
+                check_pinned_sdk(ROOT)
             with tempfile.TemporaryDirectory(prefix="dxaudio-unity-helpers-") as directory:
                 scratch = Path(directory)
                 upstream = options.upstream or scratch / "upstream"
@@ -330,6 +337,10 @@ def main() -> int:
                 stage_paths(upstream, coverage["revision"], staged, PORTABLE_PATHS)
                 stage_paths(upstream, coverage["revision"], staged, PORTABLE_DOC_PATHS)
                 stage_paths(upstream, coverage["revision"], staged, PORTABLE_TOOL_PATHS)
+                stage_paths(upstream, coverage["revision"], staged, PORTABLE_GIT_PATHS + PORTABLE_TEST_PATHS + (
+                    "scripts/build_lock_inputs.py",
+                    "scripts/tests/test-portable-cleanup-classifier.js",
+                ))
                 problems.extend(action_pin_violations(ROOT))
                 modules = staged / "scripts"
                 problems.extend(verify_source_controls(scratch / "controls", modules))
@@ -337,10 +348,19 @@ def main() -> int:
                 problems.extend(run_portable_checks(ROOT, modules, staged))
                 problems.extend(run_doc_checks(ROOT, modules, staged))
                 problems.extend(run_tool_checks(ROOT, modules, staged))
+                problems.extend(run_git_checks(ROOT, modules, staged))
+                problems.extend(run_test_checks(ROOT, modules))
                 if not problems:
                     run_contract_controls(ROOT, staged)
+                if not problems:
+                    subprocess.run([
+                        "uv", "run", "--no-project", "--with", "pyyaml==6.0.3", "python",
+                        str(CHECKS / "portable_build_lock.py"), "--root", str(ROOT), "--modules", str(modules),
+                    ], check=True, timeout=90)
                 if options.analyzer_fixtures and not problems:
+                    run_language_fixtures(staged)
                     run_unsafe_checks(ROOT, upstream, coverage["revision"], scratch / "fixtures")
+                    run_syntax_checks(ROOT, scratch / "fixtures")
                     run_analyzer_fixtures(upstream, coverage["revision"], scratch / "fixtures")
         elif options.upstream is not None and inventory(options.upstream, coverage["revision"]) != expected:
             problems.append("the pinned upstream inputs differ from the recorded inventory")
@@ -356,7 +376,7 @@ def main() -> int:
               f"{totals['unmapped']} unmapped, {totals['aliases']} aliases, "
               f"{sum(len(items) for items in expected['workflow_operations'].values())} workflow operations")
         return int(bool(problems))
-    except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
         print(f"[unity-helpers-coverage] {error}", file=sys.stderr)
         return 1
 

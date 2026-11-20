@@ -4,11 +4,12 @@
 import argparse
 import hashlib
 import io
-import os
 import tempfile
 import urllib.request
 import zipfile
+from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
 UNITY_HELPERS_COMMIT = "072d2dddd79b4a9210aa2812ae5761bf9a5e28c8"
 WUH_NAME = "WallstopStudios.UnityHelpers.Analyzers.dll"
@@ -24,11 +25,11 @@ def sha256(value: bytes) -> str:
 
 
 def download(url: str) -> bytes:
-    with urllib.request.urlopen(url, timeout=30) as response:
-        return response.read()
+    with urllib.request.urlopen(url, timeout=30) as response:  # noqa: S310 - pinned HTTPS inputs.
+        return cast("bytes", response.read())
 
 
-def stage(path: Path, expected: str, get_payload) -> None:
+def stage(path: Path, expected: str, get_payload: Callable[[], bytes]) -> None:
     if path.is_file() and sha256(path.read_bytes()) == expected:
         return
     payload = get_payload()
@@ -39,7 +40,7 @@ def stage(path: Path, expected: str, get_payload) -> None:
         temporary = Path(handle.name)
         handle.write(payload)
     try:
-        os.replace(temporary, path)
+        temporary.replace(path)
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -52,11 +53,17 @@ def unity_nunit() -> bytes:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", required=True, type=Path)
-    parser.add_argument("--unity-nunit", action="store_true", help="also stage the Unity 2021.3 compatible analyzer")
+    parser.add_argument(
+        "--unity-nunit", action="store_true", help="also stage the Unity 2021.3 compatible analyzer"
+    )
     options = parser.parse_args()
     stage(options.output_dir / WUH_NAME, WUH_SHA256, lambda: download(WUH_URL))
     if options.unity_nunit:
-        stage(options.output_dir / NUNIT_NAME, "7d44d82f5cc0b395e4f0c184aff93e190128ea7c7c13066c2aa31b064904909e", unity_nunit)
+        stage(
+            options.output_dir / NUNIT_NAME,
+            "7d44d82f5cc0b395e4f0c184aff93e190128ea7c7c13066c2aa31b064904909e",
+            unity_nunit,
+        )
     return 0
 
 

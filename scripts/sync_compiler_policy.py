@@ -32,7 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # already promotes every warning, and a second suppression switch here would
 # give one policy two sources of truth.
 POLICY_RESPONSE_FILE = "csc.rsp"
-POLICY_RESPONSE_CONTENT = "-warn:5\n"
+POLICY_RESPONSE_CONTENT = "-warn:9999\n"
 POLICY_RULESET_FILE = "WarningsAsErrors.ruleset"
 POLICY_RULESET_CONTENT = (
     '<?xml version="1.0" encoding="utf-8"?>\n'

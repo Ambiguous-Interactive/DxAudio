@@ -167,18 +167,18 @@ namespace WallstopStudios.DxAudio
             double step = shifting ? 1.0 - ratio : 0.0;
             int frames = count / channels;
             int stride = channels;
-            for (int frame = 0; frame < frames; frame++)
+            for (int frame = 0; frame < frames; ++frame)
             {
                 int frameStart = offset + (frame * stride);
                 int writeStart = _writeFrame * stride;
-                for (int channel = 0; channel < stride; channel++)
+                for (int channel = 0; channel < stride; ++channel)
                 {
                     _line[writeStart + channel] = buffer[frameStart + channel];
                 }
 
                 if (_parkBlend <= 0.0)
                 {
-                    for (int channel = 0; channel < stride; channel++)
+                    for (int channel = 0; channel < stride; ++channel)
                     {
                         buffer[frameStart + channel] = Read(_latencyFrames, channel, stride);
                     }
@@ -192,7 +192,7 @@ namespace WallstopStudios.DxAudio
                     // A jump to or from unison would splice the wave, so the settled read takes over over a short fade.
                     float mix = (float)_parkBlend;
                     float parkedGain = 1f - mix;
-                    for (int channel = 0; channel < stride; channel++)
+                    for (int channel = 0; channel < stride; ++channel)
                     {
                         float shifted = (firstGain * Read(firstDelay, channel, stride)) + (secondGain * Read(secondDelay, channel, stride));
                         float parked = Read(_latencyFrames, channel, stride);
@@ -218,7 +218,7 @@ namespace WallstopStudios.DxAudio
                     }
                 }
 
-                _writeFrame++;
+                ++_writeFrame;
                 if (_writeFrame == _capacityFrames)
                 {
                     _writeFrame = 0;
@@ -256,7 +256,7 @@ namespace WallstopStudios.DxAudio
 
             if (0 < (window & 1))
             {
-                window++;
+                ++window;
             }
 
             _windowFrames = window;

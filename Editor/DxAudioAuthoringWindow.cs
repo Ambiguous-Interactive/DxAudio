@@ -384,7 +384,7 @@ namespace WallstopStudios.DxAudio.Editor
             _prepared = _graph.CollectProblems(
                 (node, edge, message) =>
                 {
-                    count++;
+                    ++count;
                     if (node < 0 && edge < 0)
                     {
                         problems.Add(new HelpBox(message, HelpBoxMessageType.Warning));
@@ -436,7 +436,7 @@ namespace WallstopStudios.DxAudio.Editor
             _details.Add(actions);
 
             List<string> uniqueNames = new() { string.Empty };
-            for (int index = 0; index < _graph.NodeCount; index++)
+            for (int index = 0; index < _graph.NodeCount; ++index)
             {
                 DspGraphNode node = _graph.Nodes[index];
                 if (node != null && _edits.Resolve(node.Name) == index)
@@ -458,7 +458,7 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             Foldout nodes = new() { text = $"Nodes ({_graph.NodeCount})", value = false };
-            for (int index = 0; index < _graph.NodeCount; index++)
+            for (int index = 0; index < _graph.NodeCount; ++index)
             {
                 int row = index;
                 string name = _graph.Nodes[index]?.Name;
@@ -467,7 +467,7 @@ namespace WallstopStudios.DxAudio.Editor
 
             _details.Add(nodes);
             Foldout connections = new() { text = $"Connections ({_graph.EdgeCount})", value = false };
-            for (int index = 0; index < _graph.EdgeCount; index++)
+            for (int index = 0; index < _graph.EdgeCount; ++index)
             {
                 int row = index;
                 DspGraphEdge edge = _graph.Edges[index];

@@ -74,6 +74,29 @@ function Read-UnityNUnitResult {
     }
 }
 
+function Write-UnityEnvironmentWarnings {
+    param([string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        Write-Host 'Unity environment warnings: nothing was scanned.'
+        return
+    }
+    $patterns = [ordered]@{
+        'while verifying Licensing Client signature' = 'Licensing client signature validation failed.'
+        'LicensingClient has failed validation' = 'Licensing client was ignored after failing validation.'
+        "failed because channel doesn't exist" = 'Licensing IPC channel was absent at connection attempt.'
+    }
+    $lines = @(Get-Content -LiteralPath $Path)
+    $matches = 0
+    foreach ($pattern in $patterns.Keys) {
+        $count = @($lines | Select-String -SimpleMatch $pattern).Count
+        if ($count -eq 0) { continue }
+        $matches += $count
+        Write-Host "::warning::$($patterns[$pattern]) Observed $count time(s). License cleanup is checked separately."
+    }
+    Write-Host "Unity environment warnings: scanned $($lines.Count) log line(s), $matches match(es)."
+}
+
 function Assert-PassingUnityNUnitResult {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][System.Xml.XmlDocument]$Document)
@@ -97,4 +120,60 @@ function Assert-PassingUnityNUnitResult {
         throw 'Unity EditMode result does not account for each test in the passing run.'
     }
     return $counts.passed
+}
+
+function Write-UnityNUnitTimings {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][System.Xml.XmlDocument]$Document)
+
+    $root = $Document.DocumentElement
+    if ($null -eq $root -or $root.Name -cne 'test-run') {
+        throw 'Unity timing report requires an NUnit test-run.'
+    }
+    $culture = [Globalization.CultureInfo]::InvariantCulture
+    $lines = [Collections.Generic.List[string]]::new()
+    $warnings = [Collections.Generic.List[string]]::new()
+    foreach ($group in @(
+        @{ Label = 'fixtures'; XPath = './/test-suite[@type="TestFixture"]'; Budget = 120 },
+        @{ Label = 'test cases'; XPath = './/test-case'; Budget = 0 }
+    )) {
+        $timings = [Collections.Generic.List[object]]::new()
+        foreach ($node in $root.SelectNodes($group.XPath)) {
+            $seconds = 0.0
+            $duration = $node.GetAttribute('duration')
+            if ([string]::IsNullOrWhiteSpace($duration) -and $node.GetAttribute('result') -in @('Skipped', 'NotRun')) {
+                continue
+            }
+            if (-not [double]::TryParse($duration, [Globalization.NumberStyles]::Float, $culture, [ref]$seconds) -or
+                -not [double]::IsFinite($seconds) -or $seconds -lt 0) {
+                throw "Unity timing report has a missing or invalid duration among its $($group.Label)."
+            }
+            $name = $node.GetAttribute('fullname')
+            if (-not $name) { $name = $node.GetAttribute('name') }
+            $timings.Add(@{ Name = $name; Seconds = $seconds })
+            if (0 -lt $group.Budget -and $group.Budget -lt $seconds) {
+                $safeName = (ConvertTo-SafeUnityReport -Text $name) -replace '\s+', ' '
+                $warnings.Add("Fixture $safeName took $($seconds.ToString('F3', $culture))s, over the $($group.Budget)s budget.")
+            }
+        }
+        $timings.Sort([Comparison[object]]{
+            param($left, $right)
+            $durationOrder = $right.Seconds.CompareTo($left.Seconds)
+            if ($durationOrder -ne 0) { return $durationOrder }
+            return [StringComparer]::Ordinal.Compare($left.Name, $right.Name)
+        })
+        $lines.Add("Unity EditMode slowest $($group.Label):")
+        foreach ($timing in ($timings | Select-Object -First 30)) {
+            $name = (ConvertTo-SafeUnityReport -Text $timing.Name) -replace '\s+', ' '
+            $lines.Add("  | $($timing.Seconds.ToString('F3', $culture))s  $name")
+        }
+    }
+    foreach ($line in $lines) { Write-Host $line }
+    foreach ($warning in $warnings) {
+        Write-Host "::warning::$($warning.Replace('%', '%25'))"
+    }
+    if ($env:GITHUB_STEP_SUMMARY) {
+        $safeHtml = [Net.WebUtility]::HtmlEncode($lines -join "`n")
+        Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value "`n### Unity EditMode timings`n`n<pre>$safeHtml</pre>`n" -Encoding utf8NoBOM
+    }
 }

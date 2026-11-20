@@ -29,7 +29,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             MusicDuckReasonTable<string> table = new(
                 _ =>
                 {
-                    asked++;
+                    ++asked;
                     return MusicDuckHolders.Many;
                 },
                 StringComparer.OrdinalIgnoreCase

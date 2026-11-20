@@ -112,7 +112,7 @@ namespace WallstopStudios.DxAudio.Editor
         {
             MeshWriteData mesh = context.Allocate(WireSegments * 4, WireSegments * 6);
             Vector2 previous = start;
-            for (int segment = 1; segment <= WireSegments; segment++)
+            for (int segment = 1; segment <= WireSegments; ++segment)
             {
                 Vector2 next = Curve(start, end, (float)segment / WireSegments);
                 Vector2 axis = next - previous;
@@ -159,7 +159,7 @@ namespace WallstopStudios.DxAudio.Editor
 
             _links = new (int, int)[_asset.EdgeCount];
             int[] incoming = new int[_asset.NodeCount];
-            for (int index = 0; index < _links.Length; index++)
+            for (int index = 0; index < _links.Length; ++index)
             {
                 DspGraphEdge edge = _asset.Edges[index];
                 int from = _edits.Resolve(edge?.From);
@@ -167,7 +167,7 @@ namespace WallstopStudios.DxAudio.Editor
                 _links[index] = (from, to);
                 if (0 <= from && 0 <= to)
                 {
-                    incoming[to]++;
+                    ++incoming[to];
                 }
             }
 
@@ -176,7 +176,7 @@ namespace WallstopStudios.DxAudio.Editor
             _empty.style.display = _asset.NodeCount == 0 ? DisplayStyle.Flex : DisplayStyle.None;
             int input = _edits.Resolve(_asset.InputNode);
             int output = _edits.Resolve(_asset.OutputNode);
-            for (int index = 0; index < _asset.NodeCount; index++)
+            for (int index = 0; index < _asset.NodeCount; ++index)
             {
                 DspGraphNode node = _asset.Nodes[index];
                 if (
@@ -231,7 +231,7 @@ namespace WallstopStudios.DxAudio.Editor
         {
             Rect bounds = default;
             bool hasBounds = false;
-            for (int index = 0; index < _positions.Length; index++)
+            for (int index = 0; index < _positions.Length; ++index)
             {
                 bool endpoint = 0 <= _edge && _edge < _links.Length && (_links[_edge].from == index || _links[_edge].to == index);
                 if (0 < _selection.Count && !_selection.Contains(index) || _selection.Count == 0 && 0 <= _edge && !endpoint)
@@ -261,7 +261,7 @@ namespace WallstopStudios.DxAudio.Editor
         {
             Vector2[] positions = AutomaticPositions();
             Dictionary<int, Vector2> changes = new();
-            for (int index = 0; index < positions.Length; index++)
+            for (int index = 0; index < positions.Length; ++index)
             {
                 if (_asset.Nodes[index] != null)
                 {
@@ -292,7 +292,7 @@ namespace WallstopStudios.DxAudio.Editor
                 "Find node",
                 (query, result) =>
                 {
-                    for (int index = 0; index < _asset.NodeCount; index++)
+                    for (int index = 0; index < _asset.NodeCount; ++index)
                     {
                         DspGraphNode node = _asset.Nodes[index];
                         string title = string.IsNullOrWhiteSpace(node?.Name) ? $"Unnamed node {index + 1}" : node.Name;
@@ -337,11 +337,11 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 if (0 <= from && 0 <= to)
                 {
-                    incoming[to]++;
+                    ++incoming[to];
                 }
             }
 
-            for (int index = 0; index < count; index++)
+            for (int index = 0; index < count; ++index)
             {
                 if (incoming[index] == 0)
                 {
@@ -368,7 +368,7 @@ namespace WallstopStudios.DxAudio.Editor
 
             int[] rows = new int[count];
             Vector2[] positions = new Vector2[count];
-            for (int index = 0; index < count; index++)
+            for (int index = 0; index < count; ++index)
             {
                 int column = depth[index];
                 positions[index] = new Vector2(column * 244f, rows[column]++ * 104f);
@@ -415,7 +415,7 @@ namespace WallstopStudios.DxAudio.Editor
         private void UpdateCards()
         {
             Color neutralBorder = EditorGUIUtility.isProSkin ? new Color(0.36f, 0.43f, 0.47f) : new Color(0.48f, 0.54f, 0.58f);
-            for (int index = 0; index < _positions.Length && index < _cards.childCount; index++)
+            for (int index = 0; index < _positions.Length && index < _cards.childCount; ++index)
             {
                 Rect rect = CardRect(index);
                 VisualElement card = _cards[index];
@@ -605,7 +605,7 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 Rect box = Box(_down, point);
                 int first = -1;
-                for (int index = 0; index < _positions.Length; index++)
+                for (int index = 0; index < _positions.Length; ++index)
                 {
                     if (box.Overlaps(CardRect(index)))
                     {
@@ -956,7 +956,7 @@ namespace WallstopStudios.DxAudio.Editor
         {
             int result = -1;
             float best = 64f;
-            for (int index = 0; index < _links.Length; index++)
+            for (int index = 0; index < _links.Length; ++index)
             {
                 (int from, int to) = _links[index];
                 if (from < 0 || to < 0)
@@ -967,7 +967,7 @@ namespace WallstopStudios.DxAudio.Editor
                 Vector2 start = Port(from, output: true);
                 Vector2 end = Port(to, output: false);
                 Vector2 previous = start;
-                for (int segment = 1; segment <= WireSegments; segment++)
+                for (int segment = 1; segment <= WireSegments; ++segment)
                 {
                     Vector2 next = Curve(start, end, (float)segment / WireSegments);
                     Vector2 direction = next - previous;
@@ -991,7 +991,7 @@ namespace WallstopStudios.DxAudio.Editor
             bool dark = EditorGUIUtility.isProSkin;
             Color wire = dark ? new Color(0.46f, 0.57f, 0.62f) : new Color(0.35f, 0.44f, 0.50f);
             Color rejected = dark ? new Color(0.85f, 0.32f, 0.30f) : new Color(0.70f, 0.18f, 0.17f);
-            for (int index = 0; index < _links.Length; index++)
+            for (int index = 0; index < _links.Length; ++index)
             {
                 (int from, int to) = _links[index];
                 if (0 <= from && 0 <= to)
@@ -1007,7 +1007,7 @@ namespace WallstopStudios.DxAudio.Editor
                 DrawWire(context, Port(_source, output: true), end, candidate, 3f);
             }
 
-            for (int index = 0; index < _positions.Length; index++)
+            for (int index = 0; index < _positions.Length; ++index)
             {
                 float inputRadius = index == _target ? 6f : 4f;
                 Color inputColor = index == _target ? (_validTarget ? _accent : rejected) : wire;

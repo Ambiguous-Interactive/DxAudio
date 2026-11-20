@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 from pathlib import Path
+from runpy import run_path
 from tempfile import TemporaryDirectory
 from unittest import TestCase, main
 
@@ -79,6 +80,17 @@ class CoverageTests(TestCase):
         self.assertTrue(is_support_operation({"name": "Upload docs", "uses": "actions/upload-artifact@v4"}))
         self.assertFalse(is_support_operation({"name": "Validate publication manifest", "run": "python3 validate.py"}))
         self.assertFalse(is_support_operation({"name": "Build and test Core", "run": "dotnet test"}))
+
+    def test_text_policy_rejects_crlf_bom_and_case_redundancy(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        policy = run_path(str(root / ".github/scripts/check_text_files.py"))
+        self.assertEqual(policy["text_problems"](b"correct\n", final_newline=True), [])
+        self.assertCountEqual(
+            policy["text_problems"](b"\xef\xbb\xbftwo\r\nlines", final_newline=True),
+            ["unexpected UTF-8 BOM", "expected LF line endings", "missing final newline"],
+        )
+        self.assertEqual(policy["spelling_problems"](["DxAudio", "SoundCue"]), [])
+        self.assertEqual(policy["spelling_problems"](["DxAudio", "dxaudio"]), ["case-redundant spelling word: dxaudio"])
 
 
 if __name__ == "__main__":

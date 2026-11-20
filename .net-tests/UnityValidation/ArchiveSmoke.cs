@@ -11,6 +11,18 @@ namespace WallstopStudios.DxAudio.Validation
     {
         public static void Run()
         {
+            Compile(false);
+            UnityEngine.Debug.Log("DxAudio archive and player script validation passed.");
+        }
+
+        public static void RunWithIntegration()
+        {
+            Compile(true);
+            UnityEngine.Debug.Log("DxAudio integration player script validation passed.");
+        }
+
+        private static void Compile(bool expectIntegration)
+        {
             UnityEditor.PackageManager.PackageInfo package = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(SfxPlayer).Assembly);
             if (package == null || package.source != PackageSource.LocalTarball || package.dependencies.Length != 0)
             {
@@ -19,6 +31,10 @@ namespace WallstopStudios.DxAudio.Validation
 
             AssertEditorSuppliedCompilerPolicy(FindAssembly("WallstopStudios.DxAudio").compilerOptions);
             AssertEditorSuppliedCompilerPolicy(FindAssembly("WallstopStudios.DxAudio.Editor").compilerOptions);
+            if (expectIntegration)
+            {
+                _ = FindAssembly("WallstopStudios.DxAudio.Integration.DxMessaging");
+            }
 
             string output = Path.Combine("Temp", "DxAudioPlayerScripts");
             ScriptCompilationSettings settings = new() { target = BuildTarget.StandaloneWindows64, group = BuildTargetGroup.Standalone };
@@ -28,7 +44,11 @@ namespace WallstopStudios.DxAudio.Validation
                 throw new InvalidOperationException("The archive did not compile a standalone player runtime assembly.");
             }
 
-            UnityEngine.Debug.Log("DxAudio archive and player script validation passed.");
+            bool compiledIntegration = File.Exists(Path.Combine(output, "WallstopStudios.DxAudio.Integration.DxMessaging.dll"));
+            if (compiledIntegration != expectIntegration)
+            {
+                throw new InvalidOperationException("The compiled player assemblies do not match the expected DxMessaging state.");
+            }
         }
 
         private static void AssertEditorSuppliedCompilerPolicy(ScriptCompilerOptions options)

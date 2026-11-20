@@ -106,7 +106,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             preview.Reset(Seed);
             SfxSelection<SfxCue> legacy = new();
             System.Random originalRandom = new(Seed);
-            for (int index = 0; index < 12; index++)
+            for (int index = 0; index < 12; ++index)
             {
                 Assert.That(player.Play(empty), Is.False);
                 Assert.That(preview.TryResolve(empty, out _), Is.False);
@@ -281,7 +281,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             public double NextDouble()
             {
-                Draws++;
+                ++Draws;
                 return _value;
             }
         }

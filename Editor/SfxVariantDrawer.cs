@@ -9,7 +9,10 @@ namespace WallstopStudios.DxAudio.Editor
     [CustomPropertyDrawer(typeof(SfxVariant))]
     internal sealed class SfxVariantDrawer : PropertyDrawer
     {
-        private static SfxVariant Take(SfxCue cue, int index) => cue != null && index < cue.Variants.Count ? cue.Variants[index] : null;
+        private static SfxVariant Take(SfxCue cue, int index)
+        {
+            return cue != null && index < cue.Variants.Count ? cue.Variants[index] : null;
+        }
 
         private static bool TryGetTakeIndex(string path, out int index)
         {

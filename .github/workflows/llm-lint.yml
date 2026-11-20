@@ -111,6 +111,13 @@ jobs:
       - name: Run the repository lints
         run: uv run scripts/run_ci_lints.py
 
+      - name: Verify Windows Python and Unity runner controls
+        if: matrix.os == 'windows-latest'
+        run: |
+          uv run --project scripts/python~ --isolated --locked python scripts/python~/check.py
+          uv run --no-project python .github/scripts/test_meta_files.py
+          uv run --no-project python .net-tests/UnityValidation/test_runner.py
+
       - name: Run harness self-tests
         env:
           TMPDIR: ${{ runner.temp }}

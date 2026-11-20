@@ -107,7 +107,7 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
-            for (int existing = 0; existing < NodeCount; existing++)
+            for (int existing = 0; existing < NodeCount; ++existing)
             {
                 if (ReferenceEquals(_chains[existing], chain))
                 {
@@ -118,7 +118,7 @@ namespace WallstopStudios.DxAudio
 
             int added = NodeCount;
             _chains[added] = chain;
-            NodeCount++;
+            ++NodeCount;
             Invalidate();
             node = added;
             return true;
@@ -140,7 +140,7 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
-            for (int edge = 0; edge < EdgeCount; edge++)
+            for (int edge = 0; edge < EdgeCount; ++edge)
             {
                 if (_edgeFrom[edge] == from && _edgeTo[edge] == to)
                 {
@@ -155,7 +155,7 @@ namespace WallstopStudios.DxAudio
 
             _edgeFrom[EdgeCount] = from;
             _edgeTo[EdgeCount] = to;
-            EdgeCount++;
+            ++EdgeCount;
             Invalidate();
             return true;
         }
@@ -200,7 +200,7 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
-            for (int node = 0; node < NodeCount; node++)
+            for (int node = 0; node < NodeCount; ++node)
             {
                 if (!_chains[node].TryPrepare(sampleRate, maxBlockSize, channels))
                 {
@@ -212,11 +212,11 @@ namespace WallstopStudios.DxAudio
                 A node arrives as late as its latest predecessor, then its own chain adds its delay. Every edge then
                 waits the difference, so all paths reach the output with the same age.
             */
-            for (int index = 0; index < NodeCount; index++)
+            for (int index = 0; index < NodeCount; ++index)
             {
                 int node = _order[index];
                 int arrival = 0;
-                for (int edge = 0; edge < EdgeCount; edge++)
+                for (int edge = 0; edge < EdgeCount; ++edge)
                 {
                     if (_edgeTo[edge] == node && arrival < _age[_edgeFrom[edge]])
                     {
@@ -227,7 +227,7 @@ namespace WallstopStudios.DxAudio
                 _age[node] = arrival + _chains[node].LatencySamples;
             }
 
-            for (int edge = 0; edge < EdgeCount; edge++)
+            for (int edge = 0; edge < EdgeCount; ++edge)
             {
                 int destination = _edgeTo[edge];
                 int delay = _age[destination] - _chains[destination].LatencySamples - _age[_edgeFrom[edge]];
@@ -249,13 +249,13 @@ namespace WallstopStudios.DxAudio
             }
 
             float[][] buffers = new float[NodeCount][];
-            for (int node = 0; node < NodeCount; node++)
+            for (int node = 0; node < NodeCount; ++node)
             {
                 buffers[node] = new float[maxBlockSize * channels];
             }
 
             float[][] lines = new float[EdgeCount][];
-            for (int edge = 0; edge < EdgeCount; edge++)
+            for (int edge = 0; edge < EdgeCount; ++edge)
             {
                 int delay = _edgeDelayFrames[edge];
                 lines[edge] = 0 < delay ? new float[(delay + maxBlockSize) * channels] : Array.Empty<float>();
@@ -298,12 +298,12 @@ namespace WallstopStudios.DxAudio
             }
 
             Array.Copy(buffer, offset, buffers[_input], 0, count);
-            for (int index = 0; index < NodeCount; index++)
+            for (int index = 0; index < NodeCount; ++index)
             {
                 int node = _order[index];
                 float[] produced = buffers[node];
                 _chains[node].Process(produced, 0, count, channels);
-                for (int edge = 0; edge < EdgeCount; edge++)
+                for (int edge = 0; edge < EdgeCount; ++edge)
                 {
                     if (_edgeFrom[edge] == node)
                     {
@@ -323,13 +323,13 @@ namespace WallstopStudios.DxAudio
                 return;
             }
 
-            for (int node = 0; node < _buffers.Length; node++)
+            for (int node = 0; node < _buffers.Length; ++node)
             {
                 Array.Clear(_buffers[node], 0, _buffers[node].Length);
                 _chains[node].Reset();
             }
 
-            for (int edge = 0; edge < _edgeLines.Length; edge++)
+            for (int edge = 0; edge < _edgeLines.Length; ++edge)
             {
                 Array.Clear(_edgeLines[edge], 0, _edgeLines[edge].Length);
                 _edgePosition[edge] = 0;
@@ -342,7 +342,7 @@ namespace WallstopStudios.DxAudio
             int delayFrames = _edgeDelayFrames[edge];
             if (delayFrames == 0)
             {
-                for (int sample = 0; sample < count; sample++)
+                for (int sample = 0; sample < count; ++sample)
                 {
                     destination[sample] += source[sample];
                 }
@@ -357,10 +357,10 @@ namespace WallstopStudios.DxAudio
             float[] line = _edgeLines[edge];
             int capacity = line.Length;
             int position = _edgePosition[edge];
-            for (int sample = 0; sample < count; sample++)
+            for (int sample = 0; sample < count; ++sample)
             {
                 line[position] = source[sample];
-                position++;
+                ++position;
                 if (position == capacity)
                 {
                     position = 0;
@@ -373,10 +373,10 @@ namespace WallstopStudios.DxAudio
                 read += capacity;
             }
 
-            for (int sample = 0; sample < count; sample++)
+            for (int sample = 0; sample < count; ++sample)
             {
                 destination[sample] += line[read];
-                read++;
+                ++read;
                 if (read == capacity)
                 {
                     read = 0;
@@ -389,30 +389,30 @@ namespace WallstopStudios.DxAudio
         /// <summary>Orders the nodes so every node follows all of its predecessors, and refuses a cycle.</summary>
         private bool OrderNodes()
         {
-            for (int node = 0; node < NodeCount; node++)
+            for (int node = 0; node < NodeCount; ++node)
             {
                 _incoming[node] = 0;
             }
 
-            for (int edge = 0; edge < EdgeCount; edge++)
+            for (int edge = 0; edge < EdgeCount; ++edge)
             {
-                _incoming[_edgeTo[edge]]++;
+                ++_incoming[_edgeTo[edge]];
             }
 
             int ordered = 0;
-            for (int node = 0; node < NodeCount; node++)
+            for (int node = 0; node < NodeCount; ++node)
             {
                 if (_incoming[node] == 0)
                 {
                     _order[ordered] = node;
-                    ordered++;
+                    ++ordered;
                 }
             }
 
-            for (int index = 0; index < ordered; index++)
+            for (int index = 0; index < ordered; ++index)
             {
                 int node = _order[index];
-                for (int edge = 0; edge < EdgeCount; edge++)
+                for (int edge = 0; edge < EdgeCount; ++edge)
                 {
                     if (_edgeFrom[edge] == node)
                     {
@@ -421,7 +421,7 @@ namespace WallstopStudios.DxAudio
                         if (_incoming[next] == 0)
                         {
                             _order[ordered] = next;
-                            ordered++;
+                            ++ordered;
                         }
                     }
                 }
@@ -433,13 +433,13 @@ namespace WallstopStudios.DxAudio
         /// <summary>Whether every node follows the input and reaches the output.</summary>
         private bool AllOnThePath(int inputNode, int outputNode)
         {
-            for (int node = 0; node < NodeCount; node++)
+            for (int node = 0; node < NodeCount; ++node)
             {
                 _reached[node] = false;
             }
 
             _reached[inputNode] = true;
-            for (int index = 0; index < NodeCount; index++)
+            for (int index = 0; index < NodeCount; ++index)
             {
                 int node = _order[index];
                 if (!_reached[node])
@@ -447,7 +447,7 @@ namespace WallstopStudios.DxAudio
                     continue;
                 }
 
-                for (int edge = 0; edge < EdgeCount; edge++)
+                for (int edge = 0; edge < EdgeCount; ++edge)
                 {
                     if (_edgeFrom[edge] == node)
                     {
@@ -456,7 +456,7 @@ namespace WallstopStudios.DxAudio
                 }
             }
 
-            for (int node = 0; node < NodeCount; node++)
+            for (int node = 0; node < NodeCount; ++node)
             {
                 if (!_reached[node])
                 {
@@ -464,7 +464,7 @@ namespace WallstopStudios.DxAudio
                 }
             }
 
-            for (int node = 0; node < NodeCount; node++)
+            for (int node = 0; node < NodeCount; ++node)
             {
                 _reached[node] = false;
             }
@@ -478,7 +478,7 @@ namespace WallstopStudios.DxAudio
                     continue;
                 }
 
-                for (int edge = 0; edge < EdgeCount; edge++)
+                for (int edge = 0; edge < EdgeCount; ++edge)
                 {
                     if (_edgeTo[edge] == node)
                     {
@@ -487,7 +487,7 @@ namespace WallstopStudios.DxAudio
                 }
             }
 
-            for (int node = 0; node < NodeCount; node++)
+            for (int node = 0; node < NodeCount; ++node)
             {
                 if (!_reached[node])
                 {
@@ -506,7 +506,7 @@ namespace WallstopStudios.DxAudio
                 return true;
             }
 
-            for (int node = 0; node < NodeCount; node++)
+            for (int node = 0; node < NodeCount; ++node)
             {
                 _reached[node] = false;
             }
@@ -516,7 +516,7 @@ namespace WallstopStudios.DxAudio
             while (grew)
             {
                 grew = false;
-                for (int edge = 0; edge < EdgeCount; edge++)
+                for (int edge = 0; edge < EdgeCount; ++edge)
                 {
                     if (_reached[_edgeFrom[edge]] && !_reached[_edgeTo[edge]])
                     {

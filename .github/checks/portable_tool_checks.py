@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -24,6 +25,10 @@ PORTABLE_TOOL_PATHS = (
 SOURCE_ROOTS = ("Runtime", "Editor", "Tests", "Samples~", ".net-tests")
 PRETTIER_LANGUAGES = ("javascript", "json", "jsonc", "markdown", "yaml")
 MANUAL_LANGUAGES = ("powershell", "shellscript", "xml")
+DEVCONTAINER_TOOLS = (
+    "dotnet", "node", "npm", "nanocoder", "opencode", "codex", "claude", "pwsh", "uvx",
+    "bwrap", "socat", "fd", "bat", "fzf", "zoxide", "rg", "jq", "tree",
+)
 JSON_STRING = r'"(?:\\.|[^"\\])*"'
 JSONC_COMMENT = re.compile(JSON_STRING + r"|//[^\r\n]*|/\*.*?\*/", re.DOTALL)
 JSONC_TRAILING_COMMA = re.compile(JSON_STRING + r"|,(?=\s*[}\]])")
@@ -86,6 +91,7 @@ def run_devcontainer_checks(root: Path, configuration: object, downloads: object
     # and formatter portions of upstream's publisher policy apply here.
     dockerfile = root / ".devcontainer" / "Dockerfile"
     docker_lines = configuration.read_text(dockerfile).splitlines()
+    verify_devcontainer_tool_inventory(docker_lines, root / ".net-tests/global.json")
     valid_config = configuration.read_text(root / ".devcontainer" / "devcontainer.json")
     problems = inspect_formatters(valid_config)
 
@@ -113,6 +119,33 @@ def run_devcontainer_checks(root: Path, configuration: object, downloads: object
     if not problems and downloads.validate_downloads(powershell):
         problems.append(".devcontainer/Dockerfile: a PowerShell asset could not be downloaded")
     return problems
+
+
+def verify_devcontainer_tool_inventory(lines: list[str], sdk_pin: Path) -> None:
+    run = next(index for index, line in enumerate(lines) if line.startswith('RUN echo "=== Environment Verification ==="'))
+    end = next(index for index in range(run, len(lines)) if not lines[index].endswith("\\"))
+    body = "\n".join(lines[run:end + 1]).removeprefix("RUN ")
+    version = json.loads(sdk_pin.read_text(encoding="utf-8"))["sdk"]["version"]
+    with tempfile.TemporaryDirectory(prefix="dxaudio-devcontainer-tools-") as folder:
+        binaries = Path(folder)
+        for tool in DEVCONTAINER_TOOLS:
+            stub = binaries / tool
+            contents = f"#!/bin/sh\nprintf '%s\\n' '{version}'\n" if tool == "dotnet" else "#!/bin/sh\nexit 0\n"
+            stub.write_text(contents, encoding="utf-8")
+            stub.chmod(0o755)
+        command = ["/bin/sh", "-c", body]
+        settings = {"env": {**os.environ, "PATH": folder}, "capture_output": True, "text": True, "timeout": 15}
+        subprocess.run(command, check=True, **settings)
+        for tool in DEVCONTAINER_TOOLS:
+            executable = binaries / tool
+            executable.chmod(0o644)
+            failed = subprocess.run(command, check=False, **settings)
+            executable.chmod(0o755)
+            if failed.returncode == 0 or tool not in failed.stderr:
+                raise ValueError(f"devcontainer build verification accepted missing required tool {tool}")
+        (binaries / "dotnet").write_text("#!/bin/sh\nprintf '0.0.0\\n'\n", encoding="utf-8")
+        if subprocess.run(command, check=False, **settings).returncode == 0:
+            raise ValueError("devcontainer build verification accepted an unpinned .NET SDK")
 
 
 def run_tool_checks(root: Path, modules: Path, upstream_tree: Path) -> list[str]:

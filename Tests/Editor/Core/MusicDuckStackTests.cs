@@ -102,7 +102,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             int dialogueCount = 0;
             bool sawA = false;
             bool sawB = false;
-            for (int index = 0; index < total; index++)
+            for (int index = 0; index < total; ++index)
             {
                 if (ReferenceEquals(reasons[index], menu))
                 {

@@ -28,7 +28,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             double real = 0;
             double imaginary = 0;
             double step = (2 * Math.PI * hertz) / SampleRate;
-            for (int frame = 0; frame < frames; frame++)
+            for (int frame = 0; frame < frames; ++frame)
             {
                 double sample = samples[startFrame + frame];
                 real += sample * Math.Cos(step * frame);
@@ -57,7 +57,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             float[] block = new float[frames];
             double step = (2 * Math.PI * hertz) / SampleRate;
-            for (int frame = 0; frame < frames; frame++)
+            for (int frame = 0; frame < frames; ++frame)
             {
                 block[frame] = amplitude * (float)Math.Sin(step * frame);
             }
@@ -134,7 +134,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             int latency = shifter.LatencySamples;
             int frames = latency + 512;
             float[] input = new float[frames * channels];
-            for (int channel = 0; channel < channels; channel++)
+            for (int channel = 0; channel < channels; ++channel)
             {
                 input[(100 * channels) + channel] = 0.25f * (channel + 1);
             }
@@ -142,11 +142,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float[] output = (float[])input.Clone();
             ProcessInBlocks(shifter, output, channels, 256);
 
-            for (int channel = 0; channel < channels; channel++)
+            for (int channel = 0; channel < channels; ++channel)
             {
                 int arrival = ((100 + latency) * channels) + channel;
                 Assert.That(output[arrival], Is.EqualTo(input[(100 * channels) + channel]), "the impulse keeps its level and its channel");
-                for (int frame = 0; frame < frames; frame++)
+                for (int frame = 0; frame < frames; ++frame)
                 {
                     int index = (frame * channels) + channel;
                     if (index != arrival)
@@ -252,14 +252,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             shifter.TryPrepare(SampleRate, 256, 1);
             int settled = shifter.LatencySamples * 2;
             float[] block = new float[settled + 4_096];
-            for (int index = 0, blockLength = block.Length; index < blockLength; index++)
+            for (int index = 0, blockLength = block.Length; index < blockLength; ++index)
             {
                 block[index] = 0.5f;
             }
 
             ProcessInBlocks(shifter, block, 1, 256);
 
-            for (int index = settled, blockLength = block.Length; index < blockLength; index++)
+            for (int index = settled, blockLength = block.Length; index < blockLength; ++index)
             {
                 Assert.That(block[index], Is.EqualTo(0.5f).Within(0.0001f), "gains that sum to one keep a steady level, so neither head is missing or double-counted");
             }
@@ -301,7 +301,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             ProcessInBlocks(shifter, block, 1, 256, half, block.Length);
 
             float largest = 0f;
-            for (int frame = 1, blockLength = block.Length; frame < blockLength; frame++)
+            for (int frame = 1, blockLength = block.Length; frame < blockLength; ++frame)
             {
                 float step = Math.Abs(block[frame] - block[frame - 1]);
                 if (largest < step)
@@ -332,7 +332,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             // The mix crossfades into the settled read over ten milliseconds, then the delay is fixed.
             int fade = (int)(0.01f * SampleRate);
-            for (int frame = half + fade; frame < frames; frame++)
+            for (int frame = half + fade; frame < frames; ++frame)
             {
                 Assert.That(block[frame], Is.EqualTo(input[frame - latency]), $"frame {frame} is a copy of the input, not a comb of two heads");
             }

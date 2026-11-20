@@ -7,7 +7,7 @@ pre-installed and wired to a shared MCP server fleet.
 
 | Layer            | Tools                                                                                                                                                                                                          |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtimes         | .NET SDK (base image), Node.js LTS via NVM, Python 3 + uv/uvx                                                                                                                                                  |
+| Runtimes         | .NET SDK 10.0.404, Node.js LTS via NVM, Python 3 + uv/uvx                                                                                                                                                      |
 | Coding CLIs      | `@nanocollective/nanocoder`, `@opencode/cli` (OpenCode v2), `@openai/codex`, `@anthropic-ai/claude-code` (npm `latest`, refreshed on create and every start)                                                   |
 | Gateway backends | `codex-zai`, `claude-zai` (Z.ai GLM Coding Plan) and `codex-openrouter`, `claude-openrouter` (OpenRouter) launchers                                                                                            |
 | Repo tooling     | PowerShell (lint scripts), CSharpier via `dotnet tool restore`                                                                                                                                                 |

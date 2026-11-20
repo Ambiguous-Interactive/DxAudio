@@ -61,7 +61,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static float Peak(float[] samples, int from, int count)
         {
             float peak = 0f;
-            for (int index = from; index < from + count; index++)
+            for (int index = from; index < from + count; ++index)
             {
                 float magnitude = Math.Abs(samples[index]);
                 if (peak < magnitude)
@@ -76,7 +76,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static float Rms(float[] samples, int from)
         {
             double sum = 0;
-            for (int index = from, samplesLength = samples.Length; index < samplesLength; index++)
+            for (int index = from, samplesLength = samples.Length; index < samplesLength; ++index)
             {
                 sum += (double)samples[index] * samples[index];
             }
@@ -88,7 +88,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             float[] block = new float[frames];
             double step = (2 * Math.PI * hertz) / SampleRate;
-            for (int frame = 0; frame < frames; frame++)
+            for (int frame = 0; frame < frames; ++frame)
             {
                 block[frame] = amplitude * (float)Math.Sin(step * frame);
             }
@@ -241,7 +241,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             DspFilter stereo = new() { Mode = DspFilterMode.LowPass, FrequencyHz = 1_500f };
             stereo.TryPrepare(SampleRate, BlockFrames, 2);
             float[] interleaved = new float[left.Length * 2];
-            for (int frame = 0, leftLength = left.Length; frame < leftLength; frame++)
+            for (int frame = 0, leftLength = left.Length; frame < leftLength; ++frame)
             {
                 interleaved[frame * 2] = left[frame];
                 interleaved[frame * 2 + 1] = right[frame];
@@ -253,7 +253,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 stereo.Process(interleaved, offset, count, 2);
             }
 
-            for (int frame = 0, leftLength = left.Length; frame < leftLength; frame++)
+            for (int frame = 0, leftLength = left.Length; frame < leftLength; ++frame)
             {
                 Assert.That(interleaved[frame * 2], Is.EqualTo(expectedLeft[frame]).Within(0.000001f), "the left channel keeps its own state");
                 Assert.That(interleaved[frame * 2 + 1], Is.EqualTo(expectedRight[frame]).Within(0.000001f), "the right channel keeps its own state");
@@ -361,7 +361,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             filter.TryPrepare(SampleRate, BlockFrames, 1);
             float[] source = Sine(1_000f, 1f, BlockFrames);
 
-            for (int pass = 0; pass < 200; pass++)
+            for (int pass = 0; pass < 200; ++pass)
             {
                 // A fresh copy every pass: the block is not fed back, so only the filter can make it grow.
                 float[] block = (float[])source.Clone();
@@ -390,7 +390,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             DspFilter mono = new() { FrequencyHz = 100f };
             mono.TryPrepare(SampleRate, BlockFrames, 1);
             float[] stereo = new float[source.Length * 2];
-            for (int frame = 0, sourceLength = source.Length; frame < sourceLength; frame++)
+            for (int frame = 0, sourceLength = source.Length; frame < sourceLength; ++frame)
             {
                 stereo[frame * 2] = source[frame];
                 stereo[frame * 2 + 1] = source[frame];
@@ -398,7 +398,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             mono.Process(stereo, 0, stereo.Length, 2);
 
-            for (int frame = 0, sourceLength = source.Length; frame < sourceLength; frame++)
+            for (int frame = 0, sourceLength = source.Length; frame < sourceLength; ++frame)
             {
                 Assert.That(stereo[frame * 2], Is.EqualTo(source[frame]), "a wider block must not index past the state");
             }

@@ -132,11 +132,11 @@ namespace WallstopStudios.DxAudio
 
             int frames = count / stride;
             float slope = 1f - (1f / _ratio);
-            for (int frame = 0; frame < frames; frame++)
+            for (int frame = 0; frame < frames; ++frame)
             {
                 int frameStart = offset + (frame * stride);
                 float peak = 0f;
-                for (int channel = 0; channel < stride; channel++)
+                for (int channel = 0; channel < stride; ++channel)
                 {
                     float magnitude = Math.Abs(buffer[frameStart + channel]);
                     if (peak < magnitude)
@@ -163,7 +163,7 @@ namespace WallstopStudios.DxAudio
                 float coefficient = targetDecibels < _gainDecibels ? _attackCoefficient : _releaseCoefficient;
                 _gainDecibels += (targetDecibels - _gainDecibels) * coefficient;
                 float gain = (float)Math.Pow(10.0, _gainDecibels / 20.0) * _makeupLinear;
-                for (int channel = 0; channel < stride; channel++)
+                for (int channel = 0; channel < stride; ++channel)
                 {
                     int index = frameStart + channel;
                     buffer[index] *= gain;

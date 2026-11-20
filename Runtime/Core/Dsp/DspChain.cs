@@ -43,7 +43,7 @@ namespace WallstopStudios.DxAudio
             get
             {
                 float held = 0f;
-                for (int i = 0; i < _effects.Count; i++)
+                for (int i = 0; i < _effects.Count; ++i)
                 {
                     held += _effects[i].GainReductionDecibels;
                 }
@@ -115,7 +115,7 @@ namespace WallstopStudios.DxAudio
                 Indexed on purpose. A stage may append to this chain from its own Prepare, and an enumerator would
                 throw; the count is read per pass so the appended stage is prepared too in the same call.
             */
-            for (int i = 0; i < _effects.Count; i++)
+            for (int i = 0; i < _effects.Count; ++i)
             {
                 _ = _effects[i].TryPrepare(sampleRate, maxBlockSize, channels);
             }
@@ -137,7 +137,7 @@ namespace WallstopStudios.DxAudio
                 Indexed for the same reason as TryPrepare: a stage that appends while processing must not make the
                 audio thread throw. The new stage runs in this block.
             */
-            for (int i = 0; i < _effects.Count; i++)
+            for (int i = 0; i < _effects.Count; ++i)
             {
                 _effects[i].Process(buffer, offset, count, channels);
             }
@@ -146,7 +146,7 @@ namespace WallstopStudios.DxAudio
         /// <summary>Resets every effect, so a pooled voice starts clean.</summary>
         public void Reset()
         {
-            for (int i = 0; i < _effects.Count; i++)
+            for (int i = 0; i < _effects.Count; ++i)
             {
                 _effects[i].Reset();
             }

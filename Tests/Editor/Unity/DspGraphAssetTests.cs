@@ -161,10 +161,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void AGraphAssetKeepsItsNodesEdgesAndChainReferencesInTheFile()
         {
+            using MadeObjects made = new();
             string folder = AssetDatabase.GUIDToAssetPath(AssetDatabase.CreateFolder("Assets", "DxAudioGraphTest"));
             try
             {
-                DspChainAsset branch = ScriptableObject.CreateInstance<DspChainAsset>();
+                DspChainAsset branch = made.Track(ScriptableObject.CreateInstance<DspChainAsset>());
                 string branchPath = folder + "/Branch.asset";
                 AssetDatabase.CreateAsset(branch, branchPath);
                 DspGraphAsset authored = DspGraphAsset.Create(

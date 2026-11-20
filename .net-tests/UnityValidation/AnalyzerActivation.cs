@@ -39,22 +39,29 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void AllExpectedAssembliesUseThePinnedAnalyzers()
         {
             bool integration = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DXMESSAGING_VERSION"));
-            string[] expected = integration
+            (string Name, string Source)[] expected = integration
                 ? new[]
                 {
-                    "WallstopStudios.DxAudio",
-                    "WallstopStudios.DxAudio.Editor",
-                    "WallstopStudios.DxAudio.Tests.Editor",
-                    "WallstopStudios.DxAudio.Samples.Validation",
-                    "WallstopStudios.DxAudio.Integration.DxMessaging",
-                    "WallstopStudios.DxAudio.Tests.Integration.DxMessaging",
+                    ("WallstopStudios.DxAudio", "SfxPlayer.cs"),
+                    ("WallstopStudios.DxAudio.Editor", "DspChainAssetEditor.cs"),
+                    ("WallstopStudios.DxAudio.Tests.Editor", "PlayerTests.cs"),
+                    ("WallstopStudios.DxAudio.Samples.Validation", "BasicUsageDemo.cs"),
+                    ("WallstopStudios.DxAudio.Integration.DxMessaging", "SfxPlayerMessagingCore.cs"),
+                    ("WallstopStudios.DxAudio.Tests.Integration.DxMessaging", "SfxPlayerMessagingTests.cs"),
                 }
-                : new[] { "WallstopStudios.DxAudio", "WallstopStudios.DxAudio.Editor", "WallstopStudios.DxAudio.Tests.Editor", "WallstopStudios.DxAudio.Samples.Validation" };
+                : new[]
+                {
+                    ("WallstopStudios.DxAudio", "SfxPlayer.cs"),
+                    ("WallstopStudios.DxAudio.Editor", "DspChainAssetEditor.cs"),
+                    ("WallstopStudios.DxAudio.Tests.Editor", "PlayerTests.cs"),
+                    ("WallstopStudios.DxAudio.Samples.Validation", "BasicUsageDemo.cs"),
+                };
             Assembly[] assemblies = CompilationPipeline.GetAssemblies();
-            foreach (string name in expected)
+            foreach ((string name, string source) in expected)
             {
                 Assembly assembly = Array.Find(assemblies, candidate => string.Equals(candidate.name, name, StringComparison.Ordinal));
                 Assert.That(assembly, Is.Not.Null, name);
+                Assert.That(HasFile(assembly.sourceFiles, source), Is.True, name);
                 ScriptCompilerOptions options = assembly.compilerOptions;
                 Assert.That(HasFile(options.RoslynAnalyzerDllPaths, "WallstopStudios.UnityHelpers.Analyzers.dll"), Is.True, name);
                 Assert.That(HasFile(options.RoslynAnalyzerDllPaths, "nunit.analyzers.dll"), Is.True, name);
