@@ -7,12 +7,15 @@ import base64
 import gzip
 import hashlib
 import io
+import json
+import os
 import re
 import subprocess
 import tarfile
 import time
 from pathlib import Path
 from typing import TypedDict, cast
+from urllib.parse import urlencode
 
 from package_check import NAME, archive_paths, unity_visible
 from release_service import api, registry, run
@@ -100,38 +103,72 @@ def publish_npm(version: str, tarball: Path, prerelease: bool) -> None:
     raise ValueError(f"npm has not returned {NAME}@{version}; resume this release")
 
 
+def upload_asset(release_id: int, path: Path) -> Asset:
+    repo = os.environ["GITHUB_REPOSITORY"]
+    query = urlencode({"name": path.name})
+    uploaded = run(
+        "gh",
+        "api",
+        f"https://uploads.github.com/repos/{repo}/releases/{release_id}/assets?{query}",
+        "--method",
+        "POST",
+        "-H",
+        "Content-Type: application/octet-stream",
+        "--input",
+        str(path),
+    )
+    return cast("Asset", json.loads(uploaded))
+
+
+def verify_asset(asset: Asset, path: Path) -> None:
+    if asset["name"] != path.name:
+        raise ValueError(f"GitHub Release asset name mismatch for {path.name}")
+    digest = asset.get("digest")
+    if digest is None:
+        downloaded = subprocess.check_output(  # noqa: S603 - fixed authenticated GitHub asset download
+            [  # noqa: S607 - pinned runner GitHub CLI
+                "gh",
+                "api",
+                "-H",
+                "Accept: application/octet-stream",
+                f"repos/{{owner}}/{{repo}}/releases/assets/{asset['id']}",
+            ]
+        )
+        digest = "sha256:" + hashlib.sha256(downloaded).hexdigest()
+    if digest != "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest():
+        raise ValueError(f"GitHub Release asset digest mismatch for {path.name}")
+
+
 def github_release(operation: str, tag: str, tarball: Path, prerelease: bool) -> None:
     pages = cast("list[list[Release]]", api("releases?per_page=100", paginate=True))
     matches = [release for page in pages for release in page if release["tag_name"] == tag]
     if len(matches) > 1:
         raise ValueError(f"Multiple GitHub Releases for {tag}")
-    unity = tarball.with_suffix(".unitypackage")
-    files = [
-        tarball,
-        tarball.with_suffix(".tgz.sha256"),
-        unity,
-        unity.with_suffix(".unitypackage.sha256"),
-    ]
-    if not matches:
+    if matches:
+        release = matches[0]
+    else:
         if operation != "stage":
             raise ValueError(f"Missing GitHub Release for {tag}")
-        flags = ["--prerelease"] if prerelease else []
-        run(
-            "gh",
-            "release",
-            "create",
-            tag,
-            "--draft",
-            "--verify-tag",
-            "--title",
-            f"DxAudio {tag[1:]}",
-            "--notes-file",
-            str(tarball.parent / "notes.md"),
-            *flags,
+        if api(f"git/ref/tags/{tag}", missing=True) is None:
+            raise ValueError(f"Missing Git tag {tag}")
+        release = cast(
+            "Release",
+            api(
+                "releases",
+                method="POST",
+                body={
+                    "tag_name": tag,
+                    "target_commitish": run("git", "rev-parse", "HEAD"),
+                    "name": f"DxAudio {tag[1:]}",
+                    "body": (tarball.parent / "notes.md").read_text(encoding="utf-8"),
+                    "draft": True,
+                    "prerelease": prerelease,
+                },
+            ),
         )
-        github_release(operation, tag, tarball, prerelease)
-        return
-    release = matches[0]
+        if release["tag_name"] != tag or not release["draft"]:
+            raise ValueError(f"GitHub returned an unexpected release for {tag}")
+
     assets = {
         asset["name"]: asset
         for page in cast(
@@ -139,33 +176,16 @@ def github_release(operation: str, tag: str, tarball: Path, prerelease: bool) ->
         )
         for asset in page
     }
-    uploaded = False
-    for path in files:
+    for suffix in (".tgz", ".tgz.sha256", ".unitypackage", ".unitypackage.sha256"):
+        path = tarball.with_suffix(suffix)
         asset = assets.get(path.name)
         if asset is None:
             if operation != "stage" or not release["draft"]:
                 raise ValueError(f"Missing GitHub Release asset {path.name}")
-            run("gh", "release", "upload", tag, str(path))
-            uploaded = True
-        else:
-            digest = asset.get("digest")
-            if digest is None:
-                downloaded = subprocess.check_output(  # noqa: S603 - fixed authenticated GitHub asset download
-                    [  # noqa: S607 - pinned runner GitHub CLI
-                        "gh",
-                        "api",
-                        "-H",
-                        "Accept: application/octet-stream",
-                        f"repos/{{owner}}/{{repo}}/releases/assets/{asset['id']}",
-                    ]
-                )
-                digest = "sha256:" + hashlib.sha256(downloaded).hexdigest()
-            if digest != "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest():
-                raise ValueError(f"GitHub Release asset digest mismatch for {path.name}")
-    if operation == "stage" and uploaded:
-        github_release("verify", tag, tarball, prerelease)
+            asset = upload_asset(release["id"], path)
+        verify_asset(asset, path)
     if operation == "finalize" and release["draft"]:
-        run("gh", "release", "edit", tag, "--draft=false")
+        api(f"releases/{release['id']}", method="PATCH", body={"draft": False})
 
 
 def main() -> None:
