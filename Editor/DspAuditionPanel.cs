@@ -153,6 +153,7 @@ namespace WallstopStudios.DxAudio.Editor
 
             Stop();
             _asset = asset is DspChainAsset or DspGraphAsset or SfxCue ? asset : null;
+            _compareResolver.ClearShuffleBags();
             _lastTake = default;
             _lastClip = null;
             _shownClip = null;
@@ -406,7 +407,7 @@ namespace WallstopStudios.DxAudio.Editor
             Comparison settings = _comparison;
             return settings == null
                 ? _resolver.TryResolve(cue, out playback)
-                : _compareResolver.TryResolve(cue, settings.Variation, settings.PitchJitter, settings.Volume, settings.Gains, out playback);
+                : _compareResolver.TryResolve(cue, settings.TakeRevision, settings.Variation, settings.PitchJitter, settings.Volume, settings.Gains, out playback);
         }
 
         private bool PlayTake(SfxCue cue, AudioClip clip, SfxPlayback playback, bool loop, bool bypass)
@@ -851,6 +852,7 @@ namespace WallstopStudios.DxAudio.Editor
             private readonly bool _loop;
 
             internal readonly SfxVariation Variation;
+            internal readonly int TakeRevision;
             internal readonly float PitchJitter;
             internal readonly float Volume;
             internal readonly float[] Gains;
@@ -858,6 +860,7 @@ namespace WallstopStudios.DxAudio.Editor
             internal Comparison(SfxCue cue)
             {
                 Variation = cue.Variation;
+                TakeRevision = cue.TakeRevision;
                 PitchJitter = cue.PitchJitter;
                 Volume = cue.Volume;
                 _loop = cue.IsLooping;

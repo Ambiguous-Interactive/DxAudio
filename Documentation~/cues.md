@@ -2,6 +2,16 @@
 
 An `SfxCue` asset describes one sound effect. `SfxPlayer` plays it on a pool of voices.
 
+## Create a cue from clips
+
+Select recordings of the same sound in the Project window. Choose **Assets > DxAudio > Create Cue from Selected Clips**.
+DxAudio creates the cue, enables Shuffle for multiple takes, and opens it for audition. Pitch stays at the original
+rate. Choose **Subtle** if you want detune and level variation.
+
+DxAudio compares the loudest 50 ms of each readable take and lowers louder takes by up to 6 dB. It also leaves
+3 dB of sample peak headroom before effects. Silent takes and clips with unavailable PCM keep their original level.
+Analysis uses loaded, decompressed clips up to 10 seconds and 2 million samples. The new cue stores the levels.
+
 ## Cue fields
 
 | Field                        | Does                                                                                                |

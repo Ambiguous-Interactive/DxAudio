@@ -195,6 +195,47 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void EditingVolumeDuringAComparisonDoesNotRestartTheShuffleCycle()
+        {
+            using MadeObjects made = new();
+            SceneView view = FindOrCreateSceneView(made);
+            bool sceneAudio = view.audioPlay;
+            AudioClip[] clips = { ConstantTake(made, 0.2f), ConstantTake(made, 0.3f), ConstantTake(made, 0.4f) };
+            SfxCue cue = made.Track(SfxCueCreation.Build(clips));
+            DspAuditionPanel panel = new(_ => { }, () => { });
+            panel.SetTarget(cue);
+            const int Seed = 2;
+            panel.Q<IntegerField>().value = Seed;
+            SfxPlaybackResolver expected = new();
+            expected.Reset(Seed);
+            Assert.That(expected.TryResolve(cue, out _), Is.True);
+            Assert.That(expected.TryResolve(cue, out _), Is.True);
+            Assert.That(expected.TryResolve(cue, out SfxPlayback third), Is.True);
+
+            MethodInfo next = typeof(DspAuditionPanel).GetMethod("PlayNextTake", BindingFlags.Instance | BindingFlags.NonPublic);
+            try
+            {
+                Press(panel, "Capture A");
+                Press(panel, "Play A");
+                next.Invoke(panel, null);
+
+                int revision = cue.TakeRevision;
+                using SerializedObject edit = new(cue);
+                edit.FindProperty("_volume").floatValue = 0.5f;
+                edit.ApplyModifiedPropertiesWithoutUndo();
+                Assert.That(cue.TakeRevision, Is.Not.EqualTo(revision));
+
+                next.Invoke(panel, null);
+                AssertPreview(third);
+            }
+            finally
+            {
+                panel.Stop();
+                view.audioPlay = sceneAudio;
+            }
+        }
+
+        [Test]
         public void AddingSeveralClipsStartsEachTakeWithNeutralSettings()
         {
             using MadeObjects made = new();
@@ -272,6 +313,64 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void ClipDefaultsBalanceReadableTakesAndIgnoreSilence()
+        {
+            using MadeObjects made = new();
+            AudioClip loud = ConstantTake(made, 0.5f);
+            AudioClip quiet = ConstantTake(made, 0.25f);
+            AudioClip quietWithLeadIn = ConstantTake(made, 0.25f, leadIn: 800);
+            AudioClip silent = ConstantTake(made, 0f);
+            float[] levels = SfxCueClipDefaults.AttenuationsFor(new[] { loud, quiet, quietWithLeadIn, silent });
+
+            Assert.That(levels, Is.EqualTo(new[] { -6f, 0f, 0f, 0f }).Within(0.001f));
+        }
+
+        [Test]
+        public void ClipDefaultsLeaveHeadroomWithoutRequiringEveryClipToBeReadable()
+        {
+            using MadeObjects made = new();
+            AudioClip loud = ConstantTake(made, 0.9f);
+            AudioClip longClip = made.Track(AudioClip.Create("Long take", 88_000, 1, 8_000, false));
+            float[] levels = SfxCueClipDefaults.AttenuationsFor(new[] { loud, longClip });
+
+            Assert.That(levels[0], Is.EqualTo(-2.08485f).Within(0.001f));
+            Assert.That(levels[1], Is.Zero);
+        }
+
+        [Test]
+        public void CreatingACueFromClipsUsesStablePitchAndUniqueOrderedTakes()
+        {
+            using MadeObjects made = new();
+            AudioClip loud = ConstantTake(made, 0.5f);
+            AudioClip quiet = ConstantTake(made, 0.25f);
+            quiet.name = "A";
+            loud.name = "B";
+            SfxCue cue = made.Track(SfxCueCreation.Build(new[] { loud, quiet, loud, null }));
+            Assert.That(cue.Variants.Count, Is.EqualTo(2));
+            Assert.That(cue.Variants[0].Clip == quiet, Is.True);
+            Assert.That(cue.Variants[1].AttenuationDecibels, Is.EqualTo(-6f).Within(0.001f));
+            Assert.That(cue.Variation.UseShuffle, Is.True);
+            Assert.That(cue.Variation.UseLowPass, Is.False);
+            Assert.That(cue.PitchFor(0f), Is.EqualTo(1f));
+            Assert.That(cue.PitchFor(1f), Is.EqualTo(1f));
+
+            SfxCue one = made.Track(SfxCueCreation.Build(new[] { quiet }));
+            Assert.That(one.Variation.UseShuffle, Is.False);
+        }
+
+        private static AudioClip ConstantTake(MadeObjects made, float amplitude, int leadIn = 0)
+        {
+            AudioClip clip = made.Track(AudioClip.Create("Level fixture", 1_600, 1, 8_000, false));
+            float[] samples = new float[clip.samples];
+            for (int index = leadIn; index < samples.Length; ++index)
+            {
+                samples[index] = amplitude;
+            }
+            Assert.That(clip.SetData(samples, 0), Is.True);
+            return clip;
+        }
+
+        [Test]
         public void EditingATrimInvalidatesTheCapturedComparison()
         {
             using MadeObjects made = new();
@@ -288,6 +387,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(FindButton(panel, "Play A").enabledSelf, Is.False);
             Assert.That(FindButton(panel, "Play B").enabledSelf, Is.False);
+            Assert.That(FindButton(panel, "Capture A").enabledSelf, Is.True);
         }
 
         [Test]

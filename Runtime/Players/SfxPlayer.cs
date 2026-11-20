@@ -97,6 +97,10 @@ namespace WallstopStudios.DxAudio
             get => _library;
             set
             {
+                if (!ReferenceEquals(_library, value))
+                {
+                    _playback.ClearShuffleBags();
+                }
                 _library = value;
                 BuildVoices();
             }

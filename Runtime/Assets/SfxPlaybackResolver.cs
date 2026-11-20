@@ -51,6 +51,11 @@ namespace WallstopStudios.DxAudio
             }
         }
 
+        internal void ClearShuffleBags()
+        {
+            _bags.Clear();
+        }
+
         internal bool TryResolve(SfxCue cue, out SfxPlayback play)
         {
             if (cue == null)
@@ -59,10 +64,10 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
-            return TryResolve(cue, cue.Variation, cue.PitchJitter, cue.Volume, null, out play);
+            return TryResolve(cue, cue.TakeRevision, cue.Variation, cue.PitchJitter, cue.Volume, null, out play);
         }
 
-        internal bool TryResolve(SfxCue cue, SfxVariation variation, float legacyJitter, float cueVolume, float[] takeGains, out SfxPlayback play)
+        internal bool TryResolve(SfxCue cue, int takeRevision, SfxVariation variation, float legacyJitter, float cueVolume, float[] takeGains, out SfxPlayback play)
         {
             int count = cue == null ? 0 : cue.PlayableVariantCount;
             if (count == 0)
@@ -79,7 +84,7 @@ namespace WallstopStudios.DxAudio
             else if (variation.UseShuffle)
             {
                 int previous = _selection.TryGetLast(cue, out int last) ? last : -1;
-                index = BagFor(cue).Next(count, cue.TakeRevision, previous, Draw(_takeAndPitch));
+                index = BagFor(cue).Next(count, takeRevision, previous, Draw(_takeAndPitch));
                 _selection.Remember(cue, index);
             }
             else
