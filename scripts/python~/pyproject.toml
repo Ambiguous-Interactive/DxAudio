@@ -31,11 +31,24 @@ strict = true
 disallow_any_explicit = true
 warn_unreachable = true
 
+[[tool.mypy.overrides]]
+module = "package_check"
+follow_imports = "silent"
+
 [tool.pyright]
 pythonVersion = "3.11"
 typeCheckingMode = "strict"
+extraPaths = ["../../.github/scripts"]
 # List every new Python source here. Keep the legacy inventory explicit while migrating it.
-include = ["../../.net-tests/prepare_analyzers.py", "../../.net-tests/run_checks.py", "check.py"]
+include = [
+    "../../.github/scripts/auto_release.py",
+    "../../.github/scripts/release_assets.py",
+    "../../.github/scripts/release_service.py",
+    "../../.github/scripts/test_auto_release.py",
+    "../../.net-tests/prepare_analyzers.py",
+    "../../.net-tests/run_checks.py",
+    "check.py",
+]
 
 [tool.unity-helpers-python]
 legacy = [

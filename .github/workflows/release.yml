@@ -1,24 +1,14 @@
 name: Release
 
-# Publishes a version tag: attaches the npm tarball to a GitHub Release, then publishes the same
-# tarball to npm with trusted publishing (no token; npm adds provenance for this workflow).
-#
-# To release: bump "version" in package.json, add its CHANGELOG.md section, merge to main, then
-#   git tag vX.Y.Z origin/main && git push origin vX.Y.Z
-# Every step skips what is already done, so a failed release is finished by re-running its run, or
-# by `gh workflow run release.yml --ref vX.Y.Z`. The job runs only on a tag, in the `npm`
-# environment, which admits `v*` tags only: npm trusts that environment, not a branch.
-#
-# npm trusts this workflow once a maintainer with npm 2FA has run, for an existing package:
-#   npx --yes npm@12.2.2 trust github com.wallstop-studios.dxaudio \
-#     --repo Ambiguous-Interactive/DxAudio --file release.yml --env npm --allow-publish
-# A new trust configuration expires unless a publish uses it within 2 days, so run it just before
-# pushing a release tag.
-
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Merged commit from the weekly release workflow
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -32,27 +22,24 @@ jobs:
     name: Release ${{ github.ref_name }}
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     environment: npm
     permissions:
-      contents: write # create the GitHub Release
-      id-token: write # npm trusted publishing
+      contents: write
+      id-token: write
     env:
-      PACKAGE: com.wallstop-studios.dxaudio
       TAG: ${{ github.ref_name }}
+      EXPECTED_SHA: ${{ inputs.expected_sha }}
     steps:
-      - name: Check out the tag
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Require the tag on main
         run: |
-          if ! git merge-base --is-ancestor HEAD origin/main; then
-            echo "::error::${TAG} is not on main. Tag a commit that main contains."
-            exit 1
-          fi
+          git merge-base --is-ancestor HEAD origin/main
+          if [ -n "$EXPECTED_SHA" ]; then test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"; fi
 
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
@@ -63,82 +50,35 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          # No registry-url: setup-node's placeholder .npmrc token would make npm skip the OIDC
-          # exchange that trusted publishing needs.
           node-version: "24"
           package-manager-cache: false
 
-      - name: Check the package and pack it
+      - name: Pin the npm publisher
+        run: npm install --global --ignore-scripts npm@12.2.2
+
+      - name: Check and build the archives
         id: pack
-        run: python3 .github/scripts/package_check.py --tag "${TAG}" --out dist
-
-      - name: Verify the release inputs
-        env:
-          TARBALL: ${{ steps.pack.outputs.tarball }}
         run: |
-          test -s dist/notes.md
-          (cd "$(dirname "$TARBALL")" && sha256sum --check "$(basename "$TARBALL").sha256")
-          git fetch --no-tags origin "refs/tags/${TAG}"
-          test "$(git rev-parse 'FETCH_HEAD^{commit}')" = "$(git rev-parse HEAD)"
+          python3 .github/scripts/package_check.py --tag "$TAG" --out dist
+          python3 .github/scripts/release_assets.py build "dist/com.wallstop-studios.dxaudio-${TAG#v}.tgz"
 
-      - name: Create the GitHub Release
+      - name: Stage, verify and publish the release
         env:
           GH_TOKEN: ${{ github.token }}
           PRERELEASE: ${{ steps.pack.outputs.prerelease }}
           TARBALL: ${{ steps.pack.outputs.tarball }}
         run: |
-          files=("${TARBALL}" "${TARBALL}.sha256")
-          if ! gh release view "${TAG}" >/dev/null 2>&1; then
-            flags=()
-            if [ "${PRERELEASE}" = "true" ]; then flags+=(--prerelease); fi
-            # With files, gh creates a draft, uploads them, then publishes.
-            gh release create "${TAG}" "${files[@]}" --verify-tag --title "DxAudio ${TAG#v}" \
-              --notes-file dist/notes.md "${flags[@]}"
-            exit 0
-          fi
-          assets="$(gh release view "${TAG}" --json assets --jq '.assets[].name')"
-          for file in "${files[@]}"; do
-            if ! grep -qxF "$(basename "${file}")" <<<"${assets}"; then
-              gh release upload "${TAG}" "${file}"
-            fi
-          done
-
-      - name: Verify uploaded release assets
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TARBALL: ${{ steps.pack.outputs.tarball }}
-        run: |
-          assets_dir="$(mktemp -d)"
-          archive_name="$(basename "$TARBALL")"
-          gh release download "$TAG" --dir "$assets_dir" --pattern "$archive_name" --pattern "$archive_name.sha256"
-          cmp "$TARBALL" "$assets_dir/$archive_name"
-          cmp "$TARBALL.sha256" "$assets_dir/$archive_name.sha256"
-          git fetch --no-tags origin "refs/tags/${TAG}"
-          test "$(git rev-parse 'FETCH_HEAD^{commit}')" = "$(git rev-parse HEAD)"
-
-      - name: Publish to npm
-        env:
-          PRERELEASE: ${{ steps.pack.outputs.prerelease }}
-          TARBALL: ${{ steps.pack.outputs.tarball }}
-          VERSION: ${{ steps.pack.outputs.version }}
-        run: |
-          if npm view "${PACKAGE}@${VERSION}" version >/dev/null 2>&1; then
-            echo "${PACKAGE}@${VERSION} is already on npm."
-            exit 0
-          fi
-          # A stable version takes npm's default tag, whose guard refuses to move "latest" back to an
-          # older version (a backport); a prerelease goes to "next".
+          set -euo pipefail
           flags=()
-          if [ "${PRERELEASE}" = "true" ]; then flags+=(--tag next); fi
-          if ! npm view "${PACKAGE}" name >/dev/null 2>&1; then
-            # npm cannot trust a workflow for a name that does not exist yet.
-            url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${TAG}/$(basename "${TARBALL}")"
-            echo "::error::${PACKAGE} is not on npm yet, and trusted publishing cannot create it. A maintainer with npm 2FA publishes this version once, then trusts this workflow before the next tag (see the top of release.yml):"
-            # npm 12 refuses a tarball URL unless --allow-remote says otherwise (EALLOWREMOTE).
-            echo "::error::npx --yes npm@12.2.2 publish ${url} --allow-remote=all --access public ${flags[*]}"
-            exit 1
-          fi
-          if ! npx --yes npm@12.2.2 publish "${TARBALL}" --access public "${flags[@]}"; then
-            echo "::error::If npm refused the OIDC exchange, trust this workflow (see the top of release.yml) and re-run."
-            exit 1
-          fi
+          if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); fi
+          verify_tag() {
+            git fetch --no-tags origin "refs/tags/$TAG"
+            test "$(git rev-parse 'FETCH_HEAD^{commit}')" = "$(git rev-parse HEAD)"
+          }
+          verify_tag
+          python3 .github/scripts/release_assets.py stage "$TARBALL" --tag "$TAG" "${flags[@]}"
+          verify_tag
+          python3 .github/scripts/release_assets.py npm "$TARBALL" --tag "$TAG" "${flags[@]}"
+          verify_tag
+          python3 .github/scripts/release_assets.py finalize "$TARBALL" --tag "$TAG" "${flags[@]}"
+          sha256sum "$TARBALL" "${TARBALL%.tgz}.unitypackage" >> "$GITHUB_STEP_SUMMARY"

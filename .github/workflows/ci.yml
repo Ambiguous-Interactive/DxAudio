@@ -93,6 +93,7 @@ jobs:
         run: python3 .net-tests/UnityValidation/test_runner.py
       - name: Check the consumer package
         run: |
+          python3 .github/scripts/test_auto_release.py
           python3 .github/scripts/test_package_check.py
           python3 .github/scripts/package_check.py
 

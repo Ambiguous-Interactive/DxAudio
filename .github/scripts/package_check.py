@@ -156,7 +156,8 @@ def assembly_paths(root: Path, pattern: str) -> list[Path]:
 
 def payload_problems(paths: set[str], root: Path = ROOT) -> list[str]:
     allowed = set(ROOT_FILES) | {f"{name}.meta" for name in ROOT_FILES + PACKAGE_DIRS}
-    stray = {path for path in paths if path not in allowed and PurePosixPath(path).parts[0] not in PACKAGE_DIRS}
+    samples = {path for path in paths if path.startswith("Samples~/BasicUsage/")}
+    stray = {path for path in paths - samples if path not in allowed and PurePosixPath(path).parts[0] not in PACKAGE_DIRS}
     problems = [f"not package content: {path}" for path in sorted(stray)]
     problems += tooling_problems(paths)
     shipped_assemblies = {path.relative_to(root).as_posix() for path in assembly_paths(root, "*.asmdef")}
@@ -248,8 +249,8 @@ def release_notes(version: str) -> str:
     return (rest[: following.start()] if following else rest).strip()
 
 
-def manifest_object(pairs: list[tuple[str, object]]) -> dict:
-    fields = {}
+def manifest_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    fields: dict[str, object] = {}
     for name, value in pairs:
         if name in fields:
             raise ValueError(f"package.json repeats {name!r}")
@@ -331,6 +332,10 @@ def main() -> int:
         if paths != {entry["path"] for entry in packed["files"]}:
             problems.append("npm pack metadata disagrees with the actual archive")
         problems += payload_problems(paths)
+        for sample in manifest.get("samples", []):
+            prefix = sample["path"].rstrip("/") + "/"
+            if not any(path.startswith(prefix) and not path.endswith(".meta") for path in paths):
+                problems.append(f"declared sample missing from the archive: {sample['path']}")
         problems += git_package_problems()
 
         for problem in problems:

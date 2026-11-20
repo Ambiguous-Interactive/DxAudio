@@ -1,64 +1,90 @@
 # Releasing
 
-DxAudio releases through `.github/workflows/release.yml` on a version tag. Publishing uses npm trusted publishing
-(GitHub OIDC); no `NPM_TOKEN` exists.
+The weekly workflow starts Sunday at 4 a.m. Pacific time. It reads the
+`Unreleased` section in `CHANGELOG.md` and opens one release PR when changes
+are ready. GitHub runs the required checks before merging the PR.
 
-## Preconditions
+## Version rules
 
-1. `package.json` version is the release version.
-2. `CHANGELOG.md` has the dated section for that version.
-3. The commit is on `main`.
-4. The npm trust entry exists for this repository, workflow file, and `npm` environment.
+| Unreleased changes                           | Bump                                |
+| -------------------------------------------- | ----------------------------------- |
+| Breaking or removed API                      | Major from 1.0.0. Minor during 0.x. |
+| Added or deprecated features                 | Minor                               |
+| Compatible changes, fixes, or security fixes | Patch                               |
+| No entries and no package changes            | Skip                                |
 
-## Trust setup
+Use a `Breaking` section or start an entry with `**Breaking:**` and include
+migration instructions. The largest applicable bump wins. Maintainers cut
+the first 1.0.0 release through the manual workflow.
 
-A maintainer with npm 2FA runs, for an existing package:
+## Enable weekly publishing
+
+1. Install a GitHub App on DxAudio with Contents and Pull requests read and
+   write permissions. Enable squash merge and auto-merge. Keep both required
+   status checks active.
+2. Create the `auto-release` Actions environment for `main`. Set the App key
+   listed below in that environment. Set `RELEASE_APP_ID` and
+   `RELEASE_APP_SLUG` as repository Actions variables.
+3. Keep the `npm` environment restricted to version tags. Set up npm trusted
+   publishing if required. Authorize `release.yml` and the `npm` environment
+   for this repository. The hosted release job uses npm OIDC for provenance.
+4. Run `Weekly auto-release` with `preview` and review its decision and diff.
+   Rehearse PR creation and CI in a test repository. Set
+   `AUTO_RELEASE_VALIDATE_ONLY` to `true` there to stop before tagging.
+   Verify the Unity Editor import on both supported versions. A manual
+   `Unity Tests` run with `unitypackage_smoke` also checks both editors.
+5. Set the repository variable `AUTO_RELEASE_ENABLED` to `true`. Remove the
+   variable to pause automated writes.
+
+A maintainer with npm 2FA can configure the trusted publisher for an existing
+package. A new trust entry expires unless a publish uses it within two days.
 
 ```bash
 npx --yes npm@12.2.2 trust github com.wallstop-studios.dxaudio \
   --repo Ambiguous-Interactive/DxAudio --file release.yml --env npm --allow-publish
 ```
 
-A trust entry expires unless a publish uses it within 2 days. Run it just before the tag.
+## Validation and recovery
 
-## Tag and publish
+The merged release commit gets a `release-verify/vX.Y.Z` branch. CI, Unity
+Tests, LLM Instructions Lint, and External documentation links run on that
+commit. Unity checks both editors and validates both archive formats. OpenAI
+Review runs on the PR as an advisory check.
+
+After validation, the weekly workflow creates the tag and dispatches
+`Release` on that tag. Release stages the UPM tarball, Unity import archive,
+and their SHA-256 files on a draft. It verifies the tarball on npm before
+publishing the draft. Stable versions use `latest`. Prereleases use `next`.
+
+Use `prepare` to refresh a PR when its base advances. Use `resume` to check
+the pending release, retry failed validation, or dispatch its tag again.
+The next weekly run also attempts recovery before preparing a new version.
+Check run summaries for the exact commit, the validation run links, and
+the archive digests. If a tag or digest disagrees, resolve the conflict
+before retrying. A published version can be corrected with a new release.
+
+## Manual release
+
+Merge the manifest version, context version, and dated changelog section
+to `main`. Validate that commit, then tag that exact commit.
 
 ```bash
-git tag vX.Y.Z origin/main
+git tag vX.Y.Z <validated-commit>
 git push origin vX.Y.Z
 ```
 
-The workflow:
-
-1. Verifies the tag is an ancestor of `main`.
-2. Runs `dotnet test .net-tests`.
-3. Packs the tarball and checks the npm payload.
-4. Creates or updates the GitHub Release with the tarball and its `.sha256`.
-5. Publishes the same tarball to npm.
-
-Every step skips work already done. Re-run the workflow, or `gh workflow run release.yml --ref vX.Y.Z`, to finish a
-partial release.
-
-## Dist-tags
-
-- `-rc`, `-alpha`, `-beta`, `-preview` (case-insensitive) publish under `next`.
-- Everything else publishes under `latest`.
-
-## Recovery
-
-| State                                     | Action                                                                                                        |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| GitHub Release exists, npm publish failed | Re-run the tag workflow; the release step skips, publish retries                                              |
-| npm publish refused the OIDC exchange     | Check the trust entry, then re-run                                                                            |
-| Package name is not on npm yet            | A maintainer publishes once with `npx npm@12.2.2 publish <tarball> --access public`, then trusts the workflow |
-| Wrong version published                   | Publish a patch bump; do not unpublish                                                                        |
+Re-run Release or dispatch `gh workflow run release.yml --ref vX.Y.Z` to
+finish a partial release. A package name that does not exist on npm needs a
+maintainer to publish its first tarball with npm 2FA and configure trust.
 
 ## Secrets
 
 <!-- release-secrets:begin -->
 
-No custom secrets are required.
+- `RELEASE_APP_PRIVATE_KEY` is the GitHub App key in the `auto-release`
+  environment. The App is installed on DxAudio and can write Contents and
+  Pull requests.
+
 <!-- release-secrets:end -->
 
-The release workflow uses `GITHUB_TOKEN` for the Release and an OIDC token for npm. Any change that adds a secret must
-document it in this block and in the workflow.
+GitHub supplies the workflow token and npm OIDC.

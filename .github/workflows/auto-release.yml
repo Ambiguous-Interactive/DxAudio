@@ -1,0 +1,111 @@
+name: Weekly auto-release
+
+on:
+  schedule:
+    - cron: "0 4 * * 0"
+      timezone: America/Los_Angeles
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Release operation
+        type: choice
+        options: [preview, prepare, resume]
+        default: preview
+  pull_request:
+    branches: [main]
+    types: [closed]
+  workflow_run:
+    workflows: [CI, Unity Tests, LLM Instructions Lint, External documentation links]
+    branches: ["release-verify/v*"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-release
+  cancel-in-progress: false
+
+env:
+  RELEASE_APP_SLUG: ${{ vars.RELEASE_APP_SLUG }}
+  AUTO_RELEASE_VALIDATE_ONLY: ${{ vars.AUTO_RELEASE_VALIDATE_ONLY }}
+
+jobs:
+  preview:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (inputs.operation == 'preview' || (github.event_name == 'schedule' && vars.AUTO_RELEASE_ENABLED != 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: python3 .github/scripts/auto_release.py preview
+
+  reconcile:
+    if: >-
+      vars.AUTO_RELEASE_ENABLED == 'true' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || inputs.operation == 'resume' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       startsWith(github.event.pull_request.head.ref, 'release/weekly-')) ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.event == 'workflow_dispatch' &&
+       github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reconcile validation and publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          VALIDATION_SHA: ${{ github.event.workflow_run.head_sha }}
+          VALIDATION_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          operation=resume
+          case "$GITHUB_EVENT_NAME" in
+            pull_request) operation=merged ;;
+            workflow_run) operation=completed ;;
+          esac
+          python3 .github/scripts/auto_release.py "$operation"
+
+  prepare:
+    needs: reconcile
+    if: >-
+      always() && !cancelled() && vars.AUTO_RELEASE_ENABLED == 'true' && github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'schedule' && needs.reconcile.result == 'success') || inputs.operation == 'prepare')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: auto-release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Mint the DxAudio release App token
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Prepare the release pull request
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          test -n "$RELEASE_APP_SLUG" && test "$RELEASE_APP_SLUG" = "$APP_SLUG"
+          python3 .github/scripts/auto_release.py prepare

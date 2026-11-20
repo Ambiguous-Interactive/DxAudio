@@ -11,20 +11,23 @@ DxAudio publishes with npm trusted publishing through GitHub OIDC. There is no `
 
 ## Steps
 
-1. Add user-facing entries under `CHANGELOG.md` `## [Unreleased]`. Entries are verb-first, one or two sentences, at most 300 rendered characters.
-2. Bump `package.json` `version`.
-3. Sync the context version line: `npm run lint:llm:fix` rewrites the `**Version**:` line in `.llm/context.md`. Commit `package.json`, `.llm/context.md`, and the dated changelog
-   together with subject `Bump version from X to Y`.
-4. Merge to `main`. The tag must be an ancestor of `main`; the workflow enforces this.
-5. Tag and push:
+Weekly releases use the [releasing runbook](../../references/RELEASING.md).
+Add user-facing notes under `CHANGELOG.md` `## [Unreleased]`. Mark public
+API breaks and include migration steps. A breaking change bumps the minor
+version during 0.x and the major version from 1.0.0.
+
+For a manual release, bump `package.json`, sync the context version with
+`npm run lint:llm:fix`, and date the changelog section. Merge the version
+commit into `main` and validate it before tagging.
 
 ```bash
-git tag vX.Y.Z origin/main
+git tag vX.Y.Z <validated-commit>
 git push origin vX.Y.Z
 ```
 
-6. The `Release` workflow tests the engine-free core, packs the tarball, creates the GitHub Release, and publishes the same tarball to npm. Every step skips work already done, so a
-   failed run is finished by re-running it or by `gh workflow run release.yml --ref vX.Y.Z`.
+Release stages both archive formats and their checksums, verifies the npm
+publication, then publishes the GitHub Release. Re-run the tag workflow to
+finish a partial release.
 
 ## npm trust
 

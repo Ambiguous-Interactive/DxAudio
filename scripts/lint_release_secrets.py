@@ -7,8 +7,7 @@ Typed Python port of ``lint-release-secrets.js`` (issue #171): the same
 documented-block parsing, YAML comment masking, and fail-closed drift
 report, driven by the standard library.
 
-The release chain uses GitHub's built-in token and npm OIDC. No custom
-credential is needed. This guard detects undocumented credentials if a
+The release chain uses a GitHub App, GitHub's built-in token, and npm OIDC. This guard detects undocumented credentials if a
 future workflow introduces them, and stale credential instructions in the
 runbook.
 
@@ -17,7 +16,7 @@ The documented set is read from the ``release-secrets`` block in
 free to mention credentials that are not required (for example "no
 NPM_TOKEN is involved") without failing the scan.
 
-The release workflow set is the single workflow the reference documents. A
+The release workflow set is the workflows the reference documents. A
 new release workflow must be added to RELEASE_WORKFLOWS and to the
 reference.
 
@@ -40,7 +39,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # The workflows `.llm/references/RELEASING.md` documents. Kept explicit so the
 # scan does not demand release documentation for unrelated workflows.
-RELEASE_WORKFLOWS = ("release.yml",)
+RELEASE_WORKFLOWS = ("release.yml", "auto-release.yml")
 
 # Provided by GitHub for every run; configuring it is not an owner task, so it
 # is never part of the documented contract.

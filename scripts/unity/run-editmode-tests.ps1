@@ -19,6 +19,7 @@ param(
     [string]$ConsumerArchive = $env:DXAUDIO_CONSUMER_ARCHIVE,
     [switch]$ArchiveSmoke,
     [switch]$IntegrationPlayerSmoke,
+    [string]$UnityImportArchive,
     [ValidateRange(1, 2400)][int]$EditorTimeoutSeconds = 2400,
     [ValidateRange(0, 2400)][int]$EditorStallSeconds = 300,
     [ValidateRange(0, 2400)][int]$CompletionGraceSeconds = 120,
@@ -76,7 +77,14 @@ $manifest = [ordered]@{
     }
 }
 $playerSmoke = $ArchiveSmoke -or $IntegrationPlayerSmoke
-if ($playerSmoke) {
+$importSmoke = -not [string]::IsNullOrWhiteSpace($UnityImportArchive)
+if ($importSmoke) {
+    if ($playerSmoke -or -not (Test-Path -LiteralPath $UnityImportArchive -PathType Leaf)) {
+        throw 'Unity import validation requires its own archive and project.'
+    }
+    $editorPath = New-Item -ItemType Directory -Path (Join-Path $assetsPath 'Editor')
+    Copy-Item -LiteralPath (Join-Path $PackageRoot '.net-tests/UnityValidation/UnityPackageSmoke.cs') -Destination $editorPath.FullName
+} elseif ($playerSmoke) {
     if ([string]::IsNullOrWhiteSpace($ConsumerArchive) -or -not (Test-Path -LiteralPath $ConsumerArchive -PathType Leaf)) {
         throw 'The pristine consumer tarball is missing.'
     }
@@ -134,7 +142,11 @@ $unityArgs = @(
     $env:UNITY_PASSWORD
 )
 $receipt = ''
-if ($playerSmoke) {
+if ($importSmoke) {
+    $receipt = 'DxAudio Unity import validation passed.'
+    $unityArgs += @('-executeMethod', 'WallstopStudios.DxAudio.Validation.UnityPackageSmoke.Run')
+    $EditorTimeoutSeconds = [Math]::Min($EditorTimeoutSeconds, 300)
+} elseif ($playerSmoke) {
     $method = if ($IntegrationPlayerSmoke) { 'RunWithIntegration' } else { 'Run' }
     $receipt = if ($IntegrationPlayerSmoke) { 'DxAudio integration player script validation passed.' } else { 'DxAudio archive and player script validation passed.' }
     $unityArgs += @('-quit', '-executeMethod', "WallstopStudios.DxAudio.Validation.ArchiveSmoke.$method")
@@ -161,6 +173,9 @@ foreach ($item in $unityArgs) {
     $start.ArgumentList.Add($item)
 }
 $start.Environment['DXMESSAGING_VERSION'] = $DxMessagingVersion
+if ($importSmoke) {
+    $start.Environment['DXAUDIO_UNITYPACKAGE'] = $UnityImportArchive
+}
 $observationPath = Join-Path $artifactsPath 'process-observation.json'
 $launchClock = [Diagnostics.Stopwatch]::StartNew()
 $retryWindow = [Math]::Min($ActivationRetryBudgetSeconds, $EditorTimeoutSeconds)
@@ -170,7 +185,7 @@ try {
         $attempt++
         $process = Invoke-UnityEditorProcess -Start $start -LogPath $logPath -ObservationPath $observationPath `
             -TimeoutSeconds ($EditorTimeoutSeconds - $launchClock.Elapsed.TotalSeconds) `
-            -StallSeconds $EditorStallSeconds -CompletionGraceSeconds $CompletionGraceSeconds -WatchTestCompletion:(-not $playerSmoke)
+            -StallSeconds $EditorStallSeconds -CompletionGraceSeconds $CompletionGraceSeconds -WatchTestCompletion:(-not ($playerSmoke -or $importSmoke))
         if ($process.Origin -ne 'process-exit' -or $process.ExitCode -eq 0 -or
             $retryWindow -le $launchClock.Elapsed.TotalSeconds -or
             -not (Test-TransientUnityActivation -LogPath $logPath -ResultsPath $resultsPath)) {
@@ -212,9 +227,10 @@ if (Select-String -LiteralPath $logPath -Pattern '\b(?:AD0001|AD0002|CS8032|CS80
     Write-RedactedLogTail -Path $logPath
     throw 'Unity reported an analyzer load failure or exception.'
 }
-if ($playerSmoke) {
+if ($playerSmoke -or $importSmoke) {
     if (-not (Select-String -LiteralPath $logPath -Pattern ('^' + [regex]::Escape($receipt) + '$') -Quiet)) {
         Write-RedactedLogTail -Path $logPath
+        if ($importSmoke) { throw "Unity did not emit the expected import validation receipt: $receipt" }
         throw "Unity did not emit the expected player script validation receipt: $receipt"
     }
     return
