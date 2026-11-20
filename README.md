@@ -81,9 +81,9 @@ does not list.
 
 ## Sound effects
 
-1. Create cues with **Create > DxAudio > Sfx Cue**. Add one or more takes; each take has its own start offset to skip a
+1. Create cues with **Create > Wallstop Studios > DxAudio > Sfx Cue**. Add one or more takes; each take has its own start offset to skip a
    lead-in.
-2. Create a library with **Create > DxAudio > Sfx Library**, list the cues, and set the voice count.
+2. Create a library with **Create > Wallstop Studios > DxAudio > Sfx Library**, list the cues, and set the voice count.
 3. Add an **Sfx Player** component and assign the library.
 
 ```csharp
@@ -127,13 +127,13 @@ _sfx.StopLoop(_humHandle); // a stale handle stops nothing
 
 ### Effects
 
-A cue or a music track can name a **DSP chain** (**Create > DxAudio > DSP > Chain**), a list of limiter, compressor,
+A cue or a music track can name a **DSP chain** (**Create > Wallstop Studios > DxAudio > DSP > Chain**), a list of limiter, compressor,
 distortion, bit crusher, pitch shifter and filter stages in the order the signal meets them. Every pooled voice builds
 its own copy the first time it meets a chain, from the settings the asset holds then, so an edit reaches the voices that
 have not met it yet. A voice clears its cue chain, its graph and the bus when it starts a play, so it never inherits the
 last sound's delay line.
 
-A cue or a track may also name a **DSP Graph** (**Create > DxAudio > DSP > Graph**), which runs chains side by side: a
+A cue or a track may also name a **DSP Graph** (**Create > Wallstop Studios > DxAudio > DSP > Graph**), which runs chains side by side: a
 node holds a chain, an edge carries one node's signal into a later one, and a node that takes several edges sums them.
 The graph delays the shorter branch so every path reaches its output together. It runs after the voice's chain and
 before the bus, and the graph inspector lists each node with the delay it adds.
@@ -160,8 +160,8 @@ _listenerObject.AddComponent<AudioMixBus>().Chain = masterChain;
 
 ## Music
 
-1. Create tracks with **Create > DxAudio > Music Track** and give each a context, such as `title` or `level-1`.
-2. Create a library with **Create > DxAudio > Music Library**, list the tracks, and set the fades.
+1. Create tracks with **Create > Wallstop Studios > DxAudio > Music Track** and give each a context, such as `title` or `level-1`.
+2. Create a library with **Create > Wallstop Studios > DxAudio > Music Library**, list the tracks, and set the fades.
 3. Add a **Music Player** component and assign the library.
 
 ```csharp
@@ -177,7 +177,7 @@ using (_music.Override(bossTrack)) // plays over the context, then hands back
 
 ### Ducking
 
-Create a duck with **Create > DxAudio > Music Duck**. Set its volume, low-pass and high-pass, its apply and release
+Create a duck with **Create > Wallstop Studios > DxAudio > Music Duck**. Set its volume, low-pass and high-pass, its apply and release
 times, and its holders:
 
 - **One** for a state that is on or off, such as a menu. Asserting it again changes nothing, and one release ends it.
@@ -230,7 +230,7 @@ again and Unity loads it as it plays.
 
 ## Authoring
 
-Open **Tools > DxAudio > Authoring** to browse and edit audio assets. Open a scene mix bus from its Inspector.
+Open **Tools > Wallstop Studios > DxAudio > Authoring** to browse and edit audio assets. Open a scene mix bus from its Inspector.
 
 - **DSP graphs.** Drag from an output port to connect nodes, or drop on empty space to choose a new node. Open a wire's
   context menu to insert a node. Use **Find Node** or select a validation finding to jump to the affected route.
@@ -244,7 +244,7 @@ Open **Tools > DxAudio > Authoring** to browse and edit audio assets. Open a sce
 - **Cue inspector.** Each take shows where playback starts after its clip's lead-in, with an **Audition** button that
   plays from that point. The same panel reports a cue that no take can play.
 - **Duck inspector.** Add the ducks that can hold the music at the same time to see the attenuation they compose to.
-- **Library validation.** **Tools > DxAudio > Validate Libraries** checks every SFX and music library for missing clips,
+- **Library validation.** **Tools > Wallstop Studios > DxAudio > Validate Libraries** checks every SFX and music library for missing clips,
   duplicate keys or contexts, and tracks no context reaches.
 
 ## Settings and events
@@ -357,7 +357,7 @@ the adapter releases every duck it took.
 
 ## Diagnostics
 
-Add an **Audio Diagnostics** component (**Add Component > DxAudio > Audio Diagnostics**) and assign the players. Tick
+Add an **Audio Diagnostics** component (**Add Component > Wallstop Studios > DxAudio > Audio Diagnostics**) and assign the players. Tick
 **Enabled** in Play mode, or set `diagnostics.Enabled = true`. The overlay lists every busy voice with its priority and
 loop lease, every duck and who holds it, and how many cues were dropped by reason.
 

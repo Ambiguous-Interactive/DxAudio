@@ -3,7 +3,7 @@ namespace WallstopStudios.DxAudio
     using UnityEngine;
 
     /// <summary>A distortion stage: pre-gain into the wave shaper, and the tone control after it.</summary>
-    [CreateAssetMenu(fileName = "DspDistortion", menuName = "DxAudio/DSP/Distortion")]
+    [CreateAssetMenu(fileName = "DspDistortion", menuName = "Wallstop Studios/DxAudio/DSP/Distortion")]
     public sealed class DspDistortionAsset : DspEffectAsset
     {
         public float Drive => _drive;

@@ -12,7 +12,7 @@ namespace WallstopStudios.DxAudio
     /// while the overlay is open.
     /// </remarks>
     [DisallowMultipleComponent]
-    [AddComponentMenu("DxAudio/Audio Diagnostics")]
+    [AddComponentMenu("Wallstop Studios/DxAudio/Audio Diagnostics")]
     public sealed class AudioDiagnosticsOverlay : MonoBehaviour
     {
         private const int DuckCapacity = 32;

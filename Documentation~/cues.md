@@ -4,7 +4,7 @@ An `SfxCue` asset describes one sound effect. `SfxPlayer` plays it on a pool of 
 
 ## Create a cue from clips
 
-Select recordings of the same sound in the Project window. Choose **Assets > DxAudio > Create Cue from Selected Clips**.
+Select recordings of the same sound in the Project window. Choose **Assets > Wallstop Studios > DxAudio > Create Cue from Selected Clips**.
 DxAudio creates the cue, enables Shuffle for multiple takes, and opens it for audition. Pitch stays at the original
 rate. Choose **Subtle** if you want detune and level variation.
 
@@ -45,7 +45,7 @@ Note: an `AudioClip` carries no loop flag. Looping is a property of how the cue 
 5. Use **Play Cue** for one strike or **Play Series** for eight consecutive strikes. Check the take name, trim, pitch, level, and cutoff.
 6. **Replay Last** keeps the same take and trim. **Bypass variation on replay** keeps its authored take level and uses the original pitch and brightness.
 
-Use the Inspector or **Tools > DxAudio > Authoring**. The cue preview uses the cue's chain and graph and an isolated output.
+Use the Inspector or **Tools > Wallstop Studios > DxAudio > Authoring**. The cue preview uses the cue's chain and graph and an isolated output.
 If your editor supplies no Edit Mode audio, enter Play Mode and audition again. Enter a seed and use **Reset Seed** to repeat the
 main series. For **Follows Take Of**, play the leader first in the same main preview. A matching follower plays the leader's
 take and restarts the fallback shuffle cycle. A/B starts each side with fresh take history.

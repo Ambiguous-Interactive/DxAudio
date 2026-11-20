@@ -3,7 +3,7 @@ namespace WallstopStudios.DxAudio
     using UnityEngine;
 
     /// <summary>A pitch shifter stage: how far it moves the pitch, and how long the read head sweeps.</summary>
-    [CreateAssetMenu(fileName = "DspPitchShifter", menuName = "DxAudio/DSP/Pitch Shifter")]
+    [CreateAssetMenu(fileName = "DspPitchShifter", menuName = "Wallstop Studios/DxAudio/DSP/Pitch Shifter")]
     public sealed class DspPitchShifterAsset : DspEffectAsset
     {
         /// <summary>How far this stage moves the pitch, in semitones.</summary>

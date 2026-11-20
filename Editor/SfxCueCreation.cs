@@ -9,7 +9,7 @@ namespace WallstopStudios.DxAudio.Editor
 
     internal static class SfxCueCreation
     {
-        private const string MenuPath = "Assets/DxAudio/Create Cue from Selected Clips";
+        private const string MenuPath = "Assets/Wallstop Studios/DxAudio/Create Cue from Selected Clips";
 
         internal static SfxCue Build(IReadOnlyList<AudioClip> clips)
         {

@@ -3,7 +3,7 @@ namespace WallstopStudios.DxAudio
     using UnityEngine;
 
     /// <summary>One piece of music and how it plays: its trim, whether it loops, and where it starts.</summary>
-    [CreateAssetMenu(fileName = "MusicTrack", menuName = "DxAudio/Music Track")]
+    [CreateAssetMenu(fileName = "MusicTrack", menuName = "Wallstop Studios/DxAudio/Music Track")]
     public sealed class MusicTrack : ScriptableObject
     {
         public string Context => _context;

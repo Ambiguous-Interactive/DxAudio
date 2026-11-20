@@ -20,7 +20,7 @@ namespace WallstopStudios.DxAudio
     /// components on each voice, switched off while open, so no mixer setup is needed.
     /// </remarks>
     [DisallowMultipleComponent]
-    [AddComponentMenu("DxAudio/Music Player")]
+    [AddComponentMenu("Wallstop Studios/DxAudio/Music Player")]
     public sealed class MusicPlayer : MonoBehaviour
     {
         private const int VoiceCount = 3;

@@ -17,7 +17,7 @@ namespace WallstopStudios.DxAudio
     /// master stage; use the per-voice bus for shaping one player.
     /// </remarks>
     [DisallowMultipleComponent]
-    [AddComponentMenu("DxAudio/Audio Mix Bus")]
+    [AddComponentMenu("Wallstop Studios/DxAudio/Audio Mix Bus")]
     public sealed class AudioMixBus : MonoBehaviour
     {
         /// <summary>The chain this bus runs, or null when it passes the mix through.</summary>

@@ -29,7 +29,7 @@ The scene holds a camera with an `AudioListener`, an `Audio` GameObject with the
 
 ## How the sample stays small
 
-`BasicUsageDemo` builds its clips, cues and libraries in code. A game authors the same assets with **Create > DxAudio >
+`BasicUsageDemo` builds its clips, cues and libraries in code. A game authors the same assets with **Create > Wallstop Studios > DxAudio >
 Sfx Cue**, **Music Track** and **Music Library**, then assigns them in the inspector. See
 [Documentation~/quickstart.md](../../Documentation~/quickstart.md) for that flow.
 

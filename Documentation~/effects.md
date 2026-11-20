@@ -16,9 +16,9 @@ asset, like a cue or a track, so a designer changes the sound without a code cha
 
 ## Author a chain
 
-1. Create one asset per effect with **Create > DxAudio > DSP > Limiter** (or Compressor, Distortion, Bit Crusher, Pitch
+1. Create one asset per effect with **Create > Wallstop Studios > DxAudio > DSP > Limiter** (or Compressor, Distortion, Bit Crusher, Pitch
    Shifter, Filter).
-2. Create the list with **Create > DxAudio > DSP > Chain** and add the effects in the order the signal should meet
+2. Create the list with **Create > Wallstop Studios > DxAudio > DSP > Chain** and add the effects in the order the signal should meet
    them. Order is the sound: distortion before a compressor is driven and then controlled, and the reverse squashes the
    quiet part before the drive lifts it again.
 3. Assign the chain to a cue or a track. Both inspectors list the stages in order.
@@ -223,7 +223,7 @@ A chain runs its stages in series. A **graph** runs chains side by side: a **DSP
 with a chain, and an edge carries one node's block into a later node. A node with several outgoing edges feeds every
 one, which is the fan-out, and a node with several incoming edges sums them, which is the fan-in.
 
-1. Create the graph with **Create > DxAudio > DSP > Graph**.
+1. Create the graph with **Create > Wallstop Studios > DxAudio > DSP > Graph**.
 2. Add one node per chain the graph runs. Give each node a unique name, then assign its chain. A node with no chain is a
    junction that passes its input on untouched, which is how a split or a join with no shaping of its own is authored.
 3. Add one edge per connection. Name the node the signal leaves and the node it enters.

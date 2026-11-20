@@ -3,7 +3,7 @@ namespace WallstopStudios.DxAudio
     using UnityEngine;
 
     /// <summary>A limiter stage: a ceiling, the lookahead that lets it anticipate a peak, and a release.</summary>
-    [CreateAssetMenu(fileName = "DspLimiter", menuName = "DxAudio/DSP/Limiter")]
+    [CreateAssetMenu(fileName = "DspLimiter", menuName = "Wallstop Studios/DxAudio/DSP/Limiter")]
     public sealed class DspLimiterAsset : DspEffectAsset
     {
         /// <summary>The loudest sample that leaves this stage, in dBFS.</summary>
