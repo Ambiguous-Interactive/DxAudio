@@ -74,6 +74,8 @@ def run_bridge_editmode(env: Dict[str, str]) -> int:
         return result
 
     try:
+        if not pin:
+            raise ValueError("Set UNITY_MCP_PROJECT to the host Unity project root before running EditMode.")
         bridge_seconds = float(setting("UNITY_MCP_TIMEOUT_MS", "180000")) / 1000
         if not math.isfinite(bridge_seconds) or bridge_seconds < 2:
             raise ValueError("Set UNITY_MCP_TIMEOUT_MS to a finite value of at least 2000.")
@@ -90,7 +92,7 @@ def run_bridge_editmode(env: Dict[str, str]) -> int:
         if not isinstance(project, str) or not project:
             raise ValueError("The bridge did not identify its Unity project.")
         path_rules = ntpath if ntpath.splitdrive(project)[0] else os.path
-        if pin and path_rules.normcase(path_rules.normpath(project)) != path_rules.normcase(path_rules.normpath(pin)):
+        if path_rules.normcase(path_rules.normpath(project)) != path_rules.normcase(path_rules.normpath(pin)):
             raise ValueError(f"Editor project {project!r} differs from pin {pin!r}. Check UNITY_MCP_PROJECT.")
         if editor.get("status") != "ready" or editor.get("playMode") != "stopped":
             raise ValueError(f"Wait for the host editor to be ready in EditMode: {editor}.")

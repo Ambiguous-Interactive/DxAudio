@@ -280,6 +280,18 @@ def case_container_runs_the_pinned_editor_and_reports_its_result() -> None:
     assert_true(code != 0 and endpoint in diagnostic and "npm run unity:mcp:doctor" in diagnostic, diagnostic)
     assert_true("fixture-token" not in diagnostic, "the bridge diagnostic exposed a token")
 
+    output = io.StringIO()
+    unpinned_env = {key: value for key, value in env.items() if key != "UNITY_MCP_PROJECT"}
+    with (
+        patch.dict(os.environ, unpinned_env, clear=True),
+        patch("unity_tests.read_env_file", return_value={}),
+        patch("unity_tests.request_json") as request,
+        contextlib.redirect_stderr(output),
+    ):
+        code = unity_tests([])
+    request.assert_not_called()
+    assert_true(code != 0 and "Set UNITY_MCP_PROJECT" in output.getvalue(), output.getvalue())
+
 
 def case_batchmode_preserves_the_local_runner_and_output() -> None:
     from unity_tests import main as unity_tests

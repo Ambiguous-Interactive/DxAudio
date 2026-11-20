@@ -31,9 +31,10 @@ The host project must declare `com.unity.pipeline` in `Packages/manifest.json`. 
 | `npm run unity:tests`          | either    | Host bridge from container. Batchmode on host.              |
 | `npm run unity:mcp:host -- --stop` | host  | Stop the bridge                                              |
 
-The container wrapper reports NUnit totals from the open host editor. It reads the bridge URL, port, token, timeout,
-and project pin from process variables or workspace `.env.local`. Local batchmode writes the NUnit XML and editor log
-outside the package. Pass `--host-project`, `--unity-executable`, or `--output-directory` to select local batchmode.
+The container wrapper reports NUnit totals from the open host editor. Set `UNITY_MCP_PROJECT` to the host project root
+in the process environment or workspace `.env.local`. The wrapper checks the editor against this pin before testing.
+It reads the bridge URL, port, token, and timeout from the same sources. Local batchmode writes the NUnit XML and editor
+log outside the package. Pass `--host-project`, `--unity-executable`, or `--output-directory` to select local batchmode.
 
 ## Play mode
 
