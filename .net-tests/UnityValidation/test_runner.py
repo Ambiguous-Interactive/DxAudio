@@ -86,8 +86,11 @@ if ($args -contains '-runTests') {
     }
     $xml += '<test-case fullname="' + $scope + 'EditorOnlyAssembliesContainNoConcreteMonoBehaviours" result="Passed" duration="1.150"/></test-suite>'
     if ($env:DXMESSAGING_VERSION -and $env:CONTROL -ne 'missing-integration') {
-        $xml += '<test-suite type="Assembly" name="WallstopStudios.DxAudio.Tests.Integration.DxMessaging.dll" passed="1">'
-        $xml += '<test-case fullname="IntegrationCase" result="Passed" duration="0.200"/></test-suite>'
+        $suiteCount = if ($env:CONTROL -eq 'mismatched-integration-count') { 2 } else { 1 }
+        $xml += '<test-suite type="Assembly" name="WallstopStudios.DxAudio.Tests.Integration.DxMessaging.dll" passed="' + $suiteCount + '">'
+        $case = '<test-case fullname="IntegrationCase" result="Passed" duration="0.200"/>'
+        if ($env:CONTROL -eq 'empty-integration') { $xml += '</test-suite>' + $case }
+        else { $xml += $case + '</test-suite>' }
     } elseif ($env:DXMESSAGING_VERSION) {
         $xml += '<test-case fullname="OtherTestOutsideIntegration" result="Passed" duration="0.200"/>'
     }
@@ -190,12 +193,16 @@ class UnityRunnerTests(unittest.TestCase):
         self.assertFalse(list(self.fixture.rglob("*.dll")))
 
     def test_lost_analyzer_or_integration_evidence_fails(self):
+        status, log = self.run_validation(integration="3.3.0")
+        self.assertEqual(0, status, log)
         cases = (
             ("missing-activation", "", "AllExpectedAssembliesUseThePinnedAnalyzers control."),
             ("wrong-scope", "", "AllExpectedAssembliesUseThePinnedAnalyzers control."),
             ("missing-reference-graph", "", "AssemblyDefinitionsMatchTheCompilerReferenceGraph control."),
             ("broken-analyzer", "", "reported an analyzer load failure"),
             ("missing-integration", "3.3.0", "do not match the expected DxMessaging test state"),
+            ("empty-integration", "3.3.0", "do not match the expected DxMessaging test state"),
+            ("mismatched-integration-count", "3.3.0", "do not match the expected DxMessaging test state"),
             ("contradictory-result", "", "does not account for each test"),
             ("external-entity", "", "DtdProcessing"),
             ("invalid-duration", "", "missing or invalid duration"),

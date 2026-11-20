@@ -43,6 +43,11 @@ class UnityWorkflowTests(unittest.TestCase):
         changed["jobs"]["unity-tests"]["strategy"]["matrix"]["unity-version"].remove(FLOOR)
         self.assertTrue(cadence_problems(changed))
 
+    def test_licensed_job_preserves_its_step_budgets_and_cleanup(self):
+        job = self.workflow["jobs"]["unity-tests"]
+        minutes = [int(step.get("timeout-minutes", job["timeout-minutes"])) for step in job["steps"]]
+        self.assertGreater(int(job["timeout-minutes"]), sum(minutes))
+
     def test_required_status_uses_real_job_outcomes(self):
         job = self.workflow["jobs"]["unity-ci-success"]
         self.assertEqual("Unity CI Success", job["name"])

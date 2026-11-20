@@ -240,12 +240,20 @@ foreach ($test in @(
         throw "Unity did not report a passing $test control."
     }
 }
-$integrationSuite = $results.SelectSingleNode(
+$integrationSuites = $results.SelectNodes(
     '//test-suite[@type="Assembly" and (@name="WallstopStudios.DxAudio.Tests.Integration.DxMessaging.dll" or @name="WallstopStudios.DxAudio.Tests.Integration.DxMessaging")]'
 )
 $expectIntegration = -not [string]::IsNullOrWhiteSpace($DxMessagingVersion)
-if (($null -ne $integrationSuite) -ne $expectIntegration -or ($expectIntegration -and [int]$integrationSuite.GetAttribute('passed') -le 0)) {
+if ($integrationSuites.Count -ne [int]$expectIntegration) {
     throw 'The EditMode results do not match the expected DxMessaging test state.'
+}
+if ($expectIntegration) {
+    $suite = $integrationSuites[0]
+    $reported = $suite.GetAttribute('passed')
+    $actual = $suite.SelectNodes('.//test-case[@result="Passed"]').Count
+    if ($reported -notmatch '^[0-9]{1,9}$' -or $actual -le 0 -or [int]$reported -ne $actual) {
+        throw 'The EditMode results do not match the expected DxMessaging test state. The suite must account for its passing test cases.'
+    }
 }
 Write-Host "EditMode passed $passed tests on $runName."
 Write-UnityNUnitTimings -Document $results
