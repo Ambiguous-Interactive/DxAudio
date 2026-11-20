@@ -215,15 +215,17 @@
         {
             private readonly DspChain _chain;
             private readonly DspGraph _graph;
+            private readonly DspFilter _lowPass;
             private readonly float[] _wet;
             private readonly float[] _dry;
             private readonly float[] _delay;
             private int _delayCursor;
 
-            internal Path(int blockFrames, int channels, DspChain chain, DspGraph graph)
+            internal Path(int blockFrames, int channels, DspChain chain, DspGraph graph, DspFilter lowPass = null)
             {
                 _chain = chain;
                 _graph = graph;
+                _lowPass = lowPass;
                 LatencyFrames = (graph?.LatencySamples ?? 0) + (chain?.LatencySamples ?? 0);
                 _wet = new float[blockFrames * channels];
                 _dry = new float[_wet.Length];
@@ -235,16 +237,25 @@
             internal void Render(float[] input, int offset, int count, int channels)
             {
                 Array.Copy(input, offset, _wet, 0, count);
+                float[] source = input;
+                int start = offset;
+                if (_lowPass != null)
+                {
+                    // Dry bypasses the cue effects while retaining the resolved playback variation.
+                    _lowPass.Process(_wet, 0, count, channels);
+                    source = _wet;
+                    start = 0;
+                }
                 if (_delay.Length == 0)
                 {
-                    Array.Copy(input, offset, _dry, 0, count);
+                    Array.Copy(source, start, _dry, 0, count);
                 }
                 else
                 {
                     for (int index = 0; index < count; ++index)
                     {
                         _dry[index] = _delay[_delayCursor];
-                        _delay[_delayCursor] = input[offset + index];
+                        _delay[_delayCursor] = source[start + index];
                         ++_delayCursor;
                         if (_delay.Length == _delayCursor)
                         {

@@ -43,6 +43,33 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(impulse, Is.EqualTo(new[] { 0f, 0f, 0f, 0f, 0f, 0.125f, 0f, 0f }));
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void CueLowPassShapesTheSignalBeforeDryAndWetPathsSplit(bool dry)
+        {
+            const int Rate = 48_000;
+            const int Block = 64;
+            DspChain chain = new();
+            chain.Add(new DspLimiter { LookaheadSeconds = 0f, Ceiling = 0.1f });
+            Assert.That(chain.TryPrepare(Rate, Block, 1), Is.True);
+            DspFilter lowPass = new() { FrequencyHz = 1_000f };
+            Assert.That(lowPass.TryPrepare(Rate, Block, 1), Is.True);
+            DspAuditionProcessor processor = new(Rate, Block, 1);
+            processor.Publish(new DspAuditionProcessor.Revision(1, new[] { new DspAuditionProcessor.Path(Block, 1, chain, null, lowPass) }));
+            processor.SetDry(dry);
+            float[] impulse = new float[Block];
+            impulse[0] = 0.5f;
+            float[] expected = (float[])impulse.Clone();
+            DspFilter direct = new() { FrequencyHz = 1_000f };
+            Assert.That(direct.TryPrepare(Rate, Block, 1), Is.True);
+            direct.Process(expected, 0, Block, 1);
+
+            processor.Process(impulse, 1);
+
+            Assert.That(impulse, Is.EqualTo(expected));
+            Assert.That(impulse[0], Is.InRange(0.001f, 0.01f));
+        }
+
         [Test]
         public void TheMonitorAttenuatesTheProcessedOutputWithoutChangingTheLimiterInput()
         {

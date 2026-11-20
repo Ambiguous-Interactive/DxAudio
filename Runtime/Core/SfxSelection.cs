@@ -121,6 +121,16 @@ namespace WallstopStudios.DxAudio
             _lastIndexByKey.Clear();
         }
 
+        internal bool TryGetLast(TKey key, out int index)
+        {
+            return _lastIndexByKey.TryGetValue(key, out index);
+        }
+
+        internal void Remember(TKey key, int index)
+        {
+            _lastIndexByKey[key] = index;
+        }
+
         private static int ClampIndex(int value, int highest)
         {
             if (value < 0)

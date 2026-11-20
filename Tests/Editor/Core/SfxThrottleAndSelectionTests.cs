@@ -136,5 +136,54 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(selection.TryFollow("answer", "question", asked, out _), Is.False, "the follower lacks that take");
             Assert.That(selection.TryFollow("question", "question", 3, out _), Is.False, "a cue cannot follow itself");
         }
+
+        [TestCase(1)]
+        [TestCase(2)]
+        [TestCase(3)]
+        [TestCase(65)]
+        public void EveryShuffleCycleCoversAllTakesAndAvoidsRepeatsAtTheBoundary(int count)
+        {
+            SfxShuffleBag bag = new();
+            bag.Reserve(count);
+            int previous = -1;
+            for (int cycle = 0; cycle < 4; ++cycle)
+            {
+                bool[] seen = new bool[count];
+                for (int draw = 0; draw < count; ++draw)
+                {
+                    int index = bag.Next(count, 0, previous, 0f);
+                    Assert.That(seen[index], Is.False);
+                    if (1 < count)
+                    {
+                        Assert.That(index, Is.Not.EqualTo(previous));
+                    }
+                    seen[index] = true;
+                    previous = index;
+                }
+                Assert.That(seen, Is.All.True);
+            }
+        }
+
+        [Test]
+        public void AChangedTakeListStartsANewCycle()
+        {
+            SfxShuffleBag bag = new();
+            int first = bag.Next(4, 1, -1, 0f);
+            int second = bag.Next(4, 1, first, 0f);
+            int afterEdit = bag.Next(4, 2, second, 0f);
+            Assert.That(afterEdit, Is.EqualTo(first));
+            Assert.That(bag.Next(1, 2, afterEdit, 1f), Is.Zero);
+        }
+
+        [Test]
+        public void ARefilledBagKeepsThePreviousTakeForLaterDraws()
+        {
+            SfxShuffleBag bag = new();
+            Assert.That(bag.Next(3, 0, -1, 0f), Is.EqualTo(0));
+            Assert.That(bag.Next(3, 0, 0, 1f), Is.EqualTo(1));
+            Assert.That(bag.Next(3, 0, 1, 1f), Is.EqualTo(2));
+            Assert.That(bag.Next(3, 0, 2, 1f), Is.EqualTo(1));
+            Assert.That(bag.Next(3, 0, 1, 1f), Is.EqualTo(2));
+        }
     }
 }
