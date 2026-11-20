@@ -149,6 +149,8 @@ def github_release(operation: str, tag: str, tarball: Path, prerelease: bool) ->
     else:
         if operation != "stage":
             raise ValueError(f"Missing GitHub Release for {tag}")
+        if api(f"git/ref/tags/{tag}", missing=True) is None:
+            raise ValueError(f"Missing Git tag {tag}")
         release = cast(
             "Release",
             api(
@@ -156,6 +158,7 @@ def github_release(operation: str, tag: str, tarball: Path, prerelease: bool) ->
                 method="POST",
                 body={
                     "tag_name": tag,
+                    "target_commitish": run("git", "rev-parse", "HEAD"),
                     "name": f"DxAudio {tag[1:]}",
                     "body": (tarball.parent / "notes.md").read_text(encoding="utf-8"),
                     "draft": True,
