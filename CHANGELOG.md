@@ -8,6 +8,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
+- Add a Stereo Width effect for DSP chains and graphs to narrow or widen stereo signals ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add a room Reverb effect for DSP chains and graphs with adjustable decay and wet level ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add a Phaser effect for DSP chains and graphs with adjustable sweep rate and depth ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add a Tremolo effect for DSP chains and graphs with adjustable rate and depth ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
