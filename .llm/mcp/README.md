@@ -156,9 +156,9 @@ the same route check. Hosts without Docker DNS retain local-only verification. P
 I/O so it cannot block HTTP handling.
 
 `npm run unity:tests` checks the project pin and runs EditMode tests through the host bridge. The bridge reads the
-JSON records from that Unity CLI invocation, including NUnit assertions and available stack traces. Use a Unity CLI
-that streams `unity command test run --json` results with Pipeline 1.0.1 or later. Restart the host bridge after
-updating this package.
+JSON records from that Unity CLI invocation, including NUnit assertions and available stack traces. The host CLI and
+Pipeline package must support streaming `unity command test run --json` results. Restart the host bridge after updating
+this package.
 
 Environment (process variables override the gitignored workspace `.env.local`):
 

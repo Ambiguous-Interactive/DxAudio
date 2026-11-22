@@ -34,10 +34,11 @@ class StartupTests(unittest.TestCase):
         passed = {'fullName': 'Fixture.Passed', 'status': 'Passed'}
         failed = {
             'fullName': 'Fixture.PlantedFailure', 'status': 'Failed',
-            'message': 'Expected: 0\nBut was: 100001', 'stackTrace': 'at Fixture.PlantedFailure () in Fixture.cs:175',
+            'message': 'Expected: 0\nBut was: 100001\u0085NUnit detail', 'stackTrace': 'at Fixture.PlantedFailure () in Fixture.cs:175',
         }
         rows = [passed, failed]
-        for stdout in ('\n'.join(map(json.dumps, rows)), json.dumps(rows)):
+        records = '\n'.join(json.dumps(row, ensure_ascii=False) for row in rows)
+        for stdout in (records, json.dumps(rows)):
             reply = subprocess.CompletedProcess(['unity'], 1, stdout=stdout, stderr='1 of 2 tests failed')
             with patch.object(host.subprocess, 'run', return_value=reply) as run, patch.object(bridge, 'request') as mcp:
                 response = self.call_editmode(bridge, project)

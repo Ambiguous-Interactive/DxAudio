@@ -368,7 +368,7 @@ class Bridge:
             if output.startswith('['):
                 results = cast(list[JsonMap], json.loads(output))
             else:
-                results = [cast(JsonMap, json.loads(line)) for line in output.splitlines() if line.strip()]
+                results = [cast(JsonMap, json.loads(line)) for line in output.split('\n') if line.strip()]
             if any(not isinstance(row, dict) or 'fullName' not in row or 'status' not in row for row in results):
                 raise ValueError('Expected a JSON record for each NUnit result.')
         except ValueError:
