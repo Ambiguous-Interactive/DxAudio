@@ -1,8 +1,6 @@
 namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System;
-    using System.Diagnostics;
-    using System.Globalization;
     using NUnit.Framework;
     using Unity.Profiling;
     using UnityEngine;
@@ -33,75 +31,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             return recorder.Count == 0 ? 0 : recorder.GetSample(0).Count;
         }
 
-        private static void CheckActiveMusicVoices(MonoBehaviour player)
-        {
-            AudioSource[] voices = player.GetComponentsInChildren<AudioSource>();
-            Assert.That(voices, Has.Length.EqualTo(3));
-            foreach (AudioSource voice in voices)
-            {
-                Assert.That(voice.clip != null && voice.isPlaying && 0f < voice.volume);
-            }
-        }
-
-        private static void ReportVolumeProbe(string path, Action baseline, Action candidate)
-        {
-            const int Samples = 120;
-            const int Frames = 1024;
-            for (int index = 0; index < 12000; ++index)
-            {
-                baseline();
-                candidate();
-            }
-
-            double[] before = new double[Samples];
-            double[] after = new double[Samples];
-            GC.Collect(2, GCCollectionMode.Forced, true);
-            GC.WaitForPendingFinalizers();
-            GC.Collect(2, GCCollectionMode.Forced, true);
-            for (int index = 0; index < Samples; ++index)
-            {
-                if ((index & 1) == 0)
-                {
-                    before[index] = TimeVolumeProbe(baseline, Frames);
-                    after[index] = TimeVolumeProbe(candidate, Frames);
-                }
-                else
-                {
-                    after[index] = TimeVolumeProbe(candidate, Frames);
-                    before[index] = TimeVolumeProbe(baseline, Frames);
-                }
-            }
-
-            Array.Sort(before);
-            Array.Sort(after);
-            long baselineEvents = AllocationEvents(baseline, Frames);
-            long candidateEvents = AllocationEvents(candidate, Frames);
-            TestContext.Out.WriteLine(
-                string.Format(
-                    CultureInfo.InvariantCulture,
-                    "DXAUDIO_VOLUME_PROBE {0} baseline median {1:F3} p95 {2:F3} us GC.Alloc {3} candidate median {4:F3} p95 {5:F3} us GC.Alloc {6}",
-                    path,
-                    (before[59] + before[60]) / 2,
-                    before[113],
-                    baselineEvents,
-                    (after[59] + after[60]) / 2,
-                    after[113],
-                    candidateEvents
-                )
-            );
-        }
-
-        private static double TimeVolumeProbe(Action run, int frames)
-        {
-            long start = Stopwatch.GetTimestamp();
-            for (int index = 0; index < frames; ++index)
-            {
-                run();
-            }
-
-            return (Stopwatch.GetTimestamp() - start) * 1e6 / Stopwatch.Frequency / frames;
-        }
-
         private static SfxPlayer SfxPlayer(MadeObjects made, SfxLibrary library)
         {
             made.Track(library);
@@ -118,41 +47,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static AudioClip Clip(MadeObjects made)
         {
             return made.Track(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
-        }
-
-        [Test]
-        public void CompareMusicVolumeCost()
-        {
-            using MadeObjects made = new();
-            const int VoiceCount = 3;
-            MusicTrack[] tracks = new MusicTrack[VoiceCount];
-            for (int index = 0; index < VoiceCount; ++index)
-            {
-                tracks[index] = made.Track(MusicTrack.Create(Clip(made)));
-            }
-
-            MusicLibrary library = made.Track(MusicLibrary.Create(tracks, fadeInSeconds: 0f, fadeOutSeconds: 100000f));
-            MusicDuck duck = made.Track(MusicDuck.Create(MusicDuckHolders.One, volumeScale: 0.5011872f, lowPassCutoffHz: 1200f, applySeconds: 0f));
-            VolumeProbeBaselineMusicPlayer baseline = made.Track(new GameObject("baseline music")).AddComponent<VolumeProbeBaselineMusicPlayer>();
-            MusicPlayer candidate = made.Track(new GameObject("candidate music")).AddComponent<MusicPlayer>();
-            Assert.That(baseline != null && candidate != null, "Both benchmark components must load in the player assembly.");
-            baseline.Muted = true;
-            candidate.Muted = true;
-            baseline.Library = library;
-            candidate.Library = library;
-            foreach (MusicTrack track in tracks)
-            {
-                baseline.Play(track);
-                candidate.Play(track);
-            }
-
-            Assert.That(baseline.Duck(duck).IsValid && candidate.Duck(duck).IsValid);
-            Action tickBaseline = () => baseline.Tick(1f / 60f);
-            Action tickCandidate = () => candidate.Tick(1f / 60f);
-            ReportVolumeProbe("tick", tickBaseline, tickCandidate);
-            CheckActiveMusicVoices(baseline);
-            CheckActiveMusicVoices(candidate);
-            ReportVolumeProbe("apply", baseline.ApplyVolumeProbe, candidate.ApplyVolumeProbe);
         }
 
         [TestCase(false)]

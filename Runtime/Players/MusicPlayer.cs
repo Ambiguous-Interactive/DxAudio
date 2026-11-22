@@ -352,14 +352,6 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        internal void ApplyVolumeProbe()
-        {
-            foreach (Voice voice in _voices)
-            {
-                Apply(voice, 1f, _volumeRamp.to);
-            }
-        }
-
         private void Update()
         {
             Tick(Time.unscaledDeltaTime);
