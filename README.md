@@ -41,7 +41,7 @@ versions under **My Registries**:
         }
     ],
     "dependencies": {
-        "com.wallstop-studios.dxaudio": "0.3.0"
+        "com.wallstop-studios.dxaudio": "0.4.0"
     }
 }
 ```
@@ -56,7 +56,7 @@ scope `com.wallstop-studios.dxaudio`.
 **From git.** Open **Window > Package Manager**, choose **+ > Add package from git URL**, and enter:
 
 ```text
-https://github.com/Ambiguous-Interactive/DxAudio.git#v0.3.0
+https://github.com/Ambiguous-Interactive/DxAudio.git#v0.4.0
 ```
 
 **From a tarball.** Download `com.wallstop-studios.dxaudio-<version>.tgz` from a
