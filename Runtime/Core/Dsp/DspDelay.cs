@@ -18,21 +18,21 @@ namespace WallstopStudios.DxAudio
         public float DelaySeconds
         {
             get => _delaySeconds;
-            set => _delaySeconds = ClampSetting(value, MinimumDelaySeconds, MaximumDelaySeconds, DefaultDelaySeconds);
+            set => _delaySeconds = AudioMath.ClampFinite(value, MinimumDelaySeconds, MaximumDelaySeconds, DefaultDelaySeconds);
         }
 
         /// <summary>The fraction of each repeat fed back to the delay line.</summary>
         public float Feedback
         {
             get => _feedback;
-            set => _feedback = ClampSetting(value, 0f, MaximumFeedback, DefaultFeedback);
+            set => _feedback = AudioMath.ClampFinite(value, 0f, MaximumFeedback, DefaultFeedback);
         }
 
         /// <summary>The linear gain of the added echo. The dry signal always stays at unity.</summary>
         public float EchoLevel
         {
             get => _echoLevel;
-            set => _echoLevel = ClampSetting(value, 0f, 1f, DefaultEchoLevel);
+            set => _echoLevel = AudioMath.ClampFinite(value, 0f, 1f, DefaultEchoLevel);
         }
 
         private float _delaySeconds = DefaultDelaySeconds;
@@ -42,11 +42,6 @@ namespace WallstopStudios.DxAudio
         private int _channels;
         private int _position;
         private bool _primed;
-
-        internal static float ClampSetting(float value, float minimum, float maximum, float fallback)
-        {
-            return AudioMath.IsFinite(value) ? AudioMath.Clamp(value, minimum, maximum) : fallback;
-        }
 
         public override void Process(float[] buffer, int offset, int count, int channels)
         {
