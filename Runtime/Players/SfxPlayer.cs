@@ -44,7 +44,7 @@ namespace WallstopStudios.DxAudio
     /// <remarks>
     /// The voices are made once, as children, so playing a cue never allocates. A cue that finds no voice is
     /// dropped rather than queued: a late sound is a wrong sound. Wire a game's own events to
-    /// <see cref="Play(SfxCue)"/>, and its sound setting to <see cref="Muted"/>.
+    /// <see cref="Play(SfxCue)"/>, and its sound settings to <see cref="Volume"/> and <see cref="Muted"/>.
     /// </remarks>
     [DisallowMultipleComponent]
     [AddComponentMenu("Wallstop Studios/DxAudio/Sfx Player")]
@@ -100,6 +100,31 @@ namespace WallstopStudios.DxAudio
                     if (voice != null)
                     {
                         voice.mute = value;
+                    }
+                }
+            }
+        }
+
+        /// <summary>The game's sound level. It scales new and active voices and defaults to one.</summary>
+        /// <remarks>Values clamp to the range [0, 1]. NaN leaves the level unchanged.</remarks>
+        public float Volume
+        {
+            get => _volume;
+            set
+            {
+                float volume = AudioMath.Clamp01(value);
+                if (float.IsNaN(volume) || _volume == volume)
+                {
+                    return;
+                }
+
+                _volume = volume;
+                for (int index = 0; index < _voices.Length; ++index)
+                {
+                    AudioSource voice = _voices[index];
+                    if (voice != null)
+                    {
+                        voice.volume = _voiceGains[index] * volume;
                     }
                 }
             }
@@ -200,6 +225,8 @@ namespace WallstopStudios.DxAudio
         private readonly SfxPlaybackResolver _playback = new();
 
         private AudioSource[] _voices = Array.Empty<AudioSource>();
+        private float[] _voiceGains = Array.Empty<float>();
+        private float _volume = 1f;
         private AudioFilterHost[] _hosts = Array.Empty<AudioFilterHost>();
         private SfxVoiceState[] _states = Array.Empty<SfxVoiceState>();
         private SfxPriority[] _priorities = Array.Empty<SfxPriority>();
@@ -496,7 +523,7 @@ namespace WallstopStudios.DxAudio
             _roundRobin = index + 1;
             AudioSource voice = _voices[index];
             voice.Stop();
-            Configure(voice, cue, play, position);
+            Configure(index, cue, play, position);
             AudioFilterHost host = _hosts[index];
             if (host != null)
             {
@@ -532,11 +559,14 @@ namespace WallstopStudios.DxAudio
             return true;
         }
 
-        private void Configure(AudioSource voice, SfxCue cue, SfxPlayback play, Vector3? position)
+        private void Configure(int index, SfxCue cue, SfxPlayback play, Vector3? position)
         {
+            AudioSource voice = _voices[index];
             voice.clip = play.Variant.Clip;
             voice.time = play.StartSeconds;
-            voice.volume = play.Volume;
+            float gain = AudioMath.Clamp01(play.Volume);
+            _voiceGains[index] = gain;
+            voice.volume = gain * _volume;
             voice.pitch = play.Pitch;
             voice.loop = cue.IsLooping;
             voice.mute = _muted;
@@ -647,6 +677,7 @@ namespace WallstopStudios.DxAudio
             DestroyVoices();
             int count = _library != null ? _library.VoiceCount : 0;
             _voices = new AudioSource[count];
+            _voiceGains = new float[count];
             _hosts = new AudioFilterHost[count];
             _states = new SfxVoiceState[count];
             _priorities = new SfxPriority[count];

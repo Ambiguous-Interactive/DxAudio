@@ -83,12 +83,17 @@ A music library, an SFX library, and a cue can each name an `AudioMixerGroup`. A
 SFX groups and their sliders. Ducking does not need snapshots, because the player composes attenuation itself and writes
 the result to each music voice. `Attenuation` reports the value applied this frame.
 
-## Muting and pause
+## Volume, mute, and pause
 
 ```csharp
+_sfx.Volume = settings.SoundLevel;
+_music.Volume = settings.MusicLevel;
 _music.Muted = !settings.MusicOn;
 _music.Paused = paused;
 ```
+
+Both levels default to 1 and clamp to the range from 0 to 1. They scale new and active voices and survive library
+changes. Music level changes ramp over 10 ms of update time and multiply the track level, fade, and duck gain.
 
 Muting detaches output and keeps state, so the track resumes in time. Pause holds the voice at its playhead and keeps
 leases, so resume continues rather than restarts. It is separate from `AudioListener.pause`.

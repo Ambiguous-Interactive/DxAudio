@@ -14,7 +14,7 @@ namespace WallstopStudios.DxAudio
     /// <item><see cref="Override"/> plays something else until its lease is released, then hands back.</item>
     /// <item><see cref="Duck"/> holds the music down for a reason until the lease is released. Every live duck
     /// composes into the most restrictive volume and filters, so systems never need to know about each other.</item>
-    /// <item><see cref="Muted"/> is the game's music on/off setting.</item>
+    /// <item><see cref="Volume"/> and <see cref="Muted"/> are the game's music level and on/off settings.</item>
     /// </list>
     /// Everything runs on unscaled time, so a paused game still fades. Filters are Unity's low- and high-pass
     /// components on each voice, switched off while open, so no mixer setup is needed.
@@ -25,6 +25,7 @@ namespace WallstopStudios.DxAudio
     {
         private const int VoiceCount = 3;
         private const float SweptReleaseSeconds = 0.5f;
+        private const float VolumeRampSeconds = 0.01f;
 
         /// <summary>Raised when the music that should sound changes to <c>track</c>. Additive.</summary>
         /// <remarks>
@@ -73,6 +74,32 @@ namespace WallstopStudios.DxAudio
                         voice.source.mute = value;
                     }
                 }
+            }
+        }
+
+        /// <summary>The game's target music level. It scales every voice and defaults to one.</summary>
+        /// <remarks>Values clamp to [0, 1]. NaN leaves the level unchanged. Active voices ramp over 10 ms of update time.</remarks>
+        public float Volume
+        {
+            get => _volumeRamp.to;
+            set
+            {
+                float volume = AudioMath.Clamp01(value);
+                if (float.IsNaN(volume) || _volumeRamp.to == volume)
+                {
+                    return;
+                }
+
+                foreach (Voice voice in _voices)
+                {
+                    if (voice != null && voice.source != null && voice.track != null)
+                    {
+                        _volumeRamp = _volumeRamp.Retarget(volume, VolumeRampSeconds, MusicEase.Linear);
+                        return;
+                    }
+                }
+
+                _volumeRamp = MusicRamp.At(volume);
             }
         }
 
@@ -150,6 +177,7 @@ namespace WallstopStudios.DxAudio
         private MusicAttenuation _rampFrom = MusicAttenuation.Unattenuated;
         private MusicAttenuation _rampTo = MusicAttenuation.Unattenuated;
         private MusicRamp _duckProgress = MusicRamp.At(1f);
+        private MusicRamp _volumeRamp = MusicRamp.At(1f);
         private float _clock;
 
         private static bool IsPlayable(MusicTrack track)
@@ -273,7 +301,7 @@ namespace WallstopStudios.DxAudio
             return _ducks.CopyHolds(reasons, holders, ids);
         }
 
-        /// <summary>Moves every fade and duck on by <paramref name="deltaSeconds"/>. Called each frame.</summary>
+        /// <summary>Moves fades, ducks, and player volume on by <paramref name="deltaSeconds"/>. Called each frame.</summary>
         internal void Tick(float deltaSeconds)
         {
             float step = Math.Max(0f, deltaSeconds);
@@ -284,6 +312,7 @@ namespace WallstopStudios.DxAudio
             }
 
             Attenuation = MusicAttenuation.Lerp(_rampFrom, _rampTo, _duckProgress.Advance(step));
+            float volume = _volumeRamp.IsFinished ? _volumeRamp.to : _volumeRamp.Advance(step);
             foreach (Voice voice in _voices)
             {
                 if (voice == null || voice.source == null)
@@ -319,7 +348,7 @@ namespace WallstopStudios.DxAudio
                     continue;
                 }
 
-                Apply(voice, fade);
+                Apply(voice, fade, volume);
             }
         }
 
@@ -431,7 +460,7 @@ namespace WallstopStudios.DxAudio
             voice.fadingOut = false;
             voice.stop.Cancel();
             voice.fade = new MusicRamp(0f, 1f, fadeIn, fadeInEase);
-            Apply(voice, voice.fade.Value);
+            Apply(voice, voice.fade.Value, _volumeRamp.Value);
             source.Play();
             if (_paused)
             {
@@ -534,11 +563,11 @@ namespace WallstopStudios.DxAudio
             RampTowardDucks(seconds, ease);
         }
 
-        private void Apply(Voice voice, float fade)
+        private void Apply(Voice voice, float fade, float volume)
         {
             MusicAttenuation attenuation = Attenuation;
             float trim = voice.track != null ? voice.track.VolumeScale : 1f;
-            voice.source.volume = trim * fade * attenuation.volumeScale;
+            voice.source.volume = trim * fade * attenuation.volumeScale * volume;
             voice.lowPass.cutoffFrequency = attenuation.lowPassCutoffHz;
             voice.lowPass.enabled = attenuation.lowPassCutoffHz < MusicAttenuation.OpenLowPassCutoffHz;
             voice.highPass.cutoffFrequency = attenuation.highPassCutoffHz;
