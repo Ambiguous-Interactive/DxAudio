@@ -376,6 +376,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             AudioFilterHost chainHost = Host(made, Chain(made, width));
             AudioFilterHost graphHost = Host(made, null);
             graphHost.Graph = Graph(made, width);
+            Assume.That(1 < chainHost.ChannelCount, "The editor must prepare stereo callbacks for this test.");
             float[] chainBlock = { 0.5f, 0f, 0.25f, 0.25f };
             float[] graphBlock = (float[])chainBlock.Clone();
 
