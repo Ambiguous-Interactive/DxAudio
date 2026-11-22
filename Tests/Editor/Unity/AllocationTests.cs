@@ -49,6 +49,35 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             return made.Track(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
         }
 
+        private static void AssertPooledPlayDoesNotAllocate(MadeObjects made, SfxCue cue)
+        {
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
+            AudioSource voice = player.GetComponentInChildren<AudioSource>();
+            Assert.That(voice != null, Is.True, "The cue must use a pooled source.");
+            int started = 0;
+            void PlayAndRelease()
+            {
+                if (player.Play(cue))
+                {
+                    ++started;
+                }
+
+                voice.Stop();
+            }
+
+            for (int index = 0; index < WarmupCalls; ++index)
+            {
+                PlayAndRelease();
+            }
+
+            Assert.That(started, Is.EqualTo(WarmupCalls));
+            started = 0;
+            long allocations = AllocationEvents(PlayAndRelease, MeasuredCalls);
+
+            Assert.That(started, Is.EqualTo(MeasuredCalls), "Every measured play must reach the DSP host.");
+            Assert.That(allocations, Is.Zero);
+        }
+
         [TestCase(false)]
         [TestCase(true)]
         public void PlayingACueOnAFullPoolDoesNotAllocate(bool varyPlayback)
@@ -113,16 +142,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             };
             DspChainAsset chain = made.Track(DspChainAsset.Create(new[] { made.Track(DspLimiterAsset.Create()), effect }));
             SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, minimumIntervalSeconds: 0f, chain: chain));
-            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
-            Action play = () => player.Play(cue);
-            for (int index = 0; index < WarmupCalls; ++index)
-            {
-                play();
-            }
-
-            long allocations = AllocationEvents(play, MeasuredCalls);
-
-            Assert.That(allocations, Is.Zero, $"Play through a chain allocated {allocations} times over {MeasuredCalls:N0} plays.");
+            AssertPooledPlayDoesNotAllocate(made, cue);
         }
 
         [Test]
@@ -195,16 +215,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 )
             );
             SfxCue cue = made.Track(SfxCue.CreateWithGraph(new[] { new SfxVariant(Clip(made)) }, graph: graph, minimumIntervalSeconds: 0f));
-            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
-            Action play = () => player.Play(cue);
-            for (int index = 0; index < WarmupCalls; ++index)
-            {
-                play();
-            }
-
-            long allocations = AllocationEvents(play, MeasuredCalls);
-
-            Assert.That(allocations, Is.Zero, $"Play through a graph allocated {allocations} times over {MeasuredCalls:N0} plays.");
+            AssertPooledPlayDoesNotAllocate(made, cue);
         }
 
         [Test]
