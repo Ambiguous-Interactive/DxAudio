@@ -287,6 +287,66 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(graphHost.SkippedBlocks, Is.Zero);
         }
 
+        [Test]
+        public void AChainOrGraphCanApplyAndResetAnAuthoredReverb()
+        {
+            using MadeObjects made = new();
+            const float Decay = 1.3f;
+            const float Wet = 0.4f;
+            const int Frames = 128;
+            DspReverbAsset asset = made.Track(DspReverbAsset.Create(Decay, Wet));
+            DspChainAsset chain = Chain(made, asset);
+            DspGraphAsset graph = Graph(made, asset);
+            AudioFilterHost chainHost = Host(made, chain);
+            AudioFilterHost graphHost = Host(made, null);
+            graphHost.Graph = graph;
+            int rate = OutputSampleRate();
+            DspReverb effect = new() { DecaySeconds = Decay, WetLevel = Wet };
+            Assert.That(effect.TryPrepare(rate, Frames, 1), Is.True);
+            float[] chainBlock = new float[Frames];
+            float[] graphBlock = new float[Frames];
+            float[] reference = new float[Frames];
+            float peakReflection = 0f;
+            int blocks = rate / (5 * Frames) + 1;
+            for (int block = 0; block < blocks; ++block)
+            {
+                Array.Clear(chainBlock, 0, Frames);
+                Array.Clear(graphBlock, 0, Frames);
+                Array.Clear(reference, 0, Frames);
+                if (block == 0)
+                {
+                    chainBlock[0] = 1f;
+                    graphBlock[0] = 1f;
+                    reference[0] = 1f;
+                }
+
+                chainHost.OnAudioFilterRead(chainBlock, 1);
+                graphHost.OnAudioFilterRead(graphBlock, 1);
+                effect.Process(reference, 0, Frames, 1);
+                Assert.That(chainBlock, Is.EqualTo(reference));
+                Assert.That(graphBlock, Is.EqualTo(reference));
+
+                for (int frame = block == 0 ? 1 : 0; frame < Frames; ++frame)
+                {
+                    peakReflection = Math.Max(peakReflection, Math.Abs(chainBlock[frame]));
+                }
+            }
+
+            Assert.That(peakReflection, Is.Positive);
+            chainHost.Chain = chain;
+            graphHost.Graph = graph;
+            Array.Clear(chainBlock, 0, Frames);
+            Array.Clear(graphBlock, 0, Frames);
+            chainHost.OnAudioFilterRead(chainBlock, 1);
+            graphHost.OnAudioFilterRead(graphBlock, 1);
+            Assert.That(chainBlock, Is.All.EqualTo(0f));
+            Assert.That(graphBlock, Is.All.EqualTo(0f));
+            Assert.That(chainHost.LatencySamples, Is.Zero);
+            Assert.That(graphHost.LatencySamples, Is.Zero);
+            Assert.That(chainHost.SkippedBlocks, Is.Zero);
+            Assert.That(graphHost.SkippedBlocks, Is.Zero);
+        }
+
         [TestCase(1, "Delay", false)]
         [TestCase(8, "Delay", false)]
         [TestCase(1, "Noise Gate", false)]
@@ -299,6 +359,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TestCase(1, "Phaser", false)]
         [TestCase(8, "Phaser", false)]
         [TestCase(8, "Phaser", true)]
+        [TestCase(1, "Reverb", false)]
+        [TestCase(8, "Reverb", false)]
+        [TestCase(8, "Reverb", true)]
         public void DspChainsStayWithinTheRenderBudget(int voices, string effect, bool bursts)
         {
             const int Rate = 48_000;
@@ -306,7 +369,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             const int Channels = 2;
             const int Passes = 240;
             bool delay = string.Equals(effect, "Delay", StringComparison.Ordinal);
-            bool phaserTail = bursts && string.Equals(effect, "Phaser", StringComparison.Ordinal);
+            bool decayingTail = bursts && (string.Equals(effect, "Phaser", StringComparison.Ordinal) || string.Equals(effect, "Reverb", StringComparison.Ordinal));
             bool gateBursts = bursts && string.Equals(effect, "Noise Gate", StringComparison.Ordinal);
             DspChain[] baseline = new DspChain[voices];
             DspChain[] candidate = new DspChain[voices];
@@ -320,6 +383,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                     "Chorus" => new DspChorus { DepthSeconds = DspChorus.MaximumDepthSeconds, RateHertz = DspChorus.MaximumRateHertz },
                     "Tremolo" => new DspTremolo { RateHertz = DspTremolo.MaximumRateHertz, Depth = 1f },
                     "Phaser" => new DspPhaser { RateHertz = DspPhaser.MaximumRateHertz, Depth = 1f },
+                    "Reverb" => new DspReverb { DecaySeconds = DspReverb.MaximumDecaySeconds, WetLevel = 1f },
                     _ => new DspNoiseGate(),
                 };
                 candidate[voice].Add(stage);
@@ -330,7 +394,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float[] input = new float[Frames * Channels];
             for (int frame = 0; frame < Frames; ++frame)
             {
-                float amplitude = phaserTail && 64 <= frame ? 0f : 0.1f;
+                float amplitude = decayingTail && 64 <= frame ? 0f : 0.1f;
                 if (gateBursts && frame % 128 < 64)
                 {
                     amplitude = 0.0001f;
