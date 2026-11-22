@@ -90,6 +90,7 @@ namespace WallstopStudios.DxAudio.Tests
             chain.Add(new DspDistortion { Drive = 6f });
             chain.Add(new DspBitCrusher { Bits = 6, RateReduction = 2 });
             chain.Add(new DspPitchShifter { Semitones = 7f });
+            chain.Add(new DspDelay());
             chain.Add(
                 new DspFilter
                 {
@@ -106,7 +107,7 @@ namespace WallstopStudios.DxAudio.Tests
             chain.Process(block, 0, block.Length, Channels);
 
             long allocated = AllocatedBy(chain, block);
-            Assert.That(allocated, Is.Zero, $"{Blocks} blocks through six effects allocated {allocated} bytes");
+            Assert.That(allocated, Is.Zero, $"{Blocks} blocks through the effect chain allocated {allocated} bytes");
         }
 
         [Test]
