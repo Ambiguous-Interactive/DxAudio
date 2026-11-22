@@ -97,10 +97,16 @@ def run_bridge_editmode(env: Dict[str, str]) -> int:
         if editor.get("status") != "ready" or editor.get("playMode") != "stopped":
             raise ValueError(f"Wait for the host editor to be ready in EditMode: {editor}.")
 
-        # Request this run's result directly. test_status has no run identifier.
-        results = tool("test_run", {"mode": "editor", "timeout": int(bridge_seconds) - 1}, 3, bridge_seconds + 5)
+        report = object_value(tool(
+            "bridge_test_editmode", {"projectPath": project, "timeout": int(bridge_seconds) - 1}, 3, bridge_seconds + 5,
+        ))
+        exit_code = report.get("exitCode")
+        if type(exit_code) is not int:
+            raise ValueError("The bridge did not report a Unity CLI exit code.")
+        results = report.get("results")
+        diagnostic = report.get("diagnostic")
         if not isinstance(results, list) or not results:
-            raise ValueError(f"EditMode returned no NUnit results: {results}.")
+            raise ValueError(f"EditMode returned no NUnit results (CLI exit {exit_code}). {diagnostic or ''}".rstrip())
         counts = {"Passed": 0, "Failed": 0, "Skipped": 0, "Inconclusive": 0}
         failures = []
         for entry in results:
@@ -110,7 +116,12 @@ def run_bridge_editmode(env: Dict[str, str]) -> int:
                 raise ValueError(f"Invalid NUnit test result for {name!r}: {status!r}.")
             counts[status] += 1
             if status == "Failed":
-                failures.append(f"{name}: {row.get('message') or 'Open the host Unity Test Runner for details.'}")
+                message = row.get("message") or "Open the host Unity Test Runner for details."
+                trace = row.get("stackTrace")
+                failure = f"{name}: {message}".rstrip()
+                if isinstance(trace, str) and trace.strip():
+                    failure += f"\n{trace.rstrip()}"
+                failures.append(failure)
         print(
             f"Unity tests: {counts['Passed']}/{len(results)} passed, {counts['Failed']} failed, "
             f"{counts['Skipped']} skipped, {counts['Inconclusive']} inconclusive."
@@ -118,7 +129,9 @@ def run_bridge_editmode(env: Dict[str, str]) -> int:
         credentials = credential_values((os.environ, env))
         for failure in failures:
             print(redact_credentials(failure, credentials), file=sys.stderr)
-        return 1 if failures else 0
+        if exit_code != 0 and not failures:
+            print(redact_credentials(f"Unity CLI failed (exit {exit_code}). {diagnostic or ''}".rstrip(), credentials), file=sys.stderr)
+        return 1 if exit_code != 0 or failures else 0
     except (OSError, ValueError) as error:
         message = (
             f"Unity MCP EditMode failed at {endpoint}: {error}\n"

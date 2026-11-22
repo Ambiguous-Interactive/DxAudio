@@ -28,6 +28,70 @@ def settings() -> BridgeSettings:
 
 
 class StartupTests(unittest.TestCase):
+    def test_editmode_call_keeps_nunit_output_when_the_cli_fails(self) -> None:
+        bridge = self.editmode_bridge()
+        project = bridge.settings['projectPath']
+        passed = {'fullName': 'Fixture.Passed', 'status': 'Passed'}
+        failed = {
+            'fullName': 'Fixture.PlantedFailure', 'status': 'Failed',
+            'message': 'Expected: 0\nBut was: 100001', 'stackTrace': 'at Fixture.PlantedFailure () in Fixture.cs:175',
+        }
+        rows = [passed, failed]
+        for stdout in ('\n'.join(map(json.dumps, rows)), json.dumps(rows)):
+            reply = subprocess.CompletedProcess(['unity'], 1, stdout=stdout, stderr='1 of 2 tests failed')
+            with patch.object(host.subprocess, 'run', return_value=reply) as run, patch.object(bridge, 'request') as mcp:
+                response = self.call_editmode(bridge, project)
+            run.assert_called_once_with(
+                ['unused', 'command', 'test', 'run', '--mode', 'editor', '--project-path', project, '--timeout', '44', '--json'],
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=45, check=False,
+            )
+            mcp.assert_not_called()
+            self.assertEqual(response['exitCode'], 1)
+            self.assertEqual(response['results'], rows)
+
+    def test_editmode_call_ignores_stale_status_and_rejects_wrong_project(self) -> None:
+        bridge = self.editmode_bridge()
+        project = bridge.settings['projectPath']
+        temp = Path(project) / 'Temp'
+        temp.mkdir()
+        (temp / 'pipeline_test_status.json').write_text(
+            json.dumps({'status': 'completed', 'results': [{'fullName': 'Fixture.PriorFailure', 'status': 'Failed'}]}),
+            encoding='utf-8',
+        )
+        reply = subprocess.CompletedProcess(['unity'], 6, stdout='', stderr='HTTP 400 from Pipeline')
+        with patch.object(host.subprocess, 'run', return_value=reply) as run, patch.object(bridge, 'request') as mcp:
+            response = self.call_editmode(bridge, project)
+            self.assertEqual(response['exitCode'], 6)
+            self.assertEqual(response['results'], [])
+            self.assertIn('HTTP 400', response['diagnostic'])
+            self.assertNotIn('Fixture.PriorFailure', str(response))
+            run.reset_mock()
+            with self.assertRaisesRegex(AssertionError, 'project'):
+                self.call_editmode(bridge, str(temp))
+            run.assert_not_called()
+        mcp.assert_not_called()
+
+    def editmode_bridge(self) -> host.Bridge:
+        root = tempfile.TemporaryDirectory()
+        self.addCleanup(root.cleanup)
+        settings_dir = Path(root.name) / 'ProjectSettings'
+        settings_dir.mkdir()
+        (settings_dir / 'ProjectVersion.txt').touch()
+        values = settings()
+        values.update(projectPath=root.name, timeout='45000')
+        bridge = host.Bridge(values)
+        self.addCleanup(bridge.close)
+        return bridge
+
+    def call_editmode(self, bridge: host.Bridge, project: str) -> host.JsonMap:
+        response = cast(host.JsonMap, bridge.handle({
+            'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
+            'params': {'name': 'bridge_test_editmode', 'arguments': {'projectPath': project, 'timeout': 44}},
+        }))
+        result = response['result']
+        self.assertFalse(result.get('isError'), result)
+        return cast(host.JsonMap, json.loads(result['content'][0]['text']))
+
     def test_reconnect_refuses_pending_requests_and_never_replays_them(self) -> None:
         bridge = host.Bridge(settings())
         self.addCleanup(bridge.close)

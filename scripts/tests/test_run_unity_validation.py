@@ -235,7 +235,12 @@ def case_container_runs_the_pinned_editor_and_reports_its_result() -> None:
         editor = {"status": "ready", "projectPath": project, "playMode": "stopped"}
         result = [
             {"fullName": "Fixture.First", "status": "Passed"},
-            {"fullName": "Fixture.Second", "status": "Failed" if failed else "Passed", "message": "Planted failure"},
+            {
+                "fullName": "Fixture.Second",
+                "status": "Failed" if failed else "Passed",
+                "message": "Planted failure\n  Expected: 0\n  But was:  100001",
+                "stackTrace": "at Fixture.Second () in Fixture.cs:175",
+            },
             {"fullName": "Fixture.Third", "status": "Skipped"},
             {"fullName": "Fixture.Fourth", "status": "Inconclusive"},
         ]
@@ -247,7 +252,7 @@ def case_container_runs_the_pinned_editor_and_reports_its_result() -> None:
                 {"result": {"serverInfo": {"name": "fixture"}}},
                 {},
                 {"result": {"content": [{"text": json.dumps(editor)}]}},
-                {"result": {"content": [{"text": json.dumps(result)}]}},
+                {"result": {"content": [{"text": json.dumps({"exitCode": failed, "results": result})}]}},
             ]) as request,
             contextlib.redirect_stdout(output),
             contextlib.redirect_stderr(output),
@@ -261,13 +266,16 @@ def case_container_runs_the_pinned_editor_and_reports_its_result() -> None:
         assert_true(request.call_args.args[1]["Authorization"] == "Bearer fixture-token", "missing token")
         if expected_calls == 4:
             arguments = request.call_args.args[2]["params"]
-            assert_true(arguments["name"] == "test_run" and arguments["arguments"]["mode"] == "editor", str(arguments))
+            assert_true(arguments["name"] == "bridge_test_editmode", str(arguments))
+            assert_true(arguments["arguments"]["projectPath"] == project, str(arguments))
             assert_true(arguments["arguments"]["timeout"] == 44, str(arguments))
             assert_true(code == failed, f"wrong test exit code: {code}")
             summary = f"{2 - failed}/4 passed, {failed} failed, 1 skipped, 1 inconclusive"
             assert_true(summary in output.getvalue(), output.getvalue())
             if failed:
                 assert_true("Fixture.Second: Planted failure" in output.getvalue(), output.getvalue())
+                assert_true("Expected: 0" in output.getvalue() and "But was:  100001" in output.getvalue(), output.getvalue())
+                assert_true("at Fixture.Second () in Fixture.cs:175" in output.getvalue(), output.getvalue())
         else:
             assert_true(code != 0, "a project mismatch must fail")
             assert_true(endpoint in output.getvalue() and "UNITY_MCP_PROJECT" in output.getvalue(), output.getvalue())
