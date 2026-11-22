@@ -12,7 +12,7 @@ namespace WallstopStudios.DxAudio
 
         private const double LowCornerHertz = 200d;
         private const double HighCornerHertz = 2_000d;
-        private const int MaximumSweepFrames = 16;
+        private const int MaximumSweepFrames = 64;
 
         public override string DisplayName => "Phaser";
 
@@ -71,16 +71,24 @@ namespace WallstopStudios.DxAudio
             }
 
             SweepState sweep = _sweep;
-            int totalFrames = count / channels;
             float dry = 1f - wet;
-            for (int channel = 0; channel < channels; ++channel)
+            int totalFrames = count / channels;
+            // Adjacent channels share one sweep and keep independent filter histories.
+            int pairs = channels / 2 + channels % 2;
+            for (int pair = 0; pair < pairs; ++pair)
             {
+                int channel = pair * 2;
+                // In an odd layout the last pair reads the same channel twice.
                 sweep = _sweep;
-                ref ChannelHistory state = ref history[channel];
-                float first = state.First;
-                float second = state.Second;
-                float third = state.Third;
-                float fourth = state.Fourth;
+                int pairedChannel = Math.Min(channel + 1, channels - 1);
+                float leftFirst = history[channel].First;
+                float leftSecond = history[channel].Second;
+                float leftThird = history[channel].Third;
+                float leftFourth = history[channel].Fourth;
+                float rightFirst = history[pairedChannel].First;
+                float rightSecond = history[pairedChannel].Second;
+                float rightThird = history[pairedChannel].Third;
+                float rightFourth = history[pairedChannel].Fourth;
                 int frame = offset;
                 int framesRemaining = totalFrames;
                 while (0 < framesRemaining)
@@ -92,24 +100,35 @@ namespace WallstopStudios.DxAudio
 
                     int frames = Math.Min(sweep.FramesLeft, framesRemaining);
                     framesRemaining -= frames;
-                    int stop = frame + frames * channels;
+                    int stop = frame + channels * frames;
                     float coefficient = sweep.Coefficient;
                     float step = sweep.Step;
                     for (; frame < stop; frame += channels)
                     {
                         int sample = frame + channel;
-                        float input = buffer[sample];
+                        int pairedSample = frame + pairedChannel;
+                        float left = buffer[sample];
+                        float right = buffer[pairedSample];
 
                         // Each first-order section keeps one delayed value.
-                        float output1 = coefficient * input + first;
-                        first = input - coefficient * output1;
-                        float output2 = coefficient * output1 + second;
-                        second = output1 - coefficient * output2;
-                        float output3 = coefficient * output2 + third;
-                        third = output2 - coefficient * output3;
-                        float output4 = coefficient * output3 + fourth;
-                        fourth = output3 - coefficient * output4;
-                        buffer[sample] = dry * input + wet * output4;
+                        float left1 = coefficient * left + leftFirst;
+                        float right1 = coefficient * right + rightFirst;
+                        leftFirst = left - coefficient * left1;
+                        rightFirst = right - coefficient * right1;
+                        float left2 = coefficient * left1 + leftSecond;
+                        float right2 = coefficient * right1 + rightSecond;
+                        leftSecond = left1 - coefficient * left2;
+                        rightSecond = right1 - coefficient * right2;
+                        float left3 = coefficient * left2 + leftThird;
+                        float right3 = coefficient * right2 + rightThird;
+                        leftThird = left2 - coefficient * left3;
+                        rightThird = right2 - coefficient * right3;
+                        float left4 = coefficient * left3 + leftFourth;
+                        float right4 = coefficient * right3 + rightFourth;
+                        leftFourth = left3 - coefficient * left4;
+                        rightFourth = right3 - coefficient * right4;
+                        buffer[sample] = dry * left + wet * left4;
+                        buffer[pairedSample] = dry * right + wet * right4;
                         coefficient += step;
                     }
 
@@ -117,17 +136,31 @@ namespace WallstopStudios.DxAudio
                     sweep.FramesLeft -= frames;
                     if (sweep.FramesLeft == 0)
                     {
-                        first = FlushTinyHistory(first);
-                        second = FlushTinyHistory(second);
-                        third = FlushTinyHistory(third);
-                        fourth = FlushTinyHistory(fourth);
+                        leftFirst = FlushTinyHistory(leftFirst);
+                        leftSecond = FlushTinyHistory(leftSecond);
+                        leftThird = FlushTinyHistory(leftThird);
+                        leftFourth = FlushTinyHistory(leftFourth);
+                        rightFirst = FlushTinyHistory(rightFirst);
+                        rightSecond = FlushTinyHistory(rightSecond);
+                        rightThird = FlushTinyHistory(rightThird);
+                        rightFourth = FlushTinyHistory(rightFourth);
                     }
                 }
 
-                state.First = first;
-                state.Second = second;
-                state.Third = third;
-                state.Fourth = fourth;
+                history[channel] = new ChannelHistory
+                {
+                    First = leftFirst,
+                    Second = leftSecond,
+                    Third = leftThird,
+                    Fourth = leftFourth,
+                };
+                history[pairedChannel] = new ChannelHistory
+                {
+                    First = rightFirst,
+                    Second = rightSecond,
+                    Third = rightThird,
+                    Fourth = rightFourth,
+                };
             }
 
             _sweep = sweep;
@@ -145,8 +178,9 @@ namespace WallstopStudios.DxAudio
             double highCorner = Math.Min(HighCornerHertz / sampleRate, 0.2d);
             _lowCoefficient = Coefficient(highCorner * (LowCornerHertz / HighCornerHertz));
             _coefficientSpan = Coefficient(highCorner) - _lowCoefficient;
-            // Keep each ramp within one sixteenth of the fastest sweep where the sample rate allows it.
-            _sweepFrames = Math.Max(1, Math.Min(MaximumSweepFrames, sampleRate / (int)(16 * MaximumRateHertz)));
+            // Shorter low-rate spans clear history more often because those tails can decay faster.
+            int maximumFrames = sampleRate < 32_000 ? 16 : MaximumSweepFrames;
+            _sweepFrames = Math.Max(1, Math.Min(maximumFrames, sampleRate / (int)(16 * MaximumRateHertz)));
             _sweepPhaseStep = ((double)_rateHertz * _sweepFrames % sampleRate) / sampleRate;
             _wet = 0.5f * _depth;
             if (_history.Length != channels)

@@ -86,6 +86,42 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(split, Is.EqualTo(whole));
         }
 
+        [TestCase(2)]
+        [TestCase(3)]
+        [TestCase(8)]
+        public void EveryChannelMatchesAnIndependentMonoRender(int channels)
+        {
+            const int Rate = 48_000;
+            const int Frames = 5_123;
+            DspPhaser multichannel = new() { RateHertz = 5f, Depth = 1f };
+            Assert.That(multichannel.TryPrepare(Rate, Frames, channels), Is.True);
+            float[] samples = new float[Frames * channels];
+            float[] expected = new float[samples.Length];
+            float[] monoBlock = new float[Frames];
+            DspPhaser mono = new() { RateHertz = multichannel.RateHertz, Depth = multichannel.Depth };
+            Assert.That(mono.TryPrepare(Rate, Frames, 1), Is.True);
+            for (int channel = 0; channel < channels; ++channel)
+            {
+                for (int frame = 0; frame < Frames; ++frame)
+                {
+                    float input = (float)Math.Sin(frame * (channel + 1) * 0.017d);
+                    monoBlock[frame] = input;
+                    samples[frame * channels + channel] = input;
+                }
+
+                mono.Reset();
+                mono.Process(monoBlock, 0, Frames, 1);
+                for (int frame = 0; frame < Frames; ++frame)
+                {
+                    expected[frame * channels + channel] = monoBlock[frame];
+                }
+            }
+
+            multichannel.Process(samples, 0, samples.Length, channels);
+
+            Assert.That(samples, Is.EqualTo(expected));
+        }
+
         [Test]
         public void HalfDepthKeepsHalfOfTheFullDepthChange()
         {
