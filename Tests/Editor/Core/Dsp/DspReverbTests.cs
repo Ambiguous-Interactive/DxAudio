@@ -114,6 +114,22 @@ namespace WallstopStudios.DxAudio.Tests
             Assert.That(silence, Is.All.EqualTo(0f));
         }
 
+        [Test]
+        public void TheWetPathRejectsTheHighestFrequencyWhileTheDryPathKeepsIt()
+        {
+            // At Nyquist, each pair contains equal and opposite samples.
+            const int Length = Rate / 5;
+            float[] input = new float[Length];
+            for (int frame = 0; frame < Length; ++frame)
+            {
+                input[frame] = frame % 2 == 0 ? 1f : -1f;
+            }
+
+            float[] output = (float[])input.Clone();
+            Prepare(1).Process(output, 0, Length, 1);
+            Assert.That(output, Is.EqualTo(input));
+        }
+
         [TestCase(2)]
         [TestCase(8)]
         public void ChannelsMatchMonoAndSplitBlocksMatchWholeBlocks(int channels)
