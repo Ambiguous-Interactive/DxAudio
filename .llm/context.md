@@ -11,7 +11,7 @@ source of truth.
 ## Repository Overview
 
 - **Package**: `com.wallstop-studios.dxaudio`
-- **Version**: 0.4.0
+- **Version**: 0.5.0
 - **Repository**: <https://github.com/Ambiguous-Interactive/DxAudio>
 - **Root namespace**: `WallstopStudios.DxAudio`
 - **Minimum Unity**: `2021.3` (development host: `6000.6.7f1`)
