@@ -233,6 +233,31 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(graphHost.SkippedBlocks, Is.Zero);
         }
 
+        [Test]
+        public void AChainOrGraphCanApplyAnAuthoredTremolo()
+        {
+            using MadeObjects made = new();
+            const float Rate = 10f;
+            const float Depth = 0.75f;
+            DspTremoloAsset tremolo = made.Track(DspTremoloAsset.Create(Rate, Depth));
+            AudioFilterHost chainHost = Host(made, Chain(made, tremolo));
+            AudioFilterHost graphHost = Host(made, null);
+            graphHost.Graph = Graph(made, tremolo);
+            float[] chainBlock = FullScale(16);
+            float[] graphBlock = (float[])chainBlock.Clone();
+
+            chainHost.OnAudioFilterRead(chainBlock, 1);
+            graphHost.OnAudioFilterRead(graphBlock, 1);
+
+            Assert.That(chainBlock[0], Is.EqualTo(1f));
+            Assert.That(chainBlock[15], Is.EqualTo(1f - 2f * Depth * (15f * Rate / OutputSampleRate())).Within(0.000001f));
+            Assert.That(graphBlock, Is.EqualTo(chainBlock));
+            Assert.That(chainHost.LatencySamples, Is.Zero);
+            Assert.That(graphHost.LatencySamples, Is.Zero);
+            Assert.That(chainHost.SkippedBlocks, Is.Zero);
+            Assert.That(graphHost.SkippedBlocks, Is.Zero);
+        }
+
         [TestCase(1, "Delay", false)]
         [TestCase(8, "Delay", false)]
         [TestCase(1, "Noise Gate", false)]
@@ -240,6 +265,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TestCase(8, "Noise Gate", true)]
         [TestCase(1, "Chorus", false)]
         [TestCase(8, "Chorus", false)]
+        [TestCase(1, "Tremolo", false)]
+        [TestCase(8, "Tremolo", false)]
         public void DspChainsStayWithinTheRenderBudget(int voices, string effect, bool bursts)
         {
             const int Rate = 48_000;
@@ -257,6 +284,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 {
                     "Delay" => new DspDelay { DelaySeconds = DspDelay.MaximumDelaySeconds, Feedback = DspDelay.MaximumFeedback },
                     "Chorus" => new DspChorus { DepthSeconds = DspChorus.MaximumDepthSeconds, RateHertz = DspChorus.MaximumRateHertz },
+                    "Tremolo" => new DspTremolo { RateHertz = DspTremolo.MaximumRateHertz, Depth = 1f },
                     _ => new DspNoiseGate(),
                 };
                 candidate[voice].Add(stage);
