@@ -91,16 +91,17 @@ def publish_npm(version: str, tarball: Path, prerelease: bool) -> None:
             raise ValueError("Create the npm package and configure trusted publishing first")
         flags = ["--tag", "next"] if prerelease else []
         run("npm", "publish", str(tarball), "--access", "public", *flags)
-    expected = npm_integrity(tarball)
-    for attempt in range(6):
-        entry = registry(version)
-        if entry is not None:
-            if entry["dist"]["integrity"] != expected:
-                raise ValueError(f"npm integrity mismatch for {NAME}@{version}")
-            return
-        if attempt < 5:
-            time.sleep(5)
-    raise ValueError(f"npm has not returned {NAME}@{version}; resume this release")
+        # npm took more than three minutes to list version 0.4.0.
+        deadline = time.monotonic() + 300
+        while (entry := registry(version)) is None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(10, remaining))
+    if entry is None:
+        raise ValueError(f"npm has not returned {NAME}@{version}; resume this release")
+    if entry["dist"]["integrity"] != npm_integrity(tarball):
+        raise ValueError(f"npm integrity mismatch for {NAME}@{version}")
 
 
 def upload_asset(release_id: int, path: Path) -> Asset:

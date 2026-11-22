@@ -286,6 +286,44 @@ class ArchiveTests(unittest.TestCase):
                             publish_npm("0.4.0", archive, False)
                     publish.assert_not_called()
 
+    def test_new_npm_version_can_take_minutes_to_appear(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            archive = Path(scratch) / "archive.tgz"
+            archive.write_bytes(b"validated archive")
+            published = {"version": "0.4.0", "dist": {"integrity": npm_integrity(archive)}}
+            elapsed = 0.0
+            visible_after = 0
+
+            def registry(version: str) -> object:
+                return published if version == "latest" or visible_after <= elapsed else None
+
+            def monotonic() -> float:
+                return elapsed
+
+            def sleep(seconds: float) -> None:
+                nonlocal elapsed
+                elapsed += seconds
+
+            for visible_after in (200, 301):
+                elapsed = 0.0
+                with (
+                    self.subTest(visible_after=visible_after),
+                    patch("release_assets.registry", side_effect=registry),
+                    patch("release_assets.run") as publish,
+                    patch("release_assets.time.monotonic", side_effect=monotonic),
+                    patch("release_assets.time.sleep", side_effect=sleep),
+                ):
+                    if visible_after == 200:
+                        publish_npm("0.4.0", archive, False)
+                        assert elapsed == 200
+                    else:
+                        with self.assertRaisesRegex(ValueError, "resume this release"):
+                            publish_npm("0.4.0", archive, False)
+                        assert elapsed == 300
+                    publish.assert_called_once_with(
+                        "npm", "publish", str(archive), "--access", "public"
+                    )
+
     def test_unity_archive_is_deterministic_and_preserves_guid(self) -> None:
         with tempfile.TemporaryDirectory() as scratch:
             root = Path(scratch)
