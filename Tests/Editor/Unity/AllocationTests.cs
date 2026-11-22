@@ -133,6 +133,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TestCase("Noise Gate")]
         [TestCase("Chorus")]
         [TestCase("Tremolo")]
+        [TestCase("Phaser")]
         public void PlayingACueWithAChainDoesNotAllocate(string stage)
         {
             using MadeObjects made = new();
@@ -142,6 +143,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 "Delay" => made.Track(DspDelayAsset.Create(DspDelay.MaximumDelaySeconds)),
                 "Chorus" => made.Track(DspChorusAsset.Create()),
                 "Tremolo" => made.Track(DspTremoloAsset.Create()),
+                "Phaser" => made.Track(DspPhaserAsset.Create()),
                 _ => made.Track(DspNoiseGateAsset.Create()),
             };
             DspChainAsset chain = made.Track(DspChainAsset.Create(new[] { made.Track(DspLimiterAsset.Create()), effect }));
@@ -152,6 +154,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TestCase("Delay", TestName = "Rendering delay across reset and repeat does not allocate")]
         [TestCase("Chorus", TestName = "Rendering chorus across reset and repeat does not allocate")]
         [TestCase("Tremolo", TestName = "Rendering tremolo across reset and repeat does not allocate")]
+        [TestCase("Phaser", TestName = "Rendering phaser across reset and repeat does not allocate")]
         public void RenderingAcrossResetAndRepeatDoesNotAllocate(string stage)
         {
             const int Channels = 2;
@@ -161,6 +164,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             {
                 "Chorus" => new DspChorus { DepthSeconds = DspChorus.MaximumDepthSeconds },
                 "Tremolo" => new DspTremolo { RateHertz = DspTremolo.MaximumRateHertz, Depth = 1f },
+                "Phaser" => new DspPhaser { RateHertz = DspPhaser.MaximumRateHertz, Depth = 1f },
                 _ => new DspDelay { DelaySeconds = DspDelay.MaximumDelaySeconds },
             };
             Assert.That(effect.TryPrepare(48_000, Frames, Channels), Is.True);
@@ -215,6 +219,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TestCase("Distortion", TestName = "Playing a cue with distortion in a graph does not allocate")]
         [TestCase("Chorus", TestName = "Playing a cue with chorus in a graph does not allocate")]
         [TestCase("Tremolo", TestName = "Playing a cue with tremolo in a graph does not allocate")]
+        [TestCase("Phaser", TestName = "Playing a cue with phaser in a graph does not allocate")]
         public void PlayingACueWithAGraphDoesNotAllocate(string stage)
         {
             using MadeObjects made = new();
@@ -222,6 +227,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             {
                 "Chorus" => made.Track(DspChorusAsset.Create()),
                 "Tremolo" => made.Track(DspTremoloAsset.Create()),
+                "Phaser" => made.Track(DspPhaserAsset.Create()),
                 _ => made.Track(DspDistortionAsset.Create()),
             };
             DspChainAsset branch = made.Track(DspChainAsset.Create(new[] { made.Track(DspLimiterAsset.Create()), effect }));

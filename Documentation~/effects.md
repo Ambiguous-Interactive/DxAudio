@@ -16,12 +16,13 @@ asset, like a cue or a track, so a designer changes the sound without a code cha
 | Delay         | Add an echo and decaying repeats after the dry sound            |
 | Chorus        | Widen a sound with two copies that drift in pitch               |
 | Tremolo       | Make the volume rise and fall in a steady rhythm                |
+| Phaser        | Sweep two narrow dips through the sound                         |
 | Noise Gate    | Fade out quiet tails while keeping stereo channels linked       |
 
 ## Author a chain
 
 1. Create one asset per effect with **Create > Wallstop Studios > DxAudio > DSP > Limiter** (or Compressor, Distortion, Bit Crusher, Pitch
-   Shifter, Filter, Delay, Chorus, Tremolo, Noise Gate).
+   Shifter, Filter, Delay, Chorus, Tremolo, Phaser, Noise Gate).
 2. Create the list with **Create > Wallstop Studios > DxAudio > DSP > Chain** and add the effects in the order the signal should meet
    them. Order is the sound: distortion before a compressor is driven and then controlled, and the reverse squashes the
    quiet part before the drive lifts it again.
@@ -97,6 +98,15 @@ The dry signal leaves immediately when **Mix** includes it.
 - **Mix** sets how much of the result comes from the delayed copies. Zero leaves the dry signal unchanged.
 
 These settings take effect when you prepare the chain. Reusing a voice restarts the modulation and discards its chorus history.
+
+## Phaser
+
+Phaser mixes the dry sound with a phase-shifted copy. The mix cancels two frequencies, and those dips sweep up and back.
+
+- **Rate** sets the sweep speed from 0.05 to 5 cycles per second. The default is 0.5 Hz.
+- **Depth** sets how deep the dips are. Zero passes the input through. One mixes equal parts dry and filtered audio. The default is 0.75.
+
+Channels share the sweep and keep separate filter history. Phaser adds no latency.
 
 ## Tremolo
 

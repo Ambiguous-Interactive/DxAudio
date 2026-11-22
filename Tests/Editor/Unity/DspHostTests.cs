@@ -258,6 +258,35 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(graphHost.SkippedBlocks, Is.Zero);
         }
 
+        [Test]
+        public void AChainOrGraphCanApplyAnAuthoredPhaser()
+        {
+            using MadeObjects made = new();
+            const float Rate = 2f;
+            const float Depth = 0.6f;
+            DspPhaserAsset phaser = made.Track(DspPhaserAsset.Create(Rate, Depth));
+            AudioFilterHost chainHost = Host(made, Chain(made, phaser));
+            AudioFilterHost graphHost = Host(made, null);
+            graphHost.Graph = Graph(made, phaser);
+            float[] chainBlock = { 1f, 0f, 0f, 0f };
+            float[] graphBlock = (float[])chainBlock.Clone();
+            float[] reference = (float[])chainBlock.Clone();
+            DspPhaser effect = new() { RateHertz = Rate, Depth = Depth };
+            Assert.That(effect.TryPrepare(OutputSampleRate(), reference.Length, 1), Is.True);
+            effect.Process(reference, 0, reference.Length, 1);
+
+            chainHost.OnAudioFilterRead(chainBlock, 1);
+            graphHost.OnAudioFilterRead(graphBlock, 1);
+
+            Assert.That(chainBlock[0], Is.LessThan(1f));
+            Assert.That(chainBlock, Is.EqualTo(reference));
+            Assert.That(graphBlock, Is.EqualTo(reference));
+            Assert.That(chainHost.LatencySamples, Is.Zero);
+            Assert.That(graphHost.LatencySamples, Is.Zero);
+            Assert.That(chainHost.SkippedBlocks, Is.Zero);
+            Assert.That(graphHost.SkippedBlocks, Is.Zero);
+        }
+
         [TestCase(1, "Delay", false)]
         [TestCase(8, "Delay", false)]
         [TestCase(1, "Noise Gate", false)]
@@ -267,6 +296,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TestCase(8, "Chorus", false)]
         [TestCase(1, "Tremolo", false)]
         [TestCase(8, "Tremolo", false)]
+        [TestCase(1, "Phaser", false)]
+        [TestCase(8, "Phaser", false)]
+        [TestCase(8, "Phaser", true)]
         public void DspChainsStayWithinTheRenderBudget(int voices, string effect, bool bursts)
         {
             const int Rate = 48_000;
@@ -274,6 +306,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             const int Channels = 2;
             const int Passes = 240;
             bool delay = string.Equals(effect, "Delay", StringComparison.Ordinal);
+            bool phaserTail = bursts && string.Equals(effect, "Phaser", StringComparison.Ordinal);
+            bool gateBursts = bursts && string.Equals(effect, "Noise Gate", StringComparison.Ordinal);
             DspChain[] baseline = new DspChain[voices];
             DspChain[] candidate = new DspChain[voices];
             for (int voice = 0; voice < voices; ++voice)
@@ -285,6 +319,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                     "Delay" => new DspDelay { DelaySeconds = DspDelay.MaximumDelaySeconds, Feedback = DspDelay.MaximumFeedback },
                     "Chorus" => new DspChorus { DepthSeconds = DspChorus.MaximumDepthSeconds, RateHertz = DspChorus.MaximumRateHertz },
                     "Tremolo" => new DspTremolo { RateHertz = DspTremolo.MaximumRateHertz, Depth = 1f },
+                    "Phaser" => new DspPhaser { RateHertz = DspPhaser.MaximumRateHertz, Depth = 1f },
                     _ => new DspNoiseGate(),
                 };
                 candidate[voice].Add(stage);
@@ -295,7 +330,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float[] input = new float[Frames * Channels];
             for (int frame = 0; frame < Frames; ++frame)
             {
-                float amplitude = bursts && frame % 128 < 64 ? 0.0001f : 0.1f;
+                float amplitude = phaserTail && 64 <= frame ? 0f : 0.1f;
+                if (gateBursts && frame % 128 < 64)
+                {
+                    amplitude = 0.0001f;
+                }
+
                 input[frame * Channels] = amplitude * (float)Math.Sin(2d * Math.PI * frame / 64d);
                 input[frame * Channels + 1] = amplitude * (float)Math.Cos(2d * Math.PI * frame / 64d);
             }
