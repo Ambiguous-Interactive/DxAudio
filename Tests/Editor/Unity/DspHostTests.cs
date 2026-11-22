@@ -3,6 +3,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Runtime.InteropServices;
     using NUnit.Framework;
     using UnityEngine;
 
@@ -14,6 +15,25 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     /// </remarks>
     public sealed class DspHostTests
     {
+        private static bool TryReadThreadCycles(out ulong cycles)
+        {
+#if UNITY_EDITOR_WIN
+            return QueryThreadCycleTime(GetCurrentThread(), out cycles);
+#else
+            cycles = 0;
+            return false;
+#endif
+        }
+
+#if UNITY_EDITOR_WIN
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        private static extern IntPtr GetCurrentThread();
+
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool QueryThreadCycleTime(IntPtr thread, out ulong cycles);
+#endif
+
         private static DspChainAsset Chain(MadeObjects made, params DspEffectAsset[] effects)
         {
             return made.Track(DspChainAsset.Create(effects));
@@ -419,30 +439,43 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 return ticks;
             }
 
-            for (int pass = 0; pass < 64; ++pass)
-            {
-                Render(baseline);
-                Render(candidate);
-            }
-
             long[] baselineTicks = new long[Passes];
             long[] candidateTicks = new long[Passes];
+            ulong[] baselineCycles = new ulong[Passes];
+            ulong[] candidateCycles = new ulong[Passes];
+            bool haveCycles = true;
+            void Measure(DspChain[] chains, long[] elapsed, ulong[] cycles, int pass)
+            {
+                // Bracket the pass, including copies between voices, outside the existing DSP stopwatch windows.
+                bool haveStart = TryReadThreadCycles(out ulong start);
+                elapsed[pass] = Render(chains);
+                bool haveEnd = TryReadThreadCycles(out ulong end);
+                haveCycles = haveCycles && haveStart && haveEnd && start <= end;
+                cycles[pass] = haveCycles ? end - start : 0;
+            }
+
+            for (int pass = 0; pass < 64; ++pass)
+            {
+                Measure(baseline, baselineTicks, baselineCycles, 0);
+                Measure(candidate, candidateTicks, candidateCycles, 0);
+            }
+
             for (int pass = 0; pass < Passes; ++pass)
             {
                 if (pass % 2 == 0)
                 {
-                    baselineTicks[pass] = Render(baseline);
-                    candidateTicks[pass] = Render(candidate);
+                    Measure(baseline, baselineTicks, baselineCycles, pass);
+                    Measure(candidate, candidateTicks, candidateCycles, pass);
                 }
                 else
                 {
-                    candidateTicks[pass] = Render(candidate);
-                    baselineTicks[pass] = Render(baseline);
+                    Measure(candidate, candidateTicks, candidateCycles, pass);
+                    Measure(baseline, baselineTicks, baselineCycles, pass);
                 }
             }
 
-            Array.Sort(baselineTicks);
-            Array.Sort(candidateTicks);
+            Array.Sort(baselineTicks, baselineCycles);
+            Array.Sort(candidateTicks, candidateCycles);
             double tickMicroseconds = 1_000_000d / Stopwatch.Frequency;
             int p95 = Passes * 95 / 100 - 1;
             int p99 = (Passes * 99 + 99) / 100 - 1;
@@ -455,10 +488,19 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 return $"{median:F2}/{ticks[p95] * tickMicroseconds:F2}/{ticks[p99] * tickMicroseconds:F2}/{ticks[Passes - 1] * tickMicroseconds:F2}";
             }
 
+            string CyclesAtElapsedRanks(ulong[] cycles)
+            {
+                double median = (cycles[(Passes - 1) / 2] + (double)cycles[Passes / 2]) * 0.5d;
+                return $"{median:0.#}/{cycles[p95]}/{cycles[p99]}/{cycles[Passes - 1]}";
+            }
+
+            string threadCycles = haveCycles
+                ? $" Pass thread cycles at elapsed ranks, baseline {CyclesAtElapsedRanks(baselineCycles)}, candidate {CyclesAtElapsedRanks(candidateCycles)}."
+                : " Pass thread cycles unavailable.";
             TestContext.Out.WriteLine(
                 $"DxAudio DSP render: {effect} (bursts {bursts}), {voices} stereo voices at {Rate} Hz, {Frames} frames, {Passes} passes on {SystemInfo.processorType}: "
                     + $"p50/p95/p99/max in us, baseline {Distribution(baselineTicks)}, candidate {Distribution(candidateTicks)}, "
-                    + $"added p95 {addedP95:F2} us, budget {budget:F2} us."
+                    + $"added p95 {addedP95:F2} us, budget {budget:F2} us.{threadCycles}"
             );
             Assert.That(addedP95, Is.LessThanOrEqualTo(budget), $"Added processing must fit within {budgetPercent}% of the block window.");
         }
