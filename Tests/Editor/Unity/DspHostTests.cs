@@ -222,13 +222,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             const int Frames = 1_024;
             const int Channels = 2;
             const int Passes = 240;
+            bool delay = string.Equals(effect, "Delay", StringComparison.Ordinal);
             DspChain[] baseline = new DspChain[voices];
             DspChain[] candidate = new DspChain[voices];
             for (int voice = 0; voice < voices; ++voice)
             {
                 baseline[voice] = new DspChain();
                 candidate[voice] = new DspChain();
-                DspEffect stage = effect == "Delay" ? new DspDelay { DelaySeconds = DspDelay.MaximumDelaySeconds, Feedback = DspDelay.MaximumFeedback } : new DspNoiseGate();
+                DspEffect stage = delay ? new DspDelay { DelaySeconds = DspDelay.MaximumDelaySeconds, Feedback = DspDelay.MaximumFeedback } : new DspNoiseGate();
                 candidate[voice].Add(stage);
                 Assert.That(baseline[voice].TryPrepare(Rate, Frames, Channels), Is.True);
                 Assert.That(candidate[voice].TryPrepare(Rate, Frames, Channels), Is.True);
@@ -284,7 +285,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             double tickMicroseconds = 1_000_000d / Stopwatch.Frequency;
             int p95 = Passes * 95 / 100 - 1;
             double addedP95 = (candidateTicks[p95] - baselineTicks[p95]) * tickMicroseconds;
-            int budgetPercent = effect == "Delay" ? 1 : 2;
+            int budgetPercent = delay ? 1 : 2;
             double budget = Frames * 10_000d * budgetPercent / Rate;
             TestContext.Out.WriteLine(
                 $"{effect} (bursts {bursts}), {voices} stereo voices at {Rate} Hz, {Frames} frames, {Passes} passes on {SystemInfo.processorType}: "
