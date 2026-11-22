@@ -124,8 +124,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void CompareMusicVolumeCost()
         {
             using MadeObjects made = new();
-            MusicTrack[] tracks = new MusicTrack[3];
-            for (int index = 0; index < tracks.Length; ++index)
+            const int VoiceCount = 3;
+            MusicTrack[] tracks = new MusicTrack[VoiceCount];
+            for (int index = 0; index < VoiceCount; ++index)
             {
                 tracks[index] = made.Track(MusicTrack.Create(Clip(made)));
             }
