@@ -97,5 +97,10 @@ namespace WallstopStudios.DxAudio
             double step = 1.0 / ((double)seconds * sampleRate);
             return step < 1e-8 ? (float)step : (float)(1.0 - Math.Exp(-step));
         }
+
+        internal static float ClampFinite(float value, float minimum, float maximum, float fallback)
+        {
+            return IsFinite(value) ? Clamp(value, minimum, maximum) : fallback;
+        }
     }
 }

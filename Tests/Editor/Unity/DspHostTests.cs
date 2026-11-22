@@ -211,11 +211,35 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(graphHost.SkippedBlocks, Is.Zero);
         }
 
+        [Test]
+        public void AChorusAssetReachesTheHostChainAndGraph()
+        {
+            using MadeObjects made = new();
+            DspChorusAsset chorus = made.Track(DspChorusAsset.Create(depthSeconds: 0f, mix: 0.5f));
+            AudioFilterHost chainHost = Host(made, Chain(made, chorus));
+            AudioFilterHost graphHost = Host(made, null);
+            graphHost.Graph = Graph(made, chorus);
+            float[] chainBlock = { 1f, 0f, 0f, 0f };
+            float[] graphBlock = (float[])chainBlock.Clone();
+
+            chainHost.OnAudioFilterRead(chainBlock, 1);
+            graphHost.OnAudioFilterRead(graphBlock, 1);
+
+            Assert.That(chainBlock, Is.EqualTo(new[] { 0.5f, 0f, 0f, 0f }));
+            Assert.That(graphBlock, Is.EqualTo(chainBlock));
+            Assert.That(chainHost.LatencySamples, Is.Zero);
+            Assert.That(graphHost.LatencySamples, Is.Zero);
+            Assert.That(chainHost.SkippedBlocks, Is.Zero);
+            Assert.That(graphHost.SkippedBlocks, Is.Zero);
+        }
+
         [TestCase(1, "Delay", false)]
         [TestCase(8, "Delay", false)]
         [TestCase(1, "Noise Gate", false)]
         [TestCase(8, "Noise Gate", false)]
         [TestCase(8, "Noise Gate", true)]
+        [TestCase(1, "Chorus", false)]
+        [TestCase(8, "Chorus", false)]
         public void DspChainsStayWithinTheRenderBudget(int voices, string effect, bool bursts)
         {
             const int Rate = 48_000;
@@ -229,7 +253,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             {
                 baseline[voice] = new DspChain();
                 candidate[voice] = new DspChain();
-                DspEffect stage = delay ? new DspDelay { DelaySeconds = DspDelay.MaximumDelaySeconds, Feedback = DspDelay.MaximumFeedback } : new DspNoiseGate();
+                DspEffect stage = effect switch
+                {
+                    "Delay" => new DspDelay { DelaySeconds = DspDelay.MaximumDelaySeconds, Feedback = DspDelay.MaximumFeedback },
+                    "Chorus" => new DspChorus { DepthSeconds = DspChorus.MaximumDepthSeconds, RateHertz = DspChorus.MaximumRateHertz },
+                    _ => new DspNoiseGate(),
+                };
                 candidate[voice].Add(stage);
                 Assert.That(baseline[voice].TryPrepare(Rate, Frames, Channels), Is.True);
                 Assert.That(candidate[voice].TryPrepare(Rate, Frames, Channels), Is.True);

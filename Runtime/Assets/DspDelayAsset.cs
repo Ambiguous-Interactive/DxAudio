@@ -29,9 +29,9 @@ namespace WallstopStudios.DxAudio
         )
         {
             DspDelayAsset asset = CreateInstance<DspDelayAsset>();
-            asset._delaySeconds = DspDelay.ClampSetting(delaySeconds, DspDelay.MinimumDelaySeconds, DspDelay.MaximumDelaySeconds, DspDelay.DefaultDelaySeconds);
-            asset._feedback = DspDelay.ClampSetting(feedback, 0f, DspDelay.MaximumFeedback, DspDelay.DefaultFeedback);
-            asset._echoLevel = DspDelay.ClampSetting(echoLevel, 0f, 1f, DspDelay.DefaultEchoLevel);
+            asset._delaySeconds = AudioMath.ClampFinite(delaySeconds, DspDelay.MinimumDelaySeconds, DspDelay.MaximumDelaySeconds, DspDelay.DefaultDelaySeconds);
+            asset._feedback = AudioMath.ClampFinite(feedback, 0f, DspDelay.MaximumFeedback, DspDelay.DefaultFeedback);
+            asset._echoLevel = AudioMath.ClampFinite(echoLevel, 0f, 1f, DspDelay.DefaultEchoLevel);
             return asset;
         }
 
