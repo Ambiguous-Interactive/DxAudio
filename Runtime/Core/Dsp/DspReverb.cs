@@ -88,19 +88,19 @@ namespace WallstopStudios.DxAudio
 
                     while (frame < end)
                     {
-                        float readA = history[readAIndex];
-                        float readB = history[readBIndex];
-                        float readC = history[readCIndex];
-                        float readD = history[readDIndex];
-                        float reflection = (readA + readB + readC + readD) * 0.5f;
+                        ref float tapA = ref history[readAIndex];
+                        ref float tapB = ref history[readBIndex];
+                        ref float tapC = ref history[readCIndex];
+                        ref float tapD = ref history[readDIndex];
+                        float reflection = (tapA + tapB + tapC + tapD) * 0.5f;
                         float dry = buffer[frame + channel];
                         // Subtracting half the sum forms an orthogonal Householder feedback matrix.
                         float feed = (dry + firstDry) * 0.25f - reflection;
                         // Add and remove a tiny floor to suppress subnormal samples in the feedback path.
-                        history[readAIndex] = ((readA + feed) * gainA + TailFloor) - TailFloor;
-                        history[readBIndex] = ((readB + feed) * gainB + TailFloor) - TailFloor;
-                        history[readCIndex] = ((readC + feed) * gainC + TailFloor) - TailFloor;
-                        history[readDIndex] = ((readD + feed) * gainD + TailFloor) - TailFloor;
+                        tapA = ((tapA + feed) * gainA + TailFloor) - TailFloor;
+                        tapB = ((tapB + feed) * gainB + TailFloor) - TailFloor;
+                        tapC = ((tapC + feed) * gainC + TailFloor) - TailFloor;
+                        tapD = ((tapD + feed) * gainD + TailFloor) - TailFloor;
                         tail = reflection * wetLevel;
                         buffer[frame + channel] = dry + tail;
                         readAIndex += channels;
