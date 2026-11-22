@@ -1,0 +1,93 @@
+[
+  {
+    "file": "Main.dc.html",
+    "frame": "1440x960",
+    "rendered": "1440x960",
+    "overflowX": false,
+    "textLen": 1678,
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ]
+  },
+  {
+    "file": "Roadmap.dc.html",
+    "frame": "1440x1910",
+    "rendered": "1440x1910",
+    "overflowX": false,
+    "textLen": 4283,
+    "errors": [],
+    "phoneScrollW": 400
+  },
+  {
+    "file": "Readme.dc.html",
+    "frame": "1280x2000",
+    "rendered": "1280x2000",
+    "overflowX": false,
+    "textLen": 2195,
+    "errors": [],
+    "phoneScrollW": 400
+  },
+  {
+    "file": "Docs.dc.html",
+    "frame": "1440x1620",
+    "rendered": "1440x1620",
+    "overflowX": false,
+    "textLen": 1346,
+    "errors": [],
+    "phoneScrollW": 400
+  },
+  {
+    "file": "DocsPage.dc.html",
+    "frame": "1440x1300",
+    "rendered": "1440x1300",
+    "overflowX": false,
+    "textLen": 1004,
+    "errors": [],
+    "phoneScrollW": 400
+  },
+  {
+    "file": "Studio.dc.html",
+    "frame": "1440x940",
+    "rendered": "1440x940",
+    "overflowX": false,
+    "textLen": 1076,
+    "errors": [],
+    "phoneScrollW": 400
+  },
+  {
+    "file": "Graph.dc.html",
+    "frame": "1440x860",
+    "rendered": "1440x860",
+    "overflowX": false,
+    "textLen": 1030,
+    "errors": [
+      "Error: <path> attribute d: Expected moveto path command ('M' or 'm'), \"{{sel.pre}}\".",
+      "Error: <path> attribute d: Expected moveto path command ('M' or 'm'), \"{{sel.post}} L30…\".",
+      "Error: <path> attribute d: Expected moveto path command ('M' or 'm'), \"{{sel.post}}\"."
+    ],
+    "phoneScrollW": 400
+  },
+  {
+    "file": "Monitor.dc.html",
+    "frame": "1440x1160",
+    "rendered": "1440x1160",
+    "overflowX": false,
+    "textLen": 1395,
+    "errors": [
+      "Error: <path> attribute d: Expected moveto path command ('M' or 'm'), \"{{c.wave}}\".",
+      "Error: <path> attribute d: Expected moveto path command ('M' or 'm'), \"{{sel.bigWave}}\".",
+      "Error: <line> attribute x1: Expected length, \"{{sel.pos}}\".",
+      "Error: <line> attribute x2: Expected length, \"{{sel.pos}}\"."
+    ],
+    "phoneScrollW": 400
+  },
+  {
+    "file": "Problems.dc.html",
+    "frame": "1440x800",
+    "rendered": "1440x800",
+    "overflowX": false,
+    "textLen": 2445,
+    "errors": [],
+    "phoneScrollW": 400
+  }
+]

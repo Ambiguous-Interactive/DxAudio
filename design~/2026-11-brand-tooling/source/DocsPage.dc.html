@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DxAudio docs: Ducks guide</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;700&amp;family=JetBrains+Mono:wght@500;700&amp;family=Space+Grotesk:wght@500;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2fd4b4}a:hover{color:#a8f0e0}
+</style>
+</helmet>
+<div style="min-height: 1300px; background: #0d1117; color: #c9d2dc; font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif; font-size: 15px">
+
+  <header style="border-bottom: 1px solid #232c38">
+    <div style="max-width: 1220px; margin: 0 auto; box-sizing: border-box; padding: 10px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px">
+      <a href="#" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #e9eef4">
+        <svg width="28" height="28" viewBox="0 0 96 96" aria-hidden="true"><polygon points="88,48 68,82.64 28,82.64 8,48 28,13.36 68,13.36" fill="none" stroke="#2fd4b4" stroke-width="6"></polygon><g stroke="#a8f0e0" stroke-width="7" stroke-linecap="round"><line x1="30" y1="44" x2="30" y2="52"></line><line x1="39" y1="37" x2="39" y2="59"></line><line x1="48" y1="31" x2="48" y2="65"></line><line x1="57" y1="39" x2="57" y2="57"></line><line x1="66" y1="45" x2="66" y2="51"></line></g></svg>
+        <span style="font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700">DxAudio</span>
+      </a>
+      <span style="color: #9aa3af">Ducks</span>
+      <span style="flex: 1"></span>
+      <label style="flex: 0 1 300px; display: flex; align-items: center; gap: 8px; border: 1px solid #232c38; border-radius: 8px; padding: 0 12px; min-height: 38px; background: #0c1016">
+        <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="#9aa3af" stroke-width="1.5"></circle><line x1="11" y1="11" x2="15" y2="15" stroke="#9aa3af" stroke-width="1.5"></line></svg>
+        <span style="position: absolute; width: 1px; height: 1px; overflow: hidden">Search</span>
+        <input type="search" placeholder="Search" style="flex: 1; min-width: 0; background: transparent; border: 0; color: #e9eef4; font: inherit; font-size: 14px; outline: none">
+      </label>
+    </div>
+    <nav aria-label="Sections" style="border-top: 1px solid #232c38">
+      <div style="max-width: 1220px; margin: 0 auto; box-sizing: border-box; padding: 0 16px; display: flex; flex-wrap: wrap; font-size: 14px">
+        <a href="#" style="padding: 12px 10px; color: #9aa3af; text-decoration: none">Home</a>
+        <a href="#" style="padding: 12px 10px; color: #9aa3af; text-decoration: none">Getting Started</a>
+        <a href="#" aria-current="page" style="padding: 12px 10px; color: #e9eef4; font-weight: 700; text-decoration: none">Guides</a>
+        <a href="#" style="padding: 12px 10px; color: #9aa3af; text-decoration: none">Concepts</a>
+        <a href="#" style="padding: 12px 10px; color: #9aa3af; text-decoration: none">Editor Tools</a>
+        <a href="#" style="padding: 12px 10px; color: #9aa3af; text-decoration: none">Reference</a>
+        <a href="#" style="padding: 12px 10px; color: #9aa3af; text-decoration: none">Troubleshooting</a>
+      </div>
+    </nav>
+  </header>
+
+  <div style="max-width: 1220px; margin: 0 auto; box-sizing: border-box; padding: 32px 24px; display: flex; flex-wrap: wrap; gap: 40px">
+    <nav aria-label="Guides" style="flex: 1 1 200px; max-width: 230px; display: flex; flex-direction: column; gap: 2px; font-size: 14px">
+      <div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; color: #e9eef4; padding: 6px 8px">Guides</div>
+      <a href="#" style="padding: 7px 8px; color: #9aa3af; text-decoration: none; border: 1px solid transparent">Cues</a>
+      <a href="#" style="padding: 7px 8px; color: #9aa3af; text-decoration: none; border: 1px solid transparent">Music</a>
+      <a href="#" aria-current="page" style="padding: 7px 8px; color: #2fd4b4; text-decoration: none; background: rgba(47, 212, 180, 0.1); border: 1px solid rgba(47, 212, 180, 0.28); border-radius: 7px">Ducks</a>
+      <a href="#" style="padding: 7px 8px; color: #9aa3af; text-decoration: none; border: 1px solid transparent">Effects</a>
+      <a href="#" style="padding: 7px 8px; color: #9aa3af; text-decoration: none; border: 1px solid transparent">Settings and events</a>
+      <a href="#" style="padding: 7px 8px; color: #9aa3af; text-decoration: none; border: 1px solid transparent">DxMessaging integration</a>
+    </nav>
+
+    <main style="flex: 999 1 520px; min-width: 0; max-width: 720px; display: flex; flex-direction: column; gap: 20px; line-height: 1.65">
+      <div style="font-size: 13px; color: #9aa3af">Guides › Ducks</div>
+      <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 36px; line-height: 1.1; color: #e9eef4">Ducks</h1>
+      <p style="margin: 0">A duck lowers and filters the music while something holds it: dialogue, a menu, a cutscene. Every live duck composes into the most restrictive volume and filters, so systems duck and release without knowing about each other.</p>
+      <h2 style="margin: 8px 0 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px; color: #e9eef4">Hold and release</h2>
+      <div style="border: 1px solid #232c38; border-radius: 8px; overflow: hidden">
+        <div style="display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #232c38; background: #0c1016; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #9aa3af"><span>C#</span><button type="button" aria-label="Copy code" style="background: transparent; border: 0; color: #9aa3af; font: inherit; cursor: pointer">Copy</button></div>
+        <div style="padding: 14px 16px; background: #0c1016; font-family: 'JetBrains Mono', monospace; font-size: 13.5px; line-height: 1.7; white-space: pre; overflow-x: auto; color: #c9d2dc"><span style="color: #78d6b0">MusicDuckLease</span> lease = _music.<span style="color: #8bb8ff">Duck</span>(_dialogueDuck, holder: <span style="color: #ffcf70; font-weight: 700">this</span>);
+<span style="color: #788494; font-style: italic">// ...</span>
+_music.<span style="color: #8bb8ff">Release</span>(lease);</div>
+      </div>
+      <p style="margin: 0"><code style="font-family: 'JetBrains Mono', monospace; font-size: 13px; background: #0c1016; border: 1px solid #232c38; border-radius: 4px; padding: 1px 5px">Duck</code> returns a lease. <code style="font-family: 'JetBrains Mono', monospace; font-size: 13px; background: #0c1016; border: 1px solid #232c38; border-radius: 4px; padding: 1px 5px">Release</code> releases that lease. A lease that was already released releases nothing.</p>
+      <div style="border: 1px solid rgba(47, 212, 180, 0.35); background: rgba(47, 212, 180, 0.06); border-radius: 8px; padding: 12px 16px; font-size: 14px"><b style="color: #2fd4b4">Tip</b><br>A holder destroyed without releasing is released for it.</div>
+      <h2 style="margin: 8px 0 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px; color: #e9eef4">One or Many</h2>
+      <p style="margin: 0"><b style="color: #e9eef4">One</b> holds a state that is on or off, such as a menu. <b style="color: #e9eef4">Many</b> counts each holder, such as two characters speaking at once.</p>
+      <div style="border: 1px solid rgba(255, 166, 87, 0.4); background: rgba(255, 166, 87, 0.07); border-radius: 8px; padding: 12px 16px; font-size: 14px"><b style="color: #ffa657">Warning</b><br>Releasing a One duck ends it for every holder.</div>
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 16px">
+        <a href="#" style="flex: 1 1 200px; display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border: 1px solid #232c38; border-radius: 8px; text-decoration: none"><span style="font-size: 12px; color: #9aa3af">Previous</span><span style="font-weight: 700; color: #e9eef4">← Music</span></a>
+        <a href="#" style="flex: 1 1 200px; display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border: 1px solid #232c38; border-radius: 8px; text-decoration: none; text-align: right"><span style="font-size: 12px; color: #9aa3af">Next</span><span style="font-weight: 700; color: #e9eef4">Effects →</span></a>
+      </div>
+    </main>
+
+    <nav aria-label="On this page" style="flex: 1 1 160px; max-width: 200px; display: flex; flex-direction: column; gap: 8px; font-size: 13px">
+      <div style="font-weight: 700; color: #e9eef4">On this page</div>
+      <a href="#" style="color: #2fd4b4; text-decoration: none">Hold and release</a>
+      <a href="#" style="color: #9aa3af; text-decoration: none">One or Many</a>
+      <a href="#" style="color: #9aa3af; text-decoration: none">Reading the result</a>
+      <a href="#" style="color: #9aa3af; text-decoration: none">Reasons for code</a>
+    </nav>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1300}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

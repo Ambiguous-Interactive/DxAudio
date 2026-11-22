@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DxAudio docs home</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;700&amp;family=JetBrains+Mono:wght@500;700&amp;family=Space+Grotesk:wght@500;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2fd4b4}a:hover{color:#a8f0e0}
+</style>
+</helmet>
+<div style="min-height: 1620px; background: #0d1117; color: #c9d2dc; font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif; font-size: 15px">
+
+  <header style="border-bottom: 1px solid #232c38">
+    <div style="max-width: 1220px; margin: 0 auto; box-sizing: border-box; padding: 10px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px">
+      <a href="#" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #e9eef4">
+        <svg width="28" height="28" viewBox="0 0 96 96" aria-hidden="true"><polygon points="88,48 68,82.64 28,82.64 8,48 28,13.36 68,13.36" fill="none" stroke="#2fd4b4" stroke-width="6"></polygon><g stroke="#a8f0e0" stroke-width="7" stroke-linecap="round"><line x1="30" y1="44" x2="30" y2="52"></line><line x1="39" y1="37" x2="39" y2="59"></line><line x1="48" y1="31" x2="48" y2="65"></line><line x1="57" y1="39" x2="57" y2="57"></line><line x1="66" y1="45" x2="66" y2="51"></line></g></svg>
+        <span style="font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700">DxAudio</span>
+      </a>
+      <span style="flex: 1"></span>
+      <label style="flex: 0 1 300px; display: flex; align-items: center; gap: 8px; border: 1px solid #232c38; border-radius: 8px; padding: 0 12px; min-height: 38px; background: #0c1016">
+        <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="#9aa3af" stroke-width="1.5"></circle><line x1="11" y1="11" x2="15" y2="15" stroke="#9aa3af" stroke-width="1.5"></line></svg>
+        <span style="position: absolute; width: 1px; height: 1px; overflow: hidden">Search</span>
+        <input type="search" placeholder="Search" style="flex: 1; min-width: 0; background: transparent; border: 0; color: #e9eef4; font: inherit; font-size: 14px; outline: none">
+      </label>
+      <button type="button" aria-label="Switch to light mode" style="width: 40px; height: 40px; background: transparent; border: 0; color: #9aa3af; cursor: pointer"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true"><path d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5z" fill="none" stroke="currentColor" stroke-width="1.4"></path></svg></button>
+      <a href="#" style="display: flex; flex-direction: column; text-decoration: none; color: #9aa3af; font-size: 12px; line-height: 1.3"><span style="color: #e9eef4">Ambiguous-Interactive/DxAudio</span><span style="font-family: 'JetBrains Mono', monospace">v0.4.0</span></a>
+    </div>
+    <nav aria-label="Sections" style="border-top: 1px solid #232c38">
+      <div style="max-width: 1220px; margin: 0 auto; box-sizing: border-box; padding: 0 16px; display: flex; flex-wrap: wrap; font-size: 14px">
+        <a href="#" aria-current="page" style="padding: 12px 10px; color: #e9eef4; font-weight: 700; text-decoration: none">Home</a>
+        <a href="#" style="padding: 12px 10px; color: #9aa3af; text-decoration: none">Getting Started</a>
+        <a href="#" style="padding: 12px 10px; color: #9aa3af; text-decoration: none">Guides</a>
+        <a href="#" style="padding: 12px 10px; color: #9aa3af; text-decoration: none">Concepts</a>
+        <a href="#" style="padding: 12px 10px; color: #9aa3af; text-decoration: none">Editor Tools</a>
+        <a href="#" style="padding: 12px 10px; color: #9aa3af; text-decoration: none">Reference</a>
+        <a href="#" style="padding: 12px 10px; color: #9aa3af; text-decoration: none">Troubleshooting</a>
+      </div>
+    </nav>
+  </header>
+
+  <main style="max-width: 920px; margin: 0 auto; box-sizing: border-box; padding: 56px 24px 72px; display: flex; flex-direction: column; gap: 48px">
+
+    <section style="display: flex; flex-wrap: wrap; gap: 28px; align-items: center">
+      <svg width="96" height="96" viewBox="0 0 96 96" aria-hidden="true" style="flex: 0 0 auto"><polygon points="88,48 68,82.64 28,82.64 8,48 28,13.36 68,13.36" fill="none" stroke="#2fd4b4" stroke-width="4"></polygon><g stroke="#a8f0e0" stroke-width="5" stroke-linecap="round"><line x1="30" y1="44" x2="30" y2="52"></line><line x1="39" y1="37" x2="39" y2="59"></line><line x1="48" y1="31" x2="48" y2="65"></line><line x1="57" y1="39" x2="57" y2="57"></line><line x1="66" y1="45" x2="66" y2="51"></line></g></svg>
+      <div style="flex: 1 1 420px; display: flex; flex-direction: column; gap: 8px">
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: #9aa3af">UNITY · C# · NO DEPENDENCIES</div>
+        <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 44px; line-height: 1.05; color: #e9eef4">DxAudio</h1>
+        <p style="margin: 0; font-size: 18px; line-height: 1.5">Sound effects and music from assets. Pooled voices, crossfading music, and ducks that compose.</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px">
+          <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px; border-radius: 8px; background: #2fd4b4; color: #0d1117; font-weight: 700; text-decoration: none">Quick Start</a>
+          <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px; border-radius: 8px; border: 1px solid #232c38; color: #e9eef4; font-weight: 700; text-decoration: none">Install</a>
+        </div>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 14px">
+      <h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 24px; color: #e9eef4">Start here</h2>
+      <div style="border: 1px solid #232c38; border-radius: 8px; overflow: hidden">
+        <a href="#" style="display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; padding: 14px 18px; text-decoration: none"><span style="font-weight: 700; color: #2fd4b4; min-width: 170px">Quick Start</span><span style="color: #9aa3af">Play a cue and start music in five minutes.</span></a>
+        <a href="#" style="display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; padding: 14px 18px; border-top: 1px solid #232c38; text-decoration: none"><span style="font-weight: 700; color: #2fd4b4; min-width: 170px">Cues</span><span style="color: #9aa3af">Takes, priority, rate limits and 3D falloff.</span></a>
+        <a href="#" style="display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; padding: 14px 18px; border-top: 1px solid #232c38; text-decoration: none"><span style="font-weight: 700; color: #2fd4b4; min-width: 170px">Music and ducks</span><span style="color: #9aa3af">Contexts, crossfades, overrides, and holding music down for dialogue.</span></a>
+        <a href="#" style="display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; padding: 14px 18px; border-top: 1px solid #232c38; text-decoration: none"><span style="font-weight: 700; color: #2fd4b4; min-width: 170px">Editor Tools</span><span style="color: #9aa3af">Studio, Signal Graph and Mix Monitor.</span></a>
+        <a href="#" style="display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; padding: 14px 18px; border-top: 1px solid #232c38; text-decoration: none"><span style="font-weight: 700; color: #2fd4b4; min-width: 170px">Troubleshooting</span><span style="color: #9aa3af">Find why a sound did not play.</span></a>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 14px">
+      <h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 24px; color: #e9eef4">Install</h2>
+      <div style="border: 1px solid #232c38; border-radius: 8px; overflow: hidden">
+        <div role="tablist" style="display: flex; flex-wrap: wrap; border-bottom: 1px solid #232c38; background: #0c1016; font-size: 14px">
+          <button type="button" role="tab" aria-selected="true" style="min-height: 42px; padding: 0 16px; background: transparent; border: 0; color: #e9eef4; font: inherit; font-weight: 700">OpenUPM</button>
+          <button type="button" role="tab" aria-selected="false" style="min-height: 42px; padding: 0 16px; background: transparent; border: 0; color: #9aa3af; font: inherit">Git URL</button>
+          <button type="button" role="tab" aria-selected="false" style="min-height: 42px; padding: 0 16px; background: transparent; border: 0; color: #9aa3af; font: inherit">npm registry</button>
+        </div>
+        <div style="padding: 16px 18px; font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #e9eef4; background: #0c1016">openupm add com.wallstop-studios.dxaudio</div>
+      </div>
+      <p style="margin: 0; font-size: 14px; color: #9aa3af">Unity 2021.3 or newer. See the <a href="#">Install guide</a> for scoped registries and tarballs.</p>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 14px">
+      <h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 24px; color: #e9eef4">Why teams use it</h2>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px">
+        <div style="border: 1px solid #232c38; border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 6px"><h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 17px; color: #e9eef4">Assets, not code</h3><p style="margin: 0; font-size: 14px; line-height: 1.55">Designers change volume, takes and falloff on the cue. Code calls Play.</p></div>
+        <div style="border: 1px solid #232c38; border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 6px"><h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 17px; color: #e9eef4">Zero allocations</h3><p style="margin: 0; font-size: 14px; line-height: 1.55">Play resolves voices and takes from pre-sized storage. CI checks it.</p></div>
+        <div style="border: 1px solid #232c38; border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 6px"><h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 17px; color: #e9eef4">Ducks compose</h3><p style="margin: 0; font-size: 14px; line-height: 1.55">Every live duck contributes; the most restrictive wins. No system overwrites another.</p></div>
+        <div style="border: 1px solid #232c38; border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 6px"><h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 17px; color: #e9eef4">Editor visibility</h3><p style="margin: 0; font-size: 14px; line-height: 1.55">See every voice, duck and fade while the game runs, in the Mix Monitor.</p></div>
+      </div>
+    </section>
+
+    <div style="border: 1px solid rgba(143, 168, 255, 0.35); background: rgba(143, 168, 255, 0.06); border-radius: 8px; padding: 14px 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 1.55">
+      <b style="color: #8fa8ff">AI assistance disclosure</b>
+      <span>[Same disclosure wording as DxMessaging and DxVisualizer, adapted for DxAudio.]</span>
+    </div>
+
+    <a href="#" style="align-self: flex-end; display: flex; flex-direction: column; gap: 2px; padding: 12px 18px; border: 1px solid #232c38; border-radius: 8px; text-decoration: none; text-align: right"><span style="font-size: 12px; color: #9aa3af">Next</span><span style="font-weight: 700; color: #e9eef4">Quick Start →</span></a>
+  </main>
+
+  <footer style="border-top: 1px solid #232c38; background: #0a0e13">
+    <div style="max-width: 1220px; margin: 0 auto; box-sizing: border-box; padding: 18px 24px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; font-size: 13px; color: #9aa3af">
+      <span>Dx family: <a href="#">DxMessaging</a> · <a href="#">DxVisualizer</a> · <a href="#">DxTerminal</a></span>
+      <span>MIT No Attribution · Wallstop Studios</span>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1620}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

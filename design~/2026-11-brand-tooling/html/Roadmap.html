@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en"><head><style>.sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);border:1px solid color-mix(in srgb,currentColor 50%,transparent);border-radius:2px;box-sizing:border-box;overflow:hidden}@keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}html.sc-dc-streaming .sc-placeholder,html.sc-dc-streaming .sc-interp.sc-missing{position:relative;background:color-mix(in srgb,currentColor 5%,transparent);border-color:transparent}html.sc-dc-streaming .sc-placeholder::before,html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);background-size:400% 100%;animation:sc-shine 1.4s ease infinite}html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;background:color-mix(in srgb,currentColor 8%,transparent)}.sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}.sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);border-radius:2px;box-sizing:border-box;color:transparent;user-select:none}.sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;color:color-mix(in srgb,currentColor 50%,transparent);background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;padding:0 3px}.sc-host.sc-has-error{position:relative}.sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;border-radius:4px;white-space:pre-wrap;pointer-events:none}@media print{@page{margin: 0.5cm;}figure,table{break-inside: avoid;}#dc-root,#dc-root > .sc-host{height: auto;}*,*::before,*::after{print-color-adjust: exact;-webkit-print-color-adjust: exact;backdrop-filter: none !important;-webkit-backdrop-filter: none !important;animation-delay: -99s !important;animation-duration: .001s !important;animation-iteration-count: 1 !important;animation-fill-mode: both !important;animation-play-state: running !important;transition-duration: 0s !important;}}</style>
+<meta charset="utf-8">
+<title>DxAudio roadmap: red-green milestones</title>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;700&amp;family=JetBrains+Mono:wght@500;700&amp;family=Space+Grotesk:wght@700&amp;display=swap" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0}
+a{color:#a8f0e0}a:hover{color:#ffffff}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="Roadmap"><div data-dc-tpl="3" style="min-height: 1910px; box-sizing: border-box; background: rgb(13, 17, 23); color: rgb(233, 238, 244); font-family: &quot;IBM Plex Sans&quot;, &quot;Segoe UI&quot;, sans-serif; padding: 56px 32px;"><div data-dc-tpl="4" style="max-width: 1320px; margin: 0px auto; display: flex; flex-direction: column; gap: 36px;">
+
+  <div data-dc-tpl="5" style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 24px; align-items: flex-end;">
+    <div data-dc-tpl="6" style="display: flex; flex-direction: column; gap: 8px; flex: 1 1 560px;">
+      <div data-dc-tpl="7" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: rgb(154, 163, 175);">HOW WE GET THERE · 14 MILESTONES · EACH ONE PR UNDER GOAL.md LIMITS</div>
+      <h1 data-dc-tpl="8" style="margin: 0px; font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 44px; line-height: 1.1;">Every milestone starts red</h1>
+      <p data-dc-tpl="9" style="margin: 0px; font-size: 16px; line-height: 1.55; color: rgb(154, 163, 175); max-width: 760px;">Each milestone names a check that fails on main today, the metric, and the pass condition, fixed before any work starts. Baselines below were measured on <span data-dc-tpl="10" style="font-family: &quot;JetBrains Mono&quot;, monospace; color: rgb(233, 238, 244);">dd9b01d</span>.</p>
+    </div>
+    <div data-dc-tpl="11" style="display: flex; gap: 10px; flex-wrap: wrap;">
+      <div data-dc-tpl="12" style="background: rgb(12, 16, 22); border: 1px solid rgb(35, 44, 56); border-radius: 10px; padding: 12px 16px; min-width: 120px;"><div data-dc-tpl="13" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 28px; font-weight: 700; color: rgb(255, 123, 114);">4</div><div data-dc-tpl="14" style="font-size: 12px; color: rgb(154, 163, 175);">stale 0.3.0 pins<br data-dc-tpl="15">(package is 0.4.0)</div></div>
+      <div data-dc-tpl="16" style="background: rgb(12, 16, 22); border: 1px solid rgb(35, 44, 56); border-radius: 10px; padding: 12px 16px; min-width: 120px;"><div data-dc-tpl="17" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 28px; font-weight: 700; color: rgb(242, 197, 138);">15</div><div data-dc-tpl="18" style="font-size: 12px; color: rgb(154, 163, 175);">color literals in<br data-dc-tpl="19">Editor/*.cs, 0 USS</div></div>
+      <div data-dc-tpl="20" style="background: rgb(12, 16, 22); border: 1px solid rgb(35, 44, 56); border-radius: 10px; padding: 12px 16px; min-width: 120px;"><div data-dc-tpl="21" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 28px; font-weight: 700; color: rgb(242, 197, 138);">25</div><div data-dc-tpl="22" style="font-size: 12px; color: rgb(154, 163, 175);">C# doc snippets,<br data-dc-tpl="23">0 compiled</div></div>
+      <div data-dc-tpl="24" style="background: rgb(12, 16, 22); border: 1px solid rgb(35, 44, 56); border-radius: 10px; padding: 12px 16px; min-width: 120px;"><div data-dc-tpl="25" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 28px; font-weight: 700; color: rgb(154, 163, 175);">406</div><div data-dc-tpl="26" style="font-size: 12px; color: rgb(154, 163, 175);">README lines,<br data-dc-tpl="27">no banner or site</div></div>
+    </div>
+  </div>
+
+  <div data-dc-tpl="28" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 20px; align-items: start;">
+
+    <div data-dc-tpl="29" style="display: flex; flex-direction: column; gap: 12px;">
+      <div data-dc-tpl="30" style="display: flex; align-items: center; gap: 10px;"><span data-dc-tpl="31" style="width: 12px; height: 12px; border-radius: 3px; background: rgb(47, 212, 180);"></span><h2 data-dc-tpl="32" style="margin: 0px; font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 22px;">A · Brand &amp; GitHub</h2></div>
+
+      <div data-dc-tpl="33" style="background: rgb(22, 27, 34); border: 1px solid rgb(35, 44, 56); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div data-dc-tpl="34" style="display: flex; justify-content: space-between; gap: 8px;"><span data-dc-tpl="35" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 12px; font-weight: 700; color: rgb(47, 212, 180);">A1 · FIRST</span><span data-dc-tpl="36" style="font-size: 12px; color: rgb(154, 163, 175);">~1 h</span></div>
+        <div data-dc-tpl="37" style="font-weight: 700; font-size: 16px;">Brand tokens as one source</div>
+        <div data-dc-tpl="38" style="font-size: 13px; line-height: 1.5; color: rgb(201, 209, 217);"><b data-dc-tpl="39">docs/brand/tokens.json</b> generates the banner SVGs, Editor USS variables and docs-site CSS.</div>
+        <div data-dc-tpl="40" style="font-size: 12px; line-height: 1.5; font-family: &quot;JetBrains Mono&quot;, monospace; background: rgb(12, 16, 22); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 4px;"><span data-dc-tpl="41" style="color: rgb(255, 123, 114);">RED  brand_check.py: hex not in tokens → fail</span><span data-dc-tpl="42" style="color: rgb(126, 224, 129);">GREEN 0 stray hexes · every text pair ≥ 4.5:1</span></div>
+      </div>
+
+      <div data-dc-tpl="43" style="background: rgb(22, 27, 34); border: 1px solid rgb(35, 44, 56); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div data-dc-tpl="44" style="display: flex; justify-content: space-between; gap: 8px;"><span data-dc-tpl="45" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 12px; font-weight: 700; color: rgb(47, 212, 180);">A2</span><span data-dc-tpl="46" style="font-size: 12px; color: rgb(154, 163, 175);">~1.5 h</span></div>
+        <div data-dc-tpl="47" style="font-weight: 700; font-size: 16px;">Version sync everywhere</div>
+        <div data-dc-tpl="48" style="font-size: 13px; line-height: 1.5; color: rgb(201, 209, 217);">README, install.md and banner chip read package.json. Already a real bug.</div>
+        <div data-dc-tpl="49" style="font-size: 12px; line-height: 1.5; font-family: &quot;JetBrains Mono&quot;, monospace; background: rgb(12, 16, 22); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 4px;"><span data-dc-tpl="50" style="color: rgb(255, 123, 114);">RED  4 pins say 0.3.0 today</span><span data-dc-tpl="51" style="color: rgb(126, 224, 129);">GREEN check fails a planted 0.0.9, passes after</span></div>
+      </div>
+
+      <div data-dc-tpl="52" style="background: rgb(22, 27, 34); border: 1px solid rgb(35, 44, 56); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div data-dc-tpl="53" style="display: flex; justify-content: space-between; gap: 8px;"><span data-dc-tpl="54" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 12px; font-weight: 700; color: rgb(47, 212, 180);">A3</span><span data-dc-tpl="55" style="font-size: 12px; color: rgb(154, 163, 175);">~2 h</span></div>
+        <div data-dc-tpl="56" style="font-weight: 700; font-size: 16px;">README rewrite, 30-second path</div>
+        <div data-dc-tpl="57" style="font-size: 13px; line-height: 1.5; color: rgb(201, 209, 217);">Banner via &lt;picture&gt;, 4 badges, pitch, one install, one snippet, docs links. Deep content moves to the site.</div>
+        <div data-dc-tpl="58" style="font-size: 12px; line-height: 1.5; font-family: &quot;JetBrains Mono&quot;, monospace; background: rgb(12, 16, 22); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 4px;"><span data-dc-tpl="59" style="color: rgb(255, 123, 114);">RED  first Play() snippet at line &gt; 150</span><span data-dc-tpl="60" style="color: rgb(126, 224, 129);">GREEN ≤ 60 lines to first Play() · links 200</span></div>
+      </div>
+
+      <div data-dc-tpl="61" style="background: rgb(22, 27, 34); border: 1px solid rgb(35, 44, 56); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div data-dc-tpl="62" style="display: flex; justify-content: space-between; gap: 8px;"><span data-dc-tpl="63" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 12px; font-weight: 700; color: rgb(47, 212, 180);">A4</span><span data-dc-tpl="64" style="font-size: 12px; color: rgb(154, 163, 175);">~1 h</span></div>
+        <div data-dc-tpl="65" style="font-weight: 700; font-size: 16px;">Social preview &amp; repo metadata</div>
+        <div data-dc-tpl="66" style="font-size: 13px; line-height: 1.5; color: rgb(201, 209, 217);">1280×640 OG card, About text, topics, homepage → docs site.</div>
+        <div data-dc-tpl="67" style="font-size: 12px; line-height: 1.5; font-family: &quot;JetBrains Mono&quot;, monospace; background: rgb(12, 16, 22); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 4px;"><span data-dc-tpl="68" style="color: rgb(255, 123, 114);">RED  gh api: no homepage, no topics</span><span data-dc-tpl="69" style="color: rgb(126, 224, 129);">GREEN meta check passes in CI</span></div>
+      </div>
+    </div>
+
+    <div data-dc-tpl="70" style="display: flex; flex-direction: column; gap: 12px;">
+      <div data-dc-tpl="71" style="display: flex; align-items: center; gap: 10px;"><span data-dc-tpl="72" style="width: 12px; height: 12px; border-radius: 3px; background: rgb(143, 168, 255);"></span><h2 data-dc-tpl="73" style="margin: 0px; font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 22px;">B · Documentation</h2></div>
+
+      <div data-dc-tpl="74" style="background: rgb(22, 27, 34); border: 1px solid rgb(35, 44, 56); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div data-dc-tpl="75" style="display: flex; justify-content: space-between; gap: 8px;"><span data-dc-tpl="76" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 12px; font-weight: 700; color: rgb(143, 168, 255);">B1</span><span data-dc-tpl="77" style="font-size: 12px; color: rgb(154, 163, 175);">~1.5 h</span></div>
+        <div data-dc-tpl="78" style="font-weight: 700; font-size: 16px;">Diátaxis audit of 8 pages</div>
+        <div data-dc-tpl="79" style="font-size: 13px; line-height: 1.5; color: rgb(201, 209, 217);">Tag each heading tutorial / how-to / reference / explanation; split pages that mix types.</div>
+        <div data-dc-tpl="80" style="font-size: 12px; line-height: 1.5; font-family: &quot;JetBrains Mono&quot;, monospace; background: rgb(12, 16, 22); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 4px;"><span data-dc-tpl="81" style="color: rgb(255, 123, 114);">RED  docs_check: page without doc_type front-matter</span><span data-dc-tpl="82" style="color: rgb(126, 224, 129);">GREEN every page typed · no mixed page</span></div>
+      </div>
+
+      <div data-dc-tpl="83" style="background: rgb(22, 27, 34); border: 1px solid rgb(35, 44, 56); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div data-dc-tpl="84" style="display: flex; justify-content: space-between; gap: 8px;"><span data-dc-tpl="85" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 12px; font-weight: 700; color: rgb(143, 168, 255);">B2 · SPIKE</span><span data-dc-tpl="86" style="font-size: 12px; color: rgb(154, 163, 175);">~2 h</span></div>
+        <div data-dc-tpl="87" style="font-weight: 700; font-size: 16px;">Site generator: Material vs Zensical</div>
+        <div data-dc-tpl="88" style="font-size: 13px; line-height: 1.5; color: rgb(201, 209, 217);">Siblings use MkDocs Material, which is now in maintenance mode. Build the same content with both; keep family parity unless Zensical fails.</div>
+        <div data-dc-tpl="89" style="font-size: 12px; line-height: 1.5; font-family: &quot;JetBrains Mono&quot;, monospace; background: rgb(12, 16, 22); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 4px;"><span data-dc-tpl="90" style="color: rgb(201, 209, 217);">MEASURE build · search hits · theme drift · time</span><span data-dc-tpl="91" style="color: rgb(126, 224, 129);">DECIDE in docs/adr/0001-docs-stack.md</span></div>
+      </div>
+
+      <div data-dc-tpl="92" style="background: rgb(22, 27, 34); border: 1px solid rgb(35, 44, 56); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div data-dc-tpl="93" style="display: flex; justify-content: space-between; gap: 8px;"><span data-dc-tpl="94" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 12px; font-weight: 700; color: rgb(143, 168, 255);">B3</span><span data-dc-tpl="95" style="font-size: 12px; color: rgb(154, 163, 175);">~2 h</span></div>
+        <div data-dc-tpl="96" style="font-weight: 700; font-size: 16px;">Snippets compile</div>
+        <div data-dc-tpl="97" style="font-size: 13px; line-height: 1.5; color: rgb(201, 209, 217);">Extract every ```csharp block into .net-tests (Core) or an EditMode fixture (Unity).</div>
+        <div data-dc-tpl="98" style="font-size: 12px; line-height: 1.5; font-family: &quot;JetBrains Mono&quot;, monospace; background: rgb(12, 16, 22); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 4px;"><span data-dc-tpl="99" style="color: rgb(255, 123, 114);">RED  planted typo in quickstart → CI fails</span><span data-dc-tpl="100" style="color: rgb(126, 224, 129);">GREEN 25 / 25 snippets compile</span></div>
+      </div>
+
+      <div data-dc-tpl="101" style="background: rgb(22, 27, 34); border: 1px solid rgb(35, 44, 56); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div data-dc-tpl="102" style="display: flex; justify-content: space-between; gap: 8px;"><span data-dc-tpl="103" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 12px; font-weight: 700; color: rgb(143, 168, 255);">B4 · STUDY</span><span data-dc-tpl="104" style="font-size: 12px; color: rgb(154, 163, 175);">people</span></div>
+        <div data-dc-tpl="105" style="font-weight: 700; font-size: 16px;">Time to first sound</div>
+        <div data-dc-tpl="106" style="font-size: 13px; line-height: 1.5; color: rgb(201, 209, 217);">5 Unity users, cold, from the GitHub page. Fold into the #86 / #105 study kits.</div>
+        <div data-dc-tpl="107" style="font-size: 12px; line-height: 1.5; font-family: &quot;JetBrains Mono&quot;, monospace; background: rgb(12, 16, 22); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 4px;"><span data-dc-tpl="108" style="color: rgb(201, 209, 217);">BASELINE today's README, then candidate</span><span data-dc-tpl="109" style="color: rgb(126, 224, 129);">PASS median ≤ 10 min · 0 dead ends</span></div>
+      </div>
+    </div>
+
+    <div data-dc-tpl="110" style="display: flex; flex-direction: column; gap: 12px;">
+      <div data-dc-tpl="111" style="display: flex; align-items: center; gap: 10px;"><span data-dc-tpl="112" style="width: 12px; height: 12px; border-radius: 3px; background: rgb(242, 197, 138);"></span><h2 data-dc-tpl="113" style="margin: 0px; font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 22px;">C · Editor suite</h2></div>
+
+      <div data-dc-tpl="114" style="background: rgb(22, 27, 34); border: 1px solid rgb(35, 44, 56); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div data-dc-tpl="115" style="display: flex; justify-content: space-between; gap: 8px;"><span data-dc-tpl="116" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 12px; font-weight: 700; color: rgb(242, 197, 138);">C1</span><span data-dc-tpl="117" style="font-size: 12px; color: rgb(154, 163, 175);">~2 h</span></div>
+        <div data-dc-tpl="118" style="font-weight: 700; font-size: 16px;">Theme layer: DxAudio.uss</div>
+        <div data-dc-tpl="119" style="font-size: 13px; line-height: 1.5; color: rgb(201, 209, 217);">USS variables generated from A1, with Unity dark and light skins; inspectors and windows use classes, not Color literals.</div>
+        <div data-dc-tpl="120" style="font-size: 12px; line-height: 1.5; font-family: &quot;JetBrains Mono&quot;, monospace; background: rgb(12, 16, 22); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 4px;"><span data-dc-tpl="121" style="color: rgb(255, 123, 114);">RED  15 literals in Editor/*.cs</span><span data-dc-tpl="122" style="color: rgb(126, 224, 129);">GREEN 0 literals · both skins ≥ 4.5:1</span></div>
+      </div>
+
+      <div data-dc-tpl="123" style="background: rgb(22, 27, 34); border: 1px solid rgb(35, 44, 56); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div data-dc-tpl="124" style="display: flex; justify-content: space-between; gap: 8px;"><span data-dc-tpl="125" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 12px; font-weight: 700; color: rgb(242, 197, 138);">C2</span><span data-dc-tpl="126" style="font-size: 12px; color: rgb(154, 163, 175);">2–3 PRs</span></div>
+        <div data-dc-tpl="127" style="font-weight: 700; font-size: 16px;">Studio: one window for authoring</div>
+        <div data-dc-tpl="128" style="font-size: 13px; line-height: 1.5; color: rgb(201, 209, 217);">Restyle the Authoring + Library windows into the Studio layout: library tree, cue editor with take waveforms, audition, problems.</div>
+        <div data-dc-tpl="129" style="font-size: 12px; line-height: 1.5; font-family: &quot;JetBrains Mono&quot;, monospace; background: rgb(12, 16, 22); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 4px;"><span data-dc-tpl="130" style="color: rgb(201, 209, 217);">BASELINE #86 task time on today's tools</span><span data-dc-tpl="131" style="color: rgb(126, 224, 129);">PASS ≥ 25% faster · no more wrong edits</span></div>
+      </div>
+
+      <div data-dc-tpl="132" style="background: rgb(22, 27, 34); border: 1px solid rgb(35, 44, 56); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div data-dc-tpl="133" style="display: flex; justify-content: space-between; gap: 8px;"><span data-dc-tpl="134" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 12px; font-weight: 700; color: rgb(242, 197, 138);">C3</span><span data-dc-tpl="135" style="font-size: 12px; color: rgb(154, 163, 175);">~2 h</span></div>
+        <div data-dc-tpl="136" style="font-weight: 700; font-size: 16px;">Signal Graph: meters, solo, bypass</div>
+        <div data-dc-tpl="137" style="font-size: 13px; line-height: 1.5; color: rgb(201, 209, 217);">Keep the custom DspGraphCanvas (Graph Toolkit is experimental and 6.2+; DxAudio supports 2021.3). Add per-node taps for peak meters and in/out spectrum, editor-only solo and bypass, minimap.</div>
+        <div data-dc-tpl="138" style="font-size: 12px; line-height: 1.5; font-family: &quot;JetBrains Mono&quot;, monospace; background: rgb(12, 16, 22); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 4px;"><span data-dc-tpl="139" style="color: rgb(255, 123, 114);">RED  solo/bypass dirties the asset · tap allocs</span><span data-dc-tpl="140" style="color: rgb(126, 224, 129);">GREEN asset unchanged · 0 B · repaint ≤ 4 ms @ 16 nodes</span></div>
+      </div>
+
+      <div data-dc-tpl="141" style="background: rgb(22, 27, 34); border: 1px solid rgb(35, 44, 56); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div data-dc-tpl="142" style="display: flex; justify-content: space-between; gap: 8px;"><span data-dc-tpl="143" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 12px; font-weight: 700; color: rgb(242, 197, 138);">C4</span><span data-dc-tpl="144" style="font-size: 12px; color: rgb(154, 163, 175);">2 PRs</span></div>
+        <div data-dc-tpl="145" style="font-weight: 700; font-size: 16px;">Mix Monitor (Play Mode)</div>
+        <div data-dc-tpl="146" style="font-size: 13px; line-height: 1.5; color: rgb(201, 209, 217);">DAW-style timeline: voice clips, music decks, duck holds and composed gain, bus strips. PR 1 reads player state on editor ticks. PR 2 adds loudness, true peak and spectrum through a listener tap (with #46).</div>
+        <div data-dc-tpl="147" style="font-size: 12px; line-height: 1.5; font-family: &quot;JetBrains Mono&quot;, monospace; background: rgb(12, 16, 22); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 4px;"><span data-dc-tpl="148" style="color: rgb(255, 123, 114);">RED  alloc probe with monitor open</span><span data-dc-tpl="149" style="color: rgb(126, 224, 129);">GREEN Play() still 0 B · invariant #2 holds</span></div>
+      </div>
+
+      <div data-dc-tpl="150" style="background: rgb(22, 27, 34); border: 1px solid rgb(35, 44, 56); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div data-dc-tpl="151" style="display: flex; justify-content: space-between; gap: 8px;"><span data-dc-tpl="152" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 12px; font-weight: 700; color: rgb(242, 197, 138);">C5</span><span data-dc-tpl="153" style="font-size: 12px; color: rgb(154, 163, 175);">~2 h</span></div>
+        <div data-dc-tpl="154" style="font-weight: 700; font-size: 16px;">Screenshot pipeline</div>
+        <div data-dc-tpl="155" style="font-size: 13px; line-height: 1.5; color: rgb(201, 209, 217);">Reuse DxVisualizer's capture-manifest.json approach so docs images regenerate from the editor.</div>
+        <div data-dc-tpl="156" style="font-size: 12px; line-height: 1.5; font-family: &quot;JetBrains Mono&quot;, monospace; background: rgb(12, 16, 22); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 4px;"><span data-dc-tpl="157" style="color: rgb(255, 123, 114);">RED  manifest image older than its window source</span><span data-dc-tpl="158" style="color: rgb(126, 224, 129);">GREEN all images fresh in CI</span></div>
+      </div>
+
+      <div data-dc-tpl="159" style="background: rgb(22, 27, 34); border: 1px solid rgb(35, 44, 56); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+        <div data-dc-tpl="160" style="display: flex; justify-content: space-between; gap: 8px;"><span data-dc-tpl="161" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 12px; font-weight: 700; color: rgb(242, 197, 138);">C6</span><span data-dc-tpl="162" style="font-size: 12px; color: rgb(154, 163, 175);">2 PRs</span></div>
+        <div data-dc-tpl="163" style="font-weight: 700; font-size: 16px;">Problems: rules, severity, silencing</div>
+        <div data-dc-tpl="164" style="font-size: 13px; line-height: 1.5; color: rgb(201, 209, 217);">One DXA rule catalog over DxAudioValidation, chain slots and drop reasons. Project severity, shared per-asset silences with reasons, per-user hides.</div>
+        <div data-dc-tpl="165" style="font-size: 12px; line-height: 1.5; font-family: &quot;JetBrains Mono&quot;, monospace; background: rgb(12, 16, 22); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 4px;"><span data-dc-tpl="166" style="color: rgb(255, 123, 114);">RED  fixture per rule: not reported with an ID</span><span data-dc-tpl="167" style="color: rgb(126, 224, 129);">GREEN each fires · hides when silenced · error still fails CI</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div data-dc-tpl="168" style="display: flex; flex-wrap: wrap; gap: 24px; border-top: 1px solid rgb(35, 44, 56); padding-top: 24px;">
+    <div data-dc-tpl="169" style="flex: 1 1 520px; display: flex; flex-direction: column; gap: 8px;">
+      <div data-dc-tpl="170" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: rgb(154, 163, 175);">ORDER</div>
+      <div data-dc-tpl="171" style="font-size: 14px; line-height: 1.6; color: rgb(201, 209, 217);">A1 → A2 → C1 unlock everything (tokens, then sync, then theme). C6 next, since Studio, Graph and Monitor all show its badges. Then A3 + B1 in parallel, B2 spike, B3. C2–C4 land behind the existing windows, with the old ones kept until B4 and #86 show the new ones win. C5 follows once windows stop moving.</div>
+    </div>
+    <div data-dc-tpl="172" style="flex: 1 1 520px; display: flex; flex-direction: column; gap: 8px;">
+      <div data-dc-tpl="173" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: rgb(154, 163, 175);">EVIDENCE USED</div>
+      <div data-dc-tpl="174" style="font-size: 13px; line-height: 1.7; color: rgb(154, 163, 175);">
+        <a data-dc-tpl="175" href="https://diataxis.fr/">Diátaxis</a> · <a data-dc-tpl="176" href="https://github.blog/developer-skills/documentation-done-right-a-developers-guide/">GitHub: documentation done right</a> · <a data-dc-tpl="177" href="https://github.blog/developer-skills/github/how-to-make-your-images-in-markdown-on-github-adjust-for-dark-mode-and-light-mode/">GitHub: images for dark and light mode</a> · <a data-dc-tpl="178" href="https://docs.unity3d.com/Manual/gtk/gtk-index.html">Unity Graph Toolkit</a> · <a data-dc-tpl="179" href="https://sv0-docs.pages.dev/docs/architecture/research/2026-03-11-documentation-framework-comparison">2026 docs-stack comparison (Material maintenance)</a> · <a data-dc-tpl="180" href="https://github.com/Ambiguous-Interactive/DxMessaging">DxMessaging</a> · <a data-dc-tpl="181" href="https://github.com/Ambiguous-Interactive/DxVisualizer">DxVisualizer</a>
+      </div>
+    </div>
+  </div></div></div></div></div>
+
+
+
+</body></html>

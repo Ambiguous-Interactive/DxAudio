@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DxAudio Mix Monitor</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;700&amp;family=Space+Grotesk:wght@700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2fd4b4}a:hover{color:#a8f0e0}
+</style>
+</helmet>
+<div style="min-height: 1160px; box-sizing: border-box; background: #141414; color: #d2d2d2; font-family: Inter, 'Segoe UI', sans-serif; font-size: 12px; padding: 20px">
+<div style="max-width: 1400px; margin: 0 auto; border: 1px solid #0b0b0b; border-radius: 6px; overflow: hidden; background: #1d1d1d; display: flex; flex-direction: column">
+
+  <div style="display: flex; align-items: flex-end; background: #141414; height: 30px; padding-left: 6px; gap: 2px">
+    <div style="display: flex; align-items: center; height: 26px; padding: 0 12px; color: #9a9a9a">DxAudio Studio</div>
+    <div style="display: flex; align-items: center; height: 26px; padding: 0 12px; color: #9a9a9a">Signal Graph</div>
+    <div style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 12px; background: #1d1d1d; border-radius: 4px 4px 0 0; font-weight: 600; color: #f0f0f0">Mix Monitor</div>
+  </div>
+
+  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 8px 12px; background: #262626; border-bottom: 1px solid #0f0f0f">
+    <div style="display: flex; gap: 4px">
+      <button type="button" onClick="{{toggleCapture}}" aria-label="{{captureLabel}}" style="width: 34px; height: 30px; display: flex; align-items: center; justify-content: center; background: {{captureBg}}; border: 1px solid #0f0f0f; border-radius: 4px; cursor: pointer"><span style="width: 12px; height: 12px; border-radius: 50%; background: {{captureDot}}"></span></button>
+      <button type="button" aria-label="Follow playhead" style="width: 34px; height: 30px; display: flex; align-items: center; justify-content: center; background: #34413e; border: 1px solid #0f0f0f; border-radius: 4px; color: #a8f0e0"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 7h8M7 3l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg></button>
+      <button type="button" aria-label="Loop region" style="width: 34px; height: 30px; display: flex; align-items: center; justify-content: center; background: #303030; border: 1px solid #0f0f0f; border-radius: 4px; color: #bdbdbd"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5h7l-2-2M11 9H4l2 2" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg></button>
+    </div>
+    <div style="display: flex; align-items: baseline; gap: 10px; padding: 4px 14px; background: #0e1211; border: 1px solid #0a0a0a; border-radius: 4px">
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 700; color: #a8f0e0; letter-spacing: 0.02em">{{clock}}</span>
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #7f8f8b">frame 2531 · 60 fps</span>
+    </div>
+    <span style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; background: {{stateBg}}; color: {{stateFg}}; font-weight: 700">{{stateText}}</span>
+    <span style="flex: 1"></span>
+    <div style="display: flex; flex-wrap: wrap; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px">
+      <span style="padding: 4px 9px; background: #161616; border: 1px solid #2c2c2c; border-radius: 4px">voices <b style="color: #2fd4b4">11</b>/16</span>
+      <span style="padding: 4px 9px; background: #161616; border: 1px solid #2c2c2c; border-radius: 4px">drops <b style="color: #ffa657">{{dropsShown}}</b> <span style="color: #8a8a8a">{{silencedDrops}}</span></span>
+      <span style="padding: 4px 9px; background: #161616; border: 1px solid #2c2c2c; border-radius: 4px">Play() <b style="color: #2fd4b4">0 B</b></span>
+      <span style="padding: 4px 9px; background: #161616; border: 1px solid #2c2c2c; border-radius: 4px">DSP <b style="color: #e4e4e4">0.6 ms</b></span>
+    </div>
+    <button type="button" style="height: 30px; padding: 0 12px; background: #303030; border: 1px solid #0f0f0f; border-radius: 4px; color: #e4e4e4; font: inherit">Copy JSON</button>
+  </div>
+
+  <div style="display: flex; flex-wrap: wrap">
+    <div style="flex: 999 1 720px; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid #0f0f0f">
+
+      <div style="display: flex; border-bottom: 1px solid #0f0f0f; background: #222">
+        <div style="flex: 0 0 200px; padding: 6px 10px; color: #8a8a8a; border-right: 1px solid #0f0f0f">Tracks</div>
+        <div style="position: relative; flex: 1; height: 30px">
+          <sc-for list="{{ticks}}" as="t" hint-placeholder-count="11"><span style="position: absolute; left: {{t.left}}; top: 0; bottom: 0; border-left: 1px solid #3a3a3a; padding-left: 4px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #8a8a8a; line-height: 16px">{{t.label}}</span></sc-for>
+          <sc-for list="{{markers}}" as="m" hint-placeholder-count="4"><span title="{{m.title}}" style="position: absolute; left: {{m.left}}; bottom: 2px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 8px solid {{m.color}}; transform: translateX(-5px)"></span></sc-for>
+          <span style="position: absolute; left: 30%; width: 25%; top: 0; height: 4px; background: #2fd4b455"></span>
+        </div>
+      </div>
+
+      <div style="position: relative; display: flex; flex-direction: column">
+        <div style="display: flex; background: #1a1a1a; border-bottom: 1px solid #0f0f0f">
+          <div style="flex: 0 0 200px; padding: 5px 10px; font-weight: 700; color: #e4e4e4; border-right: 1px solid #0f0f0f">▾ SFX voices <span style="font-weight: 400; color: #8a8a8a">· 11 busy</span></div>
+          <div style="flex: 1"></div>
+        </div>
+        <sc-for list="{{voices}}" as="v" hint-placeholder-count="8">
+          <div style="display: flex; height: 34px; border-bottom: 1px solid #151515">
+            <div style="flex: 0 0 200px; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: #232323; border-right: 1px solid #0f0f0f">
+              <span style="width: 4px; height: 22px; border-radius: 2px; background: {{v.color}}"></span>
+              <span style="flex: 1; font-family: 'JetBrains Mono', monospace; font-size: 11px">{{v.name}}</span>
+              <span style="font-size: 10px; color: #8a8a8a">{{v.bus}}</span>
+              <span style="width: 4px; height: 22px; background: #111; border-radius: 1px; display: flex; align-items: flex-end"><span style="width: 100%; height: {{v.level}}; background: #2fd4b4; border-radius: 1px"></span></span>
+            </div>
+            <div style="position: relative; flex: 1; background: #1b1b1b">
+              <sc-for list="{{v.clips}}" as="c" hint-placeholder-count="2">
+                <button type="button" onClick="{{c.pick}}" aria-label="{{c.aria}}" style="position: absolute; left: {{c.left}}; width: {{c.width}}; top: 3px; bottom: 3px; padding: 0; overflow: hidden; border-radius: 3px; background: {{c.bg}}; border: {{c.border}}; box-sizing: border-box; cursor: pointer; text-align: left">
+                  <span style="position: absolute; left: 0; right: 0; top: 0; height: 11px; padding-left: 4px; background: {{c.head}}; font-family: Inter, sans-serif; font-size: 9px; font-weight: 700; line-height: 11px; color: #0d1117; white-space: nowrap; overflow: hidden">{{c.label}}</span>
+                  <svg width="100%" height="16" viewBox="0 0 100 16" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; left: 0; bottom: 1px"><path d="{{c.wave}}" fill="#0d1117" opacity="0.45"></path></svg>
+                  <sc-if value="{{c.stolen}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; right: 0; top: 0; bottom: 0; width: 3px; background: #ff7b72"></span></sc-if>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+        <div style="display: flex; height: 22px; border-bottom: 1px solid #0f0f0f; background: #1a1a1a"><div style="flex: 0 0 200px; padding: 3px 10px; color: #8a8a8a; border-right: 1px solid #0f0f0f">+ 5 idle voices</div><div style="flex: 1"></div></div>
+
+        <div style="display: flex; background: #1a1a1a; border-bottom: 1px solid #0f0f0f">
+          <div style="flex: 0 0 200px; padding: 5px 10px; font-weight: 700; color: #e4e4e4; border-right: 1px solid #0f0f0f">▾ Music</div>
+          <div style="flex: 1"></div>
+        </div>
+        <div style="display: flex; height: 52px; border-bottom: 1px solid #151515">
+          <div style="flex: 0 0 200px; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: #232323; border-right: 1px solid #0f0f0f"><span style="width: 4px; height: 36px; border-radius: 2px; background: #8fa8ff"></span><span style="flex: 1">Deck A / B</span><span style="font-size: 10px; color: #8a8a8a">Music</span></div>
+          <div style="position: relative; flex: 1; background: #1b1b1b">
+            <div style="position: absolute; left: 0; width: 82%; top: 4px; height: 21px; border-radius: 3px; background: #8fa8ffcc; overflow: hidden">
+              <span style="position: absolute; left: 6px; top: 3px; font-size: 10px; font-weight: 700; color: #0d1117">cave_ambience</span>
+              <svg width="100%" height="21" viewBox="0 0 100 21" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; inset: 0"><path d="M84.1 0 L100 21 L100 0 Z" fill="#1b1b1b" opacity="0.75"></path><path d="M84.1 0 L100 21" stroke="#0d1117" stroke-width="0.6" fill="none"></path></svg>
+            </div>
+            <div style="position: absolute; left: 69%; right: 0; top: 27px; height: 21px; border-radius: 3px; background: #c8d4ffdd; overflow: hidden">
+              <span style="position: absolute; right: 8px; top: 7px; font-size: 10px; font-weight: 700; color: #0d1117">boss_theme</span>
+              <svg width="100%" height="21" viewBox="0 0 100 21" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; inset: 0"><path d="M0 0 L0 21 L100 0 Z" fill="#1b1b1b" opacity="0.75"></path><path d="M0 21 L100 0" stroke="#0d1117" stroke-width="0.6" fill="none"></path></svg>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; background: #1a1a1a; border-bottom: 1px solid #0f0f0f">
+          <div style="flex: 0 0 200px; padding: 5px 10px; font-weight: 700; color: #e4e4e4; border-right: 1px solid #0f0f0f">▾ Ducks</div>
+          <div style="flex: 1"></div>
+        </div>
+        <div style="display: flex; height: 64px; border-bottom: 1px solid #151515">
+          <div style="flex: 0 0 200px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 0 10px; background: #232323; border-right: 1px solid #0f0f0f"><span style="color: #c9a7ff">Holds</span><span style="font-size: 10px; color: #8a8a8a">Dialogue · Pause · Cutscene</span></div>
+          <div style="position: relative; flex: 1; background: #1b1b1b">
+            <span style="position: absolute; left: 8%; width: 14%; top: 5px; height: 16px; border-radius: 3px; border: 1px solid #c9a7ff; background: #c9a7ff22; font-size: 9px; line-height: 14px; padding-left: 4px; color: #e2d6ff; box-sizing: border-box">Pause · One</span>
+            <span style="position: absolute; left: 30%; right: 0; top: 24px; height: 16px; border-radius: 3px; border: 1px solid #c9a7ff; background: #c9a7ff33; font-size: 9px; line-height: 14px; padding-left: 4px; color: #e2d6ff; box-sizing: border-box">Dialogue · Many · 2 holders</span>
+            <span style="position: absolute; left: 72%; right: 0; top: 43px; height: 16px; border-radius: 3px; border: 1px dashed #c9a7ff; background: #c9a7ff22; font-size: 9px; line-height: 14px; padding-left: 4px; color: #e2d6ff; box-sizing: border-box">Cutscene · One · LP 1.2 kHz</span>
+          </div>
+        </div>
+        <div style="display: flex; height: 70px; border-bottom: 1px solid #0f0f0f">
+          <div style="flex: 0 0 200px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 0 10px; background: #232323; border-right: 1px solid #0f0f0f"><span style="color: #e4e4e4">Music gain (composed)</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #c9a7ff">−9.0 dB · LP 1.2 kHz</span></div>
+          <div style="position: relative; flex: 1; background: #1b1b1b">
+            <svg width="100%" height="70" viewBox="0 0 1000 70" preserveAspectRatio="none" role="img" aria-label="Music gain over ten seconds: dips for the pause menu, then holds at minus nine decibels from dialogue onward"><g stroke="#2a2a2a" stroke-width="1"><line x1="0" y1="17" x2="1000" y2="17"></line><line x1="0" y1="35" x2="1000" y2="35"></line><line x1="0" y1="52" x2="1000" y2="52"></line></g><path d="M0 8 L80 8 L90 40 L220 40 L230 8 L300 8 L312 46 L720 46 L730 48 L1000 48 L1000 70 L0 70 Z" fill="#c9a7ff" opacity="0.12"></path><path d="M0 8 L80 8 L90 40 L220 40 L230 8 L300 8 L312 46 L720 46 L730 48 L1000 48" fill="none" stroke="#c9a7ff" stroke-width="2"></path></svg>
+            <span style="position: absolute; left: calc(8% - 4px); top: 4px; width: 8px; height: 8px; border-radius: 50%; background: #c9a7ff"></span>
+            <span style="position: absolute; left: calc(31.2% - 4px); top: 42px; width: 8px; height: 8px; border-radius: 50%; background: #c9a7ff"></span>
+          </div>
+        </div>
+
+        <div aria-hidden="true" style="position: absolute; left: calc(200px + (100% - 200px) * {{playheadFrac}}); top: 0; bottom: 0; width: 1px; background: #ffffff; opacity: 0.8"></div>
+      </div>
+    </div>
+
+    <aside aria-label="Selected voice" style="flex: 1 1 260px; max-width: 300px; background: #222; padding: 14px; display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 700; color: #f0f0f0">{{sel.cue}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #8a8a8a">{{sel.voice}}</span></div>
+      <div style="height: 54px; background: #161616; border: 1px solid #2c2c2c; border-radius: 4px; overflow: hidden"><svg width="100%" height="54" viewBox="0 0 100 54" preserveAspectRatio="none" aria-hidden="true"><path d="{{sel.bigWave}}" fill="#2fd4b4" opacity="0.85"></path><line x1="{{sel.pos}}" y1="0" x2="{{sel.pos}}" y2="54" stroke="#ffffff" stroke-width="0.6"></line></svg></div>
+      <div style="display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 12px">
+        <span style="color: #8a8a8a">Take</span><span style="font-family: 'JetBrains Mono', monospace; text-align: right">{{sel.take}}</span>
+        <span style="color: #8a8a8a">Started</span><span style="font-family: 'JetBrains Mono', monospace; text-align: right">{{sel.start}}</span>
+        <span style="color: #8a8a8a">Priority</span><span style="font-family: 'JetBrains Mono', monospace; text-align: right">{{sel.prio}}</span>
+        <span style="color: #8a8a8a">Volume · pitch</span><span style="font-family: 'JetBrains Mono', monospace; text-align: right">{{sel.vp}}</span>
+        <span style="color: #8a8a8a">Distance</span><span style="font-family: 'JetBrains Mono', monospace; text-align: right">{{sel.dist}}</span>
+        <span style="color: #8a8a8a">Bus</span><span style="font-family: 'JetBrains Mono', monospace; text-align: right">{{sel.bus}}</span>
+      </div>
+      <div style="padding: 8px 10px; border-radius: 4px; background: {{sel.noteBg}}; border: 1px solid {{sel.noteBorder}}; line-height: 1.45">{{sel.note}}</div>
+      <div style="display: flex; gap: 6px"><button type="button" style="flex: 1; min-height: 30px; background: #303030; border: 1px solid #0f0f0f; border-radius: 4px; color: #e4e4e4; font: inherit">Open in Studio</button><button type="button" style="flex: 1; min-height: 30px; background: #303030; border: 1px solid #0f0f0f; border-radius: 4px; color: #e4e4e4; font: inherit">Ping emitter</button></div>
+      <div style="border-top: 1px solid #333; padding-top: 10px; display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; justify-content: space-between"><span style="font-weight: 700; color: #ececec">Drop warnings</span><span style="color: #9a9a9a">click to silence</span></div>
+        <div style="display: flex; flex-wrap: wrap; gap: 4px">
+          <sc-for list="{{reasons}}" as="r" hint-placeholder-count="5">
+            <button type="button" onClick="{{r.toggle}}" aria-pressed="{{r.on}}" style="display: flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: 12px; border: 1px solid {{r.border}}; background: {{r.bg}}; color: {{r.fg}}; font: inherit; font-size: 11px; cursor: pointer; text-decoration: {{r.strike}}"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{r.dot}}"></span>{{r.name}} · {{r.count}}</button>
+          </sc-for>
+        </div>
+        <sc-for list="{{markers}}" as="m" hint-placeholder-count="4">
+          <div style="display: flex; gap: 8px; align-items: center"><span style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 7px solid {{m.color}}"></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #8a8a8a; width: 40px">{{m.time}}</span><span>{{m.title}}</span></div>
+        </sc-for>
+      </div>
+    </aside>
+  </div>
+
+  <div style="border-top: 1px solid #0b0b0b; background: #191919; padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch">
+    <sc-for list="{{strips}}" as="s" hint-placeholder-count="6">
+      <div style="flex: 0 0 104px; box-sizing: border-box; background: #232323; border: 1px solid #2c2c2c; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px">
+        <div style="height: 3px; border-radius: 2px; background: {{s.color}}"></div>
+        <div style="font-weight: 700; color: #ececec; white-space: nowrap; overflow: hidden">{{s.name}}</div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #9a9a9a; background: #181818; border: 1px solid #2c2c2c; border-radius: 3px; padding: 3px 4px; white-space: nowrap; overflow: hidden">{{s.insert}}</div>
+        <div style="display: flex; gap: 6px; height: 120px">
+          <div style="position: relative; flex: 1; display: flex; justify-content: center">
+            <span style="position: absolute; top: 0; bottom: 0; width: 2px; background: #111; border-radius: 1px"></span>
+            <span style="position: absolute; top: {{s.fader}}; width: 30px; height: 12px; margin-top: -6px; border-radius: 2px; background: #c9c9c9; border-top: 1px solid #fff; box-shadow: 0 1px 2px #000"></span>
+          </div>
+          <div style="display: flex; gap: 2px">
+            <span style="position: relative; width: 6px; height: 100%; background: #111; border-radius: 1px; overflow: hidden"><span style="position: absolute; left: 0; right: 0; bottom: 0; height: {{s.l}}; background: linear-gradient(0deg, #2fd4b4 0%, #2fd4b4 70%, #f2c58a 88%, #ff7b72 100%)"></span><span style="position: absolute; left: 0; right: 0; bottom: {{s.peak}}; height: 2px; background: #f0f0f0"></span></span>
+            <span style="position: relative; width: 6px; height: 100%; background: #111; border-radius: 1px; overflow: hidden"><span style="position: absolute; left: 0; right: 0; bottom: 0; height: {{s.r}}; background: linear-gradient(0deg, #2fd4b4 0%, #2fd4b4 70%, #f2c58a 88%, #ff7b72 100%)"></span><span style="position: absolute; left: 0; right: 0; bottom: {{s.peak}}; height: 2px; background: #f0f0f0"></span></span>
+          </div>
+        </div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; text-align: center; color: #d2d2d2">{{s.db}}</div>
+        <div style="display: flex; gap: 4px">
+          <button type="button" onClick="{{s.toggleMute}}" aria-pressed="{{s.mutedAttr}}" style="flex: 1; height: 22px; border: 1px solid #0f0f0f; border-radius: 3px; background: {{s.muteBg}}; color: {{s.muteFg}}; font: inherit; font-size: 10px; font-weight: 700; cursor: pointer">M</button>
+          <button type="button" style="flex: 1; height: 22px; border: 1px solid #0f0f0f; border-radius: 3px; background: #303030; color: #bdbdbd; font: inherit; font-size: 10px; font-weight: 700">S</button>
+        </div>
+      </div>
+    </sc-for>
+    <div style="flex: 1 1 300px; box-sizing: border-box; background: #232323; border: 1px solid #2c2c2c; border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; justify-content: space-between"><span style="font-weight: 700; color: #ececec">Master</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #8a8a8a">AudioListener</span></div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px">
+        <div style="background: #181818; border: 1px solid #2c2c2c; border-radius: 4px; padding: 6px"><div style="font-size: 10px; color: #8a8a8a">Short-term</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700; color: #a8f0e0">−16.2</div><div style="font-size: 10px; color: #8a8a8a">LUFS</div></div>
+        <div style="background: #181818; border: 1px solid #2c2c2c; border-radius: 4px; padding: 6px"><div style="font-size: 10px; color: #8a8a8a">Integrated</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700; color: #e4e4e4">−18.0</div><div style="font-size: 10px; color: #8a8a8a">LUFS</div></div>
+        <div style="background: #181818; border: 1px solid #2c2c2c; border-radius: 4px; padding: 6px"><div style="font-size: 10px; color: #8a8a8a">True peak</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700; color: #f2c58a">−1.3</div><div style="font-size: 10px; color: #8a8a8a">dBTP</div></div>
+      </div>
+      <div style="flex: 1; min-height: 70px; background: #141414; border: 1px solid #2c2c2c; border-radius: 4px; overflow: hidden; position: relative">
+        <svg width="100%" height="100%" viewBox="0 0 300 80" preserveAspectRatio="none" role="img" aria-label="Spectrum: energy concentrated below 500 hertz, rolling off above 4 kilohertz"><g stroke="#262626" stroke-width="1"><line x1="60" y1="0" x2="60" y2="80"></line><line x1="130" y1="0" x2="130" y2="80"></line><line x1="200" y1="0" x2="200" y2="80"></line><line x1="270" y1="0" x2="270" y2="80"></line></g><path d="M0 70 C20 40 40 22 70 20 C100 18 120 30 150 34 C180 38 200 44 230 56 C260 66 280 74 300 78 L300 80 L0 80 Z" fill="#2fd4b4" opacity="0.18"></path><path d="M0 70 C20 40 40 22 70 20 C100 18 120 30 150 34 C180 38 200 44 230 56 C260 66 280 74 300 78" fill="none" stroke="#2fd4b4" stroke-width="1.5"></path><path d="M0 74 C20 52 40 36 70 34 C100 33 120 42 150 46 C180 50 200 56 230 64 C260 72 280 76 300 79" fill="none" stroke="#c9a7ff" stroke-width="1" stroke-dasharray="3 3"></path></svg>
+        <span style="position: absolute; left: 6px; bottom: 3px; font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #8a8a8a">100 · 1k · 10k Hz — dashed: music after ducks</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1160}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sel: 'v06-1', live: true, muted: {}, off: { Throttled: true } }; }
+  wave(seed, decay) {
+    let top = 'M0 8', bot = '';
+    for (let i = 0; i <= 50; i++) {
+      const x = i * 2;
+      const env = Math.exp(-i / decay);
+      const a = 7.5 * env * (0.5 + 0.5 * Math.abs(Math.sin((i + 1) * seed)));
+      top += ' L' + x + ' ' + (8 - a).toFixed(2);
+      bot = ' L' + x + ' ' + (8 + a).toFixed(2) + bot;
+    }
+    return top + bot + ' Z';
+  }
+  renderVals() {
+    const teal = '#2fd4b4', tint = '#a8f0e0';
+    const spec = [
+      ['v01', 'World', [[0, 100, 'wind_loop ⟲', 'loop', 'loop held since 12.40 s']]],
+      ['v02', 'Foley', [[2, 13, 'step'], [30, 12, 'step'], [58, 12, 'step'], [86, 14, 'step']]],
+      ['v03', 'Combat', [[8, 30, 'sword'], [61, 24, 'sword']]],
+      ['v04', 'Combat', [[12, 44, 'roar', 'hi']]],
+      ['v05', 'UI', [[20, 9, 'coin'], [40, 9, 'coin'], [70, 9, 'coin']]],
+      ['v06', 'Combat', [[0, 26, 'land', 'stolen'], [26, 50, 'hit']]],
+      ['v07', 'World', [[46, 54, 'torch ⟲', 'loop']]],
+      ['v08', 'Foley', [[5, 22, 'step'], [64, 20, 'whoosh']]],
+      ['v09', 'Combat', [[36, 30, 'debris']]],
+      ['v10', 'Combat', [[73, 27, 'hit']]],
+      ['v11', 'Foley', [[15, 12, 'jump'], [78, 18, 'jump']]]
+    ];
+    const selId = this.state.sel;
+    const details = {
+      'v06-1': { cue: 'hit', voice: 'v06 · Combat', take: 'hit_03 of 5', start: '41.40 s', prio: '64', vp: '−7.0 dB · +0.3 st', dist: '6.2 m (−4.1 dB)', bus: 'SFX/Combat', note: 'Stole this voice from land (priority 48). Loops are never stolen.', noteBg: '#2d2121', noteBorder: '#4a2b2b', pos: 38 },
+      'v06-0': { cue: 'land', voice: 'v06 · Combat', take: 'land_02 of 4', start: '39.00 s', prio: '48', vp: '−5.5 dB · −0.2 st', dist: '1.1 m (0 dB)', bus: 'SFX/Combat', note: 'Cut short at 41.40 s when hit (64) needed a voice.', noteBg: '#2d2121', noteBorder: '#4a2b2b', pos: 100 },
+      'v01-0': { cue: 'wind_loop', voice: 'v01 · World', take: 'wind_a', start: '12.40 s', prio: '80', vp: '−14.0 dB · 0 st', dist: '2D', bus: 'SFX/World', note: 'Looping: holds its voice until its handle stops it.', noteBg: '#1f2d2a', noteBorder: '#2c4a45', pos: 62 }
+    };
+    const fallback = { cue: 'step', voice: 'Foley', take: 'wood_03 of 5', start: '41.98 s', prio: '32', vp: '−8.1 dB · −0.4 st', dist: '0.8 m (0 dB)', bus: 'SFX/Foley', note: 'No-repeat picked wood_03; wood_01 played last.', noteBg: '#1f2d2a', noteBorder: '#2c4a45', pos: 70 };
+    const voices = spec.map(([name, bus, clips], vi) => ({
+      name, bus,
+      color: bus === 'UI' ? tint : teal,
+      level: ['92%', '60%', '30%', '85%', '20%', '70%', '55%', '40%', '35%', '65%', '25%'][vi],
+      clips: clips.map(([l, w, label, kind], ci) => {
+        const id = name + '-' + ci;
+        const sel = id === selId;
+        const loop = kind === 'loop';
+        return {
+          left: l + '%', width: w + '%', label,
+          aria: label + ' on ' + name,
+          bg: loop ? tint + 'cc' : kind === 'hi' ? '#e9eef4cc' : teal + 'cc',
+          head: loop ? tint : kind === 'hi' ? '#e9eef4' : teal,
+          border: sel ? '2px solid #ffffff' : '1px solid #0d1117',
+          stolen: kind === 'stolen',
+          wave: this.wave(1.3 + vi * 0.37 + ci, loop ? 400 : 10 + w / 3),
+          pick: () => this.setState({ sel: id })
+        };
+      })
+    }));
+    const d = details[selId] || fallback;
+    const sel = { ...d, bigWave: this.wave(2.1, 14).replace(/(\d+\.?\d*) (\d+\.?\d*)/g, (m, x, y) => x + ' ' + (parseFloat(y) * 3.375).toFixed(2)) };
+    const ticks = [];
+    for (let i = 0; i <= 10; i++) ticks.push({ left: (i * 10) + '%', label: i === 10 ? 'now' : '−' + (10 - i) + 's' });
+    const off = this.state.off;
+    const allMarkers = [
+      { left: '38.4%', color: '#ff7b72', time: '38.44', title: 'door_slam · NotPlayable', reason: 'NotPlayable' },
+      { left: '46%', color: '#ffa657', time: '40.60', title: 'roar · LoopLimit', reason: 'LoopLimit' },
+      { left: '57.5%', color: '#8fa8ff', time: '40.95', title: 'PlayContext boss · 3.0 s fade', reason: '' },
+      { left: '80.2%', color: '#b4bcc8', time: '42.02', title: 'pickup_coin · Throttled 8/s', reason: 'Throttled' }
+    ];
+    const markers = allMarkers.filter((m) => !m.reason || !off[m.reason]);
+    const reasonSpec = [['NotPlayable', '#ff7b72', 1], ['WrongPlayMethod', '#ff7b72', 0], ['NoVoice', '#ffa657', 0], ['LoopLimit', '#ffa657', 1], ['Throttled', '#b4bcc8', 1]];
+    const silencedN = reasonSpec.reduce((n, [name, , c]) => n + (off[name] ? c : 0), 0);
+    const silencedDrops = silencedN ? '+' + silencedN + ' silenced' : '';
+    const reasons = reasonSpec.map(([name, dot, count]) => {
+      const o = !!off[name];
+      return {
+        name, count, on: o ? 'false' : 'true',
+        dot: o ? '#5a5a5a' : dot, bg: o ? 'transparent' : '#2a2a2a', border: o ? '#3a3a3a' : '#4a4a4a',
+        fg: o ? '#7a7a7a' : '#e4e4e4', strike: o ? 'line-through' : 'none',
+        toggle: () => this.setState({ off: { ...this.state.off, [name]: !this.state.off[name] } })
+      };
+    });
+    const dropsShown = reasonSpec.reduce((n, [name, , c]) => n + (off[name] ? 0 : c), 0);
+    const muted = this.state.muted;
+    const stripSpec = [
+      ['World', teal, 'Body ▸ Glue', '30%', '62%', '58%', '70%', '−6.0'],
+      ['Foley', teal, '—', '38%', '48%', '45%', '55%', '−9.5'],
+      ['Combat', teal, 'Crunch ▸ Limit', '26%', '80%', '76%', '88%', '−3.2'],
+      ['UI', tint, '—', '34%', '22%', '24%', '30%', '−7.0'],
+      ['Music', '#8fa8ff', 'Duck −9 · LP', '44%', '50%', '52%', '58%', '−12.0'],
+      ['SFX bus', teal, 'Limiter', '28%', '74%', '72%', '82%', '−4.0']
+    ];
+    const strips = stripSpec.map(([name, color, insert, fader, l, r, peak, db]) => {
+      const m = !!muted[name];
+      return {
+        name, color, insert, fader, db: db + ' dB',
+        l: m ? '0%' : l, r: m ? '0%' : r, peak: m ? '0%' : peak,
+        mutedAttr: m ? 'true' : 'false', muteBg: m ? '#f2c58a' : '#303030', muteFg: m ? '#0d1117' : '#bdbdbd',
+        toggleMute: () => this.setState({ muted: { ...this.state.muted, [name]: !this.state.muted[name] } })
+      };
+    });
+    const live = this.state.live;
+    return {
+      voices, sel, ticks, markers, strips, reasons, dropsShown, silencedDrops,
+      clock: live ? '00:42.180' : '00:41.400',
+      playheadFrac: live ? 1 : 0.74,
+      stateText: live ? '● Capturing · Play Mode' : '❚❚ Paused · scrubbing',
+      stateBg: live ? '#3a2424' : '#2c2c2c', stateFg: live ? '#ffb4ae' : '#d2d2d2',
+      captureBg: live ? '#3a2424' : '#303030', captureDot: live ? '#ff7b72' : '#8a8a8a',
+      captureLabel: live ? 'Pause capture' : 'Resume capture',
+      toggleCapture: () => this.setState({ live: !this.state.live })
+    };
+  }
+}
+</script>
+</body>
+</html>

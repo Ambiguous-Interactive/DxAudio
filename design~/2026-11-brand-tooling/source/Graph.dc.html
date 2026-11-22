@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DxAudio Signal Graph</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;700&amp;family=Space+Grotesk:wght@700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2fd4b4}a:hover{color:#a8f0e0}
+</style>
+</helmet>
+<div style="min-height: 860px; box-sizing: border-box; background: #141414; color: #d2d2d2; font-family: Inter, 'Segoe UI', sans-serif; font-size: 12px; padding: 20px">
+<div style="max-width: 1400px; margin: 0 auto; border: 1px solid #0b0b0b; border-radius: 6px; overflow: hidden; background: #1d1d1d; display: flex; flex-direction: column">
+
+  <div style="display: flex; align-items: flex-end; background: #141414; height: 30px; padding-left: 6px; gap: 2px">
+    <div style="display: flex; align-items: center; height: 26px; padding: 0 12px; color: #9a9a9a">DxAudio Studio</div>
+    <div style="display: flex; align-items: center; height: 26px; padding: 0 12px; background: #1d1d1d; border-radius: 4px 4px 0 0; font-weight: 600; color: #f0f0f0">Signal Graph</div>
+    <div style="display: flex; align-items: center; height: 26px; padding: 0 12px; color: #9a9a9a">Mix Monitor</div>
+  </div>
+
+  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 8px 12px; background: #262626; border-bottom: 1px solid #0f0f0f">
+    <div style="display: flex; gap: 4px">
+      <button type="button" onClick="{{togglePlay}}" aria-label="{{playAria}}" style="width: 34px; height: 30px; display: flex; align-items: center; justify-content: center; background: {{playBg}}; border: 1px solid #0f0f0f; border-radius: 4px; color: {{playFg}}; cursor: pointer">
+        <sc-if value="{{playing}}" hint-placeholder-val="{{ true }}"><svg width="12" height="12" viewBox="0 0 14 14" aria-hidden="true"><rect x="2" y="2" width="10" height="10" rx="1" fill="currentColor"></rect></svg></sc-if>
+        <sc-if value="{{notPlaying}}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5 L12 7 L3 12.5 Z" fill="currentColor"></path></svg></sc-if>
+      </button>
+      <button type="button" aria-label="Loop audition" style="width: 34px; height: 30px; display: flex; align-items: center; justify-content: center; background: #34413e; border: 1px solid #0f0f0f; border-radius: 4px; color: #a8f0e0"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5h7l-2-2M11 9H4l2 2" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg></button>
+    </div>
+    <div style="display: flex; align-items: baseline; gap: 10px; padding: 4px 14px; background: #0e1211; border: 1px solid #0a0a0a; border-radius: 4px">
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 700; color: #a8f0e0">impact_layered</span>
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #7f8f8b">source footstep_wood · loop</span>
+    </div>
+    <span style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; background: {{soloChipBg}}; color: {{soloChipFg}}; font-weight: 700">{{soloChip}}</span>
+    <span style="flex: 1"></span>
+    <div style="display: flex; flex-wrap: wrap; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px">
+      <span style="padding: 4px 9px; background: #161616; border: 1px solid #2c2c2c; border-radius: 4px">nodes <b style="color: #e4e4e4">6</b>/16</span>
+      <span style="padding: 4px 9px; background: #161616; border: 1px solid #2c2c2c; border-radius: 4px">edges <b style="color: #e4e4e4">7</b>/32</span>
+      <span style="display: flex; align-items: center; gap: 6px; padding: 4px 9px; background: #161616; border: 1px solid #2c2c2c; border-radius: 4px">memory <span style="width: 36px; height: 5px; background: #2a2a2a; border-radius: 3px; display: flex"><span style="width: 34%; background: #f2c58a; border-radius: 3px"></span></span>34%</span>
+    </div>
+    <button type="button" onClick="{{selectAir}}" style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; background: {{errChipBg}}; border: 1px solid {{errChipBorder}}; border-radius: 4px; color: {{errChipFg}}; font: inherit; font-weight: 700; cursor: pointer"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{errChipDot}}"></span>{{errChip}}</button>
+  </div>
+
+  <div style="display: flex; flex-wrap: wrap">
+    <div style="flex: 999 1 640px; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid #0f0f0f">
+      <div style="overflow: auto; background: #1a1a1a; background-image: radial-gradient(#2a2a2a 1px, transparent 1px); background-size: 20px 20px">
+        <div style="position: relative; width: 1060px; height: 640px">
+          <svg width="1060" height="640" viewBox="0 0 1060 640" aria-hidden="true" style="position: absolute; inset: 0">
+            <g fill="none" stroke-linecap="round">
+              <path d="M170 320 C200 320 200 140 230 140" stroke="{{e.inBody.stroke}}" stroke-width="{{e.inBody.w}}" stroke-dasharray="{{e.inBody.dash}}"></path>
+              <path d="M170 320 C200 320 200 320 230 320" stroke="{{e.inCrunch.stroke}}" stroke-width="{{e.inCrunch.w}}" stroke-dasharray="{{e.inCrunch.dash}}"></path>
+              <path d="M170 320 C200 320 200 500 230 500" stroke="{{e.inAir.stroke}}" stroke-width="{{e.inAir.w}}" stroke-dasharray="{{e.inAir.dash}}"></path>
+              <path d="M470 140 C520 140 520 320 570 320" stroke="{{e.body.stroke}}" stroke-width="{{e.body.w}}" stroke-dasharray="{{e.body.dash}}"></path>
+              <path d="M470 320 C520 320 520 320 570 320" stroke="{{e.crunch.stroke}}" stroke-width="{{e.crunch.w}}" stroke-dasharray="{{e.crunch.dash}}"></path>
+              <path d="M470 500 C520 500 520 320 570 320" stroke="{{e.air.stroke}}" stroke-width="{{e.air.w}}" stroke-dasharray="{{e.air.dash}}"></path>
+              <path d="M810 320 C840 320 840 320 870 320" stroke="{{e.out.stroke}}" stroke-width="{{e.out.w}}" stroke-dasharray="{{e.out.dash}}"></path>
+            </g>
+          </svg>
+
+          <div style="position: absolute; left: 30px; top: 270px; width: 140px; height: 100px; box-sizing: border-box; background: #262626; border: 1px solid #3a3a3a; border-radius: 8px">
+            <div style="padding: 8px 10px; background: #1f3b37; border-radius: 7px 7px 0 0; color: #a8f0e0; font-weight: 700">Input</div>
+            <div style="padding: 6px 10px; color: #bdbdbd; line-height: 1.5">footstep_wood<br><span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #9a9a9a">48 kHz · stereo</span></div>
+            <span style="position: absolute; right: -6px; top: 44px; width: 10px; height: 10px; border-radius: 50%; background: #2fd4b4; border: 2px solid #1a1a1a"></span>
+          </div>
+
+          <sc-for list="{{nodes}}" as="n" hint-placeholder-count="4">
+            <div style="position: absolute; left: {{n.x}}px; top: {{n.y}}px; width: 240px; box-sizing: border-box; background: #262626; border: {{n.border}}; border-radius: 8px; box-shadow: {{n.shadow}}; opacity: {{n.opacity}}">
+              <button type="button" onClick="{{n.pick}}" aria-pressed="{{n.selectedAttr}}" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 8px 10px; background: {{n.headBg}}; border: 0; border-radius: 7px 7px 0 0; color: {{n.headFg}}; font: inherit; font-weight: 700; cursor: pointer; text-align: left">
+                <span>{{n.name}}</span>
+                <span style="display: flex; gap: 4px; align-items: center">
+                  <sc-if value="{{n.soloed}}" hint-placeholder-val="{{ false }}"><span style="padding: 0 5px; border-radius: 3px; background: #f2c58a; color: #1a140c; font-size: 10px">S</span></sc-if>
+                  <sc-if value="{{n.bypassed}}" hint-placeholder-val="{{ false }}"><span style="padding: 0 5px; border-radius: 3px; background: #4a4a4a; color: #e4e4e4; font-size: 10px">BYP</span></sc-if>
+                  <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 500; opacity: 0.8">{{n.kind}}</span>
+                </span>
+              </button>
+              <div style="padding: 8px 10px; display: flex; flex-direction: column; gap: 4px">
+                <sc-for list="{{n.stages}}" as="s" hint-placeholder-count="2">
+                  <div style="display: flex; justify-content: space-between; color: {{s.color}}"><span>{{s.name}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: {{s.valColor}}">{{s.val}}</span></div>
+                </sc-for>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; padding: 0 10px 9px">
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+                  <span style="position: relative; height: 4px; background: #141414; border-radius: 2px; overflow: hidden"><span style="position: absolute; left: 0; top: 0; bottom: 0; width: {{n.l}}; background: linear-gradient(90deg, #2fd4b4 0%, #2fd4b4 72%, #f2c58a 88%, #ff7b72 100%); background-size: 240px 4px"></span><span style="position: absolute; left: {{n.peak}}; top: 0; bottom: 0; width: 2px; background: #f0f0f0"></span></span>
+                  <span style="position: relative; height: 4px; background: #141414; border-radius: 2px; overflow: hidden"><span style="position: absolute; left: 0; top: 0; bottom: 0; width: {{n.r}}; background: linear-gradient(90deg, #2fd4b4 0%, #2fd4b4 72%, #f2c58a 88%, #ff7b72 100%); background-size: 240px 4px"></span><span style="position: absolute; left: {{n.peak}}; top: 0; bottom: 0; width: 2px; background: #f0f0f0"></span></span>
+                </div>
+                <span style="width: 8px; height: 8px; border-radius: 2px; background: {{n.clip}}" title="Clip indicator"></span>
+                <span style="width: 46px; text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #bdbdbd">{{n.db}}</span>
+              </div>
+              <span style="position: absolute; left: -6px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: {{n.inPort}}; border: 2px solid #1a1a1a"></span>
+              <span style="position: absolute; right: -6px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: {{n.outPort}}; border: 2px solid #1a1a1a"></span>
+              <sc-if value="{{n.showBadge}}" hint-placeholder-val="{{ false }}"><span title="DXA201: slot 2 is missing its asset" style="position: absolute; right: -8px; top: -8px; width: 18px; height: 18px; border-radius: 50%; background: #ff7b72; color: #1a0f0f; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center">!</span></sc-if>
+            </div>
+          </sc-for>
+
+          <div style="position: absolute; left: 870px; top: 262px; width: 160px; box-sizing: border-box; background: #262626; border: 1px solid #3a3a3a; border-radius: 8px">
+            <div style="padding: 8px 10px; background: #2a3247; border-radius: 7px 7px 0 0; color: #c8d4ff; font-weight: 700">Output</div>
+            <div style="padding: 8px 10px; display: flex; gap: 8px; align-items: flex-end">
+              <span style="position: relative; width: 8px; height: 60px; background: #141414; border-radius: 2px; overflow: hidden"><span style="position: absolute; left: 0; right: 0; bottom: 0; height: {{outL}}; background: linear-gradient(0deg, #2fd4b4 0%, #2fd4b4 72%, #f2c58a 88%, #ff7b72 100%); background-size: 8px 60px; background-position: bottom"></span><span style="position: absolute; left: 0; right: 0; bottom: {{outPeak}}; height: 2px; background: #f0f0f0"></span></span>
+              <span style="position: relative; width: 8px; height: 60px; background: #141414; border-radius: 2px; overflow: hidden"><span style="position: absolute; left: 0; right: 0; bottom: 0; height: {{outR}}; background: linear-gradient(0deg, #2fd4b4 0%, #2fd4b4 72%, #f2c58a 88%, #ff7b72 100%); background-size: 8px 60px; background-position: bottom"></span><span style="position: absolute; left: 0; right: 0; bottom: {{outPeak}}; height: 2px; background: #f0f0f0"></span></span>
+              <span style="display: flex; flex-direction: column; gap: 2px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #9a9a9a"><span style="color: #e4e4e4; font-size: 13px; font-weight: 700">{{outDb}}</span><span>peak {{outPeakDb}}</span></span>
+            </div>
+            <span style="position: absolute; left: -6px; top: 52px; width: 10px; height: 10px; border-radius: 50%; background: #f2c58a; border: 2px solid #1a1a1a"></span>
+          </div>
+
+          <sc-for list="{{pills}}" as="p" hint-placeholder-count="3">
+            <span style="position: absolute; left: {{p.x}}px; top: {{p.y}}px; padding: 2px 7px; border-radius: 9px; background: {{p.bg}}; border: 1px solid {{p.border}}; color: {{p.fg}}; font-family: 'JetBrains Mono', monospace; font-size: 10px">{{p.text}}</span>
+          </sc-for>
+
+          <div style="position: absolute; right: 16px; bottom: 16px; width: 170px; height: 104px; background: #121212ee; border: 1px solid #3a3a3a; border-radius: 6px">
+            <span style="position: absolute; left: 8px; top: 6px; font-size: 10px; color: #9a9a9a">Minimap</span>
+            <span style="position: absolute; left: 10px; top: 52px; width: 18px; height: 9px; background: #2fd4b4; border-radius: 2px"></span>
+            <span style="position: absolute; left: 42px; top: 30px; width: 36px; height: 11px; background: #8a7a62; border-radius: 2px"></span>
+            <span style="position: absolute; left: 42px; top: 52px; width: 36px; height: 11px; background: #f2c58a; border-radius: 2px"></span>
+            <span style="position: absolute; left: 42px; top: 74px; width: 36px; height: 11px; background: #ff7b72; border-radius: 2px"></span>
+            <span style="position: absolute; left: 90px; top: 52px; width: 36px; height: 11px; background: #8a7a62; border-radius: 2px"></span>
+            <span style="position: absolute; left: 138px; top: 52px; width: 22px; height: 9px; background: #8fa8ff; border-radius: 2px"></span>
+            <span style="position: absolute; left: 5px; top: 20px; width: 158px; height: 78px; border: 1px solid #e4e4e4; border-radius: 3px; opacity: 0.45"></span>
+          </div>
+        </div>
+      </div>
+
+      <div style="border-top: 1px solid #0f0f0f; background: #202020; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; justify-content: space-between; align-items: center"><span style="font-weight: 700; color: #ececec">Problems</span><span style="color: #9a9a9a">Same rules and silencing as Studio · <a href="#">DXA201 docs</a></span></div>
+        <sc-if value="{{showErr}}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 10px; background: #2d2121; border: 1px solid #4a2b2b; border-radius: 4px">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #ff7b72"></span>
+            <span style="flex: 1 1 320px; line-height: 1.45"><b>Air</b>: slot 2 is missing its asset, so this branch passes only the pitch shifter. <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #ffb4ae">DXA201</span></span>
+            <button type="button" onClick="{{selectAir}}" style="height: 24px; padding: 0 10px; background: #ff7b72; border: 0; border-radius: 3px; color: #1a0f0f; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer">Select node</button>
+            <button type="button" onClick="{{silence}}" style="height: 24px; padding: 0 10px; background: transparent; border: 1px solid #5a3535; border-radius: 3px; color: #f0d0cd; font: inherit; font-size: 11px; cursor: pointer">Silence ▾</button>
+          </div>
+        </sc-if>
+        <sc-if value="{{silenced}}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border: 1px dashed #4a4a4a; border-radius: 4px; color: #9a9a9a"><span>1 silenced in this graph · no problems shown</span><button type="button" onClick="{{unsilence}}" style="height: 22px; padding: 0 8px; background: transparent; border: 1px solid #4a4a4a; border-radius: 3px; color: #d2d2d2; font: inherit; font-size: 11px; cursor: pointer">Show</button></div>
+        </sc-if>
+      </div>
+    </div>
+
+    <aside aria-label="Selected node" style="flex: 1 1 280px; max-width: 340px; background: #222; padding: 14px; display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 700; color: #f6dcb6">{{sel.name}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #9a9a9a">{{sel.file}}</span></div>
+      <div style="display: flex; gap: 6px">
+        <button type="button" onClick="{{sel.toggleSolo}}" aria-pressed="{{sel.soloAttr}}" style="flex: 1; min-height: 30px; background: {{sel.soloBg}}; border: 1px solid #0f0f0f; border-radius: 4px; color: {{sel.soloFg}}; font: inherit; font-weight: 700; cursor: pointer">Solo</button>
+        <button type="button" onClick="{{sel.toggleBypass}}" aria-pressed="{{sel.bypassAttr}}" style="flex: 1; min-height: 30px; background: {{sel.bypassBg}}; border: 1px solid #0f0f0f; border-radius: 4px; color: {{sel.bypassFg}}; font: inherit; font-weight: 700; cursor: pointer">Bypass</button>
+        <button type="button" style="flex: 1; min-height: 30px; background: #303030; border: 1px solid #0f0f0f; border-radius: 4px; color: #e4e4e4; font: inherit">Open chain</button>
+      </div>
+      <section style="display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; justify-content: space-between"><span style="font-weight: 700; color: #ececec">What it does to the sound</span><span style="color: #9a9a9a">{{sel.deltaText}}</span></div>
+        <div style="position: relative; height: 130px; background: #141414; border: 1px solid #2c2c2c; border-radius: 4px; overflow: hidden">
+          <svg width="100%" height="100%" viewBox="0 0 300 130" preserveAspectRatio="none" role="img" aria-label="{{sel.specAria}}"><g stroke="#242424" stroke-width="1"><line x1="75" y1="0" x2="75" y2="130"></line><line x1="150" y1="0" x2="150" y2="130"></line><line x1="225" y1="0" x2="225" y2="130"></line><line x1="0" y1="43" x2="300" y2="43"></line><line x1="0" y1="86" x2="300" y2="86"></line></g><path d="{{sel.pre}}" fill="none" stroke="#9a9a9a" stroke-width="1.3" stroke-dasharray="3 3"></path><path d="{{sel.post}} L300 130 L0 130 Z" fill="#2fd4b4" opacity="0.14"></path><path d="{{sel.post}}" fill="none" stroke="#2fd4b4" stroke-width="2"></path></svg>
+          <span style="position: absolute; left: 6px; top: 4px; display: flex; gap: 10px; font-size: 10px"><span style="color: #9a9a9a">┄ in</span><span style="color: #2fd4b4">— out</span></span>
+          <span style="position: absolute; left: 6px; bottom: 3px; font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #8a8a8a">50 · 500 · 5k · 20k Hz</span>
+        </div>
+      </section>
+      <sc-for list="{{sel.stages}}" as="s" hint-placeholder-count="2">
+        <section style="background: #2a2a2a; border: 1px solid {{s.border}}; border-radius: 4px; padding: 10px; display: flex; flex-direction: column; gap: 8px">
+          <div style="display: flex; justify-content: space-between"><span style="font-weight: 700; color: {{s.titleColor}}">{{s.name}}</span><span style="font-family: 'JetBrains Mono', monospace; color: {{s.valColor}}">{{s.val}}</span></div>
+          <div style="height: 6px; background: #141414; border-radius: 3px; display: flex"><span style="width: {{s.amount}}; background: {{s.barColor}}; border-radius: 3px"></span></div>
+        </section>
+      </sc-for>
+      <div style="font-size: 11px; line-height: 1.5; color: #9a9a9a">Solo hears one branch; Bypass passes a node's input through untouched. Both are editor-only audition states and never save to the asset. Meters hold peaks for 2 s; the square lights when a node clips.</div>
+    </aside>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":860}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sel: 'Crunch', solo: null, bypass: {}, playing: true, silenced: false }; }
+  renderVals() {
+    const st = this.state;
+    const amber = '#f2c58a', teal = '#2fd4b4';
+    const defs = {
+      Body: { x: 230, y: 80, kind: 'chain · 2', file: 'body.asset', lvl: 62, stages: [['Filter · high-pass', '120 Hz', 30], ['Compressor', '3:1 −18 dB', 55]],
+        pre: 'M0 40 C40 30 70 34 110 46 C160 60 200 70 240 88 C270 100 290 112 300 120', post: 'M0 120 C30 90 60 52 110 50 C160 62 200 74 240 92 C270 104 290 114 300 122', delta: 'lows cut, −4 dB' },
+      Crunch: { x: 230, y: 260, kind: 'chain · 2', file: 'crunch.asset', lvl: 84, stages: [['Distortion', 'drive 0.45', 45], ['Bit crusher', '10 bit · ÷2', 60]],
+        pre: 'M0 40 C40 30 70 34 110 46 C160 60 200 70 240 88 C270 100 290 112 300 120', post: 'M0 44 C40 34 70 32 110 40 C160 44 200 46 240 58 C270 66 290 70 300 74', delta: '+ upper harmonics' },
+      Air: { x: 230, y: 440, kind: 'chain · 2', file: 'air.asset', lvl: 48, stages: [['Pitch shifter', '+12 st', 70], ['Slot 2 · missing asset', 'DXA201', 0, true]],
+        pre: 'M0 40 C40 30 70 34 110 46 C160 60 200 70 240 88 C270 100 290 112 300 120', post: 'M0 110 C40 100 70 80 110 60 C160 46 200 50 240 62 C270 74 290 90 300 104', delta: 'up an octave' },
+      Glue: { x: 570, y: 260, kind: 'sum · 3 in', file: 'glue.asset', lvl: 76, stages: [['Compressor', '2:1 −12 dB', 40], ['Limiter', '−1 dBFS', 85]],
+        pre: 'M0 50 C40 36 70 34 110 40 C160 46 200 52 240 64 C270 74 290 84 300 92', post: 'M0 56 C40 44 70 42 110 46 C160 50 200 54 240 64 C270 72 290 80 300 86', delta: 'peaks held at −1 dB' }
+    };
+    const branches = ['Body', 'Crunch', 'Air'];
+    const active = (name) => {
+      if (st.bypass[name] && name !== 'Glue') return 'bypass';
+      if (st.solo && branches.includes(name) && st.solo !== name) return 'muted';
+      return 'on';
+    };
+    const play = st.playing;
+    const showErr = !st.silenced;
+    const nodes = Object.keys(defs).map((name) => {
+      const d = defs[name];
+      const a = active(name);
+      const sel = st.sel === name;
+      const err = name === 'Air' && showErr;
+      const lvl = !play || a === 'muted' ? 0 : a === 'bypass' ? 55 : d.lvl;
+      const peak = !play || a === 'muted' ? 0 : Math.min(98, lvl + 9);
+      return {
+        name, x: d.x, y: d.y, kind: d.kind,
+        border: sel ? '2px solid ' + amber : err ? '1px solid #ff7b72' : '1px solid #3a3a3a',
+        shadow: sel ? '0 0 0 4px #f2c58a22' : 'none',
+        opacity: a === 'muted' ? '0.45' : '1',
+        headBg: a === 'bypass' ? '#303030' : '#3a3226', headFg: a === 'bypass' ? '#bdbdbd' : '#f6dcb6',
+        selectedAttr: sel ? 'true' : 'false',
+        soloed: st.solo === name, bypassed: a === 'bypass',
+        stages: d.stages.map(([n, v, , bad]) => ({ name: n, val: v, color: bad && showErr ? '#ffb4ae' : a === 'bypass' ? '#8a8a8a' : '#d2d2d2', valColor: bad && showErr ? '#ffb4ae' : '#9a9a9a' })),
+        l: lvl + '%', r: Math.max(0, lvl - 5) + '%', peak: peak + '%',
+        clip: play && a === 'on' && name === 'Crunch' ? '#ff7b72' : '#333',
+        db: !play || a === 'muted' ? '−∞' : (-((100 - lvl) * 0.3)).toFixed(1),
+        inPort: teal, outPort: a === 'on' ? amber : '#5a5248',
+        showBadge: err,
+        pick: () => this.setState({ sel: name })
+      };
+    });
+    const edge = (state, w) => state === 'on' && play ? { stroke: amber, w: w || 2.5, dash: '0' } : state === 'bypass' ? { stroke: '#8a7a62', w: 2, dash: '6 5' } : { stroke: '#3a3a3a', w: 1.5, dash: '2 5' };
+    const inEdge = (n) => active(n) === 'muted' ? { stroke: '#3a3a3a', w: 1.5, dash: '2 5' } : { stroke: teal, w: 2.5, dash: '0' };
+    const e = {
+      inBody: inEdge('Body'), inCrunch: inEdge('Crunch'), inAir: inEdge('Air'),
+      body: edge(active('Body')), crunch: edge(active('Crunch'), 4), air: edge(active('Air')), out: edge(play ? 'on' : 'off')
+    };
+    const pillFor = (name, x, y, onText) => {
+      const a = active(name);
+      const text = !play ? 'idle' : a === 'muted' ? 'muted by solo' : a === 'bypass' ? 'bypassed' : onText;
+      const hot = a === 'on' && play && name === 'Crunch';
+      return { x, y, text, bg: hot ? '#3a3226' : '#222', border: hot ? amber : '#3a3a3a', fg: hot ? '#f6dcb6' : a === 'on' && play ? '#e4e4e4' : '#8a8a8a' };
+    };
+    const pills = [pillFor('Body', 484, 208, '−11 dB'), pillFor('Crunch', 492, 298, '−5 dB'), pillFor('Air', 484, 420, '−14 dB')];
+    const onCount = branches.filter((b) => active(b) === 'on').length;
+    const outLvl = !play ? 0 : 40 + onCount * 12;
+    const sd = defs[st.sel];
+    const selA = active(st.sel);
+    const sel = {
+      name: st.sel, file: sd.file,
+      pre: sd.pre, post: selA === 'on' ? sd.post : sd.pre,
+      deltaText: selA === 'bypass' ? 'bypassed: out = in' : selA === 'muted' ? 'muted by solo' : sd.delta,
+      specAria: st.sel + ' input versus output spectrum',
+      soloAttr: st.solo === st.sel ? 'true' : 'false', soloBg: st.solo === st.sel ? amber : '#303030', soloFg: st.solo === st.sel ? '#1a140c' : '#e4e4e4',
+      bypassAttr: st.bypass[st.sel] ? 'true' : 'false', bypassBg: st.bypass[st.sel] ? '#e4e4e4' : '#303030', bypassFg: st.bypass[st.sel] ? '#141414' : '#e4e4e4',
+      toggleSolo: () => this.setState({ solo: this.state.solo === st.sel ? null : st.sel }),
+      toggleBypass: () => this.setState({ bypass: { ...this.state.bypass, [st.sel]: !this.state.bypass[st.sel] } }),
+      stages: sd.stages.map(([n, v, amt, bad]) => ({
+        name: n, val: v, amount: amt + '%',
+        border: bad && showErr ? '#4a2b2b' : '#1f1f1f', titleColor: bad && showErr ? '#ffb4ae' : '#ececec',
+        valColor: bad && showErr ? '#ffb4ae' : '#bdbdbd', barColor: selA === 'on' ? amber : '#5a5a5a'
+      }))
+    };
+    return {
+      nodes, e, pills, sel,
+      playing: play, notPlaying: !play, playAria: play ? 'Stop audition' : 'Audition through graph',
+      playBg: play ? '#2fd4b4' : '#303030', playFg: play ? '#0d1117' : '#e4e4e4',
+      soloChip: st.solo ? 'Solo · ' + st.solo : play ? '● Auditioning' : 'Idle',
+      soloChipBg: st.solo ? '#3a3124' : play ? '#1f3b37' : '#2c2c2c', soloChipFg: st.solo ? '#f6dcb6' : play ? '#a8f0e0' : '#bdbdbd',
+      outL: outLvl + '%', outR: Math.max(0, outLvl - 4) + '%', outPeak: (play ? Math.min(96, outLvl + 8) : 0) + '%',
+      outDb: play ? (-((100 - outLvl) * 0.2)).toFixed(1) + ' dB' : '−∞', outPeakDb: play ? '−1.0' : '—',
+      showErr, silenced: st.silenced,
+      errChip: showErr ? '1 error' : '0 · 1 silenced', errChipBg: showErr ? '#3a2424' : '#262626', errChipBorder: showErr ? '#5a3535' : '#3a3a3a',
+      errChipFg: showErr ? '#ffb4ae' : '#9a9a9a', errChipDot: showErr ? '#ff7b72' : '#5a5a5a',
+      togglePlay: () => this.setState({ playing: !this.state.playing }),
+      selectAir: () => this.setState({ sel: 'Air' }),
+      silence: () => this.setState({ silenced: true }),
+      unsilence: () => this.setState({ silenced: false })
+    };
+  }
+}
+</script>
+</body>
+</html>

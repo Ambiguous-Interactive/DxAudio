@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en"><head><style>.sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);border:1px solid color-mix(in srgb,currentColor 50%,transparent);border-radius:2px;box-sizing:border-box;overflow:hidden}@keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}html.sc-dc-streaming .sc-placeholder,html.sc-dc-streaming .sc-interp.sc-missing{position:relative;background:color-mix(in srgb,currentColor 5%,transparent);border-color:transparent}html.sc-dc-streaming .sc-placeholder::before,html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);background-size:400% 100%;animation:sc-shine 1.4s ease infinite}html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;background:color-mix(in srgb,currentColor 8%,transparent)}.sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}.sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);border-radius:2px;box-sizing:border-box;color:transparent;user-select:none}.sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;color:color-mix(in srgb,currentColor 50%,transparent);background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;padding:0 3px}.sc-host.sc-has-error{position:relative}.sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;border-radius:4px;white-space:pre-wrap;pointer-events:none}@media print{@page{margin: 0.5cm;}figure,table{break-inside: avoid;}#dc-root,#dc-root > .sc-host{height: auto;}*,*::before,*::after{print-color-adjust: exact;-webkit-print-color-adjust: exact;backdrop-filter: none !important;-webkit-backdrop-filter: none !important;animation-delay: -99s !important;animation-duration: .001s !important;animation-iteration-count: 1 !important;animation-fill-mode: both !important;animation-play-state: running !important;transition-duration: 0s !important;}}</style>
+<meta charset="utf-8">
+<title>DxAudio problems system</title>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;700&amp;family=Space+Grotesk:wght@700&amp;display=swap" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0}
+a{color:#2fd4b4}a:hover{color:#a8f0e0}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="Problems"><div data-dc-tpl="3" style="min-height: 800px; box-sizing: border-box; background: rgb(20, 20, 20); color: rgb(210, 210, 210); font-family: Inter, &quot;Segoe UI&quot;, sans-serif; font-size: 12px; padding: 20px;"><div data-dc-tpl="4" style="max-width: 1400px; margin: 0px auto; display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+  <div data-dc-tpl="5" style="flex: 999 1 760px; min-width: 0px; border: 1px solid rgb(11, 11, 11); border-radius: 6px; overflow: hidden; background: rgb(40, 40, 40); display: flex; flex-direction: column;">
+    <div data-dc-tpl="6" style="display: flex; align-items: center; height: 30px; padding: 0px 12px; background: rgb(25, 25, 25); font-weight: 600; color: rgb(240, 240, 240);">Project Settings</div>
+    <div data-dc-tpl="7" style="display: flex; flex-wrap: wrap;">
+      <nav data-dc-tpl="8" aria-label="Settings" style="flex: 1 1 160px; max-width: 190px; background: rgb(35, 35, 35); border-right: 1px solid rgb(26, 26, 26); padding: 8px 0px; display: flex; flex-direction: column;">
+        <span data-dc-tpl="9" style="padding: 5px 14px; color: rgb(189, 189, 189);">Audio</span>
+        <span data-dc-tpl="10" style="padding: 5px 14px; color: rgb(189, 189, 189);">Editor</span>
+        <span data-dc-tpl="11" style="padding: 5px 14px; color: rgb(189, 189, 189);">▾ Wallstop Studios</span>
+        <span data-dc-tpl="12" style="padding: 5px 14px 5px 26px; color: rgb(189, 189, 189);">DxMessaging</span>
+        <span data-dc-tpl="13" style="padding: 5px 14px 5px 26px; color: rgb(189, 189, 189);">▾ DxAudio</span>
+        <span data-dc-tpl="14" style="padding: 5px 14px 5px 38px; color: rgb(255, 255, 255); background: rgb(44, 74, 69);">Problems</span>
+        <span data-dc-tpl="15" style="padding: 5px 14px 5px 38px; color: rgb(189, 189, 189);">Monitor</span>
+      </nav>
+      <main data-dc-tpl="16" style="flex: 999 1 520px; min-width: 0px; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px;">
+        <div data-dc-tpl="17" style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px;">
+          <h1 data-dc-tpl="18" style="margin: 0px; font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 18px; color: rgb(240, 240, 240);">DxAudio · Problems</h1>
+          <span data-dc-tpl="19" style="color: rgb(154, 154, 154);">Saved to <span data-dc-tpl="20" style="font-family: &quot;JetBrains Mono&quot;, monospace; color: rgb(210, 210, 210);">ProjectSettings/DxAudioProblems.asset</span> (shared)</span>
+        </div>
+        <div data-dc-tpl="21" style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; padding: 10px 12px; background: rgb(47, 47, 47); border: 1px solid rgb(31, 31, 31); border-radius: 4px;">
+          <label data-dc-tpl="22" style="display: flex; align-items: center; gap: 8px;"><input data-dc-tpl="23" type="checkbox" checked="" style="accent-color: rgb(47, 212, 180); width: 16px; height: 16px;">Show badges in Studio, Graph and Monitor</label>
+          <label data-dc-tpl="24" style="display: flex; align-items: center; gap: 8px;"><input data-dc-tpl="25" type="checkbox" checked="" style="accent-color: rgb(47, 212, 180); width: 16px; height: 16px;">Show inline banners in inspectors</label>
+          <label data-dc-tpl="26" style="display: flex; align-items: center; gap: 8px;"><input data-dc-tpl="27" type="checkbox" style="accent-color: rgb(47, 212, 180); width: 16px; height: 16px;">Log runtime drops to Console</label>
+        </div>
+
+        <div data-dc-tpl="28" style="overflow-x: auto; border: 1px solid rgb(31, 31, 31); border-radius: 4px;">
+          <table data-dc-tpl="29" style="width: 100%; min-width: 760px; border-collapse: collapse;">
+            <thead data-dc-tpl="30"><tr data-dc-tpl="31" style="background: rgb(51, 51, 51); text-align: left;">
+              <th data-dc-tpl="32" style="padding: 7px 10px; font-weight: 600; width: 70px;">Rule</th>
+              <th data-dc-tpl="33" style="padding: 7px 10px; font-weight: 600;">What it catches</th>
+              <th data-dc-tpl="34" style="padding: 7px 10px; font-weight: 600; width: 60px;">Where</th>
+              <th data-dc-tpl="35" style="padding: 7px 10px; font-weight: 600; width: 220px;">Severity</th>
+              <th data-dc-tpl="36" style="padding: 7px 10px; font-weight: 600; width: 70px;">Silenced</th>
+            </tr></thead>
+            <tbody data-dc-tpl="37">
+              
+                <tr data-dc-tpl="39" style="border-top: 1px solid rgb(31, 31, 31); background: transparent;">
+                  <td data-dc-tpl="40" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px;"><a data-dc-tpl="41" href="#"><span class="sc-interp">DXA101</span></a></td>
+                  <td data-dc-tpl="42" style="padding: 6px 10px; color: rgb(210, 210, 210);"><span class="sc-interp">Cue has no playable take; no take has a clip</span></td>
+                  <td data-dc-tpl="43" style="padding: 6px 10px; color: rgb(154, 154, 154);"><span class="sc-interp">Cue</span></td>
+                  <td data-dc-tpl="44" style="padding: 4px 10px;">
+                    <div data-dc-tpl="45" role="radiogroup" aria-label="DXA101 severity" style="display: flex; gap: 2px; background: rgb(30, 30, 30); border-radius: 4px; padding: 2px; width: max-content;">
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="true" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: rgb(255, 123, 114); color: rgb(26, 15, 15); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Error</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Warn</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Info</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Off</span></button>
+                      
+                    </div>
+                  </td>
+                  <td data-dc-tpl="48" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">0</span></td>
+                </tr>
+              
+                <tr data-dc-tpl="39" style="border-top: 1px solid rgb(31, 31, 31); background: transparent;">
+                  <td data-dc-tpl="40" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px;"><a data-dc-tpl="41" href="#"><span class="sc-interp">DXA102</span></a></td>
+                  <td data-dc-tpl="42" style="padding: 6px 10px; color: rgb(210, 210, 210);"><span class="sc-interp">Track has no clip, so it cannot play</span></td>
+                  <td data-dc-tpl="43" style="padding: 6px 10px; color: rgb(154, 154, 154);"><span class="sc-interp">Track</span></td>
+                  <td data-dc-tpl="44" style="padding: 4px 10px;">
+                    <div data-dc-tpl="45" role="radiogroup" aria-label="DXA102 severity" style="display: flex; gap: 2px; background: rgb(30, 30, 30); border-radius: 4px; padding: 2px; width: max-content;">
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="true" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: rgb(255, 123, 114); color: rgb(26, 15, 15); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Error</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Warn</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Info</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Off</span></button>
+                      
+                    </div>
+                  </td>
+                  <td data-dc-tpl="48" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">0</span></td>
+                </tr>
+              
+                <tr data-dc-tpl="39" style="border-top: 1px solid rgb(31, 31, 31); background: transparent;">
+                  <td data-dc-tpl="40" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px;"><a data-dc-tpl="41" href="#"><span class="sc-interp">DXA103</span></a></td>
+                  <td data-dc-tpl="42" style="padding: 6px 10px; color: rgb(210, 210, 210);"><span class="sc-interp">Invalid playback variation bounds (pitch, level, cutoff)</span></td>
+                  <td data-dc-tpl="43" style="padding: 6px 10px; color: rgb(154, 154, 154);"><span class="sc-interp">Cue</span></td>
+                  <td data-dc-tpl="44" style="padding: 4px 10px;">
+                    <div data-dc-tpl="45" role="radiogroup" aria-label="DXA103 severity" style="display: flex; gap: 2px; background: rgb(30, 30, 30); border-radius: 4px; padding: 2px; width: max-content;">
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="true" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: rgb(255, 123, 114); color: rgb(26, 15, 15); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Error</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Warn</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Info</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Off</span></button>
+                      
+                    </div>
+                  </td>
+                  <td data-dc-tpl="48" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">0</span></td>
+                </tr>
+              
+                <tr data-dc-tpl="39" style="border-top: 1px solid rgb(31, 31, 31); background: transparent;">
+                  <td data-dc-tpl="40" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px;"><a data-dc-tpl="41" href="#"><span class="sc-interp">DXA104</span></a></td>
+                  <td data-dc-tpl="42" style="padding: 6px 10px; color: rgb(210, 210, 210);"><span class="sc-interp">Cue has no key, so no lookup reaches it</span></td>
+                  <td data-dc-tpl="43" style="padding: 6px 10px; color: rgb(154, 154, 154);"><span class="sc-interp">Library</span></td>
+                  <td data-dc-tpl="44" style="padding: 4px 10px;">
+                    <div data-dc-tpl="45" role="radiogroup" aria-label="DXA104 severity" style="display: flex; gap: 2px; background: rgb(30, 30, 30); border-radius: 4px; padding: 2px; width: max-content;">
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Error</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="true" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: rgb(255, 166, 87); color: rgb(31, 18, 6); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Warn</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Info</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Off</span></button>
+                      
+                    </div>
+                  </td>
+                  <td data-dc-tpl="48" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">1</span></td>
+                </tr>
+              
+                <tr data-dc-tpl="39" style="border-top: 1px solid rgb(31, 31, 31); background: transparent;">
+                  <td data-dc-tpl="40" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px;"><a data-dc-tpl="41" href="#"><span class="sc-interp">DXA105</span></a></td>
+                  <td data-dc-tpl="42" style="padding: 6px 10px; color: rgb(210, 210, 210);"><span class="sc-interp">Two cues share a key; only the first is reachable</span></td>
+                  <td data-dc-tpl="43" style="padding: 6px 10px; color: rgb(154, 154, 154);"><span class="sc-interp">Library</span></td>
+                  <td data-dc-tpl="44" style="padding: 4px 10px;">
+                    <div data-dc-tpl="45" role="radiogroup" aria-label="DXA105 severity" style="display: flex; gap: 2px; background: rgb(30, 30, 30); border-radius: 4px; padding: 2px; width: max-content;">
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Error</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="true" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: rgb(255, 166, 87); color: rgb(31, 18, 6); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Warn</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Info</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Off</span></button>
+                      
+                    </div>
+                  </td>
+                  <td data-dc-tpl="48" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">0</span></td>
+                </tr>
+              
+                <tr data-dc-tpl="39" style="border-top: 1px solid rgb(31, 31, 31); background: transparent;">
+                  <td data-dc-tpl="40" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px;"><a data-dc-tpl="41" href="#"><span class="sc-interp">DXA106</span></a></td>
+                  <td data-dc-tpl="42" style="padding: 6px 10px; color: rgb(210, 210, 210);"><span class="sc-interp">Two tracks share a context; only the first is reachable</span></td>
+                  <td data-dc-tpl="43" style="padding: 6px 10px; color: rgb(154, 154, 154);"><span class="sc-interp">Library</span></td>
+                  <td data-dc-tpl="44" style="padding: 4px 10px;">
+                    <div data-dc-tpl="45" role="radiogroup" aria-label="DXA106 severity" style="display: flex; gap: 2px; background: rgb(30, 30, 30); border-radius: 4px; padding: 2px; width: max-content;">
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Error</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="true" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: rgb(255, 166, 87); color: rgb(31, 18, 6); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Warn</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Info</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Off</span></button>
+                      
+                    </div>
+                  </td>
+                  <td data-dc-tpl="48" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">0</span></td>
+                </tr>
+              
+                <tr data-dc-tpl="39" style="border-top: 1px solid rgb(31, 31, 31); background: transparent;">
+                  <td data-dc-tpl="40" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px;"><a data-dc-tpl="41" href="#"><span class="sc-interp">DXA107</span></a></td>
+                  <td data-dc-tpl="42" style="padding: 6px 10px; color: rgb(210, 210, 210);"><span class="sc-interp">Empty library slot</span></td>
+                  <td data-dc-tpl="43" style="padding: 6px 10px; color: rgb(154, 154, 154);"><span class="sc-interp">Library</span></td>
+                  <td data-dc-tpl="44" style="padding: 4px 10px;">
+                    <div data-dc-tpl="45" role="radiogroup" aria-label="DXA107 severity" style="display: flex; gap: 2px; background: rgb(30, 30, 30); border-radius: 4px; padding: 2px; width: max-content;">
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Error</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="true" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: rgb(255, 166, 87); color: rgb(31, 18, 6); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Warn</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Info</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Off</span></button>
+                      
+                    </div>
+                  </td>
+                  <td data-dc-tpl="48" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">2</span></td>
+                </tr>
+              
+                <tr data-dc-tpl="39" style="border-top: 1px solid rgb(31, 31, 31); background: transparent;">
+                  <td data-dc-tpl="40" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px;"><a data-dc-tpl="41" href="#"><span class="sc-interp">DXA108</span></a></td>
+                  <td data-dc-tpl="42" style="padding: 6px 10px; color: rgb(210, 210, 210);"><span class="sc-interp">Cue follows its own take number</span></td>
+                  <td data-dc-tpl="43" style="padding: 6px 10px; color: rgb(154, 154, 154);"><span class="sc-interp">Cue</span></td>
+                  <td data-dc-tpl="44" style="padding: 4px 10px;">
+                    <div data-dc-tpl="45" role="radiogroup" aria-label="DXA108 severity" style="display: flex; gap: 2px; background: rgb(30, 30, 30); border-radius: 4px; padding: 2px; width: max-content;">
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Error</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="true" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: rgb(255, 166, 87); color: rgb(31, 18, 6); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Warn</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Info</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Off</span></button>
+                      
+                    </div>
+                  </td>
+                  <td data-dc-tpl="48" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">0</span></td>
+                </tr>
+              
+                <tr data-dc-tpl="39" style="border-top: 1px solid rgb(31, 31, 31); background: transparent;">
+                  <td data-dc-tpl="40" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px;"><a data-dc-tpl="41" href="#"><span class="sc-interp">DXA109</span></a></td>
+                  <td data-dc-tpl="42" style="padding: 6px 10px; color: rgb(210, 210, 210);"><span class="sc-interp">Track load type differs from the clip import</span></td>
+                  <td data-dc-tpl="43" style="padding: 6px 10px; color: rgb(154, 154, 154);"><span class="sc-interp">Track</span></td>
+                  <td data-dc-tpl="44" style="padding: 4px 10px;">
+                    <div data-dc-tpl="45" role="radiogroup" aria-label="DXA109 severity" style="display: flex; gap: 2px; background: rgb(30, 30, 30); border-radius: 4px; padding: 2px; width: max-content;">
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Error</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="true" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: rgb(255, 166, 87); color: rgb(31, 18, 6); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Warn</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Info</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Off</span></button>
+                      
+                    </div>
+                  </td>
+                  <td data-dc-tpl="48" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">0</span></td>
+                </tr>
+              
+                <tr data-dc-tpl="39" style="border-top: 1px solid rgb(31, 31, 31); background: transparent;">
+                  <td data-dc-tpl="40" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px;"><a data-dc-tpl="41" href="#"><span class="sc-interp">DXA110</span></a></td>
+                  <td data-dc-tpl="42" style="padding: 6px 10px; color: rgb(210, 210, 210);"><span class="sc-interp">Looping cue ignores take start offsets</span></td>
+                  <td data-dc-tpl="43" style="padding: 6px 10px; color: rgb(154, 154, 154);"><span class="sc-interp">Cue</span></td>
+                  <td data-dc-tpl="44" style="padding: 4px 10px;">
+                    <div data-dc-tpl="45" role="radiogroup" aria-label="DXA110 severity" style="display: flex; gap: 2px; background: rgb(30, 30, 30); border-radius: 4px; padding: 2px; width: max-content;">
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Error</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Warn</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="true" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: rgb(180, 188, 200); color: rgb(13, 17, 23); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Info</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Off</span></button>
+                      
+                    </div>
+                  </td>
+                  <td data-dc-tpl="48" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">1</span></td>
+                </tr>
+              
+                <tr data-dc-tpl="39" style="border-top: 1px solid rgb(31, 31, 31); background: transparent;">
+                  <td data-dc-tpl="40" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px;"><a data-dc-tpl="41" href="#"><span class="sc-interp">DXA201</span></a></td>
+                  <td data-dc-tpl="42" style="padding: 6px 10px; color: rgb(210, 210, 210);"><span class="sc-interp">DSP chain slot is missing its asset</span></td>
+                  <td data-dc-tpl="43" style="padding: 6px 10px; color: rgb(154, 154, 154);"><span class="sc-interp">Graph</span></td>
+                  <td data-dc-tpl="44" style="padding: 4px 10px;">
+                    <div data-dc-tpl="45" role="radiogroup" aria-label="DXA201 severity" style="display: flex; gap: 2px; background: rgb(30, 30, 30); border-radius: 4px; padding: 2px; width: max-content;">
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="true" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: rgb(255, 123, 114); color: rgb(26, 15, 15); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Error</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Warn</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Info</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Off</span></button>
+                      
+                    </div>
+                  </td>
+                  <td data-dc-tpl="48" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">0</span></td>
+                </tr>
+              
+                <tr data-dc-tpl="39" style="border-top: 1px solid rgb(31, 31, 31); background: transparent;">
+                  <td data-dc-tpl="40" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px;"><a data-dc-tpl="41" href="#"><span class="sc-interp">DXA301</span></a></td>
+                  <td data-dc-tpl="42" style="padding: 6px 10px; color: rgb(210, 210, 210);"><span class="sc-interp">Runtime drop: NotPlayable / WrongPlayMethod</span></td>
+                  <td data-dc-tpl="43" style="padding: 6px 10px; color: rgb(154, 154, 154);"><span class="sc-interp">Monitor</span></td>
+                  <td data-dc-tpl="44" style="padding: 4px 10px;">
+                    <div data-dc-tpl="45" role="radiogroup" aria-label="DXA301 severity" style="display: flex; gap: 2px; background: rgb(30, 30, 30); border-radius: 4px; padding: 2px; width: max-content;">
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="true" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: rgb(255, 123, 114); color: rgb(26, 15, 15); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Error</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Warn</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Info</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Off</span></button>
+                      
+                    </div>
+                  </td>
+                  <td data-dc-tpl="48" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">0</span></td>
+                </tr>
+              
+                <tr data-dc-tpl="39" style="border-top: 1px solid rgb(31, 31, 31); background: transparent;">
+                  <td data-dc-tpl="40" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px;"><a data-dc-tpl="41" href="#"><span class="sc-interp">DXA302</span></a></td>
+                  <td data-dc-tpl="42" style="padding: 6px 10px; color: rgb(210, 210, 210);"><span class="sc-interp">Runtime drop: NoVoice / LoopLimit</span></td>
+                  <td data-dc-tpl="43" style="padding: 6px 10px; color: rgb(154, 154, 154);"><span class="sc-interp">Monitor</span></td>
+                  <td data-dc-tpl="44" style="padding: 4px 10px;">
+                    <div data-dc-tpl="45" role="radiogroup" aria-label="DXA302 severity" style="display: flex; gap: 2px; background: rgb(30, 30, 30); border-radius: 4px; padding: 2px; width: max-content;">
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Error</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="true" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: rgb(255, 166, 87); color: rgb(31, 18, 6); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Warn</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Info</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Off</span></button>
+                      
+                    </div>
+                  </td>
+                  <td data-dc-tpl="48" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">0</span></td>
+                </tr>
+              
+                <tr data-dc-tpl="39" style="border-top: 1px solid rgb(31, 31, 31); background: transparent;">
+                  <td data-dc-tpl="40" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px;"><a data-dc-tpl="41" href="#"><span class="sc-interp">DXA303</span></a></td>
+                  <td data-dc-tpl="42" style="padding: 6px 10px; color: rgb(210, 210, 210);"><span class="sc-interp">Runtime drop: Throttled (rate limit did its job)</span></td>
+                  <td data-dc-tpl="43" style="padding: 6px 10px; color: rgb(154, 154, 154);"><span class="sc-interp">Monitor</span></td>
+                  <td data-dc-tpl="44" style="padding: 4px 10px;">
+                    <div data-dc-tpl="45" role="radiogroup" aria-label="DXA303 severity" style="display: flex; gap: 2px; background: rgb(30, 30, 30); border-radius: 4px; padding: 2px; width: max-content;">
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Error</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Warn</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="true" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: rgb(180, 188, 200); color: rgb(13, 17, 23); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Info</span></button>
+                      
+                        <button data-dc-tpl="47" type="button" role="radio" aria-checked="false" style="height: 22px; padding: 0px 8px; border: 0px; border-radius: 3px; background: transparent; color: rgb(154, 154, 154); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Off</span></button>
+                      
+                    </div>
+                  </td>
+                  <td data-dc-tpl="48" style="padding: 6px 10px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">1</span></td>
+                </tr>
+              
+            </tbody>
+          </table>
+        </div>
+        <div data-dc-tpl="49" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; color: rgb(154, 154, 154);">
+          <span data-dc-tpl="50">Changed from default: <b data-dc-tpl="51" style="color: rgb(228, 228, 228);"><span class="sc-interp">none</span></b> · each rule ID links to its docs page.</span>
+          <span data-dc-tpl="52" style="display: flex; gap: 6px;"><button data-dc-tpl="53" type="button" style="height: 26px; padding: 0px 10px; background: rgb(74, 74, 74); border: 1px solid rgb(42, 42, 42); border-radius: 3px; color: rgb(228, 228, 228); font: inherit; cursor: pointer;">Reset to defaults</button><button data-dc-tpl="54" type="button" style="height: 26px; padding: 0px 10px; background: rgb(74, 74, 74); border: 1px solid rgb(42, 42, 42); border-radius: 3px; color: rgb(228, 228, 228); font: inherit;">Manage silenced (5)</button></span>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div data-dc-tpl="55" style="flex: 1 1 400px; max-width: 520px; display: flex; flex-direction: column; gap: 16px;">
+    <div data-dc-tpl="56" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: rgb(154, 163, 175);">ANATOMY · ONE SYSTEM, FOUR SURFACES</div>
+
+    <section data-dc-tpl="57" style="background: rgb(40, 40, 40); border: 1px solid rgb(11, 11, 11); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+      <div data-dc-tpl="58" style="font-weight: 700; color: rgb(236, 236, 236);">1 · Inline banner (cue inspector)</div>
+      <div data-dc-tpl="59" style="display: flex; gap: 10px; padding: 10px; background: rgb(45, 33, 33); border: 1px solid rgb(74, 43, 43); border-radius: 4px;">
+        <svg data-dc-tpl="60" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" style="flex: 0 0 auto; margin-top: 1px;"><circle data-dc-tpl="61" cx="8" cy="8" r="7" fill="#ff7b72"></circle><path data-dc-tpl="62" d="M8 4v5M8 11.2v.6" stroke="#2d2121" stroke-width="1.8" stroke-linecap="round"></path></svg>
+        <div data-dc-tpl="63" style="flex: 1 1 0%; display: flex; flex-direction: column; gap: 8px;">
+          <span data-dc-tpl="64" style="line-height: 1.45;"><b data-dc-tpl="65">This cue has no playable take; no take has a clip.</b> Players drop it as NotPlayable. <a data-dc-tpl="66" href="#" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px;">DXA101</a></span>
+          <div data-dc-tpl="67" style="display: flex; flex-wrap: wrap; gap: 6px;"><button data-dc-tpl="68" type="button" style="height: 24px; padding: 0px 10px; background: rgb(255, 123, 114); border: 0px; border-radius: 3px; color: rgb(26, 15, 15); font-style: inherit; font-variant: inherit; font-stretch: inherit; font-size: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-weight: 700;">Drop clips…</button><button data-dc-tpl="69" type="button" aria-expanded="true" style="height: 24px; padding: 0px 10px; background: rgb(58, 42, 42); border: 1px solid rgb(90, 53, 53); border-radius: 3px; color: rgb(240, 208, 205); font: inherit;">Silence ▾</button></div>
+          <div data-dc-tpl="70" role="menu" style="display: flex; flex-direction: column; background: rgb(30, 30, 30); border: 1px solid rgb(58, 58, 58); border-radius: 4px; box-shadow: rgba(0, 0, 0, 0.533) 0px 6px 16px; overflow: hidden;">
+            <button data-dc-tpl="71" type="button" role="menuitem" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; background: rgb(44, 74, 69); border: 0px; color: rgb(255, 255, 255); font: inherit; text-align: left;">For this cue (shared)<span data-dc-tpl="72" style="font-size: 11px; color: rgb(204, 255, 238);">Stored by GUID in project settings. Asks for a reason.</span></button>
+            <button data-dc-tpl="73" type="button" role="menuitem" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; background: transparent; border: 0px; color: rgb(228, 228, 228); font: inherit; text-align: left;">Hide DXA101 for me<span data-dc-tpl="74" style="font-size: 11px; color: rgb(154, 154, 154);">EditorPrefs only. Teammates still see it.</span></button>
+            <button data-dc-tpl="75" type="button" role="menuitem" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; background: transparent; border: 0px; color: rgb(228, 228, 228); font: inherit; text-align: left;">Change rule severity…<span data-dc-tpl="76" style="font-size: 11px; color: rgb(154, 154, 154);">Opens Project Settings › DxAudio › Problems.</span></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section data-dc-tpl="77" style="background: rgb(40, 40, 40); border: 1px solid rgb(11, 11, 11); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+      <div data-dc-tpl="78" style="font-weight: 700; color: rgb(236, 236, 236);">2 · Badges</div>
+      <div data-dc-tpl="79" style="display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 10px;">
+        <div data-dc-tpl="80" style="display: flex; align-items: center; gap: 8px; padding: 8px; background: rgb(35, 35, 35); border-radius: 4px;"><span data-dc-tpl="81" style="width: 7px; height: 7px; border-radius: 50%; background: rgb(255, 123, 114);"></span><span data-dc-tpl="82" style="flex: 1 1 0%;">door_slam</span><span data-dc-tpl="83" style="font-size: 10px; color: rgb(154, 154, 154);">tree row</span></div>
+        <div data-dc-tpl="84" style="display: flex; align-items: center; gap: 8px; padding: 8px; background: rgb(35, 35, 35); border-radius: 4px;"><span data-dc-tpl="85" style="display: flex; align-items: center; gap: 4px; height: 20px; padding: 0px 7px; border-radius: 10px; background: rgb(58, 36, 36); color: rgb(255, 180, 174); font-weight: 700;"><span data-dc-tpl="86" style="width: 6px; height: 6px; border-radius: 50%; background: rgb(255, 123, 114);"></span>1</span><span data-dc-tpl="87" style="display: flex; align-items: center; gap: 4px; height: 20px; padding: 0px 7px; border-radius: 10px; background: rgb(58, 42, 26); color: rgb(255, 210, 168); font-weight: 700;"><span data-dc-tpl="88" style="width: 6px; height: 6px; background: rgb(255, 166, 87); transform: rotate(45deg);"></span>2</span><span data-dc-tpl="89" style="font-size: 10px; color: rgb(154, 154, 154);">toolbar</span></div>
+        <div data-dc-tpl="90" style="position: relative; padding: 8px; background: rgb(43, 43, 43); border: 1px solid rgb(255, 123, 114); border-radius: 6px;"><span data-dc-tpl="91" style="font-weight: 700; color: rgb(246, 220, 182);">Air</span><span data-dc-tpl="92" style="position: absolute; right: -6px; top: -6px; width: 16px; height: 16px; border-radius: 50%; background: rgb(255, 123, 114); color: rgb(26, 15, 15); font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center;">!</span><div data-dc-tpl="93" style="font-size: 10px; color: rgb(154, 154, 154);">graph node</div></div>
+        <div data-dc-tpl="94" style="display: flex; align-items: center; gap: 8px; padding: 8px; background: rgb(35, 35, 35); border-radius: 4px;"><span data-dc-tpl="95" style="width: 0px; height: 0px; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 8px solid rgb(255, 166, 87);"></span><span data-dc-tpl="96" style="flex: 1 1 0%;">LoopLimit</span><span data-dc-tpl="97" style="font-size: 10px; color: rgb(154, 154, 154);">timeline</span></div>
+      </div>
+      <div data-dc-tpl="98" style="color: rgb(154, 154, 154); line-height: 1.5;">Shape as well as color: a red circle for errors, an orange diamond for warnings, a slate square for info. None reuse a signal color (sand is Effects, periwinkle is Music). Colorblind users and grayscale screenshots can still tell them apart.</div>
+    </section>
+
+    <section data-dc-tpl="99" style="background: rgb(40, 40, 40); border: 1px solid rgb(11, 11, 11); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+      <div data-dc-tpl="100" style="font-weight: 700; color: rgb(236, 236, 236);">3 · Silenced stays findable</div>
+      <div data-dc-tpl="101" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: rgb(35, 35, 35); border: 1px dashed rgb(74, 74, 74); border-radius: 4px; color: rgb(154, 154, 154);"><span data-dc-tpl="102">2 silenced in this view</span><button data-dc-tpl="103" type="button" style="height: 22px; padding: 0px 8px; background: transparent; border: 1px solid rgb(74, 74, 74); border-radius: 3px; color: rgb(210, 210, 210); font: inherit;">Show</button></div>
+      <div data-dc-tpl="104" style="color: rgb(154, 154, 154); line-height: 1.5;">Silencing only hides a problem from view; behavior is unchanged. <span data-dc-tpl="105" style="font-family: &quot;JetBrains Mono&quot;, monospace; color: rgb(210, 210, 210);">Validate Libraries</span> and CI still fail on errors unless the silence is shared and has a reason.</div>
+    </section>
+  </div></div></div></div></div>
+
+
+
+</body></html>

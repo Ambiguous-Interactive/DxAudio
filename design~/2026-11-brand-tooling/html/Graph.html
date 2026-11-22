@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en"><head><style>.sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);border:1px solid color-mix(in srgb,currentColor 50%,transparent);border-radius:2px;box-sizing:border-box;overflow:hidden}@keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}html.sc-dc-streaming .sc-placeholder,html.sc-dc-streaming .sc-interp.sc-missing{position:relative;background:color-mix(in srgb,currentColor 5%,transparent);border-color:transparent}html.sc-dc-streaming .sc-placeholder::before,html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);background-size:400% 100%;animation:sc-shine 1.4s ease infinite}html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;background:color-mix(in srgb,currentColor 8%,transparent)}.sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}.sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);border-radius:2px;box-sizing:border-box;color:transparent;user-select:none}.sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;color:color-mix(in srgb,currentColor 50%,transparent);background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;padding:0 3px}.sc-host.sc-has-error{position:relative}.sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;border-radius:4px;white-space:pre-wrap;pointer-events:none}@media print{@page{margin: 0.5cm;}figure,table{break-inside: avoid;}#dc-root,#dc-root > .sc-host{height: auto;}*,*::before,*::after{print-color-adjust: exact;-webkit-print-color-adjust: exact;backdrop-filter: none !important;-webkit-backdrop-filter: none !important;animation-delay: -99s !important;animation-duration: .001s !important;animation-iteration-count: 1 !important;animation-fill-mode: both !important;animation-play-state: running !important;transition-duration: 0s !important;}}</style>
+<meta charset="utf-8">
+<title>DxAudio Signal Graph</title>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;700&amp;family=Space+Grotesk:wght@700&amp;display=swap" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0}
+a{color:#2fd4b4}a:hover{color:#a8f0e0}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="Graph"><div data-dc-tpl="3" style="min-height: 860px; box-sizing: border-box; background: rgb(20, 20, 20); color: rgb(210, 210, 210); font-family: Inter, &quot;Segoe UI&quot;, sans-serif; font-size: 12px; padding: 20px;"><div data-dc-tpl="4" style="max-width: 1400px; margin: 0px auto; border: 1px solid rgb(11, 11, 11); border-radius: 6px; overflow: hidden; background: rgb(29, 29, 29); display: flex; flex-direction: column;">
+
+  <div data-dc-tpl="5" style="display: flex; align-items: flex-end; background: rgb(20, 20, 20); height: 30px; padding-left: 6px; gap: 2px;">
+    <div data-dc-tpl="6" style="display: flex; align-items: center; height: 26px; padding: 0px 12px; color: rgb(154, 154, 154);">DxAudio Studio</div>
+    <div data-dc-tpl="7" style="display: flex; align-items: center; height: 26px; padding: 0px 12px; background: rgb(29, 29, 29); border-radius: 4px 4px 0px 0px; font-weight: 600; color: rgb(240, 240, 240);">Signal Graph</div>
+    <div data-dc-tpl="8" style="display: flex; align-items: center; height: 26px; padding: 0px 12px; color: rgb(154, 154, 154);">Mix Monitor</div>
+  </div>
+
+  <div data-dc-tpl="9" style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 8px 12px; background: rgb(38, 38, 38); border-bottom: 1px solid rgb(15, 15, 15);">
+    <div data-dc-tpl="10" style="display: flex; gap: 4px;">
+      <button data-dc-tpl="11" type="button" aria-label="Stop audition" style="width: 34px; height: 30px; display: flex; align-items: center; justify-content: center; background: rgb(47, 212, 180); border: 1px solid rgb(15, 15, 15); border-radius: 4px; color: rgb(13, 17, 23); cursor: pointer;">
+        <svg data-dc-tpl="13" width="12" height="12" viewBox="0 0 14 14" aria-hidden="true"><rect data-dc-tpl="14" x="2" y="2" width="10" height="10" rx="1" fill="currentColor"></rect></svg>
+        
+      </button>
+      <button data-dc-tpl="18" type="button" aria-label="Loop audition" style="width: 34px; height: 30px; display: flex; align-items: center; justify-content: center; background: rgb(52, 65, 62); border: 1px solid rgb(15, 15, 15); border-radius: 4px; color: rgb(168, 240, 224);"><svg data-dc-tpl="19" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path data-dc-tpl="20" d="M3 5h7l-2-2M11 9H4l2 2" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg></button>
+    </div>
+    <div data-dc-tpl="21" style="display: flex; align-items: baseline; gap: 10px; padding: 4px 14px; background: rgb(14, 18, 17); border: 1px solid rgb(10, 10, 10); border-radius: 4px;">
+      <span data-dc-tpl="22" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 16px; font-weight: 700; color: rgb(168, 240, 224);">impact_layered</span>
+      <span data-dc-tpl="23" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(127, 143, 139);">source footstep_wood · loop</span>
+    </div>
+    <span data-dc-tpl="24" style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0px 10px; border-radius: 12px; background: rgb(31, 59, 55); color: rgb(168, 240, 224); font-weight: 700;"><span class="sc-interp">● Auditioning</span></span>
+    <span data-dc-tpl="25" style="flex: 1 1 0%;"></span>
+    <div data-dc-tpl="26" style="display: flex; flex-wrap: wrap; gap: 6px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px;">
+      <span data-dc-tpl="27" style="padding: 4px 9px; background: rgb(22, 22, 22); border: 1px solid rgb(44, 44, 44); border-radius: 4px;">nodes <b data-dc-tpl="28" style="color: rgb(228, 228, 228);">6</b>/16</span>
+      <span data-dc-tpl="29" style="padding: 4px 9px; background: rgb(22, 22, 22); border: 1px solid rgb(44, 44, 44); border-radius: 4px;">edges <b data-dc-tpl="30" style="color: rgb(228, 228, 228);">7</b>/32</span>
+      <span data-dc-tpl="31" style="display: flex; align-items: center; gap: 6px; padding: 4px 9px; background: rgb(22, 22, 22); border: 1px solid rgb(44, 44, 44); border-radius: 4px;">memory <span data-dc-tpl="32" style="width: 36px; height: 5px; background: rgb(42, 42, 42); border-radius: 3px; display: flex;"><span data-dc-tpl="33" style="width: 34%; background: rgb(242, 197, 138); border-radius: 3px;"></span></span>34%</span>
+    </div>
+    <button data-dc-tpl="34" type="button" style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0px 10px; background: rgb(58, 36, 36); border: 1px solid rgb(90, 53, 53); border-radius: 4px; color: rgb(255, 180, 174); font-style: inherit; font-variant: inherit; font-stretch: inherit; font-size: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-weight: 700; cursor: pointer;"><span data-dc-tpl="35" style="width: 7px; height: 7px; border-radius: 50%; background: rgb(255, 123, 114);"></span><span class="sc-interp">1 error</span></button>
+  </div>
+
+  <div data-dc-tpl="36" style="display: flex; flex-wrap: wrap;">
+    <div data-dc-tpl="37" style="flex: 999 1 640px; min-width: 0px; display: flex; flex-direction: column; border-right: 1px solid rgb(15, 15, 15);">
+      <div data-dc-tpl="38" style="overflow: auto; background: radial-gradient(rgb(42, 42, 42) 1px, transparent 1px) 0% 0% / 20px 20px rgb(26, 26, 26);">
+        <div data-dc-tpl="39" style="position: relative; width: 1060px; height: 640px;">
+          <svg data-dc-tpl="40" width="1060" height="640" viewBox="0 0 1060 640" aria-hidden="true" style="position: absolute; inset: 0px;">
+            <g data-dc-tpl="41" fill="none" stroke-linecap="round">
+              <path data-dc-tpl="42" d="M170 320 C200 320 200 140 230 140" stroke="#2fd4b4" stroke-width="2.5" stroke-dasharray="0"></path>
+              <path data-dc-tpl="43" d="M170 320 C200 320 200 320 230 320" stroke="#2fd4b4" stroke-width="2.5" stroke-dasharray="0"></path>
+              <path data-dc-tpl="44" d="M170 320 C200 320 200 500 230 500" stroke="#2fd4b4" stroke-width="2.5" stroke-dasharray="0"></path>
+              <path data-dc-tpl="45" d="M470 140 C520 140 520 320 570 320" stroke="#f2c58a" stroke-width="2.5" stroke-dasharray="0"></path>
+              <path data-dc-tpl="46" d="M470 320 C520 320 520 320 570 320" stroke="#f2c58a" stroke-width="4" stroke-dasharray="0"></path>
+              <path data-dc-tpl="47" d="M470 500 C520 500 520 320 570 320" stroke="#f2c58a" stroke-width="2.5" stroke-dasharray="0"></path>
+              <path data-dc-tpl="48" d="M810 320 C840 320 840 320 870 320" stroke="#f2c58a" stroke-width="2.5" stroke-dasharray="0"></path>
+            </g>
+          </svg>
+
+          <div data-dc-tpl="49" style="position: absolute; left: 30px; top: 270px; width: 140px; height: 100px; box-sizing: border-box; background: rgb(38, 38, 38); border: 1px solid rgb(58, 58, 58); border-radius: 8px;">
+            <div data-dc-tpl="50" style="padding: 8px 10px; background: rgb(31, 59, 55); border-radius: 7px 7px 0px 0px; color: rgb(168, 240, 224); font-weight: 700;">Input</div>
+            <div data-dc-tpl="51" style="padding: 6px 10px; color: rgb(189, 189, 189); line-height: 1.5;">footstep_wood<br data-dc-tpl="52"><span data-dc-tpl="53" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 10px; color: rgb(154, 154, 154);">48 kHz · stereo</span></div>
+            <span data-dc-tpl="54" style="position: absolute; right: -6px; top: 44px; width: 10px; height: 10px; border-radius: 50%; background: rgb(47, 212, 180); border: 2px solid rgb(26, 26, 26);"></span>
+          </div>
+
+          
+            <div data-dc-tpl="56" style="position: absolute; left: 230px; top: 80px; width: 240px; box-sizing: border-box; background: rgb(38, 38, 38); border: 1px solid rgb(58, 58, 58); border-radius: 8px; box-shadow: none; opacity: 1;">
+              <button data-dc-tpl="57" type="button" aria-pressed="false" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 8px 10px; background: rgb(58, 50, 38); border: 0px; border-radius: 7px 7px 0px 0px; color: rgb(246, 220, 182); font-style: inherit; font-variant: inherit; font-stretch: inherit; font-size: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-weight: 700; cursor: pointer; text-align: left;">
+                <span data-dc-tpl="58"><span class="sc-interp">Body</span></span>
+                <span data-dc-tpl="59" style="display: flex; gap: 4px; align-items: center;">
+                  
+                  
+                  <span data-dc-tpl="64" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 10px; font-weight: 500; opacity: 0.8;"><span class="sc-interp">chain · 2</span></span>
+                </span>
+              </button>
+              <div data-dc-tpl="65" style="padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;">
+                
+                  <div data-dc-tpl="67" style="display: flex; justify-content: space-between; color: rgb(210, 210, 210);"><span data-dc-tpl="68"><span class="sc-interp">Filter · high-pass</span></span><span data-dc-tpl="69" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">120 Hz</span></span></div>
+                
+                  <div data-dc-tpl="67" style="display: flex; justify-content: space-between; color: rgb(210, 210, 210);"><span data-dc-tpl="68"><span class="sc-interp">Compressor</span></span><span data-dc-tpl="69" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">3:1 −18 dB</span></span></div>
+                
+              </div>
+              <div data-dc-tpl="70" style="display: flex; align-items: center; gap: 6px; padding: 0px 10px 9px;">
+                <div data-dc-tpl="71" style="flex: 1 1 0%; display: flex; flex-direction: column; gap: 2px;">
+                  <span data-dc-tpl="72" style="position: relative; height: 4px; background: rgb(20, 20, 20); border-radius: 2px; overflow: hidden;"><span data-dc-tpl="73" style="position: absolute; left: 0px; top: 0px; bottom: 0px; width: 62%; background: linear-gradient(90deg, rgb(47, 212, 180) 0%, rgb(47, 212, 180) 72%, rgb(242, 197, 138) 88%, rgb(255, 123, 114) 100%) 0% 0% / 240px 4px;"></span><span data-dc-tpl="74" style="position: absolute; left: 71%; top: 0px; bottom: 0px; width: 2px; background: rgb(240, 240, 240);"></span></span>
+                  <span data-dc-tpl="75" style="position: relative; height: 4px; background: rgb(20, 20, 20); border-radius: 2px; overflow: hidden;"><span data-dc-tpl="76" style="position: absolute; left: 0px; top: 0px; bottom: 0px; width: 57%; background: linear-gradient(90deg, rgb(47, 212, 180) 0%, rgb(47, 212, 180) 72%, rgb(242, 197, 138) 88%, rgb(255, 123, 114) 100%) 0% 0% / 240px 4px;"></span><span data-dc-tpl="77" style="position: absolute; left: 71%; top: 0px; bottom: 0px; width: 2px; background: rgb(240, 240, 240);"></span></span>
+                </div>
+                <span data-dc-tpl="78" title="Clip indicator" style="width: 8px; height: 8px; border-radius: 2px; background: rgb(51, 51, 51);"></span>
+                <span data-dc-tpl="79" style="width: 46px; text-align: right; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 10px; color: rgb(189, 189, 189);"><span class="sc-interp">-11.4</span></span>
+              </div>
+              <span data-dc-tpl="80" style="position: absolute; left: -6px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: rgb(47, 212, 180); border: 2px solid rgb(26, 26, 26);"></span>
+              <span data-dc-tpl="81" style="position: absolute; right: -6px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: rgb(242, 197, 138); border: 2px solid rgb(26, 26, 26);"></span>
+              
+            </div>
+          
+            <div data-dc-tpl="56" style="position: absolute; left: 230px; top: 260px; width: 240px; box-sizing: border-box; background: rgb(38, 38, 38); border: 2px solid rgb(242, 197, 138); border-radius: 8px; box-shadow: rgba(242, 197, 138, 0.133) 0px 0px 0px 4px; opacity: 1;">
+              <button data-dc-tpl="57" type="button" aria-pressed="true" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 8px 10px; background: rgb(58, 50, 38); border: 0px; border-radius: 7px 7px 0px 0px; color: rgb(246, 220, 182); font-style: inherit; font-variant: inherit; font-stretch: inherit; font-size: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-weight: 700; cursor: pointer; text-align: left;">
+                <span data-dc-tpl="58"><span class="sc-interp">Crunch</span></span>
+                <span data-dc-tpl="59" style="display: flex; gap: 4px; align-items: center;">
+                  
+                  
+                  <span data-dc-tpl="64" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 10px; font-weight: 500; opacity: 0.8;"><span class="sc-interp">chain · 2</span></span>
+                </span>
+              </button>
+              <div data-dc-tpl="65" style="padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;">
+                
+                  <div data-dc-tpl="67" style="display: flex; justify-content: space-between; color: rgb(210, 210, 210);"><span data-dc-tpl="68"><span class="sc-interp">Distortion</span></span><span data-dc-tpl="69" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">drive 0.45</span></span></div>
+                
+                  <div data-dc-tpl="67" style="display: flex; justify-content: space-between; color: rgb(210, 210, 210);"><span data-dc-tpl="68"><span class="sc-interp">Bit crusher</span></span><span data-dc-tpl="69" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">10 bit · ÷2</span></span></div>
+                
+              </div>
+              <div data-dc-tpl="70" style="display: flex; align-items: center; gap: 6px; padding: 0px 10px 9px;">
+                <div data-dc-tpl="71" style="flex: 1 1 0%; display: flex; flex-direction: column; gap: 2px;">
+                  <span data-dc-tpl="72" style="position: relative; height: 4px; background: rgb(20, 20, 20); border-radius: 2px; overflow: hidden;"><span data-dc-tpl="73" style="position: absolute; left: 0px; top: 0px; bottom: 0px; width: 84%; background: linear-gradient(90deg, rgb(47, 212, 180) 0%, rgb(47, 212, 180) 72%, rgb(242, 197, 138) 88%, rgb(255, 123, 114) 100%) 0% 0% / 240px 4px;"></span><span data-dc-tpl="74" style="position: absolute; left: 93%; top: 0px; bottom: 0px; width: 2px; background: rgb(240, 240, 240);"></span></span>
+                  <span data-dc-tpl="75" style="position: relative; height: 4px; background: rgb(20, 20, 20); border-radius: 2px; overflow: hidden;"><span data-dc-tpl="76" style="position: absolute; left: 0px; top: 0px; bottom: 0px; width: 79%; background: linear-gradient(90deg, rgb(47, 212, 180) 0%, rgb(47, 212, 180) 72%, rgb(242, 197, 138) 88%, rgb(255, 123, 114) 100%) 0% 0% / 240px 4px;"></span><span data-dc-tpl="77" style="position: absolute; left: 93%; top: 0px; bottom: 0px; width: 2px; background: rgb(240, 240, 240);"></span></span>
+                </div>
+                <span data-dc-tpl="78" title="Clip indicator" style="width: 8px; height: 8px; border-radius: 2px; background: rgb(255, 123, 114);"></span>
+                <span data-dc-tpl="79" style="width: 46px; text-align: right; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 10px; color: rgb(189, 189, 189);"><span class="sc-interp">-4.8</span></span>
+              </div>
+              <span data-dc-tpl="80" style="position: absolute; left: -6px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: rgb(47, 212, 180); border: 2px solid rgb(26, 26, 26);"></span>
+              <span data-dc-tpl="81" style="position: absolute; right: -6px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: rgb(242, 197, 138); border: 2px solid rgb(26, 26, 26);"></span>
+              
+            </div>
+          
+            <div data-dc-tpl="56" style="position: absolute; left: 230px; top: 440px; width: 240px; box-sizing: border-box; background: rgb(38, 38, 38); border: 1px solid rgb(255, 123, 114); border-radius: 8px; box-shadow: none; opacity: 1;">
+              <button data-dc-tpl="57" type="button" aria-pressed="false" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 8px 10px; background: rgb(58, 50, 38); border: 0px; border-radius: 7px 7px 0px 0px; color: rgb(246, 220, 182); font-style: inherit; font-variant: inherit; font-stretch: inherit; font-size: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-weight: 700; cursor: pointer; text-align: left;">
+                <span data-dc-tpl="58"><span class="sc-interp">Air</span></span>
+                <span data-dc-tpl="59" style="display: flex; gap: 4px; align-items: center;">
+                  
+                  
+                  <span data-dc-tpl="64" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 10px; font-weight: 500; opacity: 0.8;"><span class="sc-interp">chain · 2</span></span>
+                </span>
+              </button>
+              <div data-dc-tpl="65" style="padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;">
+                
+                  <div data-dc-tpl="67" style="display: flex; justify-content: space-between; color: rgb(210, 210, 210);"><span data-dc-tpl="68"><span class="sc-interp">Pitch shifter</span></span><span data-dc-tpl="69" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">+12 st</span></span></div>
+                
+                  <div data-dc-tpl="67" style="display: flex; justify-content: space-between; color: rgb(255, 180, 174);"><span data-dc-tpl="68"><span class="sc-interp">Slot 2 · missing asset</span></span><span data-dc-tpl="69" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(255, 180, 174);"><span class="sc-interp">DXA201</span></span></div>
+                
+              </div>
+              <div data-dc-tpl="70" style="display: flex; align-items: center; gap: 6px; padding: 0px 10px 9px;">
+                <div data-dc-tpl="71" style="flex: 1 1 0%; display: flex; flex-direction: column; gap: 2px;">
+                  <span data-dc-tpl="72" style="position: relative; height: 4px; background: rgb(20, 20, 20); border-radius: 2px; overflow: hidden;"><span data-dc-tpl="73" style="position: absolute; left: 0px; top: 0px; bottom: 0px; width: 48%; background: linear-gradient(90deg, rgb(47, 212, 180) 0%, rgb(47, 212, 180) 72%, rgb(242, 197, 138) 88%, rgb(255, 123, 114) 100%) 0% 0% / 240px 4px;"></span><span data-dc-tpl="74" style="position: absolute; left: 57%; top: 0px; bottom: 0px; width: 2px; background: rgb(240, 240, 240);"></span></span>
+                  <span data-dc-tpl="75" style="position: relative; height: 4px; background: rgb(20, 20, 20); border-radius: 2px; overflow: hidden;"><span data-dc-tpl="76" style="position: absolute; left: 0px; top: 0px; bottom: 0px; width: 43%; background: linear-gradient(90deg, rgb(47, 212, 180) 0%, rgb(47, 212, 180) 72%, rgb(242, 197, 138) 88%, rgb(255, 123, 114) 100%) 0% 0% / 240px 4px;"></span><span data-dc-tpl="77" style="position: absolute; left: 57%; top: 0px; bottom: 0px; width: 2px; background: rgb(240, 240, 240);"></span></span>
+                </div>
+                <span data-dc-tpl="78" title="Clip indicator" style="width: 8px; height: 8px; border-radius: 2px; background: rgb(51, 51, 51);"></span>
+                <span data-dc-tpl="79" style="width: 46px; text-align: right; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 10px; color: rgb(189, 189, 189);"><span class="sc-interp">-15.6</span></span>
+              </div>
+              <span data-dc-tpl="80" style="position: absolute; left: -6px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: rgb(47, 212, 180); border: 2px solid rgb(26, 26, 26);"></span>
+              <span data-dc-tpl="81" style="position: absolute; right: -6px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: rgb(242, 197, 138); border: 2px solid rgb(26, 26, 26);"></span>
+              <span data-dc-tpl="83" title="DXA201: slot 2 is missing its asset" style="position: absolute; right: -8px; top: -8px; width: 18px; height: 18px; border-radius: 50%; background: rgb(255, 123, 114); color: rgb(26, 15, 15); font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center;">!</span>
+            </div>
+          
+            <div data-dc-tpl="56" style="position: absolute; left: 570px; top: 260px; width: 240px; box-sizing: border-box; background: rgb(38, 38, 38); border: 1px solid rgb(58, 58, 58); border-radius: 8px; box-shadow: none; opacity: 1;">
+              <button data-dc-tpl="57" type="button" aria-pressed="false" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 8px 10px; background: rgb(58, 50, 38); border: 0px; border-radius: 7px 7px 0px 0px; color: rgb(246, 220, 182); font-style: inherit; font-variant: inherit; font-stretch: inherit; font-size: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-weight: 700; cursor: pointer; text-align: left;">
+                <span data-dc-tpl="58"><span class="sc-interp">Glue</span></span>
+                <span data-dc-tpl="59" style="display: flex; gap: 4px; align-items: center;">
+                  
+                  
+                  <span data-dc-tpl="64" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 10px; font-weight: 500; opacity: 0.8;"><span class="sc-interp">sum · 3 in</span></span>
+                </span>
+              </button>
+              <div data-dc-tpl="65" style="padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;">
+                
+                  <div data-dc-tpl="67" style="display: flex; justify-content: space-between; color: rgb(210, 210, 210);"><span data-dc-tpl="68"><span class="sc-interp">Compressor</span></span><span data-dc-tpl="69" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">2:1 −12 dB</span></span></div>
+                
+                  <div data-dc-tpl="67" style="display: flex; justify-content: space-between; color: rgb(210, 210, 210);"><span data-dc-tpl="68"><span class="sc-interp">Limiter</span></span><span data-dc-tpl="69" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 11px; color: rgb(154, 154, 154);"><span class="sc-interp">−1 dBFS</span></span></div>
+                
+              </div>
+              <div data-dc-tpl="70" style="display: flex; align-items: center; gap: 6px; padding: 0px 10px 9px;">
+                <div data-dc-tpl="71" style="flex: 1 1 0%; display: flex; flex-direction: column; gap: 2px;">
+                  <span data-dc-tpl="72" style="position: relative; height: 4px; background: rgb(20, 20, 20); border-radius: 2px; overflow: hidden;"><span data-dc-tpl="73" style="position: absolute; left: 0px; top: 0px; bottom: 0px; width: 76%; background: linear-gradient(90deg, rgb(47, 212, 180) 0%, rgb(47, 212, 180) 72%, rgb(242, 197, 138) 88%, rgb(255, 123, 114) 100%) 0% 0% / 240px 4px;"></span><span data-dc-tpl="74" style="position: absolute; left: 85%; top: 0px; bottom: 0px; width: 2px; background: rgb(240, 240, 240);"></span></span>
+                  <span data-dc-tpl="75" style="position: relative; height: 4px; background: rgb(20, 20, 20); border-radius: 2px; overflow: hidden;"><span data-dc-tpl="76" style="position: absolute; left: 0px; top: 0px; bottom: 0px; width: 71%; background: linear-gradient(90deg, rgb(47, 212, 180) 0%, rgb(47, 212, 180) 72%, rgb(242, 197, 138) 88%, rgb(255, 123, 114) 100%) 0% 0% / 240px 4px;"></span><span data-dc-tpl="77" style="position: absolute; left: 85%; top: 0px; bottom: 0px; width: 2px; background: rgb(240, 240, 240);"></span></span>
+                </div>
+                <span data-dc-tpl="78" title="Clip indicator" style="width: 8px; height: 8px; border-radius: 2px; background: rgb(51, 51, 51);"></span>
+                <span data-dc-tpl="79" style="width: 46px; text-align: right; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 10px; color: rgb(189, 189, 189);"><span class="sc-interp">-7.2</span></span>
+              </div>
+              <span data-dc-tpl="80" style="position: absolute; left: -6px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: rgb(47, 212, 180); border: 2px solid rgb(26, 26, 26);"></span>
+              <span data-dc-tpl="81" style="position: absolute; right: -6px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: rgb(242, 197, 138); border: 2px solid rgb(26, 26, 26);"></span>
+              
+            </div>
+          
+
+          <div data-dc-tpl="84" style="position: absolute; left: 870px; top: 262px; width: 160px; box-sizing: border-box; background: rgb(38, 38, 38); border: 1px solid rgb(58, 58, 58); border-radius: 8px;">
+            <div data-dc-tpl="85" style="padding: 8px 10px; background: rgb(42, 50, 71); border-radius: 7px 7px 0px 0px; color: rgb(200, 212, 255); font-weight: 700;">Output</div>
+            <div data-dc-tpl="86" style="padding: 8px 10px; display: flex; gap: 8px; align-items: flex-end;">
+              <span data-dc-tpl="87" style="position: relative; width: 8px; height: 60px; background: rgb(20, 20, 20); border-radius: 2px; overflow: hidden;"><span data-dc-tpl="88" style="position: absolute; left: 0px; right: 0px; bottom: 0px; height: 76%; background: linear-gradient(0deg, rgb(47, 212, 180) 0%, rgb(47, 212, 180) 72%, rgb(242, 197, 138) 88%, rgb(255, 123, 114) 100%) center bottom / 8px 60px;"></span><span data-dc-tpl="89" style="position: absolute; left: 0px; right: 0px; bottom: 84%; height: 2px; background: rgb(240, 240, 240);"></span></span>
+              <span data-dc-tpl="90" style="position: relative; width: 8px; height: 60px; background: rgb(20, 20, 20); border-radius: 2px; overflow: hidden;"><span data-dc-tpl="91" style="position: absolute; left: 0px; right: 0px; bottom: 0px; height: 72%; background: linear-gradient(0deg, rgb(47, 212, 180) 0%, rgb(47, 212, 180) 72%, rgb(242, 197, 138) 88%, rgb(255, 123, 114) 100%) center bottom / 8px 60px;"></span><span data-dc-tpl="92" style="position: absolute; left: 0px; right: 0px; bottom: 84%; height: 2px; background: rgb(240, 240, 240);"></span></span>
+              <span data-dc-tpl="93" style="display: flex; flex-direction: column; gap: 2px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 10px; color: rgb(154, 154, 154);"><span data-dc-tpl="94" style="color: rgb(228, 228, 228); font-size: 13px; font-weight: 700;"><span class="sc-interp">-4.8 dB</span></span><span data-dc-tpl="95">peak <span class="sc-interp">−1.0</span></span></span>
+            </div>
+            <span data-dc-tpl="96" style="position: absolute; left: -6px; top: 52px; width: 10px; height: 10px; border-radius: 50%; background: rgb(242, 197, 138); border: 2px solid rgb(26, 26, 26);"></span>
+          </div>
+
+          
+            <span data-dc-tpl="98" style="position: absolute; left: 484px; top: 208px; padding: 2px 7px; border-radius: 9px; background: rgb(34, 34, 34); border: 1px solid rgb(58, 58, 58); color: rgb(228, 228, 228); font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 10px;"><span class="sc-interp">−11 dB</span></span>
+          
+            <span data-dc-tpl="98" style="position: absolute; left: 492px; top: 298px; padding: 2px 7px; border-radius: 9px; background: rgb(58, 50, 38); border: 1px solid rgb(242, 197, 138); color: rgb(246, 220, 182); font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 10px;"><span class="sc-interp">−5 dB</span></span>
+          
+            <span data-dc-tpl="98" style="position: absolute; left: 484px; top: 420px; padding: 2px 7px; border-radius: 9px; background: rgb(34, 34, 34); border: 1px solid rgb(58, 58, 58); color: rgb(228, 228, 228); font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 10px;"><span class="sc-interp">−14 dB</span></span>
+          
+
+          <div data-dc-tpl="99" style="position: absolute; right: 16px; bottom: 16px; width: 170px; height: 104px; background: rgba(18, 18, 18, 0.933); border: 1px solid rgb(58, 58, 58); border-radius: 6px;">
+            <span data-dc-tpl="100" style="position: absolute; left: 8px; top: 6px; font-size: 10px; color: rgb(154, 154, 154);">Minimap</span>
+            <span data-dc-tpl="101" style="position: absolute; left: 10px; top: 52px; width: 18px; height: 9px; background: rgb(47, 212, 180); border-radius: 2px;"></span>
+            <span data-dc-tpl="102" style="position: absolute; left: 42px; top: 30px; width: 36px; height: 11px; background: rgb(138, 122, 98); border-radius: 2px;"></span>
+            <span data-dc-tpl="103" style="position: absolute; left: 42px; top: 52px; width: 36px; height: 11px; background: rgb(242, 197, 138); border-radius: 2px;"></span>
+            <span data-dc-tpl="104" style="position: absolute; left: 42px; top: 74px; width: 36px; height: 11px; background: rgb(255, 123, 114); border-radius: 2px;"></span>
+            <span data-dc-tpl="105" style="position: absolute; left: 90px; top: 52px; width: 36px; height: 11px; background: rgb(138, 122, 98); border-radius: 2px;"></span>
+            <span data-dc-tpl="106" style="position: absolute; left: 138px; top: 52px; width: 22px; height: 9px; background: rgb(143, 168, 255); border-radius: 2px;"></span>
+            <span data-dc-tpl="107" style="position: absolute; left: 5px; top: 20px; width: 158px; height: 78px; border: 1px solid rgb(228, 228, 228); border-radius: 3px; opacity: 0.45;"></span>
+          </div>
+        </div>
+      </div>
+
+      <div data-dc-tpl="108" style="border-top: 1px solid rgb(15, 15, 15); background: rgb(32, 32, 32); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;">
+        <div data-dc-tpl="109" style="display: flex; justify-content: space-between; align-items: center;"><span data-dc-tpl="110" style="font-weight: 700; color: rgb(236, 236, 236);">Problems</span><span data-dc-tpl="111" style="color: rgb(154, 154, 154);">Same rules and silencing as Studio · <a data-dc-tpl="112" href="#">DXA201 docs</a></span></div>
+        
+          <div data-dc-tpl="114" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 10px; background: rgb(45, 33, 33); border: 1px solid rgb(74, 43, 43); border-radius: 4px;">
+            <span data-dc-tpl="115" style="width: 8px; height: 8px; border-radius: 50%; background: rgb(255, 123, 114);"></span>
+            <span data-dc-tpl="116" style="flex: 1 1 320px; line-height: 1.45;"><b data-dc-tpl="117">Air</b>: slot 2 is missing its asset, so this branch passes only the pitch shifter. <span data-dc-tpl="118" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 10px; color: rgb(255, 180, 174);">DXA201</span></span>
+            <button data-dc-tpl="119" type="button" style="height: 24px; padding: 0px 10px; background: rgb(255, 123, 114); border: 0px; border-radius: 3px; color: rgb(26, 15, 15); font-style: inherit; font-variant: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; font-weight: 700; cursor: pointer;">Select node</button>
+            <button data-dc-tpl="120" type="button" style="height: 24px; padding: 0px 10px; background: transparent; border: 1px solid rgb(90, 53, 53); border-radius: 3px; color: rgb(240, 208, 205); font-style: inherit; font-variant: inherit; font-weight: inherit; font-stretch: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-size: 11px; cursor: pointer;">Silence ▾</button>
+          </div>
+        
+        
+      </div>
+    </div>
+
+    <aside data-dc-tpl="125" aria-label="Selected node" style="flex: 1 1 280px; max-width: 340px; background: rgb(34, 34, 34); padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+      <div data-dc-tpl="126" style="display: flex; justify-content: space-between; align-items: baseline;"><span data-dc-tpl="127" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 16px; font-weight: 700; color: rgb(246, 220, 182);"><span class="sc-interp">Crunch</span></span><span data-dc-tpl="128" style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 10px; color: rgb(154, 154, 154);"><span class="sc-interp">crunch.asset</span></span></div>
+      <div data-dc-tpl="129" style="display: flex; gap: 6px;">
+        <button data-dc-tpl="130" type="button" aria-pressed="false" style="flex: 1 1 0%; min-height: 30px; background: rgb(48, 48, 48); border: 1px solid rgb(15, 15, 15); border-radius: 4px; color: rgb(228, 228, 228); font-style: inherit; font-variant: inherit; font-stretch: inherit; font-size: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-weight: 700; cursor: pointer;">Solo</button>
+        <button data-dc-tpl="131" type="button" aria-pressed="false" style="flex: 1 1 0%; min-height: 30px; background: rgb(48, 48, 48); border: 1px solid rgb(15, 15, 15); border-radius: 4px; color: rgb(228, 228, 228); font-style: inherit; font-variant: inherit; font-stretch: inherit; font-size: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-weight: 700; cursor: pointer;">Bypass</button>
+        <button data-dc-tpl="132" type="button" style="flex: 1 1 0%; min-height: 30px; background: rgb(48, 48, 48); border: 1px solid rgb(15, 15, 15); border-radius: 4px; color: rgb(228, 228, 228); font: inherit;">Open chain</button>
+      </div>
+      <section data-dc-tpl="133" style="display: flex; flex-direction: column; gap: 6px;">
+        <div data-dc-tpl="134" style="display: flex; justify-content: space-between;"><span data-dc-tpl="135" style="font-weight: 700; color: rgb(236, 236, 236);">What it does to the sound</span><span data-dc-tpl="136" style="color: rgb(154, 154, 154);"><span class="sc-interp">+ upper harmonics</span></span></div>
+        <div data-dc-tpl="137" style="position: relative; height: 130px; background: rgb(20, 20, 20); border: 1px solid rgb(44, 44, 44); border-radius: 4px; overflow: hidden;">
+          <svg data-dc-tpl="138" width="100%" height="100%" viewBox="0 0 300 130" preserveAspectRatio="none" role="img" aria-label="Crunch input versus output spectrum"><g data-dc-tpl="139" stroke="#242424" stroke-width="1"><line data-dc-tpl="140" x1="75" y1="0" x2="75" y2="130"></line><line data-dc-tpl="141" x1="150" y1="0" x2="150" y2="130"></line><line data-dc-tpl="142" x1="225" y1="0" x2="225" y2="130"></line><line data-dc-tpl="143" x1="0" y1="43" x2="300" y2="43"></line><line data-dc-tpl="144" x1="0" y1="86" x2="300" y2="86"></line></g><path data-dc-tpl="145" d="M0 40 C40 30 70 34 110 46 C160 60 200 70 240 88 C270 100 290 112 300 120" fill="none" stroke="#9a9a9a" stroke-width="1.3" stroke-dasharray="3 3"></path><path data-dc-tpl="146" d="M0 44 C40 34 70 32 110 40 C160 44 200 46 240 58 C270 66 290 70 300 74 L300 130 L0 130 Z" fill="#2fd4b4" opacity="0.14"></path><path data-dc-tpl="147" d="M0 44 C40 34 70 32 110 40 C160 44 200 46 240 58 C270 66 290 70 300 74" fill="none" stroke="#2fd4b4" stroke-width="2"></path></svg>
+          <span data-dc-tpl="148" style="position: absolute; left: 6px; top: 4px; display: flex; gap: 10px; font-size: 10px;"><span data-dc-tpl="149" style="color: rgb(154, 154, 154);">┄ in</span><span data-dc-tpl="150" style="color: rgb(47, 212, 180);">— out</span></span>
+          <span data-dc-tpl="151" style="position: absolute; left: 6px; bottom: 3px; font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 9px; color: rgb(138, 138, 138);">50 · 500 · 5k · 20k Hz</span>
+        </div>
+      </section>
+      
+        <section data-dc-tpl="153" style="background: rgb(42, 42, 42); border: 1px solid rgb(31, 31, 31); border-radius: 4px; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+          <div data-dc-tpl="154" style="display: flex; justify-content: space-between;"><span data-dc-tpl="155" style="font-weight: 700; color: rgb(236, 236, 236);"><span class="sc-interp">Distortion</span></span><span data-dc-tpl="156" style="font-family: &quot;JetBrains Mono&quot;, monospace; color: rgb(189, 189, 189);"><span class="sc-interp">drive 0.45</span></span></div>
+          <div data-dc-tpl="157" style="height: 6px; background: rgb(20, 20, 20); border-radius: 3px; display: flex;"><span data-dc-tpl="158" style="width: 45%; background: rgb(242, 197, 138); border-radius: 3px;"></span></div>
+        </section>
+      
+        <section data-dc-tpl="153" style="background: rgb(42, 42, 42); border: 1px solid rgb(31, 31, 31); border-radius: 4px; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+          <div data-dc-tpl="154" style="display: flex; justify-content: space-between;"><span data-dc-tpl="155" style="font-weight: 700; color: rgb(236, 236, 236);"><span class="sc-interp">Bit crusher</span></span><span data-dc-tpl="156" style="font-family: &quot;JetBrains Mono&quot;, monospace; color: rgb(189, 189, 189);"><span class="sc-interp">10 bit · ÷2</span></span></div>
+          <div data-dc-tpl="157" style="height: 6px; background: rgb(20, 20, 20); border-radius: 3px; display: flex;"><span data-dc-tpl="158" style="width: 60%; background: rgb(242, 197, 138); border-radius: 3px;"></span></div>
+        </section>
+      
+      <div data-dc-tpl="159" style="font-size: 11px; line-height: 1.5; color: rgb(154, 154, 154);">Solo hears one branch; Bypass passes a node's input through untouched. Both are editor-only audition states and never save to the asset. Meters hold peaks for 2 s; the square lights when a node clips.</div>
+    </aside>
+  </div></div></div></div></div>
+
+
+
+</body></html>
