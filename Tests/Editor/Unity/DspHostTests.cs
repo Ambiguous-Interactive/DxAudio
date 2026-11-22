@@ -451,8 +451,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             double budget = Frames * 10_000d * budgetPercent / Rate;
             string Distribution(long[] ticks)
             {
-                return $"{ticks[Passes / 2] * tickMicroseconds:F2}/{ticks[p95] * tickMicroseconds:F2}/"
-                    + $"{ticks[p99] * tickMicroseconds:F2}/{ticks[Passes - 1] * tickMicroseconds:F2}";
+                double median = (ticks[(Passes - 1) / 2] + (double)ticks[Passes / 2]) * 0.5d * tickMicroseconds;
+                return $"{median:F2}/{ticks[p95] * tickMicroseconds:F2}/{ticks[p99] * tickMicroseconds:F2}/{ticks[Passes - 1] * tickMicroseconds:F2}";
             }
 
             TestContext.Out.WriteLine(
