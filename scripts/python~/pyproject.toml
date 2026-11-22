@@ -42,6 +42,7 @@ extraPaths = ["../../.github/scripts"]
 # List every new Python source here. Keep the legacy inventory explicit while migrating it.
 include = [
     "../../.github/scripts/auto_release.py",
+    "../../.github/scripts/compile_docs_snippets.py",
     "../../.github/scripts/release_assets.py",
     "../../.github/scripts/release_service.py",
     "../../.github/scripts/sync_docs_version.py",

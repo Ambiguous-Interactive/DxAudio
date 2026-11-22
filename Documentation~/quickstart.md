@@ -24,6 +24,8 @@ This page plays a cue and starts music in an empty scene. It takes about five mi
 
 Call the player from your own code. The key comes from the cue asset:
 
+<!-- snippet: unity file -->
+
 ```csharp
 using UnityEngine;
 using WallstopStudios.DxAudio;
@@ -43,6 +45,8 @@ public sealed class Door : MonoBehaviour
 `Play` returns `true` when the cue started. For a placed sound, pass a position. The cue must have a **Spatial Blend**
 above zero, or it still plays flat:
 
+<!-- snippet: unity statements SfxPlayer _sfx -->
+
 ```csharp
 _sfx.Play("door", transform.position);
 ```
@@ -52,6 +56,8 @@ _sfx.Play("door", transform.position);
 1. Choose **Create > Wallstop Studios > DxAudio > Music Track**. Set **Context** to `level-1` and assign the clip.
 2. Choose **Create > Wallstop Studios > DxAudio > Music Library**, add the track, and set the fade times.
 3. Add a **Music Player** component to the `Audio` GameObject and assign the library.
+
+<!-- snippet: unity members -->
 
 ```csharp
 [SerializeField]
@@ -67,14 +73,13 @@ private void Start()
 
 - Add an **Audio Diagnostics** component beside the players and tick **Enabled** in Play mode. The overlay lists every
   busy voice and every active duck.
-- Subscribe to `SfxPlayer.CueDropped` while debugging. It reports `Throttled`, `NoVoice`, `NotPlayable`, `LoopLimit` and
+- Subscribe to `SfxPlayer.CueDropped` from `OnEnable` while debugging. It reports `Throttled`, `NoVoice`, `NotPlayable`, `LoopLimit` and
   `WrongPlayMethod`.
 
+<!-- snippet: unity statements SfxPlayer _sfx -->
+
 ```csharp
-private void OnEnable()
-{
-    _sfx.CueDropped += (cue, reason) => Debug.Log($"{cue} dropped: {reason}");
-}
+_sfx.CueDropped += (cue, reason) => Debug.Log($"{cue} dropped: {reason}");
 ```
 
 ## Next
@@ -83,3 +88,5 @@ private void OnEnable()
 - [Music](music.md): contexts, overrides and mixer groups.
 - [Ducks](ducks.md): lower the music for dialogue.
 - [Troubleshooting](troubleshooting.md): when nothing plays.
+
+_Snippet compiled in CI._
