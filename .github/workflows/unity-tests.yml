@@ -222,6 +222,18 @@ jobs:
           DXMESSAGING_VERSION: "3.3.0"
         run: ./scripts/unity/run-editmode-tests.ps1
 
+      - name: Report DxMessaging allocation probe results
+        if: ${{ always() && (steps.run_editmode_integration.outcome == 'success' || steps.run_editmode_integration.outcome == 'failure') }}
+        shell: pwsh
+        env:
+          UNITY_VERSION: ${{ matrix.unity-version }}
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP "dxaudio-results-$env:UNITY_VERSION-integration/editmode.log"
+          if (Test-Path -LiteralPath $log) {
+            Select-String -LiteralPath $log -Pattern '^DXMESSAGING_ALLOCATION control=(True|False) started=[0-9]+ events=[0-9]+$' |
+              ForEach-Object { Write-Host $_.Line }
+          }
+
       - name: Report the log tail without the optional integration
         if: ${{ failure() && steps.run_editmode_plain.outcome == 'failure' }}
         timeout-minutes: 2

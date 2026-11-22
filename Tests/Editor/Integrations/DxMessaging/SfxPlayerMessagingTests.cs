@@ -6,6 +6,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     using DxMessaging.Core.Extensions;
     using DxMessaging.Core.MessageBus;
     using NUnit.Framework;
+    using Unity.Profiling;
     using UnityEngine;
     using WallstopStudios.DxAudio.Integration;
     using Object = UnityEngine.Object;
@@ -311,6 +312,53 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             long growth = HeapGrowth(() => EmitPlay(relay, "hit"), PlayCount);
 
             Assert.That(growth, Is.LessThan(Ceiling), $"a request through the bus grew the heap by {growth} bytes over {PlayCount:N0} plays.");
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void WarmedPlayRequestsThroughTheBusDoNotAllocate(bool plantAllocation)
+        {
+            SfxPlayer player = Player(Cue(loop: false, key: "hit"), voiceCount: 1);
+            SfxPlayerMessagingCore relay = Relay(player);
+            EmitPlay(relay, "hit");
+            AudioSource source = PlayingSource(player);
+            Assert.That(source != null, Is.True, "The first request must start a voice.");
+            for (int index = 0; index < WarmupPlays; ++index)
+            {
+                source.Stop();
+                EmitPlay(relay, "hit");
+                _ = source.isPlaying;
+            }
+
+            int started = 0;
+            using ProfilerRecorder recorder = new(
+                ProfilerCategory.Internal,
+                "GC.Alloc",
+                1,
+                ProfilerRecorderOptions.SumAllSamplesInFrame | ProfilerRecorderOptions.CollectOnlyOnCurrentThread
+            );
+            Assert.That(recorder.Valid, Is.True, "Unity must expose the GC.Alloc marker.");
+            recorder.Start();
+            for (int index = 0; index < PlayCount; ++index)
+            {
+                source.Stop();
+                EmitPlay(relay, "hit");
+                if (source.isPlaying)
+                {
+                    ++started;
+                }
+
+                if (plantAllocation && index == 0)
+                {
+                    GC.KeepAlive(new byte[16]);
+                }
+            }
+
+            recorder.Stop();
+            long allocations = recorder.Count == 0 ? 0 : recorder.GetSample(0).Count;
+            Debug.Log($"DXMESSAGING_ALLOCATION control={plantAllocation} started={started} events={allocations}");
+            Assert.That(started, Is.EqualTo(PlayCount), "Every request must start a voice.");
+            Assert.That(allocations, Is.Zero, $"The relay path allocated {allocations} times over {PlayCount:N0} plays.");
         }
 
         private void EmitPlay(SfxPlayerMessagingCore relay, string key)
