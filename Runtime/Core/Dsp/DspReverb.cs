@@ -69,55 +69,67 @@ namespace WallstopStudios.DxAudio
                 int length = (int)Math.Min(stop - offset, 2L * remaining - (hasPending ? channels : 0));
                 int end = offset + length;
 
-                // The dry path stays at full rate. Average a pair of frames into the delay network and hold each wet frame for two output frames.
-                while (offset < end)
+                // Keep each channel's pending dry sample and held tail in locals until the next ring boundary.
+                for (int channel = 0; channel < channels; ++channel)
                 {
+                    int readAIndex = a + channel;
+                    int readBIndex = b + channel;
+                    int readCIndex = c + channel;
+                    int readDIndex = d + channel;
+                    float firstDry = pending[channel];
+                    float tail = wet[channel];
+                    int frame = offset;
                     if (!hasPending)
                     {
-                        for (int channel = 0; channel < channels; ++channel)
-                        {
-                            float dry = buffer[offset + channel];
-                            pending[channel] = dry;
-                            buffer[offset + channel] = dry + wet[channel];
-                        }
-
-                        offset += channels;
-                        hasPending = true;
+                        firstDry = buffer[frame + channel];
+                        buffer[frame + channel] = firstDry + tail;
+                        frame += channels;
                     }
 
-                    if (offset == end)
+                    while (frame < end)
                     {
-                        break;
-                    }
-
-                    for (int channel = 0; channel < channels; ++channel)
-                    {
-                        float readA = history[a];
-                        float readB = history[b];
-                        float readC = history[c];
-                        float readD = history[d];
+                        float readA = history[readAIndex];
+                        float readB = history[readBIndex];
+                        float readC = history[readCIndex];
+                        float readD = history[readDIndex];
                         float reflection = (readA + readB + readC + readD) * 0.5f;
-                        float dry = buffer[offset + channel];
+                        float dry = buffer[frame + channel];
                         // Subtracting half the sum forms an orthogonal Householder feedback matrix.
-                        float feed = (dry + pending[channel]) * 0.25f - reflection;
+                        float feed = (dry + firstDry) * 0.25f - reflection;
                         // Add and remove a tiny floor to suppress subnormal samples in the feedback path.
-                        history[a++] = ((readA + feed) * gainA + TailFloor) - TailFloor;
-                        history[b++] = ((readB + feed) * gainB + TailFloor) - TailFloor;
-                        history[c++] = ((readC + feed) * gainC + TailFloor) - TailFloor;
-                        history[d++] = ((readD + feed) * gainD + TailFloor) - TailFloor;
-                        float tail = reflection * wetLevel;
-                        wet[channel] = tail;
-                        buffer[offset + channel] = dry + tail;
+                        history[readAIndex] = ((readA + feed) * gainA + TailFloor) - TailFloor;
+                        history[readBIndex] = ((readB + feed) * gainB + TailFloor) - TailFloor;
+                        history[readCIndex] = ((readC + feed) * gainC + TailFloor) - TailFloor;
+                        history[readDIndex] = ((readD + feed) * gainD + TailFloor) - TailFloor;
+                        tail = reflection * wetLevel;
+                        buffer[frame + channel] = dry + tail;
+                        readAIndex += channels;
+                        readBIndex += channels;
+                        readCIndex += channels;
+                        readDIndex += channels;
+                        frame += channels;
+
+                        if (frame < end)
+                        {
+                            firstDry = buffer[frame + channel];
+                            buffer[frame + channel] = firstDry + tail;
+                            frame += channels;
+                        }
                     }
 
-                    offset += channels;
-                    hasPending = false;
+                    pending[channel] = firstDry;
+                    wet[channel] = tail;
                 }
 
-                _lineA.AdvanceTo(a);
-                _lineB.AdvanceTo(b);
-                _lineC.AdvanceTo(c);
-                _lineD.AdvanceTo(d);
+                // Each completed pair advances every ring by one frame.
+                int framesWithPending = length / channels + (hasPending ? 1 : 0);
+                int advance = (framesWithPending / 2) * channels;
+                _lineA.AdvanceTo(a + advance);
+                _lineB.AdvanceTo(b + advance);
+                _lineC.AdvanceTo(c + advance);
+                _lineD.AdvanceTo(d + advance);
+                hasPending = (framesWithPending & 1) != 0;
+                offset = end;
             }
 
             _hasPending = hasPending;
