@@ -367,6 +367,30 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(graphHost.SkippedBlocks, Is.Zero);
         }
 
+        [Test]
+        public void AChainOrGraphCanApplyAuthoredStereoWidth()
+        {
+            using MadeObjects made = new();
+            DspStereoWidthAsset width = made.Track(ScriptableObject.CreateInstance<DspStereoWidthAsset>());
+            JsonUtility.FromJsonOverwrite("{\"_width\":2}", width);
+            AudioFilterHost chainHost = Host(made, Chain(made, width));
+            AudioFilterHost graphHost = Host(made, null);
+            graphHost.Graph = Graph(made, width);
+            Assume.That(1 < chainHost.ChannelCount, "The editor must prepare stereo callbacks for this test.");
+            float[] chainBlock = { 0.5f, 0f, 0.25f, 0.25f };
+            float[] graphBlock = (float[])chainBlock.Clone();
+
+            chainHost.OnAudioFilterRead(chainBlock, 2);
+            graphHost.OnAudioFilterRead(graphBlock, 2);
+
+            Assert.That(chainBlock, Is.EqualTo(new[] { 0.75f, -0.25f, 0.25f, 0.25f }));
+            Assert.That(graphBlock, Is.EqualTo(chainBlock));
+            Assert.That(chainHost.LatencySamples, Is.Zero);
+            Assert.That(graphHost.LatencySamples, Is.Zero);
+            Assert.That(chainHost.SkippedBlocks, Is.Zero);
+            Assert.That(graphHost.SkippedBlocks, Is.Zero);
+        }
+
         [TestCase(1, "Delay", false)]
         [TestCase(8, "Delay", false)]
         [TestCase(1, "Noise Gate", false)]
@@ -382,6 +406,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TestCase(1, "Reverb", false)]
         [TestCase(8, "Reverb", false)]
         [TestCase(8, "Reverb", true)]
+        [TestCase(1, "Stereo Width", false)]
+        [TestCase(8, "Stereo Width", false)]
         public void DspChainsStayWithinTheRenderBudget(int voices, string effect, bool bursts)
         {
             const int Rate = 48_000;
@@ -404,6 +430,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                     "Tremolo" => new DspTremolo { RateHertz = DspTremolo.MaximumRateHertz, Depth = 1f },
                     "Phaser" => new DspPhaser { RateHertz = DspPhaser.MaximumRateHertz, Depth = 1f },
                     "Reverb" => new DspReverb { DecaySeconds = DspReverb.MaximumDecaySeconds, WetLevel = 1f },
+                    "Stereo Width" => new DspStereoWidth { Width = DspStereoWidth.MaximumWidth },
                     _ => new DspNoiseGate(),
                 };
                 candidate[voice].Add(stage);

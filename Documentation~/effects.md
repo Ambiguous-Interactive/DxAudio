@@ -19,11 +19,12 @@ asset, like a cue or a track, so a designer changes the sound without a code cha
 | Reverb        | Add a decaying room tail to a sound                             |
 | Phaser        | Sweep two narrow dips through the sound                         |
 | Noise Gate    | Fade out quiet tails while keeping stereo channels linked       |
+| Stereo Width  | Narrow or widen the difference between stereo channels          |
 
 ## Author a chain
 
 1. Create one asset per effect with **Create > Wallstop Studios > DxAudio > DSP > Limiter** (or Compressor, Distortion, Bit Crusher, Pitch
-   Shifter, Filter, Delay, Chorus, Tremolo, Phaser, Reverb, Noise Gate).
+   Shifter, Filter, Delay, Chorus, Tremolo, Phaser, Reverb, Noise Gate, Stereo Width).
 2. Create the list with **Create > Wallstop Studios > DxAudio > DSP > Chain** and add the effects in the order the signal should meet
    them. Order is the sound: distortion before a compressor is driven and then controlled, and the reverse squashes the
    quiet part before the drive lifts it again.
@@ -344,3 +345,10 @@ _Snippet compiled in CI._
 - **Attack Seconds** and **Release Seconds** set the opening and closing times from 0 to 2 seconds. Each time moves the gain about 63% toward its target. Zero changes the gain at once.
 - The strongest channel in each frame controls one gain for all channels. The gate starts closed and adds no latency.
 - Place it before a compressor to reduce quiet tails before adding makeup gain. Use a short attack to keep sharp transients.
+
+## Stereo Width
+
+Set **Width** to 0 to send the stereo average to both channels. Use 1 to keep the original sound.
+Values between 0 and 1 narrow the sound. Values above 1 widen it, up to twice the original channel difference.
+Leave headroom when widening because individual channels can peak higher. The stereo average stays the same.
+The effect adds no latency. Mono and surround blocks pass through unchanged.
