@@ -29,6 +29,8 @@ Put a limiter last if a compressor's makeup gain can pass full scale.
 
 Each player has one **Bus Chain**. It runs after every voice's own chain, so it is one place to shape the whole sound.
 
+<!-- snippet: unity statements SfxPlayer _sfx, MusicPlayer _music, DspChainAsset sfxBus, DspChainAsset musicBus -->
+
 ```csharp
 _sfx.BusChain = sfxBus;
 _music.BusChain = musicBus;
@@ -42,6 +44,8 @@ under a ceiling can still sum above it. A bus is a shared shaping stage, not an 
 
 Unity sums every source before it calls an audio filter on the object that carries the `AudioListener`. An **Audio Mix
 Bus** on that object therefore shapes the whole mix, including sources this package does not play:
+
+<!-- snippet: unity statements GameObject _listenerObject, DspChainAsset masterChain -->
 
 ```csharp
 _listenerObject.AddComponent<AudioMixBus>().Chain = masterChain;
@@ -236,7 +240,9 @@ edge names it, so two nodes may not share one, and an edge to a name no node hol
 The cue inspector and the library check report a graph the runtime cannot build, which would otherwise pass the sound
 through unshaped.
 
-A graph can also be built in code, for a path a game assembles at run time:
+A graph can also be built in code. Pass the session's sample rate, such as `AudioSettings.outputSampleRate` in Unity.
+
+<!-- snippet: core statements DspChain roomChain, DspChain dryChain, int sampleRate, float[] buffer -->
 
 ```csharp
 DspGraph graph = new();
@@ -248,7 +254,7 @@ _ = graph.TryAddEdge(input, room);
 _ = graph.TryAddEdge(input, dry);
 _ = graph.TryAddEdge(room, output);
 _ = graph.TryAddEdge(dry, output);
-_ = graph.TryPrepare(AudioSettings.outputSampleRate, 1024, 2, input, output);
+_ = graph.TryPrepare(sampleRate, 1024, 2, input, output);
 graph.Process(buffer, 0, buffer.Length, 2);
 ```
 
@@ -270,3 +276,5 @@ graph.Process(buffer, 0, buffer.Length, 2);
   branch buffer. A cue or a track names at most one chain and one graph.
 - A block whose shape no prepared chain matches passes through and counts in `AudioFilterHost.SkippedBlocks`, so a
   silent bypass is visible rather than guessed at.
+
+_Snippet compiled in CI._

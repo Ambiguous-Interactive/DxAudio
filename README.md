@@ -86,7 +86,10 @@ does not list.
 2. Create a library with **Create > Wallstop Studios > DxAudio > Sfx Library**, list the cues, and set the voice count.
 3. Add an **Sfx Player** component and assign the library.
 
+<!-- snippet: unity file -->
+
 ```csharp
+using UnityEngine;
 using WallstopStudios.DxAudio;
 
 public sealed class Door : MonoBehaviour
@@ -104,6 +107,8 @@ public sealed class Door : MonoBehaviour
 ```
 
 A looping cue stands for a state, so whoever starts it stops it:
+
+<!-- snippet: unity statements SfxPlayer _sfx, SfxCue _hum, SfxLoopHandle _humHandle -->
 
 ```csharp
 if (_sfx.TryPlayLooping(_hum, out SfxLoopHandle hum))
@@ -138,6 +143,8 @@ node holds a chain, an edge carries one node's signal into a later one, and a no
 The graph delays the shorter branch so every path reaches its output together. It runs after the voice's chain and
 before the bus, and the graph inspector lists each node with the delay it adds.
 
+<!-- snippet: unity statements SfxPlayer _sfx, MusicPlayer _music, DspChainAsset sfxBusChain, DspChainAsset musicBusChain, SfxCue cue -->
+
 ```csharp
 _sfx.BusChain = sfxBusChain;   // runs after each voice's own chain
 _music.BusChain = musicBusChain;
@@ -154,6 +161,8 @@ chain. Unity hands that object the mix of every source, so a limiter there holds
 and it runs once per block rather than once per voice. It adds no buffering of its own: `LatencySamples` reports only the
 lookahead or window its chain asks for.
 
+<!-- snippet: unity statements GameObject _listenerObject, DspChainAsset masterChain -->
+
 ```csharp
 _listenerObject.AddComponent<AudioMixBus>().Chain = masterChain;
 ```
@@ -163,6 +172,8 @@ _listenerObject.AddComponent<AudioMixBus>().Chain = masterChain;
 1. Create tracks with **Create > Wallstop Studios > DxAudio > Music Track** and give each a context, such as `title` or `level-1`.
 2. Create a library with **Create > Wallstop Studios > DxAudio > Music Library**, list the tracks, and set the fades.
 3. Add a **Music Player** component and assign the library.
+
+<!-- snippet: unity async MusicPlayer _music, MusicTrack track, MusicTrack bossTrack, Func<Task> BossFight -->
 
 ```csharp
 _music.PlayContext("level-1");     // crossfades; the same music asked for again keeps playing
@@ -183,6 +194,8 @@ times, and its holders:
 - **One** for a state that is on or off, such as a menu. Asserting it again changes nothing, and one release ends it.
 - **Many** for a claim several things make at once, such as two speakers. The music stays down until the last one
   releases.
+
+<!-- snippet: unity statements MusicPlayer _music, MusicDuck _dialogueDuck -->
 
 ```csharp
 MusicDuckLease lease = _music.Duck(_dialogueDuck, holder: this);
@@ -249,6 +262,8 @@ Open **Tools > Wallstop Studios > DxAudio > Authoring** to browse and edit audio
 
 ## Settings and events
 
+<!-- snippet: unity statements SfxPlayer _sfx, MusicPlayer _music, (bool SoundOn, bool MusicOn) settings -->
+
 ```csharp
 _sfx.Muted = !settings.SoundOn;
 _music.Muted = !settings.MusicOn;
@@ -256,6 +271,8 @@ _music.Muted = !settings.MusicOn;
 
 Muting keeps every voice's state, so loops and music resume in time when unmuted. To drive the players from DxMessaging,
 register handlers that call them:
+
+<!-- snippet: integration statements MessageRegistrationToken _registration, MusicPlayer _music, MusicDuck _dialogueDuck, MusicDuckLease _lease -->
 
 ```csharp
 _registration.RegisterUntargeted<DialogueStarted>(m => _lease = _music.Duck(_dialogueDuck, m.speaker));
@@ -265,6 +282,8 @@ _registration.RegisterUntargeted<DialogueEnded>(m => _music.Unduck(_dialogueDuck
 Pause holds every sounding voice at its playhead and keeps loops, leases and mute state, so resume continues rather than
 restarts. A cue or track started during the pause waits at its start. A lower-priority cue cannot replace a paused
 one-shot; an equal or higher one may. It is separate from `AudioListener.pause`: set it when the game wants audio held.
+
+<!-- snippet: unity statements SfxPlayer _sfx, MusicPlayer _music, bool paused -->
 
 ```csharp
 _sfx.Paused = paused;
@@ -278,11 +297,11 @@ messages into player calls and the player's drops into facts, so a game sends a 
 to the player.
 
 A loop is a held state, so the player answers with the id that ends it. Register for that answer before sending the
-request, because a broadcast nobody is listening for is gone:
+request. Import `DxMessaging.Core.Extensions` for the emit methods.
+
+<!-- snippet: integration statements MessageRegistrationToken _registration, GameObject sfxPlayerObject, Action<SfxCueDroppedMessage> HandleDropped -->
 
 ```csharp
-using DxMessaging.Core.Extensions;
-
 _registration.RegisterGameObjectBroadcast<SfxLoopStartedMessage>(sfxPlayerObject, HandleLoopStarted);
 _registration.RegisterGameObjectBroadcast<SfxCueDroppedMessage>(sfxPlayerObject, HandleDropped);
 
@@ -296,7 +315,7 @@ placed.EmitGameObjectTargeted(sfxPlayerObject);
 SfxLoopRequest loop = new("hum");
 loop.EmitGameObjectTargeted(sfxPlayerObject);
 
-private void HandleLoopStarted(SfxLoopStartedMessage message)
+void HandleLoopStarted(SfxLoopStartedMessage message)
 {
     SfxLoopStopRequest stop = new(message.loopId);
     stop.EmitGameObjectTargeted(sfxPlayerObject);
@@ -319,6 +338,8 @@ twice.
 
 Add **MusicPlayerMessaging** beside a **MusicPlayer** for music and pause:
 
+<!-- snippet: integration statements MessageRegistrationToken _registration, GameObject musicPlayerObject, Action<MusicTrackChangedMessage> HandleTrack, MusicDuck _dialogueDuck, GameObject speaker -->
+
 ```csharp
 _registration.RegisterGameObjectBroadcast<MusicTrackChangedMessage>(musicPlayerObject, HandleTrack);
 _registration.RegisterGameObjectBroadcast<MusicDuckStartedMessage>(musicPlayerObject, HandleDuck);
@@ -330,7 +351,7 @@ MusicDuckRequest duck = new(_dialogueDuck, speaker);
 duck.EmitGameObjectTargeted(musicPlayerObject);
 
 // The answer carries the id that releases this hold.
-private void HandleDuck(MusicDuckStartedMessage message)
+void HandleDuck(MusicDuckStartedMessage message)
 {
     MusicUnduckRequest unduck = new(message.duckId);
     unduck.EmitGameObjectTargeted(musicPlayerObject);
@@ -404,3 +425,5 @@ See [.devcontainer/README.md](.devcontainer/README.md) for the container lifecyc
 ## License
 
 [MIT No Attribution](LICENSE.md).
+
+_Snippet compiled in CI._

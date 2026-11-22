@@ -23,4 +23,13 @@
     <PackageReference Include="NUnit" Version="3.14.0" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
   </ItemGroup>
+  <Target Name="CompileCoreDocSnippets" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <DocSnippetOutput>$(IntermediateOutputPath)DocSnippets</DocSnippetOutput>
+    </PropertyGroup>
+    <Exec Command="&quot;$(DxAudioPython)&quot; &quot;$(MSBuildProjectDirectory)/../.github/scripts/compile_docs_snippets.py&quot; --target core --output &quot;$(DocSnippetOutput)&quot;" />
+    <ItemGroup>
+      <Compile Include="$(DocSnippetOutput)/*.cs" />
+    </ItemGroup>
+  </Target>
 </Project>

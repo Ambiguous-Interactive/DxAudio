@@ -37,6 +37,8 @@ The load type belongs to the clip, so every track and cue that uses it takes the
 
 ## Play
 
+<!-- snippet: unity statements MusicPlayer _music, MusicTrack track -->
+
 ```csharp
 _music.PlayContext("level-1");     // crossfades; the same music asked for again keeps playing
 _music.Play(track);                // by reference
@@ -50,6 +52,8 @@ their contexts keeps the playhead; a different chain or graph is a different sou
 ## Overrides
 
 An override plays other music over the context until its lease is released, then hands the context back:
+
+<!-- snippet: unity async MusicPlayer _music, MusicTrack bossTrack, Func<Task> BossFight -->
 
 ```csharp
 using (_music.Override(bossTrack))
@@ -85,6 +89,8 @@ the result to each music voice. `Attenuation` reports the value applied this fra
 
 ## Volume, mute, and pause
 
+<!-- snippet: unity statements SfxPlayer _sfx, MusicPlayer _music, (float SoundLevel, float MusicLevel, bool MusicOn) settings, bool paused -->
+
 ```csharp
 _sfx.Volume = settings.SoundLevel;
 _music.Volume = settings.MusicLevel;
@@ -101,3 +107,5 @@ leases, so resume continues rather than restarts. It is separate from `AudioList
 ## Next
 
 [Ducks](ducks.md).
+
+_Snippet compiled in CI._

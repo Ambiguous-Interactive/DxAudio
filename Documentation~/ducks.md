@@ -17,6 +17,8 @@ Choose **Create > Wallstop Studios > DxAudio > Music Duck** and set:
 
 ## Hold it
 
+<!-- snippet: unity statements MusicPlayer _music, MusicDuck _dialogueDuck -->
+
 ```csharp
 MusicDuckLease lease = _music.Duck(_dialogueDuck, holder: this);
 // ...
@@ -41,6 +43,8 @@ so a dialogue duck and a menu duck together sound like both. A released duck lea
 To check the result, read `MusicPlayer.TargetAttenuation` for the composed level and `Attenuation` for the level applied
 this frame. Both report volume, low-pass and high-pass.
 
+<!-- snippet: unity statements MusicPlayer _music -->
+
 ```csharp
 MusicAttenuation target = _music.TargetAttenuation;
 Debug.Log($"music at {target.volumeScale:0.00}, low-pass {target.lowPassCutoffHz:0} Hz");
@@ -64,3 +68,5 @@ If the music stays quiet, call `DescribeDucks()`. A `Many` duck still lists its 
 ## Next
 
 [Troubleshooting](troubleshooting.md).
+
+_Snippet compiled in CI._

@@ -93,7 +93,8 @@ def stage_policy(root: Path, stage: Path) -> None:
         (directory / POLICY_RESPONSE_FILE).write_text(POLICY_RESPONSE_CONTENT, encoding="utf-8")
         shutil.copy2(ruleset, directory / POLICY_RULESET_FILE)
         if suppressions.is_file():
-            copy_script(suppressions, directory / suppressions.name, stage)
+            # Include the staged folder so sibling fixtures get distinct asset GUIDs.
+            copy_script(suppressions, directory / suppressions.name, stage.parent)
 
 
 def stage_package(root: Path, stage: Path) -> None:
@@ -121,15 +122,41 @@ def stage_sample(root: Path, destination: Path) -> None:
     stage_policy(root, destination)
 
 
+def stage_docs(root: Path, destination: Path, *, with_integration: bool) -> None:
+    if destination.resolve().is_relative_to(root.resolve()):
+        raise ValueError("The documentation fixtures must be staged outside the checkout.")
+    references = ["WallstopStudios.DxAudio"]
+    command = [
+        sys.executable, str(root / ".github" / "scripts" / "compile_docs_snippets.py"),
+        "--root", str(root), "--target", "unity", "--output", str(destination),
+    ]
+    if with_integration:
+        references.extend(["WallstopStudios.DxAudio.Integration.DxMessaging", "WallstopStudios.DxMessaging"])
+        command.append("--with-integration")
+    subprocess.run(command, check=True)
+    (destination / "DocSnippets.asmdef").write_text(
+        json.dumps({
+            "name": "WallstopStudios.DxAudio.Documentation.Validation",
+            "references": references,
+        }),
+        encoding="utf-8",
+    )
+    stage_policy(root, destination)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=ROOT)
     parser.add_argument("--destination", type=Path, required=True)
     parser.add_argument("--sample-destination", type=Path)
+    parser.add_argument("--docs-destination", type=Path)
+    parser.add_argument("--with-integration", action="store_true")
     arguments = parser.parse_args()
     stage_package(arguments.source.resolve(), arguments.destination.resolve())
     if arguments.sample_destination:
         stage_sample(arguments.source.resolve(), arguments.sample_destination.resolve())
+    if arguments.docs_destination:
+        stage_docs(arguments.source.resolve(), arguments.docs_destination.resolve(), with_integration=arguments.with_integration)
     return 0
 
 

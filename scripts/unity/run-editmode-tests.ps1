@@ -102,7 +102,12 @@ if ($importSmoke) {
     $stagedPackage = Join-Path $projectPath 'DxAudio'
     $prepareScript = Join-Path $PSScriptRoot 'prepare-package.py'
     $samplePath = Join-Path $assetsPath 'BasicUsage'
-    uv run --no-project $prepareScript --source $PackageRoot --destination $stagedPackage --sample-destination $samplePath
+    $docsPath = Join-Path $assetsPath 'DocSnippets'
+    $prepareArgs = @('--source', $PackageRoot, '--destination', $stagedPackage, '--sample-destination', $samplePath, '--docs-destination', $docsPath)
+    if (-not [string]::IsNullOrWhiteSpace($DxMessagingVersion)) {
+        $prepareArgs += '--with-integration'
+    }
+    uv run --no-project $prepareScript @prepareArgs
     if ($LASTEXITCODE -ne 0) {
         throw "Could not stage the analysis package (exit code $LASTEXITCODE)."
     }
@@ -235,6 +240,13 @@ if ($playerSmoke -or $importSmoke) {
     }
     return
 }
+
+$docsAssembly = Get-Content -Raw -LiteralPath (Join-Path $docsPath 'DocSnippets.asmdef') | ConvertFrom-Json
+$docsOutput = Join-Path $projectPath "Library/ScriptAssemblies/$($docsAssembly.name).dll"
+if (-not (Test-Path -LiteralPath $docsOutput -PathType Leaf)) {
+    throw 'Unity did not compile the documentation examples.'
+}
+Write-Host 'Unity compiled the documentation examples.'
 
 if (-not (Test-Path -LiteralPath $resultsPath -PathType Leaf)) {
     Write-RedactedLogTail -Path $logPath

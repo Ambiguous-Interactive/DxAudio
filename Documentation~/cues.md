@@ -57,6 +57,8 @@ at each accepted play, including the start of a held loop. For code-authored cue
 
 ## Playing
 
+<!-- snippet: unity statements SfxPlayer _sfx, SfxCue cue -->
+
 ```csharp
 _sfx.Play(cue);                        // flat, by reference
 _sfx.Play(cue, transform.position);    // placed
@@ -74,6 +76,8 @@ playing a cue held by reference to move its shuffle and DSP setup out of the fir
 ## Loops
 
 A looping cue stands for a state. Whoever starts it stops it:
+
+<!-- snippet: unity statements SfxPlayer _sfx, SfxCue _hum, SfxLoopHandle _humHandle -->
 
 ```csharp
 if (_sfx.TryPlayLooping(_hum, out SfxLoopHandle hum))
@@ -110,3 +114,5 @@ frame instead of leaving it held and silent. A cue whose clip is gone is refused
 ## Next
 
 [Music](music.md).
+
+_Snippet compiled in CI._
