@@ -273,3 +273,11 @@ if ($expectIntegration) {
 }
 Write-Host "EditMode passed $passed tests on $runName."
 Write-UnityNUnitTimings -Document $results
+
+foreach ($output in $results.SelectNodes("//test-case[@fullname='WallstopStudios.DxAudio.Tests.Editor.AllocationTests.CompareMusicVolumeCost']/output")) {
+    foreach ($line in ($output.InnerText -split '\r?\n')) {
+        if ($line -match '^DXAUDIO_VOLUME_PROBE (tick|apply) baseline median [0-9.]+ p95 [0-9.]+ us GC.Alloc [0-9]+ candidate median [0-9.]+ p95 [0-9.]+ us GC.Alloc [0-9]+$') {
+            Write-Host $line
+        }
+    }
+}
