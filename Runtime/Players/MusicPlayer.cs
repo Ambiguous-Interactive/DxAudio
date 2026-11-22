@@ -352,6 +352,14 @@ namespace WallstopStudios.DxAudio
             }
         }
 
+        internal void ApplyVolumeProbe()
+        {
+            foreach (Voice voice in _voices)
+            {
+                Apply(voice, 1f, _volumeRamp.to);
+            }
+        }
+
         private void Update()
         {
             Tick(Time.unscaledDeltaTime);
@@ -561,14 +569,6 @@ namespace WallstopStudios.DxAudio
             float seconds = released != null ? released.ReleaseSeconds : SweptReleaseSeconds;
             MusicEase ease = released != null ? released.ReleaseEase : MusicEase.InOutSine;
             RampTowardDucks(seconds, ease);
-        }
-
-        internal void ApplyVolumeProbe()
-        {
-            foreach (Voice voice in _voices)
-            {
-                Apply(voice, 1f, _volumeRamp.to);
-            }
         }
 
         private void Apply(Voice voice, float fade, float volume)

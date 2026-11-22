@@ -33,39 +33,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             return recorder.Count == 0 ? 0 : recorder.GetSample(0).Count;
         }
 
-        [Test]
-        public void CompareMusicVolumeCost()
-        {
-            using MadeObjects made = new();
-            MusicTrack[] tracks = new MusicTrack[3];
-            for (int index = 0; index < tracks.Length; ++index)
-            {
-                tracks[index] = made.Track(MusicTrack.Create(Clip(made)));
-            }
-
-            MusicLibrary library = made.Track(MusicLibrary.Create(tracks, fadeInSeconds: 0f, fadeOutSeconds: 100000f));
-            MusicDuck duck = made.Track(MusicDuck.Create(MusicDuckHolders.One, volumeScale: 0.5011872f, lowPassCutoffHz: 1200f, applySeconds: 0f));
-            VolumeProbeBaselineMusicPlayer baseline = made.Track(new GameObject("baseline music")).AddComponent<VolumeProbeBaselineMusicPlayer>();
-            MusicPlayer candidate = made.Track(new GameObject("candidate music")).AddComponent<MusicPlayer>();
-            baseline.Muted = true;
-            candidate.Muted = true;
-            baseline.Library = library;
-            candidate.Library = library;
-            foreach (MusicTrack track in tracks)
-            {
-                baseline.Play(track);
-                candidate.Play(track);
-            }
-
-            Assert.That(baseline.Duck(duck).IsValid && candidate.Duck(duck).IsValid);
-            Action tickBaseline = () => baseline.Tick(1f / 60f);
-            Action tickCandidate = () => candidate.Tick(1f / 60f);
-            ReportVolumeProbe("tick", tickBaseline, tickCandidate);
-            CheckActiveMusicVoices(baseline);
-            CheckActiveMusicVoices(candidate);
-            ReportVolumeProbe("apply", baseline.ApplyVolumeProbe, candidate.ApplyVolumeProbe);
-        }
-
         private static void CheckActiveMusicVoices(MonoBehaviour player)
         {
             AudioSource[] voices = player.GetComponentsInChildren<AudioSource>();
@@ -151,6 +118,39 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static AudioClip Clip(MadeObjects made)
         {
             return made.Track(AudioClip.Create("test clip", 4_000, 1, 8_000, stream: false));
+        }
+
+        [Test]
+        public void CompareMusicVolumeCost()
+        {
+            using MadeObjects made = new();
+            MusicTrack[] tracks = new MusicTrack[3];
+            for (int index = 0; index < tracks.Length; ++index)
+            {
+                tracks[index] = made.Track(MusicTrack.Create(Clip(made)));
+            }
+
+            MusicLibrary library = made.Track(MusicLibrary.Create(tracks, fadeInSeconds: 0f, fadeOutSeconds: 100000f));
+            MusicDuck duck = made.Track(MusicDuck.Create(MusicDuckHolders.One, volumeScale: 0.5011872f, lowPassCutoffHz: 1200f, applySeconds: 0f));
+            VolumeProbeBaselineMusicPlayer baseline = made.Track(new GameObject("baseline music")).AddComponent<VolumeProbeBaselineMusicPlayer>();
+            MusicPlayer candidate = made.Track(new GameObject("candidate music")).AddComponent<MusicPlayer>();
+            baseline.Muted = true;
+            candidate.Muted = true;
+            baseline.Library = library;
+            candidate.Library = library;
+            foreach (MusicTrack track in tracks)
+            {
+                baseline.Play(track);
+                candidate.Play(track);
+            }
+
+            Assert.That(baseline.Duck(duck).IsValid && candidate.Duck(duck).IsValid);
+            Action tickBaseline = () => baseline.Tick(1f / 60f);
+            Action tickCandidate = () => candidate.Tick(1f / 60f);
+            ReportVolumeProbe("tick", tickBaseline, tickCandidate);
+            CheckActiveMusicVoices(baseline);
+            CheckActiveMusicVoices(candidate);
+            ReportVolumeProbe("apply", baseline.ApplyVolumeProbe, candidate.ApplyVolumeProbe);
         }
 
         [TestCase(false)]
