@@ -144,6 +144,10 @@ class Sandbox:
     def bashrc(self) -> str:
         return (self.home / ".bashrc").read_text()
 
+    def zshrc(self) -> str:
+        path = self.home / ".zshrc"
+        return path.read_text() if path.is_file() else ""
+
     def cleanup(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
 
@@ -219,6 +223,8 @@ def case_on_create_bootstraps_and_is_idempotent() -> None:
             assert_true(key in content, f".env.local should list {key}")
         # A fresh home yields a bashrc that is exactly the fresh line plus the block.
         assert_bashrc(sandbox.bashrc(), sandbox.ws, sandbox.home, precedence=False, above_lines=[])
+        # zsh terminals (and agents launched from them) need the same block.
+        assert_bashrc(sandbox.zshrc(), sandbox.ws, sandbox.home, precedence=False, above_lines=[])
         assert_true(
             stub_calls(sandbox.marker_lines())
             == [
@@ -237,6 +243,7 @@ def case_on_create_bootstraps_and_is_idempotent() -> None:
         # re-run's bashrc is the separator, a fresh line, then the block.
         assert_bashrc(sandbox.bashrc(), sandbox.ws, sandbox.home, precedence=False, above_lines=[""])
         assert_true(sandbox.bashrc().count(BEGIN) == 1, "a second run must not duplicate the bashrc block")
+        assert_true(sandbox.zshrc().count(BEGIN) == 1, "a second run must not duplicate the zshrc block")
         print(output)
     finally:
         sandbox.cleanup()
@@ -320,6 +327,7 @@ def case_post_start_replaces_block_and_loads_env() -> None:
         bashrc = sandbox.bashrc()
         assert_true("set -a" not in bashrc, "the legacy naive block must be replaced")
         assert_bashrc(bashrc, sandbox.ws, sandbox.home, precedence=True, above_lines=["# top line", "export OTHER=keep"])
+        assert_bashrc(sandbox.zshrc(), sandbox.ws, sandbox.home, precedence=True, above_lines=[])
         calls = stub_calls(sandbox.marker_lines())
         envs = stub_envs(sandbox.marker_lines())
         assert_true(len(calls) >= 4, f"expected the install, backend, doctor, and sync calls, got {calls}")

@@ -23,6 +23,9 @@ from typing import Dict, List, Optional, Sequence
 
 ENV_BLOCK_BEGIN = "# >>> DxAudio devcontainer env >>>"
 ENV_BLOCK_END = "# <<< DxAudio devcontainer env <<<"
+# Every interactive shell that can launch an agent gets the block: the image's
+# login shell is bash, but zsh terminals and agents started from them read ~/.zshrc.
+SHELL_RC_FILES = (".bashrc", ".zshrc")
 
 
 def resolve_workspace(argv: Sequence[str]) -> Path:
@@ -52,19 +55,19 @@ def run_child_strict(command: Sequence[str], cwd: Path, env: Optional[Dict[str, 
     return code
 
 
-def read_bashrc_text(home: Path) -> str:
+def read_bashrc_text(home: Path, rc: str = ".bashrc") -> str:
     """Read ``~/.bashrc`` bytes as text, or an empty string when absent.
 
     ``surrogateescape`` round-trips bytes that are not valid UTF-8 so a
     non-UTF-8 bashrc survives a rewrite without corruption.
     """
-    bashrc = home / ".bashrc"
+    bashrc = home / rc
     if not bashrc.is_file():
         return ""
     return bashrc.read_bytes().decode("utf-8", errors="surrogateescape")
 
 
-def write_bashrc_text(home: Path, text: str) -> None:
+def write_bashrc_text(home: Path, text: str, rc: str = ".bashrc") -> None:
     """Replace ``~/.bashrc`` through a sibling temp file and ``os.replace``.
 
     The bash originals wrote an ``mktemp`` file and ``mv``-ed it over the
@@ -72,8 +75,8 @@ def write_bashrc_text(home: Path, text: str) -> None:
     the temp file's 0600 mode, which is the visible permission outcome of the
     originals too.
     """
-    bashrc = home / ".bashrc"
-    handle, temp_name = tempfile.mkstemp(dir=str(home), prefix=".bashrc.")
+    bashrc = home / rc
+    handle, temp_name = tempfile.mkstemp(dir=str(home), prefix=f"{rc}.")
     try:
         with os.fdopen(handle, "w", encoding="utf-8", errors="surrogateescape", newline="") as stream:
             stream.write(text)
@@ -114,19 +117,19 @@ def awk_strip_env_block(text: str) -> str:
     return "".join(f"{line}\n" for line in kept)
 
 
-def append_bashrc_block(home: Path, block_lines: Sequence[str]) -> None:
+def append_bashrc_block(home: Path, block_lines: Sequence[str], rc: str = ".bashrc") -> None:
     """Append ``block_lines`` to ``~/.bashrc`` without touching other content.
 
     The originals appended with a leading ``echo ""`` so the block always
     starts on its own fresh line; the same leading newline is written here.
     """
-    with open(home / ".bashrc", "a", encoding="utf-8", errors="surrogateescape", newline="") as stream:
+    with open(home / rc, "a", encoding="utf-8", errors="surrogateescape", newline="") as stream:
         stream.write("\n" + "".join(f"{line}\n" for line in block_lines))
 
 
-def bashrc_has_block_end(home: Path) -> bool:
-    """Return whether ``~/.bashrc`` currently holds the block end marker."""
-    return ENV_BLOCK_END in read_bashrc_text(home)
+def bashrc_has_block_end(home: Path, rc: str = ".bashrc") -> bool:
+    """Return whether the rc file (``~/.bashrc`` by default) holds the block end marker."""
+    return ENV_BLOCK_END in read_bashrc_text(home, rc)
 
 
 def repair_ownership(path: Path) -> None:

@@ -25,6 +25,7 @@ from env_local import load_environment
 from _lifecycle_common import (
     ENV_BLOCK_BEGIN,
     ENV_BLOCK_END,
+    SHELL_RC_FILES,
     append_bashrc_block,
     awk_strip_env_block,
     bashrc_has_block_end,
@@ -73,9 +74,15 @@ def replace_bashrc_block(home: Path, workspace: Path) -> None:
     with the tolerant env-local.sh loader. A block that is present is stripped
     and re-appended at the end; a bashrc without the block gains it.
     """
-    if bashrc_has_block_end(home):
-        write_bashrc_text(home, awk_strip_env_block(read_bashrc_text(home)))
-    if not bashrc_has_block_end(home):
+    for rc in SHELL_RC_FILES:
+        replace_rc_block(home, workspace, rc)
+
+
+def replace_rc_block(home: Path, workspace: Path, rc: str) -> None:
+    """Strip and re-append the env block in one shell rc file."""
+    if bashrc_has_block_end(home, rc):
+        write_bashrc_text(home, awk_strip_env_block(read_bashrc_text(home, rc)), rc)
+    if not bashrc_has_block_end(home, rc):
         workspace_arg = str(workspace)
         home_arg = str(home)
         block: List[str] = [
@@ -93,7 +100,7 @@ def replace_bashrc_block(home: Path, workspace: Path) -> None:
             f'export PATH="{home_arg}/.local/bin:${{PATH}}"',
             ENV_BLOCK_END,
         ]
-        append_bashrc_block(home, block)
+        append_bashrc_block(home, block, rc)
 
 
 def repair_cache_ownership(home: Path) -> None:

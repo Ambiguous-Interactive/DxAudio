@@ -25,6 +25,7 @@ sys.dont_write_bytecode = True
 from _lifecycle_common import (
     ENV_BLOCK_BEGIN,
     ENV_BLOCK_END,
+    SHELL_RC_FILES,
     awk_strip_env_block,
     read_bashrc_text,
     resolve_workspace,
@@ -94,14 +95,15 @@ def bashrc_block_lines(workspace: Path) -> List[str]:
 
 
 def wire_shell_environment(workspace: Path) -> None:
-    """Replace any previous bashrc block so every shell sources .env.local.
+    """Replace any previous bash and zsh rc block so every shell sources .env.local.
 
     One atomic write composes the stripped content and the new block, the way
     the original piped awk output into its temp file before the single ``mv``.
     """
     block = "".join(f"{line}\n" for line in bashrc_block_lines(workspace))
-    updated = awk_strip_env_block(read_bashrc_text(Path.home())) + "\n" + block
-    write_bashrc_text(Path.home(), updated)
+    for rc in SHELL_RC_FILES:
+        updated = awk_strip_env_block(read_bashrc_text(Path.home(), rc)) + "\n" + block
+        write_bashrc_text(Path.home(), updated, rc)
     print("   .env.local is sourced by every interactive shell; launchers on PATH.")
 
 
