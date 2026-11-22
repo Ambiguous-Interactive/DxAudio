@@ -105,8 +105,10 @@ These settings take effect when you prepare the chain. Reusing a voice restarts 
 Reverb adds room reflections while the dry sound plays at full level. Use **Decay Seconds** to set the time for
 the reflections to fall by 60 dB (0.15 to 3 seconds). Use **Wet Level** to set their level. Zero bypasses the effect.
 
-Each channel has its own tail. The dry sound has no added latency. In code, changes to either setting take effect
-when you next prepare the stage.
+Each channel has its own tail. The voice must keep rendering for the tail to play. For short clips, include silence
+at the end or put Reverb on the Audio Mix Bus. The dry sound and tail sum, so leave headroom for both.
+
+In code, changes to either setting take effect when you next prepare the stage.
 
 ## Phaser
 
