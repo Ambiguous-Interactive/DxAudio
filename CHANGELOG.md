@@ -8,6 +8,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
+- Add a Phaser effect for DSP chains and graphs with adjustable sweep rate and depth ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add a Tremolo effect for DSP chains and graphs with adjustable rate and depth ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add a Chorus effect for DSP chains and graphs to widen sounds with adjustable rate, depth, and mix ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add a Noise Gate for DSP chains and graphs to fade quiet tails while keeping stereo channels linked ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
