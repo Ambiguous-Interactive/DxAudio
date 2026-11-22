@@ -4,6 +4,7 @@
 # ruff: noqa: PT027
 
 import io
+import json
 import tarfile
 import tempfile
 import unittest
@@ -18,9 +19,11 @@ from auto_release import (
     dispatch,
     prepare,
     promote,
+    release_edits,
     required_statuses,
     rotate,
 )
+from package_check import ROOT
 from release_assets import (
     build_unitypackage,
     github_release,
@@ -56,6 +59,29 @@ class ReleaseDecisionTests(unittest.TestCase):
         result = rotate(source, "0.4.0", date(2026, 11, 22))
         assert "## [Unreleased]\n\n## [0.4.0] - 2026-11-22\n\n### Added" in result
         assert result.endswith("## [0.3.0] - 2026-11-15\n")
+
+    def test_release_edits_bump_every_public_pin(self) -> None:
+        pins = {
+            "README.md": 2,
+            "Documentation~/install.md": 2,
+            "Documentation~/dxaudio-banner.svg": 1,
+        }
+        paths = ("package.json", ".llm/context.md", *pins)
+        base = {path: (ROOT / path).read_text(encoding="utf-8") for path in paths}
+        version = json.loads(base["package.json"])["version"]
+        candidate = "99.1.2"
+
+        def show(command: str, ref: str) -> str:
+            assert command == "show"
+            return base[ref.removeprefix("base:")].strip()
+
+        with patch("auto_release.git", side_effect=show):
+            edits = release_edits("base", version, candidate, "new notes\n")
+
+        for path, count in pins.items():
+            with self.subTest(path=path):
+                assert edits[path].count(candidate) == count
+                assert edits[path].replace(candidate, version) == base[path]
 
 
 class PromotionTests(unittest.TestCase):

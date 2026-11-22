@@ -44,6 +44,7 @@ include = [
     "../../.github/scripts/auto_release.py",
     "../../.github/scripts/release_assets.py",
     "../../.github/scripts/release_service.py",
+    "../../.github/scripts/sync_docs_version.py",
     "../../.github/scripts/test_auto_release.py",
     "../../.net-tests/prepare_analyzers.py",
     "../../.net-tests/run_checks.py",

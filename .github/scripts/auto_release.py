@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 
 from package_check import PACKAGE_DIRS, manifest_object
 from release_service import api, registry, run
+from sync_docs_version import DOC_PINS, sync_pins
 
 STABLE = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 UNRELEASED = re.compile(r"(?m)^## \[Unreleased\]$")
@@ -27,7 +28,6 @@ LEVELS = {
     "Removed": 3,
     "Breaking": 3,
 }
-RELEASE_FILES = ("package.json", "CHANGELOG.md", ".llm/context.md")
 PRODUCT_PATHS = (*PACKAGE_DIRS, "Samples~", "Documentation~", "package.json", "LICENSE.md")
 WORKFLOWS = ("ci.yml", "unity-tests.yml", "llm-lint.yml", "doc-links.yml")
 REQUIRED_JOBS = {"ci.yml": "Build and package safety", "unity-tests.yml": "Unity CI Success"}
@@ -303,7 +303,13 @@ def release_edits(base: str, version: str, candidate: str, notes: str) -> dict[s
     )
     if updated != 1 or synced != 1:
         raise ValueError("Package and context versions disagree")
-    return dict(zip(RELEASE_FILES, (next_manifest, notes, next_context), strict=True))
+    edits = {"package.json": next_manifest, "CHANGELOG.md": notes, ".llm/context.md": next_context}
+    for path in DOC_PINS:
+        text, problems = sync_pins(path, git("show", f"{base}:{path}") + "\n", version)
+        if problems:
+            raise ValueError("\n".join(problems))
+        edits[path] = sync_pins(path, text, candidate)[0]
+    return edits
 
 
 def verify_edits(base: str, sha: str, version: str) -> None:
@@ -315,9 +321,10 @@ def verify_edits(base: str, sha: str, version: str) -> None:
     expected = plan(base, previous, date.fromisoformat(heading[1]))
     if expected is None or expected[0] != version:
         raise ValueError("Candidate version disagrees with the release notes")
-    if set(git("diff", "--name-only", base, sha).splitlines()) != set(RELEASE_FILES):
+    edits = release_edits(base, previous, version, expected[2])
+    if set(git("diff", "--name-only", base, sha).splitlines()) != edits.keys():
         raise ValueError("Candidate changes files outside the release metadata")
-    for path, content in release_edits(base, previous, version, expected[2]).items():
+    for path, content in edits.items():
         if git("show", f"{sha}:{path}") != content.strip():
             raise ValueError(f"Candidate contains unexpected changes in {path}")
 
@@ -361,7 +368,7 @@ def prepare(
             "-m",
             f"Bump version from {version} to {candidate}",
             "--",
-            *RELEASE_FILES,
+            *edits,
         )
         git(
             "-c",

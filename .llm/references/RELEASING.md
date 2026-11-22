@@ -39,6 +39,7 @@ npx --yes npm@12.2.2 trust github com.wallstop-studios.dxaudio \
 ## Validation and recovery
 
 The candidate gets a `release-verify/vX.Y.Z-<base SHA>` branch.
+The candidate updates the install pins and banner chip from the new package version.
 CI, Unity Tests, LLM Instructions Lint, and External documentation links
 run on the candidate SHA. Unity checks both editors and both archive formats.
 
@@ -66,8 +67,10 @@ before retrying. A published version can be corrected with a new release.
 
 ## Manual release
 
-Merge the manifest version, context version, and dated changelog section
-to `main`. Validate that commit, then tag that exact commit.
+After updating `package.json`, run `python3 .github/scripts/sync_docs_version.py --fix`
+to sync the install pins and banner chip. Merge the manifest, context version,
+install pins, banner chip, and dated changelog section to `main`.
+Validate that commit, then tag that exact commit.
 
 ```bash
 git tag vX.Y.Z <validated-commit>
