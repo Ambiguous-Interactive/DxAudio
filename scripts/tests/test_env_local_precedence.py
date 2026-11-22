@@ -326,7 +326,7 @@ def case_shell_adapter_preserves_unexported_values_and_file_selection() -> None:
     workspace = fixture / 'workspace'
     workspace.mkdir()
     explicit = fixture / 'explicit.env'
-    explicit.write_text('TOKEN=explicit\nGITHUB_MCP_PAT=rotated\n', encoding='utf-8')
+    explicit.write_text('TOKEN=explicit\nGITHUB_MCP_PAT=rotated\ncurrent=from-file\n', encoding='utf-8')
     (workspace / '.env.local').write_text('TOKEN=workspace\n', encoding='utf-8')
     (fixture / '.env.local').write_text('TOKEN=cwd\n', encoding='utf-8')
     environment = {'PATH': BASE_PATH, 'HOME': HOME, 'DXAUDIO_ENV_UV': UV_BIN}
@@ -337,6 +337,8 @@ def case_shell_adapter_preserves_unexported_values_and_file_selection() -> None:
         ('load_env_local', {}, 'cwd'),
         ('TOKEN=unexported; load_env_local "$2"', {}, 'unexported'),
         ('TOKEN=; load_env_local "$2"', {}, 'explicit'),
+        ('load_env_local "$2"; TOKEN=${current-unset}', {}, 'from-file'),
+        ('current=unexported; load_env_local "$2"; TOKEN=$current', {}, 'unexported'),
         ('GITHUB_MCP_PAT=stale; DXAUDIO_ENV_LOCAL_PRECEDENCE=file; load_env_local "$2"; TOKEN=$GITHUB_MCP_PAT', {}, 'rotated'),
     ]
     try:

@@ -27,7 +27,7 @@ load_env_local() {
     fi
 
     local loader="${_dxaudio_env_local_dir}/env_local.py"
-    local key value overwrite current complete=false
+    local key value overwrite complete=false
     local -a assignments=()
     while IFS= read -r -d '' key && IFS= read -r -d '' value && IFS= read -r -d '' overwrite; do
         if [ -z "${key}" ]; then
@@ -43,8 +43,7 @@ load_env_local() {
             *[!A-Za-z0-9_]*) continue ;;
         esac
         # Preserve non-exported shell values, which the child cannot inherit.
-        eval "current=\"\${${key}:-}\""
-        if [ -n "${current}" ] && [ "${overwrite}" != 1 ]; then
+        if [ "${overwrite}" != 1 ] && eval '[ -n "${'"$key"':-}" ]'; then
             continue
         fi
         assignments+=("${key}=${value}")
