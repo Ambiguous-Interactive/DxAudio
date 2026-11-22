@@ -230,7 +230,7 @@ jobs:
         run: |
           $log = Join-Path $env:RUNNER_TEMP "dxaudio-results-$env:UNITY_VERSION-integration/editmode.log"
           if (Test-Path -LiteralPath $log) {
-            Select-String -LiteralPath $log -Pattern '^DXMESSAGING_ALLOCATION control=(True|False) started=[0-9]+ events=[0-9]+$' |
+            Select-String -LiteralPath $log -Pattern '^DXMESSAGING_ALLOCATION full=(True|False) control=(True|False) started=[0-9]+ dropped=[0-9]+ events=[0-9]+$' |
               ForEach-Object { Write-Host $_.Line }
           }
 

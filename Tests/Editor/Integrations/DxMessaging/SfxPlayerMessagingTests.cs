@@ -314,23 +314,32 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(growth, Is.LessThan(Ceiling), $"a request through the bus grew the heap by {growth} bytes over {PlayCount:N0} plays.");
         }
 
-        [TestCase(false)]
-        [TestCase(true)]
-        public void WarmedPlayRequestsThroughTheBusDoNotAllocate(bool plantAllocation)
+        [TestCase(false, false)]
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        [TestCase(true, true)]
+        public void WarmedPlayRequestsThroughTheBusDoNotAllocate(bool poolFull, bool plantAllocation)
         {
             SfxPlayer player = Player(Cue(loop: false, key: "hit"), voiceCount: 1);
             SfxPlayerMessagingCore relay = Relay(player);
             EmitPlay(relay, "hit");
             AudioSource source = PlayingSource(player);
             Assert.That(source != null, Is.True, "The first request must start a voice.");
+            // Keep the occupied voice playing for the full-pool case.
+            source.loop = poolFull;
             for (int index = 0; index < WarmupPlays; ++index)
             {
-                source.Stop();
+                if (!poolFull)
+                {
+                    source.Stop();
+                }
+
                 EmitPlay(relay, "hit");
                 _ = source.isPlaying;
             }
 
             int started = 0;
+            int initialDrops = player.DropCounts.noVoice;
             using ProfilerRecorder recorder = new(
                 ProfilerCategory.Internal,
                 "GC.Alloc",
@@ -341,9 +350,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             recorder.Start();
             for (int index = 0; index < PlayCount; ++index)
             {
-                source.Stop();
+                if (!poolFull)
+                {
+                    source.Stop();
+                }
+
                 EmitPlay(relay, "hit");
-                if (source.isPlaying)
+                if (!poolFull && source.isPlaying)
                 {
                     ++started;
                 }
@@ -356,8 +369,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             recorder.Stop();
             long allocations = recorder.Count == 0 ? 0 : recorder.GetSample(0).Count;
-            Debug.Log($"DXMESSAGING_ALLOCATION control={plantAllocation} started={started} events={allocations}");
-            Assert.That(started, Is.EqualTo(PlayCount), "Every request must start a voice.");
+            int dropped = player.DropCounts.noVoice - initialDrops;
+            Debug.Log($"DXMESSAGING_ALLOCATION full={poolFull} control={plantAllocation} started={started} dropped={dropped} events={allocations}");
+            Assert.That(poolFull ? dropped : started, Is.EqualTo(PlayCount), "Every request must reach the player.");
             Assert.That(allocations, Is.Zero, $"The relay path allocated {allocations} times over {PlayCount:N0} plays.");
         }
 
