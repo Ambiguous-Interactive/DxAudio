@@ -99,12 +99,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(allocations, Is.Zero, $"Keyed Play allocated {allocations} times over {MeasuredCalls:N0} plays.");
         }
 
-        [TestCase(false)]
-        [TestCase(true)]
-        public void PlayingACueWithAChainDoesNotAllocate(bool useDelay)
+        [TestCase("Distortion")]
+        [TestCase("Delay")]
+        [TestCase("Noise Gate")]
+        public void PlayingACueWithAChainDoesNotAllocate(string stage)
         {
             using MadeObjects made = new();
-            DspEffectAsset effect = useDelay ? made.Track(DspDelayAsset.Create(DspDelay.MaximumDelaySeconds)) : made.Track(DspDistortionAsset.Create());
+            DspEffectAsset effect = stage switch
+            {
+                "Distortion" => made.Track(DspDistortionAsset.Create()),
+                "Delay" => made.Track(DspDelayAsset.Create(DspDelay.MaximumDelaySeconds)),
+                _ => made.Track(DspNoiseGateAsset.Create()),
+            };
             DspChainAsset chain = made.Track(DspChainAsset.Create(new[] { made.Track(DspLimiterAsset.Create()), effect }));
             SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, minimumIntervalSeconds: 0f, chain: chain));
             SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
@@ -143,6 +149,36 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             long allocations = AllocationEvents(render, Blocks);
 
             Assert.That(allocations, Is.Zero, "Rendering must stay allocation-free while filling and reading delay history.");
+        }
+
+        [Test]
+        public void RenderingANoiseGateThroughOpenAndCloseDoesNotAllocate()
+        {
+            const int Frames = 1_024;
+            const int Channels = 2;
+            DspNoiseGate gate = new();
+            Assert.That(gate.TryPrepare(48_000, Frames, Channels), Is.True);
+            float[] input = new float[Frames * Channels];
+            float[] audio = new float[input.Length];
+            for (int frame = 0; frame < Frames; ++frame)
+            {
+                input[frame * Channels + 1] = frame % 128 < 64 ? 0.001f : 0.25f;
+            }
+
+            Action render = () =>
+            {
+                Array.Copy(input, audio, input.Length);
+                gate.Process(audio, 0, audio.Length, Channels);
+            };
+            for (int index = 0; index < WarmupCalls; ++index)
+            {
+                render();
+            }
+
+            gate.Reset();
+            long allocations = AllocationEvents(render, MeasuredCalls);
+
+            Assert.That(allocations, Is.Zero);
         }
 
         [Test]
