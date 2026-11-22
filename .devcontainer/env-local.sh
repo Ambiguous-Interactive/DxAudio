@@ -43,8 +43,12 @@ load_env_local() {
             *[!A-Za-z0-9_]*) continue ;;
         esac
         # Preserve non-exported shell values, which the child cannot inherit.
-        if [ "${overwrite}" != 1 ] && eval '[ -n "${'"$key"':-}" ]'; then
-            continue
+        if [ "${overwrite}" != 1 ]; then
+            if [ -n "${ZSH_VERSION:-}" ]; then
+                [ -z "${(P)key-}" ] || continue
+            else
+                [ -z "${!key-}" ] || continue
+            fi
         fi
         assignments+=("${key}=${value}")
     done < <(DXAUDIO_ENV_LOCAL_PRECEDENCE="${DXAUDIO_ENV_LOCAL_PRECEDENCE:-}" "${DXAUDIO_ENV_UV:-uv}" run --no-project "${loader}" -- "${env_file}")
