@@ -14,11 +14,12 @@ asset, like a cue or a track, so a designer changes the sound without a code cha
 | Pitch Shifter | Move a sound up or down in pitch without changing its length    |
 | Filter        | Muffle, thin, isolate or lift one band around a corner          |
 | Delay         | Add an echo and decaying repeats after the dry sound            |
+| Noise Gate    | Fade out quiet tails while keeping stereo channels linked       |
 
 ## Author a chain
 
 1. Create one asset per effect with **Create > Wallstop Studios > DxAudio > DSP > Limiter** (or Compressor, Distortion, Bit Crusher, Pitch
-   Shifter, Filter, Delay).
+   Shifter, Filter, Delay, Noise Gate).
 2. Create the list with **Create > Wallstop Studios > DxAudio > DSP > Chain** and add the effects in the order the signal should meet
    them. Order is the sound: distortion before a compressor is driven and then controlled, and the reverse squashes the
    quiet part before the drive lifts it again.
@@ -291,3 +292,10 @@ graph.Process(buffer, 0, buffer.Length, 2);
   silent bypass is visible rather than guessed at.
 
 _Snippet compiled in CI._
+
+## Noise Gate
+
+- **Threshold Decibels** sets the peak level that opens the gate, from -72 to 0 dBFS. The gate closes 6 dB below that level to avoid rapid switching near the threshold.
+- **Attack Seconds** and **Release Seconds** set the opening and closing times from 0 to 2 seconds. Each time moves the gain about 63% toward its target. Zero changes the gain at once.
+- The strongest channel in each frame controls one gain for all channels. The gate starts closed and adds no latency.
+- Place it before a compressor to reduce quiet tails before adding makeup gain. Use a short attack to keep sharp transients.

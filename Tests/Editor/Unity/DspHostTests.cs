@@ -189,21 +189,48 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(graphHost.SkippedBlocks, Is.Zero);
         }
 
-        [TestCase(1)]
-        [TestCase(8)]
-        public void DelayChainsStayWithinTheRenderBudget(int voices)
+        [Test]
+        public void ANoiseGateAssetClosesQuietFramesInAHostChainOrGraph()
+        {
+            using MadeObjects made = new();
+            DspNoiseGateAsset gate = made.Track(DspNoiseGateAsset.Create(-20f, attackSeconds: 0f, releaseSeconds: 0f));
+            AudioFilterHost chainHost = Host(made, Chain(made, gate));
+            AudioFilterHost graphHost = Host(made, null);
+            graphHost.Graph = Graph(made, gate);
+            float[] chainBlock = { 0.05f, 0.2f, 0.08f, 0.04f };
+            float[] graphBlock = (float[])chainBlock.Clone();
+
+            chainHost.OnAudioFilterRead(chainBlock, 1);
+            graphHost.OnAudioFilterRead(graphBlock, 1);
+
+            Assert.That(chainBlock, Is.EqualTo(new[] { 0f, 0.2f, 0.08f, 0f }));
+            Assert.That(graphBlock, Is.EqualTo(chainBlock));
+            Assert.That(chainHost.LatencySamples, Is.Zero);
+            Assert.That(graphHost.LatencySamples, Is.Zero);
+            Assert.That(chainHost.SkippedBlocks, Is.Zero);
+            Assert.That(graphHost.SkippedBlocks, Is.Zero);
+        }
+
+        [TestCase(1, "Delay", false)]
+        [TestCase(8, "Delay", false)]
+        [TestCase(1, "Noise Gate", false)]
+        [TestCase(8, "Noise Gate", false)]
+        [TestCase(8, "Noise Gate", true)]
+        public void DspChainsStayWithinTheRenderBudget(int voices, string effect, bool bursts)
         {
             const int Rate = 48_000;
             const int Frames = 1_024;
             const int Channels = 2;
             const int Passes = 240;
+            bool delay = string.Equals(effect, "Delay", StringComparison.Ordinal);
             DspChain[] baseline = new DspChain[voices];
             DspChain[] candidate = new DspChain[voices];
             for (int voice = 0; voice < voices; ++voice)
             {
                 baseline[voice] = new DspChain();
                 candidate[voice] = new DspChain();
-                candidate[voice].Add(new DspDelay { DelaySeconds = DspDelay.MaximumDelaySeconds, Feedback = DspDelay.MaximumFeedback });
+                DspEffect stage = delay ? new DspDelay { DelaySeconds = DspDelay.MaximumDelaySeconds, Feedback = DspDelay.MaximumFeedback } : new DspNoiseGate();
+                candidate[voice].Add(stage);
                 Assert.That(baseline[voice].TryPrepare(Rate, Frames, Channels), Is.True);
                 Assert.That(candidate[voice].TryPrepare(Rate, Frames, Channels), Is.True);
             }
@@ -211,8 +238,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float[] input = new float[Frames * Channels];
             for (int frame = 0; frame < Frames; ++frame)
             {
-                input[frame * Channels] = 0.1f * (float)Math.Sin(2d * Math.PI * frame / 64d);
-                input[frame * Channels + 1] = 0.1f * (float)Math.Cos(2d * Math.PI * frame / 64d);
+                float amplitude = bursts && frame % 128 < 64 ? 0.0001f : 0.1f;
+                input[frame * Channels] = amplitude * (float)Math.Sin(2d * Math.PI * frame / 64d);
+                input[frame * Channels + 1] = amplitude * (float)Math.Cos(2d * Math.PI * frame / 64d);
             }
 
             float[] block = new float[input.Length];
@@ -257,13 +285,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             double tickMicroseconds = 1_000_000d / Stopwatch.Frequency;
             int p95 = Passes * 95 / 100 - 1;
             double addedP95 = (candidateTicks[p95] - baselineTicks[p95]) * tickMicroseconds;
-            double budget = Frames * 10_000d / Rate;
+            int budgetPercent = delay ? 1 : 2;
+            double budget = Frames * 10_000d * budgetPercent / Rate;
             TestContext.Out.WriteLine(
-                $"DSP delay {voices} stereo voices at {Rate} Hz, {Frames} frames, {Passes} passes on {SystemInfo.processorType}: "
+                $"{effect} (bursts {bursts}), {voices} stereo voices at {Rate} Hz, {Frames} frames, {Passes} passes on {SystemInfo.processorType}: "
                     + $"baseline p50/p95 {baselineTicks[Passes / 2] * tickMicroseconds:F2}/{baselineTicks[p95] * tickMicroseconds:F2} us, "
-                    + $"delay p50/p95 {candidateTicks[Passes / 2] * tickMicroseconds:F2}/{candidateTicks[p95] * tickMicroseconds:F2} us."
+                    + $"candidate p50/p95 {candidateTicks[Passes / 2] * tickMicroseconds:F2}/{candidateTicks[p95] * tickMicroseconds:F2} us."
             );
-            Assert.That(addedP95, Is.LessThanOrEqualTo(budget), "Added processing must fit within 1% of the block window.");
+            Assert.That(addedP95, Is.LessThanOrEqualTo(budget), $"Added processing must fit within {budgetPercent}% of the block window.");
         }
 
         [Test]
