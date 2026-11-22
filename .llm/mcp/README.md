@@ -155,6 +155,11 @@ listener on that route causes startup to close the candidate and try the next po
 the same route check. Hosts without Docker DNS retain local-only verification. Port persistence uses asynchronous file
 I/O so it cannot block HTTP handling.
 
+`npm run unity:tests` checks the project pin and runs EditMode tests through the host bridge. The bridge reads the
+JSON records from that Unity CLI invocation, including NUnit assertions and available stack traces. The host CLI and
+Pipeline package must support streaming `unity command test run --json` results. Restart the host bridge after updating
+this package.
+
 Environment (process variables override the gitignored workspace `.env.local`):
 
 Keep the bridge URL, port, and token in the workspace `.env.local` so host and container clients read the same settings.

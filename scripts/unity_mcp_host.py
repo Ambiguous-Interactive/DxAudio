@@ -11,6 +11,7 @@ import hashlib
 import hmac
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import math
 import os
 import queue
 from pathlib import Path
@@ -29,10 +30,11 @@ from urllib.request import ProxyHandler, build_opener
 import uuid
 
 sys.dont_write_bytecode = True
-from unity_mcp_settings import BridgeSettings, credential_values, redact_credentials, resolve_settings
+from unity_mcp_settings import BridgeSettings, credential_values, is_project, redact_credentials, resolve_settings
 
 JsonMap = Dict[str, Any]
 ROOT = Path(__file__).resolve().parent.parent
+EDITMODE_TOOL = 'bridge_test_editmode'
 
 # Play mode through this bridge stops the pinned editor answering until a human
 # leaves play mode, and the CLI's own default for `test run` is `all`, which runs
@@ -340,6 +342,49 @@ class Bridge:
         report['editorLogTail'] = self.editor_log_tail()
         return report
 
+    def test_editmode(self, arguments: object) -> JsonMap:
+        options = cast(JsonMap, arguments) if isinstance(arguments, dict) else {}
+        requested = options.get('projectPath')
+        project = self.settings['projectPath']
+        if not project or not is_project(Path(project)) or not same_project(project, requested):
+            raise ValueError('EditMode requires the bridge to be pinned to the requested Unity project.')
+        seconds = options.get('timeout')
+        limit = float(self.settings['timeout']) / 1000
+        if type(seconds) is not int or not math.isfinite(limit) or not 1 <= seconds <= limit - 1:
+            raise ValueError('EditMode timeout must be at least one second and below the host bridge timeout.')
+
+        # Read only this invocation's output. Pipeline test_status can refer to another run.
+        command = [self.settings['cliCommand'], 'command', 'test', 'run', '--mode', 'editor',
+                   '--project-path', project, '--timeout', str(seconds), '--json']
+        try:
+            completed = subprocess.run(command, capture_output=True, text=True, encoding='utf-8', errors='replace',
+                                       timeout=seconds + 1, check=False)
+        except subprocess.TimeoutExpired as error:
+            raise ValueError(f'Unity CLI EditMode timed out after {seconds + 1} seconds.') from error
+
+        output = completed.stdout.strip()
+        diagnostic = completed.stderr.strip()
+        try:
+            if output.startswith('['):
+                results = cast(list[JsonMap], json.loads(output))
+            else:
+                results = [cast(JsonMap, json.loads(line)) for line in output.split('\n') if line.strip()]
+            if any(not isinstance(row, dict) or 'fullName' not in row or 'status' not in row for row in results):
+                raise ValueError('Expected a JSON record for each NUnit result.')
+        except ValueError:
+            results = []
+            diagnostic = 'Unity CLI did not return NUnit records. ' + diagnostic
+        secrets = self.secrets()
+        fields = ('fullName', 'status', 'message', 'stackTrace')
+        return {
+            'exitCode': completed.returncode,
+            'results': [
+                {key: redact_credentials(row[key], secrets) for key in fields if isinstance(row.get(key), str)}
+                for row in results
+            ],
+            'diagnostic': redact_credentials(diagnostic, secrets),
+        }
+
     def handle(self, message: object) -> Optional[object]:
         if isinstance(message, list):
             entries = cast(list[object], message)
@@ -359,6 +404,16 @@ class Bridge:
                 log('[unity-mcp] dropped notification: ' + str(error), True)
             return None
         params = request.get('params', {})
+        if request.get('method') == 'tools/call' and isinstance(params, dict) and params.get('name') == EDITMODE_TOOL:
+            result: JsonMap = {}
+            try:
+                report = self.test_editmode(params.get('arguments'))
+                text = json.dumps(report, ensure_ascii=False)
+            except (OSError, ValueError) as error:
+                text = redact_credentials(str(error), self.secrets())
+                result['isError'] = True
+            result['content'] = [{'type': 'text', 'text': text}]
+            return {'jsonrpc': '2.0', 'id': request['id'], 'result': result}
         if request.get('method') == 'tools/call' and isinstance(params, dict) and cast(JsonMap, params).get('name') == 'bridge_diagnostics':
             text = redact_credentials(json.dumps(self.diagnostics(), ensure_ascii=False), self.secrets())
             return {'jsonrpc': '2.0', 'id': request['id'], 'result': {'content': [{'type': 'text', 'text': text}]}}
@@ -374,6 +429,11 @@ class Bridge:
                 cast(list[JsonMap], tools).append({'name': 'bridge_diagnostics',
                               'description': 'Read pinned host CLI discovery errors even when no Editor tools are available. Never changes the Editor.',
                               'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}})
+                cast(list[JsonMap], tools).append({'name': EDITMODE_TOOL,
+                              'description': 'Run EditMode tests and return NUnit records from the pinned project.',
+                              'inputSchema': {'type': 'object', 'properties': {'projectPath': {'type': 'string'},
+                                              'timeout': {'type': 'integer'}},
+                                              'required': ['projectPath', 'timeout'], 'additionalProperties': False}})
         return response
 
     def health(self) -> JsonMap:
