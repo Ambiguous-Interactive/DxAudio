@@ -30,6 +30,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static extern IntPtr GetCurrentThread();
 
         [DllImport("kernel32.dll", ExactSpelling = true)]
+        private static extern uint GetCurrentProcessId();
+
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        private static extern uint GetCurrentThreadId();
+
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        private static extern void GetCurrentProcessorNumberEx(out ProcessorNumber processor);
+
+        [DllImport("kernel32.dll", ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool QueryThreadCycleTime(IntPtr thread, out ulong cycles);
 #endif
@@ -468,41 +477,51 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             long[] baselineTicks = new long[Passes];
             long[] candidateTicks = new long[Passes];
-            ulong[] baselineCycles = new ulong[Passes];
-            ulong[] candidateCycles = new ulong[Passes];
+            RenderPass[] baselinePasses = new RenderPass[Passes];
+            RenderPass[] candidatePasses = new RenderPass[Passes];
             bool haveCycles = true;
-            void Measure(DspChain[] chains, long[] elapsed, ulong[] cycles, int pass)
+            void Measure(DspChain[] chains, long[] elapsed, RenderPass[] passes, int pass)
             {
                 // Bracket the pass, including copies between voices, outside the existing DSP stopwatch windows.
+                RenderPass context = default;
+#if UNITY_EDITOR_WIN
+                GetCurrentProcessorNumberEx(out context.StartCpu);
+                context.StartTimestamp = Stopwatch.GetTimestamp();
+#endif
                 bool haveStart = TryReadThreadCycles(out ulong start);
                 elapsed[pass] = Render(chains);
                 bool haveEnd = TryReadThreadCycles(out ulong end);
+#if UNITY_EDITOR_WIN
+                context.EndTimestamp = Stopwatch.GetTimestamp();
+                GetCurrentProcessorNumberEx(out context.EndCpu);
+#endif
                 haveCycles = haveCycles && haveStart && haveEnd && start <= end;
-                cycles[pass] = haveCycles ? end - start : 0;
+                context.Cycles = haveCycles ? end - start : 0;
+                passes[pass] = context;
             }
 
             for (int pass = 0; pass < 64; ++pass)
             {
-                Measure(baseline, baselineTicks, baselineCycles, 0);
-                Measure(candidate, candidateTicks, candidateCycles, 0);
+                Measure(baseline, baselineTicks, baselinePasses, 0);
+                Measure(candidate, candidateTicks, candidatePasses, 0);
             }
 
             for (int pass = 0; pass < Passes; ++pass)
             {
                 if (pass % 2 == 0)
                 {
-                    Measure(baseline, baselineTicks, baselineCycles, pass);
-                    Measure(candidate, candidateTicks, candidateCycles, pass);
+                    Measure(baseline, baselineTicks, baselinePasses, pass);
+                    Measure(candidate, candidateTicks, candidatePasses, pass);
                 }
                 else
                 {
-                    Measure(candidate, candidateTicks, candidateCycles, pass);
-                    Measure(baseline, baselineTicks, baselineCycles, pass);
+                    Measure(candidate, candidateTicks, candidatePasses, pass);
+                    Measure(baseline, baselineTicks, baselinePasses, pass);
                 }
             }
 
-            Array.Sort(baselineTicks, baselineCycles);
-            Array.Sort(candidateTicks, candidateCycles);
+            Array.Sort(baselineTicks, baselinePasses);
+            Array.Sort(candidateTicks, candidatePasses);
             double tickMicroseconds = 1_000_000d / Stopwatch.Frequency;
             int p95 = Passes * 95 / 100 - 1;
             int p99 = (Passes * 99 + 99) / 100 - 1;
@@ -515,19 +534,44 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 return $"{median:F2}/{ticks[p95] * tickMicroseconds:F2}/{ticks[p99] * tickMicroseconds:F2}/{ticks[Passes - 1] * tickMicroseconds:F2}";
             }
 
-            string CyclesAtElapsedRanks(ulong[] cycles)
+            string CyclesAtElapsedRanks(RenderPass[] passes)
             {
-                double median = (cycles[(Passes - 1) / 2] + (double)cycles[Passes / 2]) * 0.5d;
-                return $"{median:0.#}/{cycles[p95]}/{cycles[p99]}/{cycles[Passes - 1]}";
+                double median = (passes[(Passes - 1) / 2].Cycles + (double)passes[Passes / 2].Cycles) * 0.5d;
+                return $"{median:0.#}/{passes[p95].Cycles}/{passes[p99].Cycles}/{passes[Passes - 1].Cycles}";
             }
 
             string threadCycles = haveCycles
-                ? $" Pass thread cycles at elapsed ranks, baseline {CyclesAtElapsedRanks(baselineCycles)}, candidate {CyclesAtElapsedRanks(candidateCycles)}."
+                ? $" Pass thread cycles at elapsed ranks, baseline {CyclesAtElapsedRanks(baselinePasses)}, candidate {CyclesAtElapsedRanks(candidatePasses)}."
                 : " Pass thread cycles unavailable.";
+            string cpuPlacement = "";
+#if UNITY_EDITOR_WIN
+            string CpuSpan(RenderPass pass)
+            {
+                return $"{pass.StartCpu} to {pass.EndCpu}";
+            }
+
+            string TraceSpan(RenderPass pass)
+            {
+                return $"{pass.StartTimestamp}-{pass.EndTimestamp} ({CpuSpan(pass)})";
+            }
+
+            cpuPlacement =
+                $" Candidate CPU at elapsed p50, p95, p99, max: {CpuSpan(candidatePasses[Passes / 2])}, "
+                + $"{CpuSpan(candidatePasses[p95])}, {CpuSpan(candidatePasses[p99])}, {CpuSpan(candidatePasses[Passes - 1])}.";
+            if (budget < addedP95)
+            {
+                TestContext.Out.WriteLine(
+                    $"DxAudio DSP render: Windows trace for {effect} (bursts {bursts}), {voices} voices. "
+                        + $"PID {GetCurrentProcessId()}, TID {GetCurrentThreadId()}, QPC frequency {Stopwatch.Frequency}. "
+                        + $"Baseline p95 {TraceSpan(baselinePasses[p95])}. Candidate p50 {TraceSpan(candidatePasses[Passes / 2])}, "
+                        + $"p95 {TraceSpan(candidatePasses[p95])}, p99 {TraceSpan(candidatePasses[p99])}, max {TraceSpan(candidatePasses[Passes - 1])}."
+                );
+            }
+#endif
             TestContext.Out.WriteLine(
                 $"DxAudio DSP render: {effect} (bursts {bursts}), {voices} stereo voices at {Rate} Hz, {Frames} frames, {Passes} passes on {SystemInfo.processorType}: "
                     + $"p50/p95/p99/max in us, baseline {Distribution(baselineTicks)}, candidate {Distribution(candidateTicks)}, "
-                    + $"added p95 {addedP95:F2} us, budget {budget:F2} us.{threadCycles}"
+                    + $"added p95 {addedP95:F2} us, budget {budget:F2} us.{threadCycles}{cpuPlacement}"
             );
             Assert.That(addedP95, Is.LessThanOrEqualTo(budget), $"Added processing must fit within {budgetPercent}% of the block window.");
         }
@@ -927,5 +971,30 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(Peak(mono), Is.EqualTo(0.1f).Within(0.001f), "a new play clears every width, not only the one its first block used");
         }
+
+        private struct RenderPass
+        {
+            internal ulong Cycles;
+#if UNITY_EDITOR_WIN
+            internal long StartTimestamp;
+            internal long EndTimestamp;
+            internal ProcessorNumber StartCpu;
+            internal ProcessorNumber EndCpu;
+#endif
+        }
+
+#if UNITY_EDITOR_WIN
+        [StructLayout(LayoutKind.Sequential, Size = 4)]
+        private struct ProcessorNumber
+        {
+            internal ushort Group;
+            internal byte Number;
+
+            public override string ToString()
+            {
+                return $"{Group}:{Number}";
+            }
+        }
+#endif
     }
 }
