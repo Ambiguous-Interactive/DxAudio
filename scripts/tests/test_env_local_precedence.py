@@ -352,6 +352,31 @@ def case_shell_adapter_preserves_unexported_values_and_file_selection() -> None:
         remove_temp_root(fixture)
 
 
+def case_zsh_fills_empty_credential_from_windows_saved_file() -> None:
+    # Reproduces the failing session: remoteEnv forwards an unset host PAT as an
+    # empty string, the shell is zsh, and .env.local was saved on Windows (BOM,
+    # CRLF, quotes). The zsh-sourced loader must fill the credential cleanly.
+    zsh = shutil.which("zsh")
+    if zsh is None:
+        print("    SKIP: zsh not found on PATH.")
+        return
+    fixture = new_temp_root(prefix="env-local-test-") / "fixture.env"
+    fixture.write_bytes('\ufeffGITHUB_PERSONAL_ACCESS_TOKEN="from-file"\r\nOTHER=x\r\n'.encode("utf-8"))
+    try:
+        env = {"PATH": BASE_PATH, "HOME": HOME, "DXAUDIO_ENV_UV": UV_BIN, "GITHUB_PERSONAL_ACCESS_TOKEN": ""}
+        # ``-f`` skips user rc files; KSH_ARRAYS proves the loader resets the
+        # caller's options instead of inheriting them.
+        script = 'setopt KSH_ARRAYS; PATH="$4"; . "$1"; load_env_local "$2" || exit; printf %s "${(P)3}"'
+        completed = subprocess.run(
+            [zsh, "-f", "-c", script, "_", str(LOADER), str(fixture), "GITHUB_PERSONAL_ACCESS_TOKEN", env["PATH"]],
+            env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
+        )
+        assert_true(completed.returncode == 0, f"the zsh-sourced loader must succeed: {completed.stderr}")
+        assert_eq("zsh fills an empty credential without BOM, CR or quotes", "from-file", completed.stdout)
+    finally:
+        remove_temp_root(fixture.parent)
+
+
 CASES = (
     case_fills_empty_preexisting_variable,
     case_nonempty_preexisting_variable_wins_by_default,
@@ -364,6 +389,7 @@ CASES = (
     case_missing_file_is_not_an_error,
     case_shell_adapter_preserves_values_and_applies_exports_atomically,
     case_shell_adapter_preserves_unexported_values_and_file_selection,
+    case_zsh_fills_empty_credential_from_windows_saved_file,
 )
 
 
