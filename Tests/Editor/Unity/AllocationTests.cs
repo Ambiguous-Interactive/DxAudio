@@ -99,11 +99,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(allocations, Is.Zero, $"Keyed Play allocated {allocations} times over {MeasuredCalls:N0} plays.");
         }
 
-        [Test]
-        public void PlayingACueWithAChainDoesNotAllocate()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void PlayingACueWithAChainDoesNotAllocate(bool useDelay)
         {
             using MadeObjects made = new();
-            DspChainAsset chain = made.Track(DspChainAsset.Create(new DspEffectAsset[] { made.Track(DspLimiterAsset.Create()), made.Track(DspDistortionAsset.Create()) }));
+            DspEffectAsset effect = useDelay ? made.Track(DspDelayAsset.Create(DspDelay.MaximumDelaySeconds)) : made.Track(DspDistortionAsset.Create());
+            DspChainAsset chain = made.Track(DspChainAsset.Create(new[] { made.Track(DspLimiterAsset.Create()), effect }));
             SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, minimumIntervalSeconds: 0f, chain: chain));
             SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 4));
             Action play = () => player.Play(cue);
@@ -115,6 +117,32 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             long allocations = AllocationEvents(play, MeasuredCalls);
 
             Assert.That(allocations, Is.Zero, $"Play through a chain allocated {allocations} times over {MeasuredCalls:N0} plays.");
+        }
+
+        [Test]
+        public void RenderingADelayAcrossResetAndRepeatDoesNotAllocate()
+        {
+            const int Channels = 2;
+            const int Frames = 1_024;
+            const int Blocks = 128;
+            DspDelay delay = new() { DelaySeconds = DspDelay.MaximumDelaySeconds };
+            Assert.That(delay.TryPrepare(48_000, Frames, Channels), Is.True);
+            float[] audio = new float[Frames * Channels];
+            Action render = () =>
+            {
+                audio[0] = 0.125f;
+                delay.Process(audio, 0, audio.Length, Channels);
+            };
+
+            for (int index = 0; index < Blocks; ++index)
+            {
+                render();
+            }
+
+            delay.Reset();
+            long allocations = AllocationEvents(render, Blocks);
+
+            Assert.That(allocations, Is.Zero, "Rendering must stay allocation-free while filling and reading delay history.");
         }
 
         [Test]

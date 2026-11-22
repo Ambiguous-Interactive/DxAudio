@@ -1,6 +1,8 @@
 namespace WallstopStudios.DxAudio.Tests.Editor
 {
+    using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using NUnit.Framework;
     using UnityEngine;
 
@@ -159,6 +161,109 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             int expected = Mathf.RoundToInt(0.005f * OutputSampleRate());
 
             Assert.That(host.LatencySamples, Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void ADelayAssetAddsEchoInAHostChainOrGraph()
+        {
+            using MadeObjects made = new();
+            DspDelayAsset delay = made.Track(DspDelayAsset.Create(DspDelay.MinimumDelaySeconds, feedback: 0f, echoLevel: 0.5f));
+            AudioFilterHost chainHost = Host(made, Chain(made, delay));
+            AudioFilterHost graphHost = Host(made, null);
+            graphHost.Graph = Graph(made, delay);
+            int delayFrames = Math.Max(1, (int)Math.Round((double)DspDelay.MinimumDelaySeconds * OutputSampleRate(), MidpointRounding.AwayFromZero));
+            float[] chainBlock = new float[delayFrames + 1];
+            float[] graphBlock = new float[delayFrames + 1];
+            chainBlock[0] = 1f;
+            graphBlock[0] = 1f;
+
+            chainHost.OnAudioFilterRead(chainBlock, 1);
+            graphHost.OnAudioFilterRead(graphBlock, 1);
+
+            Assert.That(chainBlock[0], Is.EqualTo(1f));
+            Assert.That(chainBlock[delayFrames], Is.EqualTo(0.5f));
+            Assert.That(graphBlock, Is.EqualTo(chainBlock));
+            Assert.That(chainHost.LatencySamples, Is.Zero);
+            Assert.That(graphHost.LatencySamples, Is.Zero);
+            Assert.That(chainHost.SkippedBlocks, Is.Zero);
+            Assert.That(graphHost.SkippedBlocks, Is.Zero);
+        }
+
+        [TestCase(1)]
+        [TestCase(8)]
+        public void DelayChainsStayWithinTheRenderBudget(int voices)
+        {
+            const int Rate = 48_000;
+            const int Frames = 1_024;
+            const int Channels = 2;
+            const int Passes = 240;
+            DspChain[] baseline = new DspChain[voices];
+            DspChain[] candidate = new DspChain[voices];
+            for (int voice = 0; voice < voices; ++voice)
+            {
+                baseline[voice] = new DspChain();
+                candidate[voice] = new DspChain();
+                candidate[voice].Add(new DspDelay { DelaySeconds = DspDelay.MaximumDelaySeconds, Feedback = DspDelay.MaximumFeedback });
+                Assert.That(baseline[voice].TryPrepare(Rate, Frames, Channels), Is.True);
+                Assert.That(candidate[voice].TryPrepare(Rate, Frames, Channels), Is.True);
+            }
+
+            float[] input = new float[Frames * Channels];
+            for (int frame = 0; frame < Frames; ++frame)
+            {
+                input[frame * Channels] = 0.1f * (float)Math.Sin(2d * Math.PI * frame / 64d);
+                input[frame * Channels + 1] = 0.1f * (float)Math.Cos(2d * Math.PI * frame / 64d);
+            }
+
+            float[] block = new float[input.Length];
+            long Render(DspChain[] chains)
+            {
+                long ticks = 0;
+                for (int voice = 0; voice < voices; ++voice)
+                {
+                    Array.Copy(input, block, input.Length);
+                    long start = Stopwatch.GetTimestamp();
+                    chains[voice].Process(block, 0, block.Length, Channels);
+                    ticks += Stopwatch.GetTimestamp() - start;
+                }
+
+                return ticks;
+            }
+
+            for (int pass = 0; pass < 64; ++pass)
+            {
+                Render(baseline);
+                Render(candidate);
+            }
+
+            long[] baselineTicks = new long[Passes];
+            long[] candidateTicks = new long[Passes];
+            for (int pass = 0; pass < Passes; ++pass)
+            {
+                if (pass % 2 == 0)
+                {
+                    baselineTicks[pass] = Render(baseline);
+                    candidateTicks[pass] = Render(candidate);
+                }
+                else
+                {
+                    candidateTicks[pass] = Render(candidate);
+                    baselineTicks[pass] = Render(baseline);
+                }
+            }
+
+            Array.Sort(baselineTicks);
+            Array.Sort(candidateTicks);
+            double tickMicroseconds = 1_000_000d / Stopwatch.Frequency;
+            int p95 = Passes * 95 / 100 - 1;
+            double addedP95 = (candidateTicks[p95] - baselineTicks[p95]) * tickMicroseconds;
+            double budget = Frames * 10_000d / Rate;
+            TestContext.Out.WriteLine(
+                $"DSP delay {voices} stereo voices at {Rate} Hz, {Frames} frames, {Passes} passes on {SystemInfo.processorType}: "
+                    + $"baseline p50/p95 {baselineTicks[Passes / 2] * tickMicroseconds:F2}/{baselineTicks[p95] * tickMicroseconds:F2} us, "
+                    + $"delay p50/p95 {candidateTicks[Passes / 2] * tickMicroseconds:F2}/{candidateTicks[p95] * tickMicroseconds:F2} us."
+            );
+            Assert.That(addedP95, Is.LessThanOrEqualTo(budget), "Added processing must fit within 1% of the block window.");
         }
 
         [Test]

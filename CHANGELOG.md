@@ -8,6 +8,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
+- Add a Delay effect for DSP chains and graphs, with adjustable repeat spacing, feedback, and echo level ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add independent sound and music volume settings that scale voices during playback ([#116](https://github.com/Ambiguous-Interactive/DxAudio/issues/116)).
 
 ## [0.4.0] - 2026-11-20

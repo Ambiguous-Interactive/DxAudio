@@ -13,11 +13,12 @@ asset, like a cue or a track, so a designer changes the sound without a code cha
 | Bit Crusher   | Drop a sound to fewer bits and a lower sample rate, for grit    |
 | Pitch Shifter | Move a sound up or down in pitch without changing its length    |
 | Filter        | Muffle, thin, isolate or lift one band around a corner          |
+| Delay         | Add an echo and decaying repeats after the dry sound            |
 
 ## Author a chain
 
 1. Create one asset per effect with **Create > Wallstop Studios > DxAudio > DSP > Limiter** (or Compressor, Distortion, Bit Crusher, Pitch
-   Shifter, Filter).
+   Shifter, Filter, Delay).
 2. Create the list with **Create > Wallstop Studios > DxAudio > DSP > Chain** and add the effects in the order the signal should meet
    them. Order is the sound: distortion before a compressor is driven and then controlled, and the reverse squashes the
    quiet part before the drive lifts it again.
@@ -69,6 +70,18 @@ last sound's gain or delay line.
 A voice reads an asset once, the first time it meets it, and keeps those settings until it is destroyed: an edit
 reaches the voices that have not met the asset yet. Chain assets a library lists are prepared with the voice pool, so
 the first play of them allocates nothing. A cue played by reference can be prepared ahead with `_sfx.Warm(cue)`.
+
+## Delay
+
+- **Delay Seconds** sets the spacing between repeats, from 0.25 to 500 ms. The effect rounds to the nearest frame.
+  Prepare the chain again after changing the spacing in code.
+- **Feedback** sends up to 90% of each repeat back into the delay. Zero gives one repeat.
+- **Echo Level** sets the gain of the first repeat. The dry signal stays at full level and leaves immediately.
+  Overlapping repeats can raise the peak above full scale. Leave headroom or add a limiter after the delay.
+
+A voice must keep rendering for its repeats to play. For short clips, include silence at the end or put the delay
+on the Audio Mix Bus. Reusing a voice clears its echo history. A 500 ms delay at 48 kHz uses 192,000 bytes for
+stereo history. The voice also prepares any narrower channel layouts its host supports.
 
 ## Pitch shifter
 
