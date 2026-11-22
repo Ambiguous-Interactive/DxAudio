@@ -135,6 +135,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             MusicDuck duck = made.Track(MusicDuck.Create(MusicDuckHolders.One, volumeScale: 0.5011872f, lowPassCutoffHz: 1200f, applySeconds: 0f));
             VolumeProbeBaselineMusicPlayer baseline = made.Track(new GameObject("baseline music")).AddComponent<VolumeProbeBaselineMusicPlayer>();
             MusicPlayer candidate = made.Track(new GameObject("candidate music")).AddComponent<MusicPlayer>();
+            Assert.That(baseline != null && candidate != null, "Both benchmark components must load in the player assembly.");
             baseline.Muted = true;
             candidate.Muted = true;
             baseline.Library = library;
