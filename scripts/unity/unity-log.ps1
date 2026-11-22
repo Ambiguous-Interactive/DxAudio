@@ -168,6 +168,19 @@ function Write-UnityNUnitTimings {
             $lines.Add("  | $($timing.Seconds.ToString('F3', $culture))s  $name")
         }
     }
+    $renderTimings = @(
+        foreach ($output in $root.SelectNodes('.//test-case[starts-with(@fullname, "WallstopStudios.DxAudio.Tests.Editor.DspHostTests.DspChainsStayWithinTheRenderBudget(")]/output')) {
+            foreach ($line in ((ConvertTo-SafeUnityReport -Text $output.InnerText) -split '\r?\n')) {
+                if ($line.StartsWith('DxAudio DSP render: ', [StringComparison]::Ordinal)) {
+                    "  | $line"
+                }
+            }
+        }
+    )
+    if (0 -lt $renderTimings.Count) {
+        $lines.Add('Unity EditMode DSP render timings:')
+        $lines.AddRange([string[]]$renderTimings)
+    }
     foreach ($line in $lines) { Write-Host $line }
     foreach ($warning in $warnings) {
         Write-Host "::warning::$($warning.Replace('%', '%25'))"

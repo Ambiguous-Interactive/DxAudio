@@ -445,13 +445,20 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Array.Sort(candidateTicks);
             double tickMicroseconds = 1_000_000d / Stopwatch.Frequency;
             int p95 = Passes * 95 / 100 - 1;
+            int p99 = (Passes * 99 + 99) / 100 - 1;
             double addedP95 = (candidateTicks[p95] - baselineTicks[p95]) * tickMicroseconds;
             int budgetPercent = delay ? 1 : 2;
             double budget = Frames * 10_000d * budgetPercent / Rate;
+            string Distribution(long[] ticks)
+            {
+                return $"{ticks[Passes / 2] * tickMicroseconds:F2}/{ticks[p95] * tickMicroseconds:F2}/"
+                    + $"{ticks[p99] * tickMicroseconds:F2}/{ticks[Passes - 1] * tickMicroseconds:F2}";
+            }
+
             TestContext.Out.WriteLine(
-                $"{effect} (bursts {bursts}), {voices} stereo voices at {Rate} Hz, {Frames} frames, {Passes} passes on {SystemInfo.processorType}: "
-                    + $"baseline p50/p95 {baselineTicks[Passes / 2] * tickMicroseconds:F2}/{baselineTicks[p95] * tickMicroseconds:F2} us, "
-                    + $"candidate p50/p95 {candidateTicks[Passes / 2] * tickMicroseconds:F2}/{candidateTicks[p95] * tickMicroseconds:F2} us."
+                $"DxAudio DSP render: {effect} (bursts {bursts}), {voices} stereo voices at {Rate} Hz, {Frames} frames, {Passes} passes on {SystemInfo.processorType}: "
+                    + $"p50/p95/p99/max in us, baseline {Distribution(baselineTicks)}, candidate {Distribution(candidateTicks)}, "
+                    + $"added p95 {addedP95:F2} us, budget {budget:F2} us."
             );
             Assert.That(addedP95, Is.LessThanOrEqualTo(budget), $"Added processing must fit within {budgetPercent}% of the block window.");
         }
