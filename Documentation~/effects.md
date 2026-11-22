@@ -15,12 +15,13 @@ asset, like a cue or a track, so a designer changes the sound without a code cha
 | Filter        | Muffle, thin, isolate or lift one band around a corner          |
 | Delay         | Add an echo and decaying repeats after the dry sound            |
 | Chorus        | Widen a sound with two copies that drift in pitch               |
+| Tremolo       | Make the volume rise and fall in a steady rhythm                |
 | Noise Gate    | Fade out quiet tails while keeping stereo channels linked       |
 
 ## Author a chain
 
 1. Create one asset per effect with **Create > Wallstop Studios > DxAudio > DSP > Limiter** (or Compressor, Distortion, Bit Crusher, Pitch
-   Shifter, Filter, Delay, Chorus, Noise Gate).
+   Shifter, Filter, Delay, Chorus, Tremolo, Noise Gate).
 2. Create the list with **Create > Wallstop Studios > DxAudio > DSP > Chain** and add the effects in the order the signal should meet
    them. Order is the sound: distortion before a compressor is driven and then controlled, and the reverse squashes the
    quiet part before the drive lifts it again.
@@ -96,6 +97,15 @@ The dry signal leaves immediately when **Mix** includes it.
 - **Mix** sets how much of the result comes from the delayed copies. Zero leaves the dry signal unchanged.
 
 These settings take effect when you prepare the chain. Reusing a voice restarts the modulation and discards its chorus history.
+
+## Tremolo
+
+Tremolo lowers and restores the volume in a repeating triangle shape. It applies the same gain to every channel and adds no latency.
+
+- **Rate** sets the number of cycles per second (0.05 to 20 Hz, default 4 Hz).
+- **Depth** sets the largest drop from full gain. At 50%, the gain falls to half. At 100%, it falls to silence. At 0%, audio passes through unchanged.
+
+Settings take effect when the chain is prepared. A reused voice starts the cycle at full gain.
 
 ## Pitch shifter
 

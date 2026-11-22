@@ -132,6 +132,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TestCase("Delay")]
         [TestCase("Noise Gate")]
         [TestCase("Chorus")]
+        [TestCase("Tremolo")]
         public void PlayingACueWithAChainDoesNotAllocate(string stage)
         {
             using MadeObjects made = new();
@@ -140,6 +141,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 "Distortion" => made.Track(DspDistortionAsset.Create()),
                 "Delay" => made.Track(DspDelayAsset.Create(DspDelay.MaximumDelaySeconds)),
                 "Chorus" => made.Track(DspChorusAsset.Create()),
+                "Tremolo" => made.Track(DspTremoloAsset.Create()),
                 _ => made.Track(DspNoiseGateAsset.Create()),
             };
             DspChainAsset chain = made.Track(DspChainAsset.Create(new[] { made.Track(DspLimiterAsset.Create()), effect }));
@@ -147,20 +149,26 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             AssertPooledPlayDoesNotAllocate(made, cue);
         }
 
-        [TestCase(false, TestName = "Rendering delay across reset and repeat does not allocate")]
-        [TestCase(true, TestName = "Rendering chorus across reset and repeat does not allocate")]
-        public void RenderingDelayHistoryAcrossResetDoesNotAllocate(bool chorus)
+        [TestCase("Delay", TestName = "Rendering delay across reset and repeat does not allocate")]
+        [TestCase("Chorus", TestName = "Rendering chorus across reset and repeat does not allocate")]
+        [TestCase("Tremolo", TestName = "Rendering tremolo across reset and repeat does not allocate")]
+        public void RenderingAcrossResetAndRepeatDoesNotAllocate(string stage)
         {
             const int Channels = 2;
             const int Frames = 1_024;
             const int Blocks = 128;
-            DspEffect delay = chorus ? new DspChorus { DepthSeconds = DspChorus.MaximumDepthSeconds } : new DspDelay { DelaySeconds = DspDelay.MaximumDelaySeconds };
-            Assert.That(delay.TryPrepare(48_000, Frames, Channels), Is.True);
+            DspEffect effect = stage switch
+            {
+                "Chorus" => new DspChorus { DepthSeconds = DspChorus.MaximumDepthSeconds },
+                "Tremolo" => new DspTremolo { RateHertz = DspTremolo.MaximumRateHertz, Depth = 1f },
+                _ => new DspDelay { DelaySeconds = DspDelay.MaximumDelaySeconds },
+            };
+            Assert.That(effect.TryPrepare(48_000, Frames, Channels), Is.True);
             float[] audio = new float[Frames * Channels];
             Action render = () =>
             {
                 audio[0] = 0.125f;
-                delay.Process(audio, 0, audio.Length, Channels);
+                effect.Process(audio, 0, audio.Length, Channels);
             };
 
             for (int index = 0; index < Blocks; ++index)
@@ -168,10 +176,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 render();
             }
 
-            delay.Reset();
+            effect.Reset();
             long allocations = AllocationEvents(render, Blocks);
 
-            Assert.That(allocations, Is.Zero, "Rendering must stay allocation-free while filling and reading delay history.");
+            Assert.That(allocations, Is.Zero, "Rendering must stay allocation-free after the effect resets.");
         }
 
         [Test]
@@ -204,12 +212,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(allocations, Is.Zero);
         }
 
-        [TestCase(false, TestName = "Playing a cue with distortion in a graph does not allocate")]
-        [TestCase(true, TestName = "Playing a cue with chorus in a graph does not allocate")]
-        public void PlayingACueWithAGraphDoesNotAllocate(bool chorus)
+        [TestCase("Distortion", TestName = "Playing a cue with distortion in a graph does not allocate")]
+        [TestCase("Chorus", TestName = "Playing a cue with chorus in a graph does not allocate")]
+        [TestCase("Tremolo", TestName = "Playing a cue with tremolo in a graph does not allocate")]
+        public void PlayingACueWithAGraphDoesNotAllocate(string stage)
         {
             using MadeObjects made = new();
-            DspEffectAsset effect = chorus ? made.Track(DspChorusAsset.Create()) : made.Track(DspDistortionAsset.Create());
+            DspEffectAsset effect = stage switch
+            {
+                "Chorus" => made.Track(DspChorusAsset.Create()),
+                "Tremolo" => made.Track(DspTremoloAsset.Create()),
+                _ => made.Track(DspDistortionAsset.Create()),
+            };
             DspChainAsset branch = made.Track(DspChainAsset.Create(new[] { made.Track(DspLimiterAsset.Create()), effect }));
             DspGraphAsset graph = made.Track(
                 DspGraphAsset.Create(
