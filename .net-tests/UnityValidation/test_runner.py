@@ -66,6 +66,10 @@ if ($env:CONTROL -eq 'timeout') {
 }
 if ($args -contains '-runTests') {
     if ($args -contains '-quit' -or $args -contains '-executeMethod') { exit 2 }
+    if ($env:CONTROL -ne 'missing-docs-assembly') {
+        $assemblies = New-Item -ItemType Directory -Path (Join-Path $project 'Library/ScriptAssemblies') -Force
+        New-Item -ItemType File -Path (Join-Path $assemblies.FullName 'WallstopStudios.DxAudio.Documentation.Validation.dll') | Out-Null
+    }
     $failed = if ($env:CONTROL -eq 'contradictory-result') { 1 } else { 0 }
     $passed = if ($env:DXMESSAGING_VERSION) { 4 } else { 3 }
     $xml = '<test-run result="Passed" passed="' + $passed + '" total="' + $passed + '" failed="' + $failed + '" skipped="0" inconclusive="0">'
@@ -152,6 +156,10 @@ class UnityRunnerTests(unittest.TestCase):
         (self.fixture / ".net-tests" / "prepare_analyzers.py").write_text(FAKE_FETCH, encoding="utf-8")
         for path in ("UnityHelpers.ruleset", "UnityValidation/ArchiveSmoke.cs", "UnityValidation/AnalyzerActivation.cs"):
             shutil.copy2(ROOT / ".net-tests" / path, self.fixture / ".net-tests" / path)
+        (self.fixture / ".github/scripts").mkdir(parents=True)
+        shutil.copy2(ROOT / ".github/scripts/compile_docs_snippets.py", self.fixture / ".github/scripts")
+        shutil.copy2(ROOT / "README.md", self.fixture)
+        shutil.copytree(ROOT / "Documentation~", self.fixture / "Documentation~")
         self.editor = self.root / "fake-editor.ps1"
         self.editor.write_text(FAKE_EDITOR, encoding="utf-8")
         self.archive = self.root / "archive.tgz"
@@ -191,10 +199,20 @@ class UnityRunnerTests(unittest.TestCase):
         self.assertEqual(len(list(staged.rglob("WarningsAsErrors.ruleset"))), 3)
         self.assertIn("RoslynAnalyzer", (staged / "Runtime/WallstopStudios.UnityHelpers.Analyzers.dll.meta").read_text())
         self.assertFalse(list(self.fixture.rglob("*.dll")))
+        docs = project / "Assets/DocSnippets"
+        definition = json.loads((docs / "DocSnippets.asmdef").read_text(encoding="utf-8"))
+        self.assertEqual(definition["references"], ["WallstopStudios.DxAudio"])
+        self.assertTrue(any("quickstart.md" in source.read_text(encoding="utf-8") for source in docs.glob("*.cs")))
+        self.assertFalse((docs / "DocSnippetDialogueMessages.cs").exists())
+        self.assertIn("Unity compiled the documentation examples.", log)
 
     def test_lost_analyzer_or_integration_evidence_fails(self):
         status, log = self.run_validation(integration="3.3.0")
         self.assertEqual(0, status, log)
+        docs = self.root / f"dxaudio-unity-{VERSION}-control" / "Assets/DocSnippets"
+        definition = json.loads((docs / "DocSnippets.asmdef").read_text(encoding="utf-8"))
+        self.assertIn("WallstopStudios.DxAudio.Integration.DxMessaging", definition["references"])
+        self.assertTrue((docs / "DocSnippetDialogueMessages.cs").is_file())
         cases = (
             ("missing-activation", "", "AllExpectedAssembliesUseThePinnedAnalyzers control."),
             ("wrong-scope", "", "AllExpectedAssembliesUseThePinnedAnalyzers control."),
@@ -206,6 +224,7 @@ class UnityRunnerTests(unittest.TestCase):
             ("contradictory-result", "", "does not account for each test"),
             ("external-entity", "", "DtdProcessing"),
             ("invalid-duration", "", "missing or invalid duration"),
+            ("missing-docs-assembly", "", "Unity did not compile the documentation examples"),
         )
         for control, integration, expected in cases:
             with self.subTest(control=control):

@@ -11,7 +11,6 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 from re import compile as pattern
-from textwrap import dedent
 
 ROOT = Path(__file__).resolve().parents[2]
 FOOTER = "_Snippet compiled in CI._"
@@ -110,7 +109,7 @@ def read_page(page: Path, root: Path) -> list[Snippet]:
                     if metadata is None:
                         raise ValueError(f"{relative}:{start}: C# fence needs a snippet context.")
                     target, shape, parameters = metadata[1], metadata[2], metadata[3] or ""
-                    body = dedent("\n".join(lines[start:index]))
+                    body = "\n".join(lines[start:index])
                     if not body.strip() or (shape in {"file", "members"} and parameters):
                         raise ValueError(f"{relative}:{start}: Invalid C# snippet body or context.")
                     snippets.append(Snippet(page, start + 1, target, shape, parameters, body))

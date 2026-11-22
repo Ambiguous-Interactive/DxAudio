@@ -241,13 +241,6 @@ if ($playerSmoke -or $importSmoke) {
     return
 }
 
-$docsAssembly = Get-Content -Raw -LiteralPath (Join-Path $docsPath 'DocSnippets.asmdef') | ConvertFrom-Json
-$docsOutput = Join-Path $projectPath "Library/ScriptAssemblies/$($docsAssembly.name).dll"
-if (-not (Test-Path -LiteralPath $docsOutput -PathType Leaf)) {
-    throw 'Unity did not compile the documentation examples.'
-}
-Write-Host 'Unity compiled the documentation examples.'
-
 if (-not (Test-Path -LiteralPath $resultsPath -PathType Leaf)) {
     Write-RedactedLogTail -Path $logPath
     throw "Unity did not write an EditMode result file. Log: $logPath"
@@ -283,5 +276,11 @@ if ($expectIntegration) {
         throw 'The EditMode results do not match the expected DxMessaging test state. The suite must account for its passing test cases.'
     }
 }
+$docsAssembly = Get-Content -Raw -LiteralPath (Join-Path $docsPath 'DocSnippets.asmdef') | ConvertFrom-Json
+$docsOutput = Join-Path $projectPath "Library/ScriptAssemblies/$($docsAssembly.name).dll"
+if (-not (Test-Path -LiteralPath $docsOutput -PathType Leaf)) {
+    throw 'Unity did not compile the documentation examples.'
+}
+Write-Host 'Unity compiled the documentation examples.'
 Write-Host "EditMode passed $passed tests on $runName."
 Write-UnityNUnitTimings -Document $results
