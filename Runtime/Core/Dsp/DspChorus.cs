@@ -45,11 +45,15 @@ namespace WallstopStudios.DxAudio
         private int _channels;
         private int _historyFrames;
         private int _writeFrame;
-        private int _availableFrames;
+        private bool _primed;
         private double _centerDelay;
         private double _depth;
         private double _phaseStep;
         private double _phase;
+        private double _sine;
+        private double _cosine;
+        private double _sineStep;
+        private double _cosineStep;
         private float _wetMix;
 
         public override void Process(float[] buffer, int offset, int count, int channels)
@@ -59,57 +63,98 @@ namespace WallstopStudios.DxAudio
                 return;
             }
 
-            float dryMix = 1f - _wetMix;
+            float wetMix = _wetMix;
+            float dryMix = 1f - wetMix;
+            float[] history = _history;
+            int historyFrames = _historyFrames;
+            int silence = historyFrames * channels;
+            int writeFrame = _writeFrame;
+            bool primed = _primed;
+            double centerDelay = _centerDelay;
+            double depth = _depth;
+            double phase = _phase;
+            double phaseStep = _phaseStep;
+            double sine = _sine;
+            double cosine = _cosine;
+            double sineStep = _sineStep;
+            double cosineStep = _cosineStep;
             int end = offset + count;
             for (int sample = offset; sample < end; sample += channels)
             {
-                double sweep = _depth * Math.Sin(_phase);
-                double firstDelay = Math.Max(1d, _centerDelay + sweep);
-                double secondDelay = Math.Max(1d, _centerDelay - sweep);
+                double sweep = depth * sine;
+                double firstDelay = centerDelay + sweep;
+                double secondDelay = centerDelay - sweep;
+                firstDelay = firstDelay < 1d ? 1d : firstDelay;
+                secondDelay = secondDelay < 1d ? 1d : secondDelay;
                 int firstFrames = (int)firstDelay;
                 int secondFrames = (int)secondDelay;
                 float firstFraction = (float)(firstDelay - firstFrames);
                 float secondFraction = (float)(secondDelay - secondFrames);
-                int first = HistoryOffset(firstFrames);
-                int firstOlder = HistoryOffset(firstFrames + 1);
-                int second = HistoryOffset(secondFrames);
-                int secondOlder = HistoryOffset(secondFrames + 1);
-                int write = _writeFrame * channels;
+                int first = (writeFrame - firstFrames) * channels;
+                int firstOlder = first - channels;
+                int second = (writeFrame - secondFrames) * channels;
+                int secondOlder = second - channels;
+                // Negative offsets reach unwritten history on the first trip through the ring.
+                if (firstOlder < 0)
+                {
+                    first = first < 0 ? (primed ? first + silence : silence) : first;
+                    firstOlder = primed ? firstOlder + silence : silence;
+                }
 
+                if (secondOlder < 0)
+                {
+                    second = second < 0 ? (primed ? second + silence : silence) : second;
+                    secondOlder = primed ? secondOlder + silence : silence;
+                }
+
+                int write = writeFrame * channels;
                 for (int channel = 0; channel < channels; ++channel)
                 {
                     float input = buffer[sample + channel];
-                    float a = Interpolate(first, firstOlder, firstFraction, channel);
-                    float b = Interpolate(second, secondOlder, secondFraction, channel);
-                    float wet = channel % 2 == 0 ? a * (2f / 3f) + b / 3f : a / 3f + b * (2f / 3f);
-                    _history[write + channel] = input;
-                    buffer[sample + channel] = input * dryMix + wet * _wetMix;
+                    float a = history[first + channel] * (1f - firstFraction) + history[firstOlder + channel] * firstFraction;
+                    float b = history[second + channel] * (1f - secondFraction) + history[secondOlder + channel] * secondFraction;
+                    float wet = (channel & 1) == 0 ? a * (2f / 3f) + b * (1f / 3f) : a * (1f / 3f) + b * (2f / 3f);
+                    history[write + channel] = input;
+                    buffer[sample + channel] = input * dryMix + wet * wetMix;
                 }
 
-                ++_writeFrame;
-                if (_writeFrame == _historyFrames)
+                ++writeFrame;
+                if (writeFrame == historyFrames)
                 {
-                    _writeFrame = 0;
+                    writeFrame = 0;
+                    primed = true;
                 }
 
-                if (_availableFrames < _historyFrames)
+                phase += phaseStep;
+                if (FullTurn <= phase)
                 {
-                    ++_availableFrames;
+                    // Re-anchor the recurrence once per turn so rounding cannot accumulate.
+                    phase -= FullTurn;
+                    sine = Math.Sin(phase);
+                    cosine = Math.Cos(phase);
                 }
-
-                _phase += _phaseStep;
-                if (FullTurn <= _phase)
+                else
                 {
-                    _phase -= FullTurn;
+                    double nextSine = sine * cosineStep + cosine * sineStep;
+                    cosine = cosine * cosineStep - sine * sineStep;
+                    sine = nextSine;
                 }
             }
+
+            _writeFrame = writeFrame;
+            _primed = primed;
+            _phase = phase;
+            _sine = sine;
+            _cosine = cosine;
         }
 
         public override void Reset()
         {
             _writeFrame = 0;
-            _availableFrames = 0;
+            _primed = false;
             _phase = 0d;
+            _sine = 0d;
+            _cosine = 1d;
         }
 
         protected override void PrepareCore(int sampleRate, int maxBlockSize, int channels)
@@ -118,33 +163,17 @@ namespace WallstopStudios.DxAudio
             double depth = (double)_depthSeconds * sampleRate;
             float wetMix = _mix;
             int historyFrames = Math.Max(1, (int)Math.Ceiling(centerDelay + depth)) + 1;
-            _history = wetMix == 0f ? Array.Empty<float>() : new float[checked(historyFrames * channels)];
+            // The final frame stays silent for reads before this voice's history starts.
+            _history = wetMix == 0f ? Array.Empty<float>() : new float[checked((historyFrames + 1) * channels)];
             _centerDelay = centerDelay;
             _depth = depth;
             _phaseStep = FullTurn * (_rateHertz % sampleRate) / sampleRate;
+            _sineStep = Math.Sin(_phaseStep);
+            _cosineStep = Math.Cos(_phaseStep);
             _wetMix = wetMix;
             _historyFrames = historyFrames;
             _channels = channels;
             Reset();
-        }
-
-        private int HistoryOffset(int delay)
-        {
-            // Old frames stay unread until the current voice has overwritten them.
-            if (_availableFrames < delay)
-            {
-                return -1;
-            }
-
-            int frame = _writeFrame - delay;
-            return (frame < 0 ? frame + _historyFrames : frame) * _channels;
-        }
-
-        private float Interpolate(int newer, int older, float fraction, int channel)
-        {
-            float recent = newer < 0 ? 0f : _history[newer + channel];
-            float previous = older < 0 ? 0f : _history[older + channel];
-            return recent * (1f - fraction) + previous * fraction;
         }
     }
 }

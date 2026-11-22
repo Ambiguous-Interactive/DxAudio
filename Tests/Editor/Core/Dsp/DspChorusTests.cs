@@ -1,5 +1,6 @@
 namespace WallstopStudios.DxAudio.Tests.Editor
 {
+    using System;
     using NUnit.Framework;
 
     public sealed class DspChorusTests
@@ -42,6 +43,42 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(stereo[100], Is.EqualTo((27f * 2f + 43f) / 3f).Within(0.0001f));
             Assert.That(stereo[101], Is.EqualTo(-(27f + 43f * 2f) / 3f).Within(0.0001f));
+        }
+
+        [Test]
+        public void ModulationTracksTheSineThroughMultipleTurns()
+        {
+            const int SampleRate = 48_000;
+            const int Frames = 21_000;
+            const float Rate = DspChorus.MaximumRateHertz;
+            const float Depth = DspChorus.MaximumDepthSeconds;
+            const float Scale = 1f / Frames;
+            DspChorus chorus = new()
+            {
+                RateHertz = Rate,
+                DepthSeconds = Depth,
+                Mix = 1f,
+            };
+            Assert.That(chorus.TryPrepare(SampleRate, Frames, 1), Is.True);
+
+            float[] ramp = new float[Frames];
+            for (int frame = 0; frame < Frames; ++frame)
+            {
+                ramp[frame] = frame * Scale;
+            }
+
+            chorus.Process(ramp, 0, ramp.Length, 1);
+
+            // A fractional read of a linear ramp equals the ramp evaluated at that position.
+            double maximumError = 0d;
+            for (int frame = 1_200; frame < Frames; ++frame)
+            {
+                double sweep = Depth * SampleRate * Math.Sin(2d * Math.PI * Rate * frame / SampleRate);
+                double expected = (frame - 720d - sweep / 3d) * Scale;
+                maximumError = Math.Max(maximumError, Math.Abs(expected - ramp[frame]));
+            }
+
+            Assert.That(maximumError, Is.LessThan(0.000001d));
         }
 
         [TestCase(1)]
