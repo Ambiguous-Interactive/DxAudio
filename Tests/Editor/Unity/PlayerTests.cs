@@ -151,6 +151,107 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void PlayerVolumeHalvesLiveVoicesWithoutRestarting()
+        {
+            using MadeObjects made = new();
+            MusicPlayer music = MusicPlayer(made);
+            MusicTrack track = made.Track(MusicTrack.Create(Clip(made), volumeScale: 0.8f));
+            MusicDuck duck = made.Track(MusicDuck.Create(MusicDuckHolders.One, volumeScale: 0.5f, applySeconds: 0f));
+            SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)) }, loop: true, volume: 0.6f));
+            AudioClip hitClip = Clip(made);
+            SfxCue hit = made.Track(SfxCue.Create(new[] { new SfxVariant(hitClip) }, volume: 2f));
+            SfxPlayer sfx = SfxPlayer(made, SfxLibrary.Create(new[] { cue, hit }, voiceCount: 2));
+            music.Play(track);
+            MusicDuckLease duckLease = music.Duck(duck);
+            music.Tick(1f / 60f);
+            Assert.That(sfx.TryPlayLooping(cue, out SfxLoopHandle loop), Is.True);
+            try
+            {
+                AudioSource musicVoice = PlayingSource(music);
+                AudioSource sfxVoice = PlayingSource(sfx);
+                Assert.That(sfx.Play(hit), Is.True);
+                AudioSource hitVoice = SourceWithClip(sfx, hitClip);
+                Assert.That(musicVoice != null && sfxVoice != null && hitVoice != null);
+                musicVoice.timeSamples = 2_000;
+                sfxVoice.timeSamples = 1_000;
+                Assert.That(musicVoice.volume, Is.EqualTo(0.4f).Within(0.001f));
+                Assert.That(sfxVoice.volume, Is.EqualTo(0.6f).Within(0.001f));
+                Assert.That(hitVoice.volume, Is.EqualTo(1f).Within(0.001f));
+
+                sfx.Volume = 0.5f;
+                music.Volume = 0.5f;
+                music.Tick(1f / 60f);
+
+                Assert.That(sfxVoice.volume, Is.EqualTo(0.3f).Within(0.001f));
+                Assert.That(hitVoice.volume, Is.EqualTo(0.5f).Within(0.001f));
+                Assert.That(musicVoice.volume, Is.EqualTo(0.2f).Within(0.001f));
+                Assert.That(musicVoice.isPlaying && sfxVoice.isPlaying, Is.True);
+                Assert.That(musicVoice.timeSamples, Is.EqualTo(2_000).Within(64));
+                Assert.That(sfxVoice.timeSamples, Is.EqualTo(1_000).Within(64));
+
+                sfx.Volume = -1f;
+                Assert.That(sfxVoice.volume, Is.Zero);
+                sfx.Volume = 2f;
+                Assert.That(sfxVoice.volume, Is.EqualTo(0.6f).Within(0.001f));
+            }
+            finally
+            {
+                _ = sfx.StopLoop(loop);
+                _ = music.Release(duckLease);
+            }
+        }
+
+        [Test]
+        public void MusicVolumeRampsWhileTheTrackFadesIn()
+        {
+            using MadeObjects made = new();
+            MusicTrack track = made.Track(MusicTrack.Create(Clip(made)));
+            MusicPlayer music = MusicPlayer(made);
+            music.Library = made.Track(MusicLibrary.Create(new[] { track }, fadeInSeconds: 0.02f));
+            music.Play(track);
+            AudioSource voice = SourceWithClip(music, track.Clip);
+            Assert.That(voice != null);
+            Assert.That(voice.volume, Is.Zero);
+
+            music.Volume = 0.5f;
+            music.Tick(0.005f);
+            float fade = MusicEasing.Evaluate(music.Library.FadeInEase, 0.25f);
+            Assert.That(voice.volume, Is.EqualTo(0.75f * fade).Within(0.001f));
+
+            music.Volume = 1f;
+            music.Tick(0f);
+            Assert.That(voice.volume, Is.EqualTo(0.75f * fade).Within(0.001f));
+            music.Tick(0.02f);
+            Assert.That(voice.volume, Is.EqualTo(1f).Within(0.001f));
+        }
+
+        [Test]
+        public void PlayerVolumeSurvivesLibraryChangesAndAppliesToNewVoices()
+        {
+            using MadeObjects made = new();
+            MusicTrack track = made.Track(MusicTrack.Create(Clip(made), context: "town"));
+            SfxCue cue = Cue(made, loop: false, key: "hit");
+            SfxPlayer sfx = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
+            MusicPlayer music = MusicPlayer(made);
+            music.Library = made.Track(MusicLibrary.Create(new[] { track }));
+
+            sfx.Volume = 0.25f;
+            music.Volume = 0.75f;
+            sfx.Library = made.Track(SfxLibrary.Create(new[] { cue }, voiceCount: 2));
+            music.Library = made.Track(MusicLibrary.Create(new[] { track }, fadeInSeconds: 0f));
+
+            Assert.That(sfx.Play("hit"), Is.True);
+            Assert.That(music.PlayContext("town"), Is.True);
+            Assert.That(sfx.Volume, Is.EqualTo(0.25f));
+            Assert.That(music.Volume, Is.EqualTo(0.75f));
+            AudioSource sfxVoice = PlayingSource(sfx);
+            AudioSource musicVoice = PlayingSource(music);
+            Assert.That(sfxVoice != null && musicVoice != null);
+            Assert.That(sfxVoice.volume, Is.EqualTo(0.25f).Within(0.001f));
+            Assert.That(musicVoice.volume, Is.EqualTo(0.75f).Within(0.001f));
+        }
+
+        [Test]
         public void DucksComposeRampAndRelease()
         {
             using MadeObjects made = new();

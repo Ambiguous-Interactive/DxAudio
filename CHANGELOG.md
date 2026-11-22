@@ -6,6 +6,10 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Add independent sound and music volume settings that scale voices during playback ([#116](https://github.com/Ambiguous-Interactive/DxAudio/issues/116)).
+
 ## [0.4.0] - 2026-11-20
 
 ### Added
