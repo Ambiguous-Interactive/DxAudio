@@ -26,12 +26,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private const int PlayCount = 100_000;
         private const int WarmupPlays = 1_024;
 
-        /// <summary>Bytes the heap may grow over <see cref="PlayCount"/> requests on a path that allocates nothing.</summary>
-        private const long Ceiling = 524_288;
-
-        /// <summary>Measured windows per probe. The smallest is taken, because heap segments commit in coarse steps.</summary>
-        private const int Windows = 3;
-
         private readonly List<Object> _made = new();
         private readonly List<MessageRegistrationToken> _tokens = new();
         private readonly List<SfxPlayerMessagingCore> _relays = new();
@@ -64,35 +58,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
 
             return null;
-        }
-
-        /// <summary>The smallest heap growth of <see cref="Windows"/> runs of <paramref name="count"/> calls.</summary>
-        /// <remarks>
-        /// A collection could reclaim the churn before the final reading. The raw heap includes other threads,
-        /// so this takes the smallest window to reduce noise from Mono heap segment commits.
-        /// </remarks>
-        private static long HeapGrowth(Action emit, int count)
-        {
-            emit();
-            long smallest = long.MaxValue;
-            for (int window = 0; window < Windows; ++window)
-            {
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-                long before = GC.GetTotalMemory(forceFullCollection: false);
-                for (int index = 0; index < count; ++index)
-                {
-                    emit();
-                }
-
-                long growth = GC.GetTotalMemory(forceFullCollection: false) - before;
-                if (growth < smallest)
-                {
-                    smallest = growth;
-                }
-            }
-
-            return smallest;
         }
 
         [SetUp]
@@ -299,26 +264,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(relay.HeldLoopCount, Is.Zero);
         }
 
-        [Test]
-        public void APlayRequestThroughTheBusDoesNotGrowTheHeap()
-        {
-            SfxPlayer player = Player(Cue(loop: false, key: "hit"), voiceCount: 4);
-            SfxPlayerMessagingCore relay = Relay(player);
-            for (int index = 0; index < WarmupPlays; ++index)
-            {
-                EmitPlay(relay, "hit");
-            }
-
-            long growth = HeapGrowth(() => EmitPlay(relay, "hit"), PlayCount);
-
-            Assert.That(growth, Is.LessThan(Ceiling), $"a request through the bus grew the heap by {growth} bytes over {PlayCount:N0} plays.");
-        }
-
-        [TestCase(false, false)]
-        [TestCase(false, true)]
-        [TestCase(true, false)]
-        [TestCase(true, true)]
-        public void WarmedPlayRequestsThroughTheBusDoNotAllocate(bool poolFull, bool plantAllocation)
+        [TestCase(false, TestName = "PlayRequestsThatStartAVoiceDoNotAllocate")]
+        [TestCase(true, TestName = "PlayRequestsDroppedByAFullPoolDoNotAllocate")]
+        public void WarmedPlayRequestsThroughTheBusDoNotAllocate(bool poolFull)
         {
             SfxPlayer player = Player(Cue(loop: false, key: "hit"), voiceCount: 1);
             SfxPlayerMessagingCore relay = Relay(player);
@@ -327,28 +275,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(source != null, Is.True, "The first request must start a voice.");
             // Keep the occupied voice playing for the full-pool case.
             source.loop = poolFull;
-            for (int index = 0; index < WarmupPlays; ++index)
-            {
-                if (!poolFull)
-                {
-                    source.Stop();
-                }
-
-                EmitPlay(relay, "hit");
-                _ = source.isPlaying;
-            }
-
             int started = 0;
-            int initialDrops = player.DropCounts.noVoice;
-            using ProfilerRecorder recorder = new(
-                ProfilerCategory.Internal,
-                "GC.Alloc",
-                1,
-                ProfilerRecorderOptions.SumAllSamplesInFrame | ProfilerRecorderOptions.CollectOnlyOnCurrentThread
-            );
-            Assert.That(recorder.Valid, Is.True, "Unity must expose the GC.Alloc marker.");
-            recorder.Start();
-            for (int index = 0; index < PlayCount; ++index)
+            void SendPlayRequest()
             {
                 if (!poolFull)
                 {
@@ -360,19 +288,34 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 {
                     ++started;
                 }
+            }
 
-                if (plantAllocation && index == 0)
-                {
-                    GC.KeepAlive(new byte[16]);
-                }
+            for (int index = 0; index < WarmupPlays; ++index)
+            {
+                SendPlayRequest();
+            }
+
+            started = 0;
+            int initialDrops = player.DropCounts.noVoice;
+            using ProfilerRecorder recorder = new(
+                ProfilerCategory.Internal,
+                "GC.Alloc",
+                1,
+                ProfilerRecorderOptions.SumAllSamplesInFrame | ProfilerRecorderOptions.CollectOnlyOnCurrentThread
+            );
+            Assert.That(recorder.Valid, Is.True, "Unity must expose the GC.Alloc marker.");
+            recorder.Start();
+            for (int index = 0; index < PlayCount; ++index)
+            {
+                SendPlayRequest();
             }
 
             recorder.Stop();
             long allocations = recorder.Count == 0 ? 0 : recorder.GetSample(0).Count;
+            source.Stop();
             int dropped = player.DropCounts.noVoice - initialDrops;
-            Debug.Log($"DXMESSAGING_ALLOCATION full={poolFull} control={plantAllocation} started={started} dropped={dropped} events={allocations}");
             Assert.That(poolFull ? dropped : started, Is.EqualTo(PlayCount), "Every request must reach the player.");
-            Assert.That(allocations, Is.Zero, $"The relay path allocated {allocations} times over {PlayCount:N0} plays.");
+            Assert.That(allocations, Is.Zero, $"The relay path recorded {allocations} allocation events over {PlayCount:N0} requests.");
         }
 
         private void EmitPlay(SfxPlayerMessagingCore relay, string key)
