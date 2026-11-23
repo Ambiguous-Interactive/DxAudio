@@ -24,6 +24,10 @@ All notable changes to this package are documented here. The format follows
 - Reduce CPU time for stereo Distortion when several voices play at once ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Reduce CPU time for Reverb when several voices play at once ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 
+### Fixed
+
+- Reject oversized DSP graph layouts before preparing their effects, even when the requested buffer size would overflow ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
+
 ## [0.4.0] - 2026-11-20
 
 ### Added

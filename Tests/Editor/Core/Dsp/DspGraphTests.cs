@@ -323,6 +323,42 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void AnOverflowingLayoutIsRefusedAndTheGraphCanPrepareAgain()
+        {
+            DspGraph graph = new();
+            DspChain chain = ChainOf(new DelayEffect(0) { Gain = 0f });
+            int node = AddNode(graph, chain);
+            float[] block = { 1f };
+            Assert.That(graph.TryPrepare(SampleRate, 1, 1, node, node), Is.True);
+
+            Assert.That(graph.TryPrepare(SampleRate, int.MaxValue, int.MaxValue, node, node), Is.False);
+            Assert.That(graph.IsPrepared, Is.False);
+            Assert.That(graph.PreparedBytes, Is.Zero);
+            graph.Process(block, 0, block.Length, 1);
+            Assert.That(block[0], Is.EqualTo(1f));
+
+            Assert.That(graph.TryPrepare(SampleRate, 1, 1, node, node), Is.True);
+            graph.Process(block, 0, block.Length, 1);
+            Assert.That(block[0], Is.Zero);
+        }
+
+        [TestCase(0, true, TestName = "Graph buffers exactly at the budget are accepted")]
+        [TestCase(1, false, TestName = "Graph buffers one stereo frame over the budget are refused")]
+        public void NodesAndDelayedEdgesShareThePreparationBudget(int extraFrames, bool accepted)
+        {
+            const int frames = 16;
+            const int channels = 2;
+            const int budgetFrames = DspGraph.MaximumPreparedBytes / (channels * sizeof(float));
+            // Four node buffers and one delayed edge also hold one block each.
+            int delay = budgetFrames - (5 * frames) + extraFrames;
+            DspGraph graph = FanIn(ChainOf(new LatencyClaimEffect(delay)), new DspChain());
+
+            Assert.That(graph.TryPrepare(SampleRate, frames, channels, 0, 3), Is.EqualTo(accepted));
+            Assert.That(graph.IsPrepared, Is.EqualTo(accepted));
+            Assert.That(graph.PreparedBytes, Is.EqualTo(accepted ? DspGraph.MaximumPreparedBytes : 0));
+        }
+
+        [Test]
         public void PreparationReservesOneBufferPerNodeAndOneLinePerDelayedEdge()
         {
             DspGraph graph = FanIn(ChainOf(new DelayEffect(100)), ChainOf(new DelayEffect(300)));
