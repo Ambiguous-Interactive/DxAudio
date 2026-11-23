@@ -58,7 +58,7 @@ jobs:
         with:
           reader-app-id: ${{ secrets.BUILD_LOCK_READER_APP_ID }}
           reader-app-private-key: ${{ secrets.BUILD_LOCK_READER_APP_PRIVATE_KEY }}
-          required-label-sets: '[["self-hosted","Windows","RAM-64GB"]]'
+          required-label-sets: '[["self-hosted","Windows","RAM-64GB","fast"]]'
 
   unity-tests:
     name: Unity ${{ matrix.unity-version }} EditMode
@@ -71,7 +71,8 @@ jobs:
         (github.event.pull_request.user.login != 'dependabot[bot]' &&
           github.event.pull_request.head.repo.full_name == github.repository)
       }}
-    runs-on: [self-hosted, Windows, RAM-64GB]
+    # The DSP affinity experiment needs the ELI-MACHINE topology.
+    runs-on: [self-hosted, Windows, RAM-64GB, fast]
     # Leave time for license return and lock release after the maximum wait and both validation modes.
     timeout-minutes: 490
     # Contract item 3: the audit proves the per-leg editor gate and the central
