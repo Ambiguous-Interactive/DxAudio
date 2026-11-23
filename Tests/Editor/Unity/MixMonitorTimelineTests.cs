@@ -6,6 +6,58 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     public sealed class MixMonitorTimelineTests
     {
         [Test]
+        public void OverlappingDuckHoldsKeepTheirLanesWhenAnotherHolderReleases()
+        {
+            MixMonitorTimeline<int, string> timeline = new(3, duckCapacity: 2);
+            MusicDuckReasonTable<string> reasons = new(_ => MusicDuckHolders.Many);
+            IMusicDuckReason dialogue = reasons.Of("Dialogue");
+            IMusicDuckReason pause = reasons.Of("Pause");
+            timeline.Sample(1d, SfxDropCounts.None);
+            timeline.SetDuckHolds(new[] { dialogue, dialogue }, new[] { 1L, 2L }, 2);
+
+            timeline.Sample(1.0625d, SfxDropCounts.None);
+            timeline.SetDuckHolds(new[] { dialogue, pause }, new[] { 2L, 3L }, 2);
+
+            timeline.Interrupt();
+            timeline.Sample(2d, SfxDropCounts.None);
+            timeline.SetDuckHolds(new[] { dialogue }, new[] { 2L }, 1);
+
+            Assert.That(timeline.DuckHold(0, 0), Is.EqualTo((dialogue, 1L)));
+            Assert.That(timeline.DuckHold(0, 1), Is.EqualTo((dialogue, 2L)));
+            Assert.That(timeline.DuckHold(1, 0), Is.EqualTo((pause, 3L)));
+            Assert.That(timeline.DuckHold(1, 1), Is.EqualTo((dialogue, 2L)));
+            Assert.That(timeline.DuckHold(2, 0).reason == null, Is.True);
+            Assert.That(timeline.DuckHold(2, 1), Is.EqualTo((dialogue, 2L)));
+            Assert.That(timeline.CanJoin(1, 0.125d), Is.True);
+            Assert.That(timeline.CanJoin(2, 0.125d), Is.False);
+        }
+
+        [Test]
+        public void DuckOverflowAndLanesExpireWithTheirSamples()
+        {
+            MixMonitorTimeline<int, string> timeline = new(2, duckCapacity: 1);
+            MusicDuckReasonTable<string> reasons = new(_ => MusicDuckHolders.One);
+            IMusicDuckReason pause = reasons.Of("Pause");
+            timeline.Sample(1d, SfxDropCounts.None);
+            timeline.SetDuckHolds(new[] { pause }, new[] { 1L }, 3);
+            timeline.Sample(2d, SfxDropCounts.None);
+
+            Assert.That(timeline.OmittedDuckHolds(0), Is.EqualTo(2));
+            Assert.That(timeline.OmittedDuckHolds(1), Is.Zero);
+            Assert.That(timeline.DuckHold(0, 0), Is.EqualTo((pause, 1L)));
+
+            timeline.Sample(12d, SfxDropCounts.None);
+            Assert.That(timeline.Count, Is.EqualTo(2));
+            Assert.That(timeline.DuckHold(1, 0).reason == null, Is.True);
+            Assert.That(timeline.OmittedDuckHolds(1), Is.Zero);
+
+            timeline.SetDuckHolds(new[] { pause }, new[] { 2L }, 1);
+            timeline.Reset(0);
+            timeline.Sample(13d, SfxDropCounts.None);
+            Assert.That(timeline.DuckHold(0, 0).reason == null, Is.True);
+        }
+
+        [Test]
         public void MusicDeckFadesAndDuckGainStayWithTheirFrames()
         {
             MixMonitorTimeline<int, string> timeline = new(2, deckCount: 2);

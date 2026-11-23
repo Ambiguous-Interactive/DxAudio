@@ -10,20 +10,28 @@ namespace WallstopStudios.DxAudio.Editor
         internal int Count { get; private set; }
         internal int VoiceCount { get; private set; }
         internal int DeckCount { get; }
+        internal int DuckCapacity { get; }
 
         private readonly Frame[] _frames;
         private readonly (TTrack track, float fade)[] _decks;
+        private readonly (IMusicDuckReason reason, long id)[] _duckHolds;
+        private readonly int[] _omittedDuckHolds;
+        private readonly bool[] _assignedDuckInputs;
         private (SfxVoiceState state, TClip clip, float clipSeconds)[] _voices = Array.Empty<(SfxVoiceState, TClip, float)>();
         private SfxDropCounts _previous;
         private int _oldest;
         private int _latest;
         private bool _interrupted = true;
 
-        internal MixMonitorTimeline(int capacity, int deckCount = 0)
+        internal MixMonitorTimeline(int capacity, int deckCount = 0, int duckCapacity = 0)
         {
             _frames = new Frame[capacity];
             DeckCount = deckCount;
             _decks = new (TTrack, float)[capacity * deckCount];
+            DuckCapacity = duckCapacity;
+            _duckHolds = new (IMusicDuckReason, long)[capacity * duckCapacity];
+            _omittedDuckHolds = new int[capacity];
+            _assignedDuckInputs = new bool[duckCapacity];
         }
 
         internal void Reset(int voiceCount)
@@ -41,6 +49,8 @@ namespace WallstopStudios.DxAudio.Editor
             if (0 < Count)
             {
                 Array.Clear(_decks, 0, _decks.Length);
+                Array.Clear(_duckHolds, 0, _duckHolds.Length);
+                Array.Clear(_omittedDuckHolds, 0, _omittedDuckHolds.Length);
             }
 
             Count = 0;
@@ -60,6 +70,8 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 Array.Clear(_voices, _oldest * VoiceCount, VoiceCount);
                 Array.Clear(_decks, _oldest * DeckCount, DeckCount);
+                Array.Clear(_duckHolds, _oldest * DuckCapacity, DuckCapacity);
+                _omittedDuckHolds[_oldest] = 0;
                 _oldest = (_oldest + 1) % _frames.Length;
                 --Count;
             }
@@ -93,6 +105,68 @@ namespace WallstopStudios.DxAudio.Editor
         internal (TTrack track, float fade) Deck(int frame, int deck)
         {
             return _decks[Slot(frame) * DeckCount + deck];
+        }
+
+        internal void SetDuckHolds(IMusicDuckReason[] reasons, long[] ids, int total)
+        {
+            int count = Math.Min(DuckCapacity, total);
+            _omittedDuckHolds[_latest] = total - count;
+            if (count == 0)
+            {
+                return;
+            }
+
+            int offset = _latest * DuckCapacity;
+            Array.Clear(_assignedDuckInputs, 0, count);
+            if (1 < Count)
+            {
+                // Reserve the previous lanes for surviving leases before filling gaps with new ones.
+                int previous = Slot(Count - 2) * DuckCapacity;
+                for (int row = 0; row < DuckCapacity; ++row)
+                {
+                    long previousId = _duckHolds[previous + row].id;
+                    if (previousId == MusicDuckLease.NoneId)
+                    {
+                        continue;
+                    }
+
+                    for (int input = 0; input < count; ++input)
+                    {
+                        if (ids[input] == previousId)
+                        {
+                            _duckHolds[offset + row] = (reasons[input], ids[input]);
+                            _assignedDuckInputs[input] = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            int next = offset;
+            for (int input = 0; input < count; ++input)
+            {
+                if (_assignedDuckInputs[input])
+                {
+                    continue;
+                }
+
+                while (_duckHolds[next].id != MusicDuckLease.NoneId)
+                {
+                    ++next;
+                }
+
+                _duckHolds[next++] = (reasons[input], ids[input]);
+            }
+        }
+
+        internal (IMusicDuckReason reason, long id) DuckHold(int frame, int row)
+        {
+            return _duckHolds[Slot(frame) * DuckCapacity + row];
+        }
+
+        internal int OmittedDuckHolds(int frame)
+        {
+            return _omittedDuckHolds[Slot(frame)];
         }
 
         internal float? DuckGain(int frame)

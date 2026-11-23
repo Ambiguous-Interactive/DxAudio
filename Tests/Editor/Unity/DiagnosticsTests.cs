@@ -181,6 +181,44 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void MixMonitorKeepsReleasedDuckHoldsInPausedHistory()
+        {
+            using MadeObjects made = new();
+            MusicPlayer music = made.Track(new GameObject("music")).AddComponent<MusicPlayer>();
+            MusicDuck dialogue = made.Track(MusicDuck.Create(MusicDuckHolders.Many, 0.25f, applySeconds: 0f, releaseSeconds: 0f));
+            MusicDuck pause = made.Track(MusicDuck.Create(MusicDuckHolders.One, 0.5f, applySeconds: 0f, releaseSeconds: 0f));
+            MusicDuckLease menu = music.Duck(pause);
+
+            DxAudioMixMonitorWindow monitor = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
+            monitor.SelectPlayers(null, music);
+            MusicDuckLease first = music.Duck(dialogue, made.Track(new GameObject("first speaker")));
+            MusicDuckLease second = music.Duck(dialogue, made.Track(new GameObject("second speaker")));
+            monitor.SamplePlayer();
+            monitor.ToggleCapture();
+            music.Release(first);
+            music.Release(second);
+            monitor.SamplePlayer();
+
+            MixMonitorTimeline<AudioClip, MusicTrack> timeline = monitor.Timeline;
+            Assert.That(timeline.Count, Is.EqualTo(2));
+            Assert.That(timeline.DuckHold(1, 0), Is.EqualTo(((IMusicDuckReason)pause, menu.Id)));
+            Assert.That(timeline.DuckHold(1, 1), Is.EqualTo(((IMusicDuckReason)dialogue, first.Id)));
+            Assert.That(timeline.DuckHold(1, 2), Is.EqualTo(((IMusicDuckReason)dialogue, second.Id)));
+            Assert.That(timeline.DuckGain(1), Is.EqualTo(0.25f));
+
+            monitor.ToggleCapture();
+            Assert.That(timeline.StartsSegment(2), Is.True);
+            Assert.That(timeline.DuckHold(2, 0), Is.EqualTo(((IMusicDuckReason)pause, menu.Id)));
+            Assert.That(timeline.DuckHold(2, 1).reason == null, Is.True);
+            Assert.That(timeline.DuckHold(2, 2).reason == null, Is.True);
+            Assert.That(timeline.DuckGain(2), Is.EqualTo(0.5f));
+            Assert.That(music.Release(menu), Is.True);
+            monitor.SamplePlayer();
+            Assert.That(timeline.DuckHold(3, 0).reason == null, Is.True);
+            Assert.That(timeline.DuckGain(3), Is.EqualTo(1f));
+        }
+
+        [Test]
         public void MixMonitorSelectsTheRecordedClipAfterItsVoiceIsReused()
         {
             using MadeObjects made = new();
