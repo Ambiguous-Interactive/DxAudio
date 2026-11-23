@@ -5,6 +5,46 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
     public sealed class MixMonitorTimelineTests
     {
+        [TestCase(false, false, false, 0.8f, 0.9f, 0.9f, TestName = "Waveform follows the observed playhead")]
+        [TestCase(true, false, false, 0.98f, 0.03f, 1.03f, TestName = "Loop waveform wraps past the end")]
+        [TestCase(false, false, false, 0.98f, 0.03f, 0.98f, TestName = "One-shot waveform does not wrap on a seek")]
+        [TestCase(true, true, false, 0.8f, 0.9f, 0.8f, TestName = "Paused waveform stays at the saved playhead")]
+        [TestCase(true, false, true, 0.8f, 0.9f, 0.8f, TestName = "Waveform does not interpolate across a capture interruption")]
+        public void WaveformSpanFollowsOnlyContinuousPlayback(bool held, bool paused, bool interrupted, float first, float second, float expectedEnd)
+        {
+            MixMonitorTimeline<int, string> timeline = new(2);
+            timeline.Reset(1);
+            SfxVoiceState state = new(true, !paused, held, SfxPriority.Medium, 1f, isPaused: paused);
+            timeline.Sample(1d, SfxDropCounts.None);
+            timeline.SetVoice(0, state, clip: 17, clipSeconds: first);
+            if (interrupted)
+            {
+                timeline.Interrupt();
+            }
+
+            timeline.Sample(1.05d, SfxDropCounts.None);
+            timeline.SetVoice(0, state, clip: 17, clipSeconds: second);
+
+            Assert.That(timeline.VoiceClipEnd(0, 0, 1f, 0.1d), Is.EqualTo(expectedEnd).Within(0.0001f));
+            Assert.That(timeline.VoiceClipEnd(1, 0, 1f, 0.1d), Is.EqualTo(second));
+        }
+
+        [TestCase(17, 2, 1.05d, TestName = "A same-tick replay of the same clip uses a separate waveform span")]
+        [TestCase(31, 1, 1.05d, TestName = "Voice reuse separates different clips")]
+        [TestCase(17, 1, 2d, TestName = "A long editor tick separates waveform spans")]
+        public void WaveformSpanEndsAtTheLastObservedPosition(int nextClip, int nextPlayback, double nextTime)
+        {
+            MixMonitorTimeline<int, string> timeline = new(2);
+            timeline.Reset(1);
+            timeline.Sample(1d, SfxDropCounts.None);
+            SfxVoiceState state = new(true, true, false, SfxPriority.Medium, 1f);
+            timeline.SetVoice(0, state, clip: 17, clipSeconds: 0.2f, playbackId: 1);
+            timeline.Sample(nextTime, SfxDropCounts.None);
+            timeline.SetVoice(0, state, clip: nextClip, clipSeconds: 0.4f, playbackId: nextPlayback);
+
+            Assert.That(timeline.VoiceClipEnd(0, 0, 1f, 0.1d), Is.EqualTo(0.2f));
+        }
+
         [Test]
         public void OverlappingDuckHoldsKeepTheirLanesWhenAnotherHolderReleases()
         {

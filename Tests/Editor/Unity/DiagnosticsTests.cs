@@ -236,6 +236,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             player.Paused = true;
             Assert.That(player.Play(first), Is.True);
             AudioClip firstClip = source.clip;
+            float[] samples = new float[firstClip.samples];
+            samples[1_000] = -0.75f;
+            Assert.That(firstClip.SetData(samples, 0), Is.True);
             source.timeSamples = 1_000;
             monitor.SamplePlayer();
             player.StopAll();
@@ -245,11 +248,50 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(monitor.SelectClip(1, 0), Is.True);
             Assert.That(monitor.Capture.Paused, Is.True);
             Assert.That(monitor.SelectedClip(), Is.EqualTo((firstClip, 0.125f)));
+            float[] peaks = monitor.Timeline.VoicePeaks(1, 0);
+            Assert.That(peaks != null, Is.True);
+            Assert.That(MixMonitorWaveforms.Peak(peaks, 0.25f, 0.25f), Is.EqualTo(0.75f));
+            Assert.That(MixMonitorWaveforms.Peak(peaks, 0.5f, 0.5f), Is.Zero);
             Assert.That(monitor.Timeline.Clip(2, 0).clip, Is.SameAs(source.clip));
             Assert.That(source.clip, Is.Not.SameAs(firstClip));
 
             monitor.ToggleCapture();
             Assert.That(monitor.SelectedClip().clip == null, Is.True);
+        }
+
+        [Test]
+        public void MixMonitorWaveformReadsStereoPeaksThroughThePartialLastChunk()
+        {
+            using MadeObjects made = new();
+            const int Frames = 4_100;
+            AudioClip clip = made.Track(AudioClip.Create("stereo", Frames, 2, 8_000, stream: false));
+            float[] samples = new float[Frames * 2];
+            samples[1] = -0.9f;
+            samples[samples.Length - 2] = 0.6f;
+            Assert.That(clip.SetData(samples, 0), Is.True);
+            MixMonitorWaveforms waveforms = new();
+            bool canRead = true;
+
+            float[] peaks = waveforms.Observe(clip, ref canRead);
+
+            Assert.That(peaks != null, Is.True);
+            Assert.That(peaks[0], Is.EqualTo(0.9f));
+            Assert.That(peaks[peaks.Length - 1], Is.EqualTo(0.6f));
+            Assert.That(MixMonitorWaveforms.Peak(peaks, 0.99f, 1.01f), Is.EqualTo(0.9f));
+            Assert.That(canRead, Is.False);
+            Assert.That(waveforms.Observe(clip, ref canRead), Is.SameAs(peaks));
+        }
+
+        [Test]
+        public void MixMonitorLeavesOversizedClipsAsBars()
+        {
+            using MadeObjects made = new();
+            AudioClip clip = made.Track(AudioClip.Create("large", 1_000_001, 2, 48_000, stream: false));
+            MixMonitorWaveforms waveforms = new();
+            bool canRead = true;
+
+            Assert.That(waveforms.Observe(clip, ref canRead) == null, Is.True);
+            Assert.That(canRead, Is.True);
         }
 
         [Test]
