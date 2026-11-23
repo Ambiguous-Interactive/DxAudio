@@ -99,15 +99,17 @@ namespace WallstopStudios.DxAudio
                 return;
             }
 
+            if (channels == 2)
+            {
+                ProcessStereo(buffer, offset, offset + count);
+                return;
+            }
+
             int stride = channels;
 
             int frames = count / stride;
             for (int frame = 0; frame < frames; ++frame)
             {
-                /*
-                    A knob move is a ramp, not a step: the block reads one drive and one tone, reached over
-                    SmoothingSeconds, so a sweep does not click.
-                */
                 _activeDrive += (_drive - _activeDrive) * _smoothingCoefficient;
                 _activeToneCoefficient += (_toneCoefficient - _activeToneCoefficient) * _smoothingCoefficient;
                 int frameStart = offset + (frame * stride);
@@ -141,6 +143,36 @@ namespace WallstopStudios.DxAudio
             _toneCoefficient = Coefficient(CappedToneHz(_toneHz, sampleRate), sampleRate);
             _smoothingCoefficient = AudioMath.OnePoleCoefficient(SmoothingSeconds, sampleRate);
             Reset();
+        }
+
+        // Keep the stereo tone history and ramp values local across the block.
+        private void ProcessStereo(float[] buffer, int offset, int end)
+        {
+            float activeDrive = _activeDrive;
+            float activeTone = _activeToneCoefficient;
+            float smoothing = _smoothingCoefficient;
+            float[] toneState = _toneState;
+            float left = toneState[0];
+            float right = toneState[1];
+
+            for (int index = offset; index < end; index += 2)
+            {
+                activeDrive += (_drive - activeDrive) * smoothing;
+                activeTone += (_toneCoefficient - activeTone) * smoothing;
+                ref float leftSample = ref buffer[index];
+                ref float rightSample = ref buffer[index + 1];
+                float shapedLeft = (float)Math.Tanh(activeDrive * leftSample);
+                float shapedRight = (float)Math.Tanh(activeDrive * rightSample);
+                left += (shapedLeft - left) * activeTone;
+                right += (shapedRight - right) * activeTone;
+                leftSample = left;
+                rightSample = right;
+            }
+
+            toneState[0] = left;
+            toneState[1] = right;
+            _activeDrive = activeDrive;
+            _activeToneCoefficient = activeTone;
         }
     }
 }

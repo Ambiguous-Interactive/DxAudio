@@ -222,6 +222,47 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void StereoDistortionMatchesTwoMonoChannelsAcrossCallbacks()
+        {
+            DspDistortion stereo = new() { Drive = 5f, ToneHz = 800f };
+            DspDistortion left = new() { Drive = stereo.Drive, ToneHz = stereo.ToneHz };
+            DspDistortion right = new() { Drive = stereo.Drive, ToneHz = stereo.ToneHz };
+            Assert.That(stereo.TryPrepare(SampleRate, 3, 2), Is.True);
+            Assert.That(left.TryPrepare(SampleRate, 3, 1), Is.True);
+            Assert.That(right.TryPrepare(SampleRate, 3, 1), Is.True);
+
+            for (int block = 0; block < 4; ++block)
+            {
+                if (block == 1)
+                {
+                    stereo.Drive = left.Drive = right.Drive = 0.5f;
+                    stereo.ToneHz = left.ToneHz = right.ToneHz = 4_000f;
+                }
+                if (block == 3)
+                {
+                    stereo.Reset();
+                    left.Reset();
+                    right.Reset();
+                }
+
+                float[] interleaved = { 2f, 0.5f, -0.2f, 0f, -0.8f, 0.1f, 0f, -3f };
+                float[] leftSamples = { 0.5f, 0f, 0.1f };
+                float[] rightSamples = { -0.2f, -0.8f, 0f };
+                stereo.Process(interleaved, 1, 6, 2);
+                left.Process(leftSamples, 0, 3, 1);
+                right.Process(rightSamples, 0, 3, 1);
+
+                Assert.That(interleaved[0], Is.EqualTo(2f));
+                Assert.That(interleaved[7], Is.EqualTo(-3f));
+                for (int frame = 0; frame < 3; ++frame)
+                {
+                    Assert.That(BitConverter.SingleToInt32Bits(interleaved[(2 * frame) + 1]), Is.EqualTo(BitConverter.SingleToInt32Bits(leftSamples[frame])));
+                    Assert.That(BitConverter.SingleToInt32Bits(interleaved[(2 * frame) + 2]), Is.EqualTo(BitConverter.SingleToInt32Bits(rightSamples[frame])));
+                }
+            }
+        }
+
+        [Test]
         public void TheBitCrusherHoldsAcrossABlockBoundary()
         {
             float[] source = Ramp(-0.9f, 0.9f, 4_096);
