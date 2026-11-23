@@ -450,7 +450,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             bool personal = DxAudioProblemSettings.IsPersonalSilence(Rule.NoPlayableTake);
             SfxCue broken = made.Track(SfxCue.Create(new[] { new SfxVariant() }, key: "broken"));
             SfxCue other = made.Track(SfxCue.Create(new[] { new SfxVariant() }, key: "other"));
-            SfxLibrary library = made.Track(SfxLibrary.Create(new[] { broken, other }));
+            SfxLibrary library = made.Track(SfxLibrary.Create(null));
             string path = AssetDatabase.GenerateUniqueAssetPath("Assets/DxAudioProblemFixture.asset");
             string guid = string.Empty;
             long brokenId = 0;
@@ -459,6 +459,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 AssetDatabase.CreateAsset(library, path);
                 AssetDatabase.AddObjectToAsset(broken, library);
                 AssetDatabase.AddObjectToAsset(other, library);
+                using (SerializedObject serialized = new(library))
+                {
+                    SerializedProperty cues = serialized.FindProperty("_cues");
+                    cues.arraySize = 2;
+                    cues.GetArrayElementAtIndex(0).objectReferenceValue = broken;
+                    cues.GetArrayElementAtIndex(1).objectReferenceValue = other;
+                    serialized.ApplyModifiedPropertiesWithoutUndo();
+                }
+
                 AssetDatabase.SaveAssetIfDirty(library);
                 Finding finding = new(Rule.NoPlayableTake, broken, "No playable take.");
                 Finding sibling = new(Rule.NoPlayableTake, other, "No playable take.");

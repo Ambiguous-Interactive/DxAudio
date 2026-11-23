@@ -28,7 +28,10 @@ namespace WallstopStudios.DxAudio.Editor
             return finding.Asset != null && AssetDatabase.TryGetGUIDAndLocalFileIdentifier(finding.Asset, out guid, out localId);
         }
 
-        internal static bool IsPersonalSilence(Rule rule) => EditorPrefs.GetBool(PersonalKey(rule));
+        internal static bool IsPersonalSilence(Rule rule)
+        {
+            return EditorPrefs.GetBool(PersonalKey(rule));
+        }
 
         internal static void SetPersonalSilence(Rule rule, bool hidden, bool notify = true)
         {
@@ -48,7 +51,10 @@ namespace WallstopStudios.DxAudio.Editor
             }
         }
 
-        private static string PersonalKey(Rule rule) => $"WallstopStudios.DxAudio.Problems.{Application.dataPath}.{Id(rule)}";
+        private static string PersonalKey(Rule rule)
+        {
+            return $"WallstopStudios.DxAudio.Problems.{Application.dataPath}.{Id(rule)}";
+        }
 
         [SettingsProvider]
         private static SettingsProvider CreateProvider()
@@ -78,13 +84,21 @@ namespace WallstopStudios.DxAudio.Editor
             }
         }
 
-        internal bool BlocksValidation(Finding finding) => SeverityFor(finding.Rule) == Severity.Error && !IsSharedSilence(finding);
+        internal bool BlocksValidation(Finding finding)
+        {
+            return SeverityFor(finding.Rule) == Severity.Error && !IsSharedSilence(finding);
+        }
 
-        internal bool IsVisible(Finding finding) => SeverityFor(finding.Rule) != Severity.Off && !IsSharedSilence(finding) && !IsPersonalSilence(finding.Rule);
+        internal bool IsVisible(Finding finding)
+        {
+            return SeverityFor(finding.Rule) != Severity.Off && !IsSharedSilence(finding) && !IsPersonalSilence(finding.Rule);
+        }
 
-        internal bool IsSharedSilence(Finding finding) =>
-            TryAssetId(finding, out string guid, out long localId)
-            && _silences.Exists(entry => entry.Matches(finding.Rule, guid, localId) && !string.IsNullOrWhiteSpace(entry.reason));
+        internal bool IsSharedSilence(Finding finding)
+        {
+            return TryAssetId(finding, out string guid, out long localId)
+                && _silences.Exists(entry => entry.Matches(finding.Rule, guid, localId) && !string.IsNullOrWhiteSpace(entry.reason));
+        }
 
         internal bool TrySilence(Finding finding, string reason)
         {
@@ -106,7 +120,10 @@ namespace WallstopStudios.DxAudio.Editor
             return true;
         }
 
-        internal void RemoveSilence(Rule rule, string guid, long localId) => _silences.RemoveAll(entry => entry.Matches(rule, guid, localId));
+        internal void RemoveSilence(Rule rule, string guid, long localId)
+        {
+            _silences.RemoveAll(entry => entry.Matches(rule, guid, localId));
+        }
 
         internal void Persist()
         {
@@ -205,7 +222,10 @@ namespace WallstopStudios.DxAudio.Editor
             public long localId;
             public string reason;
 
-            public bool Matches(Rule targetRule, string targetGuid, long targetLocalId) => rule == targetRule && guid == targetGuid && localId == targetLocalId;
+            public bool Matches(Rule targetRule, string targetGuid, long targetLocalId)
+            {
+                return rule == targetRule && string.Equals(guid, targetGuid, StringComparison.Ordinal) && localId == targetLocalId;
+            }
         }
     }
 }

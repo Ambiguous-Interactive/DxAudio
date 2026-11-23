@@ -12,13 +12,22 @@ namespace WallstopStudios.DxAudio.Editor
         internal static readonly Rule[] Rules = (Rule[])Enum.GetValues(typeof(Rule));
 
         /// <summary>Every problem with a sound library and its members.</summary>
-        public static List<string> Validate(SfxLibrary library) => library == null ? new List<string> { "There is no SFX library to check." } : Messages(Find(library));
+        public static List<string> Validate(SfxLibrary library)
+        {
+            return library == null ? new List<string> { "There is no SFX library to check." } : Messages(Find(library));
+        }
 
         /// <summary>Every problem with a music library and its members.</summary>
-        public static List<string> Validate(MusicLibrary library) => library == null ? new List<string> { "There is no music library to check." } : Messages(Find(library));
+        public static List<string> Validate(MusicLibrary library)
+        {
+            return library == null ? new List<string> { "There is no music library to check." } : Messages(Find(library));
+        }
 
         /// <summary>Every problem with one cue, for the cue inspector.</summary>
-        public static List<string> Validate(SfxCue cue) => cue == null ? new List<string> { "There is no cue to check." } : Messages(Find(cue));
+        public static List<string> Validate(SfxCue cue)
+        {
+            return cue == null ? new List<string> { "There is no cue to check." } : Messages(Find(cue));
+        }
 
         /// <summary>Throws if a project library has an active error. Use as a Unity batchmode execute method.</summary>
         public static void ValidateProjectLibraries()
@@ -183,7 +192,10 @@ namespace WallstopStudios.DxAudio.Editor
             return prepared;
         }
 
-        internal static string Id(Rule rule) => $"DXA{(int)rule}";
+        internal static string Id(Rule rule)
+        {
+            return $"DXA{(int)rule}";
+        }
 
         internal static Severity DefaultSeverity(Rule rule)
         {
@@ -204,8 +216,9 @@ namespace WallstopStudios.DxAudio.Editor
             }
         }
 
-        internal static string Description(Rule rule) =>
-            rule switch
+        internal static string Description(Rule rule)
+        {
+            return rule switch
             {
                 Rule.NoPlayableTake => "Cue has no playable take",
                 Rule.NoTrackClip => "Track has no clip",
@@ -224,6 +237,7 @@ namespace WallstopStudios.DxAudio.Editor
                 Rule.ThrottledDrop => "Drop: Throttled",
                 _ => string.Empty,
             };
+        }
 
         internal static bool TryFromDrop(SfxCue cue, SfxDropReason reason, out Finding finding)
         {
@@ -342,17 +356,23 @@ namespace WallstopStudios.DxAudio.Editor
         private static List<string> Messages(List<Finding> findings)
         {
             List<string> messages = new(findings.Count);
-            for (int index = 0; index < findings.Count; ++index)
+            foreach (Finding finding in findings)
             {
-                messages.Add(findings[index].Message);
+                messages.Add(finding.Message);
             }
 
             return messages;
         }
 
-        private static string EmptySlot(int index, string member) => $"Slot {index + 1} is empty. Remove it or assign a {member}.";
+        private static string EmptySlot(int index, string member)
+        {
+            return $"Slot {index + 1} is empty. Remove it or assign a {member}.";
+        }
 
-        private static string MemberName(Object asset, int index) => string.IsNullOrWhiteSpace(asset.name) ? $"Slot {index + 1}" : $"'{asset.name}'";
+        private static string MemberName(Object asset, int index)
+        {
+            return string.IsNullOrWhiteSpace(asset.name) ? $"Slot {index + 1}" : $"'{asset.name}'";
+        }
 
         internal enum Severity
         {

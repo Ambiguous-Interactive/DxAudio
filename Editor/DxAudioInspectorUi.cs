@@ -53,7 +53,7 @@ namespace WallstopStudios.DxAudio.Editor
 
         internal static void FocusProperty(VisualElement root, string path)
         {
-            PropertyField field = root.Query<PropertyField>().Where(candidate => candidate.bindingPath == path).First();
+            PropertyField field = root.Query<PropertyField>().Where(candidate => string.Equals(candidate.bindingPath, path, StringComparison.Ordinal)).First();
             if (field != null)
             {
                 field.GetFirstAncestorOfType<ScrollView>()?.ScrollTo(field);
