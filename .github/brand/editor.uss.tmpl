@@ -1,0 +1,88 @@
+.dxaudio-graph {
+    background-color: var(--dxa-theme-canvas);
+    flex-grow: 1;
+    min-width: 200px;
+    min-height: 180px;
+    overflow: hidden;
+    --dxa-marquee-opacity: 0.24;
+}
+
+.dxaudio-graph-text {
+    color: var(--dxa-theme-text);
+}
+
+.dxaudio-graph-empty {
+    margin-left: 16px;
+    margin-top: 18px;
+}
+
+.dxaudio-graph-feedback,
+.dxaudio-graph-picker,
+.dxaudio-graph-card {
+    position: absolute;
+    background-color: var(--dxa-theme-surface);
+}
+
+.dxaudio-graph-feedback {
+    left: 12px;
+    bottom: 12px;
+    max-width: 90%;
+    padding: 4px 8px;
+    white-space: normal;
+}
+
+.dxaudio-graph-card {
+    padding-left: 12px;
+    padding-right: 12px;
+    justify-content: center;
+    border-radius: 7px;
+    border-width: 2px 1px 1px;
+    border-color: var(--dxa-theme-wire);
+    overflow: hidden;
+}
+
+.dxaudio-graph-card.dxaudio-selected {
+    border-color: var(--dxa-theme-accent);
+}
+
+.dxaudio-graph-card .dxaudio-graph-text {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.dxaudio-graph-title {
+    -unity-font-style: bold;
+}
+
+.dxaudio-graph-picker {
+    padding: 6px 6px 0;
+}
+
+.dxaudio-graph-result.dxaudio-selected,
+.dxaudio-assets .unity-collection-view__item--selected {
+    color: var(--dxa-theme-text);
+    background-color: var(--dxa-theme-selection);
+    background-image: none;
+}
+
+.dxaudio-assets .unity-collection-view__item--selected .unity-label {
+    color: var(--dxa-theme-text);
+}
+
+.dxaudio-eq-legend {
+    flex-wrap: wrap;
+    background-color: var(--dxa-theme-surface);
+}
+
+.dxaudio-eq-target {
+    color: var(--dxa-theme-target);
+}
+
+.dxaudio-eq-fit {
+    color: var(--dxa-theme-fit);
+}
+
+.dxaudio-eq-saved {
+    color: var(--dxa-theme-saved);
+}

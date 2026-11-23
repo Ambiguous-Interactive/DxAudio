@@ -30,6 +30,7 @@ namespace WallstopStudios.DxAudio.Editor
         internal DspEqCurveAuthoring(DspChainAsset chain)
         {
             _chain = chain;
+            DxAudioEditorTheme.Apply(this);
             List<int> rates = new() { 32_000, 44_100, 48_000, 96_000 };
             int outputRate = AudioSettings.outputSampleRate;
             if (DspEqCurveFit.MinimumFrequencyHz < DspEqCurveFit.GetMaximumFrequencyHz(outputRate) && !rates.Contains(outputRate))
@@ -64,16 +65,17 @@ namespace WallstopStudios.DxAudio.Editor
 
             _plot = new DspEqCurvePlot();
             _plot.TargetChanged += InvalidateFit;
+            RegisterCallback<CustomStyleResolvedEvent>(evt => _plot.ResolveColors(evt.customStyle));
             Add(_plot);
 
             VisualElement legend = DxAudioInspectorUi.Row();
-            legend.style.flexWrap = Wrap.Wrap;
+            legend.AddToClassList("dxaudio-eq-legend");
             Label targetLegend = DxAudioInspectorUi.AddText(legend, "Target");
-            targetLegend.style.color = DspEqCurvePlot.TargetColor;
+            targetLegend.AddToClassList("dxaudio-eq-target");
             _savedLegend = DxAudioInspectorUi.AddText(legend, "Current generated Bells");
-            _savedLegend.style.color = DspEqCurvePlot.SavedColor;
+            _savedLegend.AddToClassList("dxaudio-eq-saved");
             Label fitLegend = DxAudioInspectorUi.AddText(legend, "Proposed fit");
-            fitLegend.style.color = DspEqCurvePlot.FitColor;
+            fitLegend.AddToClassList("dxaudio-eq-fit");
             Add(legend);
 
             Label instructions = new("Drag to draw the target or load an example. Fit the drawing before you save or apply it.");

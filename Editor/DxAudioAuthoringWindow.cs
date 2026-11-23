@@ -84,6 +84,7 @@ namespace WallstopStudios.DxAudio.Editor
         {
             VisualElement root = rootVisualElement;
             root.Clear();
+            DxAudioEditorTheme.Apply(root);
 
             Toolbar toolbar = new();
             toolbar.Add(new ToolbarButton(NewAssetMenu) { text = "Create" });
@@ -132,6 +133,7 @@ namespace WallstopStudios.DxAudio.Editor
                 makeItem = () => new Label(),
                 bindItem = (item, index) => BindAsset((Label)item, index),
             };
+            _list.AddToClassList("dxaudio-assets");
             _list.style.flexGrow = 1;
 #if UNITY_2022_3_OR_NEWER
             _list.selectionChanged += OnAssetSelected;
