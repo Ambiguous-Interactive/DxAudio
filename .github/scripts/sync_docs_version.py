@@ -20,7 +20,7 @@ BANNER_CHIP = re.compile(r'(?m)^[ \t]*<text\b[^>]*\bdata-sync="version"[^>]*>v([
 DOC_PINS = {
     "README.md": INSTALL_PINS,
     "Documentation~/install.md": INSTALL_PINS,
-    "Documentation~/dxaudio-banner.svg": (("banner chip", BANNER_CHIP),),
+    "docs/images/brand/dxaudio-banner.svg": (("banner chip", BANNER_CHIP),),
 }
 
 

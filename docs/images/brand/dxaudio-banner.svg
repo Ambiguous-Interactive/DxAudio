@@ -1,6 +1,7 @@
+<!-- Generated from docs/brand/tokens.json by scripts/brand_check.py. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" width="800" height="200" role="img" aria-labelledby="dxaBannerTitle" aria-describedby="dxaBannerDesc">
   <title id="dxaBannerTitle">DxAudio: sound that composes</title>
-  <desc id="dxaBannerDesc">A DxKit-family teal DxAudio banner: cue assets, pooled voices, ducks that stack.</desc>
+  <desc id="dxaBannerDesc">A DxKit-family DxAudio banner: cue assets, pooled voices, ducks that stack.</desc>
   <!-- Geometry mirrors the DxMessaging banner (800x200, badge at 31,42, text at 132, card at 536). -->
   <defs>
     <linearGradient id="dxaBg" x1="0" y1="0" x2="800" y2="200" gradientUnits="userSpaceOnUse">
@@ -8,7 +9,7 @@
       <stop offset="0.62" stop-color="#10151d"/>
       <stop offset="1" stop-color="#101a19"/>
     </linearGradient>
-    <linearGradient id="dxaTeal" x1="40" y1="32" x2="742" y2="164" gradientUnits="userSpaceOnUse">
+    <linearGradient id="dxaAccent" x1="40" y1="32" x2="742" y2="164" gradientUnits="userSpaceOnUse">
       <stop stop-color="#a8f0e0"/>
       <stop offset="0.48" stop-color="#2fd4b4"/>
       <stop offset="1" stop-color="#1a8f7a"/>
@@ -26,8 +27,8 @@
   </g>
 
   <g transform="translate(31 42)" filter="url(#dxaShadow)">
-    <polygon points="90,44 67,83.84 21,83.84 -2,44 21,4.16 67,4.16" fill="#0d1117" stroke="#222b36" stroke-width="1.5" stroke-linejoin="round"/>
-    <polygon points="84,44 64,78.64 24,78.64 4,44 24,9.36 64,9.36" fill="none" stroke="url(#dxaTeal)" stroke-width="3" stroke-linejoin="round"/>
+    <polygon points="90,44 67,83.84 21,83.84 -2,44 21,4.16 67,4.16" fill="#0d1117" stroke="#232c38" stroke-width="1.5" stroke-linejoin="round"/>
+    <polygon points="84,44 64,78.64 24,78.64 4,44 24,9.36 64,9.36" fill="none" stroke="url(#dxaAccent)" stroke-width="3" stroke-linejoin="round"/>
     <g transform="translate(-4 -4)" stroke="#a8f0e0" stroke-width="5" stroke-linecap="round">
       <line x1="30" y1="44" x2="30" y2="52"/><line x1="39" y1="37" x2="39" y2="59"/>
       <line x1="48" y1="31" x2="48" y2="65"/><line x1="57" y1="39" x2="57" y2="57"/>
@@ -46,7 +47,7 @@
     <rect x="0" y="0" width="92" height="28" rx="8" fill="#2fd4b4"/>
     <text x="46" y="18" text-anchor="middle" fill="#0d1117">Zero alloc</text>
     <rect x="104" y="0" width="64" height="28" rx="8" fill="none" stroke="#4a5462" stroke-width="1.5"/>
-    <text x="136" y="18" text-anchor="middle" fill="#c9d1d9">MIT-0</text>
+    <text x="136" y="18" text-anchor="middle" fill="#c9d2dc">MIT-0</text>
     <!-- Version text must contain vX.Y.Z for version sync (milestone A2). -->
     <rect x="180" y="0" width="76" height="28" rx="8" fill="#0c1016" stroke="#232c38" stroke-width="1"/>
     <text data-sync="version" x="218" y="18" text-anchor="middle" font-family="'JetBrains Mono', 'SF Mono', monospace" font-size="11" font-weight="800" fill="#e9eef4">v0.4.0</text>

@@ -1,0 +1,42 @@
+/* Generated from docs/brand/tokens.json by scripts/brand_check.py. */
+.dxaudio {
+    --dxa-ground: #0d1117;
+    --dxa-well: #0c1016;
+    --dxa-raised: #161b22;
+    --dxa-line: #232c38;
+    --dxa-line-strong: #4a5462;
+    --dxa-muted: #9aa3af;
+    --dxa-ink: #e9eef4;
+    --dxa-body: #c9d2dc;
+    --dxa-accent: #2fd4b4;
+    --dxa-accent-tint: #a8f0e0;
+    --dxa-accent-deep: #1a8f7a;
+    --dxa-light-mark-ring: #0f8f78;
+    --dxa-light-mark-glyph: #0d3b33;
+    --dxa-badge-fill: #12705f;
+    --dxa-white: #ffffff;
+    --dxa-music: #8fa8ff;
+    --dxa-music-tint: #c8d4ff;
+    --dxa-duck: #c9a7ff;
+    --dxa-effect: #f2c58a;
+    --dxa-error: #ff7b72;
+    --dxa-warning: #ffa657;
+    --dxa-warning-surface: #2d2418;
+    --dxa-info: #b4bcc8;
+    --dxa-info-surface: #23262b;
+    --dxa-meter-peak-hold: #f0f0f0;
+    --dxa-editor-window: #1d1d1d;
+    --dxa-editor-panel: #232323;
+    --dxa-editor-toolbar: #262626;
+    --dxa-editor-field: #2a2a2a;
+    --dxa-editor-text: #d2d2d2;
+    --dxa-editor-muted: #9a9a9a;
+    --dxa-banner-mid: #10151d;
+    --dxa-banner-end: #101a19;
+    --dxa-credit: #8b94a1;
+    --dxa-shadow: #000000;
+    --dxa-sfx: #2fd4b4;
+    --dxa-meter-safe: #2fd4b4;
+    --dxa-meter-hot: #f2c58a;
+    --dxa-meter-clip: #ff7b72;
+}

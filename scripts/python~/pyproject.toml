@@ -51,6 +51,7 @@ include = [
     "../../.net-tests/run_checks.py",
     "../../.net-tests/DspInstructions/check_dsp_instructions.py",
     "check.py",
+    "../brand_check.py",
 ]
 
 [tool.unity-helpers-python]
