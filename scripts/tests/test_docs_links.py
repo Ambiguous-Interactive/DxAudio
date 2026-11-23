@@ -45,6 +45,9 @@ class LintSandbox:
     def write(self, relative: str, content: str) -> None:
         write_fixture_file(self.root, relative, content)
 
+    def write_manual(self, relative: str, content: str) -> None:
+        self.write(f"Documentation~/{relative}", "---\ndoc_type: reference\n---\n" + content)
+
     def commit_all(self) -> None:
         """Make the tree a git repository whose current content is committed."""
         for arguments in (
@@ -74,11 +77,11 @@ class LintSandbox:
 def seed_manual(sandbox: LintSandbox) -> None:
     """A valid manual: a page, a heading, a cross-file anchor, and a README."""
     sandbox.write("README.md", "# Package\n\n## Clip lifetime\n\nSee [the manual](Documentation~/index.md).\n")
-    sandbox.write(
-        "Documentation~/index.md",
+    sandbox.write_manual(
+        "index.md",
         "# Manual\n\n## Install\n\nSee [clip lifetime](../README.md#clip-lifetime) and [Cues](cues.md).\n",
     )
-    sandbox.write("Documentation~/cues.md", "# Cues\n\nBack to [the manual](index.md).\n")
+    sandbox.write_manual("cues.md", "# Cues\n\nBack to [the manual](index.md).\n")
 
 
 def case_valid_manual_passes() -> None:
@@ -92,11 +95,35 @@ def case_valid_manual_passes() -> None:
         sandbox.destroy()
 
 
+def case_manual_pages_require_one_valid_doc_type() -> None:
+    sandbox = LintSandbox()
+    try:
+        page = "Documentation~/concepts/voices.md"
+        for metadata in (
+            "",
+            "---\ntitle: Voices\n---\n",
+            "---\ndoc_type: guide\n---\n",
+            "---\ndoc_type: explanation\n",
+            "---\ndoc_type: tutorial\ndoc_type: explanation\n---\n",
+        ):
+            sandbox.write(page, metadata + "# Voices\n")
+            sandbox.run()
+            assert_exit_code(1, f"invalid front matter {metadata!r} must fail", sandbox.last_exit)
+            assert_true(f"{page}: " in sandbox.output and "doc_type" in sandbox.output, "the error names the page and field")
+
+        for doc_type in ("tutorial", "how-to", "reference", "explanation"):
+            sandbox.write(page, f"---\ntitle: Voices\ndoc_type: {doc_type}\n---\n# Voices\n")
+            sandbox.run()
+            assert_exit_code(0, f"{doc_type} must pass: {sandbox.output}", sandbox.last_exit)
+    finally:
+        sandbox.destroy()
+
+
 def case_missing_page_fails() -> None:
     sandbox = LintSandbox()
     try:
         seed_manual(sandbox)
-        sandbox.write("Documentation~/index.md", "# Manual\n\nSee [Gone](gone.md).\n")
+        sandbox.write_manual("index.md", "# Manual\n\nSee [Gone](gone.md).\n")
         sandbox.run()
         assert_exit_code(1, "a link to an uncommitted page must fail", sandbox.last_exit)
         assert_true("Documentation~/index.md" in sandbox.output, "the failure names the linking page")
@@ -120,8 +147,8 @@ def case_missing_anchor_fails() -> None:
 def case_duplicate_heading_anchors_are_numbered() -> None:
     sandbox = LintSandbox()
     try:
-        sandbox.write(
-            "Documentation~/index.md",
+        sandbox.write_manual(
+            "index.md",
             "# Manual\n\n## Notes\n\n## Notes\n\nSee [second](../README.md#notes-1).\n",
         )
         sandbox.write("README.md", "# Package\n\n## Notes\n\n## Notes\n")
@@ -134,8 +161,8 @@ def case_duplicate_heading_anchors_are_numbered() -> None:
 def case_external_and_code_links_are_skipped() -> None:
     sandbox = LintSandbox()
     try:
-        sandbox.write(
-            "Documentation~/index.md",
+        sandbox.write_manual(
+            "index.md",
             "# Manual\n\n"
             "[Unity](https://unity.com), [mail](mailto:dev@example.com), [site](/manual/start.md).\n\n"
             "```markdown\n[example](not-a-real-file.md)\n```\n",
@@ -170,8 +197,8 @@ def case_untracked_targets_are_not_committed() -> None:
 
         # A link to a scratch file resolves on this machine but not on a
         # fresh checkout, so it must fail even though the file exists.
-        sandbox.write("Documentation~/scratch.md", "# Scratch\n")
-        sandbox.write("Documentation~/index.md", "# Manual\n\nSee [scratch](scratch.md).\n")
+        sandbox.write_manual("scratch.md", "# Scratch\n")
+        sandbox.write_manual("index.md", "# Manual\n\nSee [scratch](scratch.md).\n")
         sandbox.run()
         assert_exit_code(1, "a link to an untracked file must fail", sandbox.last_exit)
         assert_true("scratch.md" in sandbox.output, "the failure names the untracked target")
@@ -203,6 +230,7 @@ def case_built_in_scene_guids_are_allowed() -> None:
 
 CASES = (
     case_valid_manual_passes,
+    case_manual_pages_require_one_valid_doc_type,
     case_missing_page_fails,
     case_missing_anchor_fails,
     case_duplicate_heading_anchors_are_numbered,

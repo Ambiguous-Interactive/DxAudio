@@ -1,3 +1,7 @@
+---
+doc_type: how-to
+---
+
 # Ducks
 
 A duck lowers and filters the music while it is held: for dialogue, a menu, a cutscene. Ducks compose, so several
@@ -5,15 +9,9 @@ systems duck and release without knowing about each other.
 
 ## Make a duck
 
-Choose **Create > Wallstop Studios > DxAudio > Music Duck** and set:
+Choose **Create > Wallstop Studios > DxAudio > Music Duck**.
 
-| Field                       | Does                                                         |
-| --------------------------- | ------------------------------------------------------------ |
-| **Holders**                 | `One` or `Many`. See below.                                  |
-| **Volume Scale**            | Multiplier on the music gain while held.                     |
-| **Low Pass Cutoff**         | Lower muffles more. 22000 leaves the low-pass doing nothing. |
-| **High Pass Cutoff**        | Higher thins more. 10 leaves the high-pass doing nothing.    |
-| **Apply / Release Seconds** | How long the change takes, with an ease curve for each.      |
+Choose a holder policy and set the gain, filters, and times in the Inspector. See [duck fields](reference.md#duck-fields).
 
 ## Hold it
 
@@ -30,15 +28,11 @@ already released, or whose duck is gone, releases nothing.
 
 ## One or Many
 
-- **One** holds a state that is on or off, such as a menu. Asserting it again changes nothing, and one release ends it
-  for every holder.
-- **Many** collects one claim per holder, such as two speakers. The music stays down until the last holder releases. A
-  holder destroyed without releasing is released on the next frame.
+[Choose a holder policy](duck-concepts.md#one-or-many).
 
 ## Composing
 
-Every live duck contributes. The result is the most restrictive volume and the most restrictive of each filter cutoff,
-so a dialogue duck and a menu duck together sound like both. A released duck leaves no contribution behind.
+See [duck composition](duck-concepts.md#composing) for how simultaneous ducks affect the mix.
 
 To check the result, read `MusicPlayer.TargetAttenuation` for the composed level and `Attenuation` for the level applied
 this frame. Both report volume, low-pass and high-pass.
@@ -67,6 +61,6 @@ If the music stays quiet, call `DescribeDucks()`. A `Many` duck still lists its 
 
 ## Next
 
-[Troubleshooting](troubleshooting.md).
+See [Duck composition](duck-concepts.md) for how several holds affect the music.
 
 _Snippet compiled in CI._

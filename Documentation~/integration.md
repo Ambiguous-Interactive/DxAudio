@@ -1,3 +1,7 @@
+---
+doc_type: how-to
+---
+
 # DxMessaging integration
 
 DxAudio works without DxMessaging. Install DxMessaging to enable the adapter assembly through its Unity version define.
@@ -45,15 +49,7 @@ SfxLoopStopRequest stop = new(loopId);
 stop.EmitGameObjectTargeted(sfxPlayerObject);
 ```
 
-| Message                 | Kind       | Does                                        |
-| ----------------------- | ---------- | ------------------------------------------- |
-| `SfxPlayRequest`        | Targeted   | Plays one cue by key, flat or at a position |
-| `SfxLoopRequest`        | Targeted   | Holds a looping cue and answers with its id |
-| `SfxLoopStopRequest`    | Targeted   | Ends the loop an id names                   |
-| `SfxStopAllRequest`     | Targeted   | Stops every voice, loops included           |
-| `SfxMuteRequest`        | Untargeted | Sets every effect player's mute state       |
-| `SfxLoopStartedMessage` | Broadcast  | Reports a held loop and its id              |
-| `SfxCueDroppedMessage`  | Broadcast  | Reports a cue that did not play, and why    |
+See [SFX messages](reference.md#sfx-messages) for the other requests and reports.
 
 The adapter mints each loop id and ends every loop it started when it is disabled or destroyed, so a stale id stops
 nothing. A request the player's own library cannot answer is reported once, as `SfxCueDroppedMessage`, rather than
@@ -95,16 +91,7 @@ MusicUnduckRequest unduck = new(duckId);
 unduck.EmitGameObjectTargeted(musicPlayerObject);
 ```
 
-| Message                    | Kind       | Does                                          |
-| -------------------------- | ---------- | --------------------------------------------- |
-| `MusicPlayContextRequest`  | Untargeted | Plays the music a context names               |
-| `MusicStopRequest`         | Untargeted | Fades the music out                           |
-| `MusicDuckRequest`         | Targeted   | Holds the music and answers with its duck id  |
-| `MusicUnduckRequest`       | Targeted   | Releases the duck an id names                 |
-| `AudioPauseRequest`        | Untargeted | Holds or resumes every effect and music voice |
-| `MusicTrackChangedMessage` | Broadcast  | Reports the track that now plays              |
-| `MusicStoppedMessage`      | Broadcast  | Reports that the music stopped                |
-| `MusicDuckStartedMessage`  | Broadcast  | Reports a held duck and its id                |
+See [music messages](reference.md#music-messages) for the full list.
 
 A duck with `MusicDuckHolders.Many` and a holder is released when that holder is destroyed, as with `MusicPlayer.Duck`.
 A `MusicDuckHolders.One` duck is one state for every holder, so it ignores the holder and waits for its id. Destroying

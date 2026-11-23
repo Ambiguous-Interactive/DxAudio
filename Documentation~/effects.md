@@ -1,3 +1,7 @@
+---
+doc_type: reference
+---
+
 # Effects
 
 A cue or a music track can name a **DSP chain**: a list of effects that shape the sound on its way out. A chain is an
@@ -23,40 +27,21 @@ asset, like a cue or a track, so a designer changes the sound without a code cha
 
 ## Author a chain
 
-1. Create one asset per effect with **Create > Wallstop Studios > DxAudio > DSP > Limiter** (or Compressor, Distortion, Bit Crusher, Pitch
-   Shifter, Filter, Delay, Chorus, Tremolo, Phaser, Reverb, Noise Gate, Stereo Width).
-2. Create the list with **Create > Wallstop Studios > DxAudio > DSP > Chain** and add the effects in the order the signal should meet
-   them. Order is the sound: distortion before a compressor is driven and then controlled, and the reverse squashes the
-   quiet part before the drive lifts it again.
-3. Assign the chain to a cue or a track. Both inspectors list the stages in order.
-
-Put a limiter last if a compressor's makeup gain can pass full scale.
+[Create and assign a chain](editor-tools.md#author-a-chain).
 
 ## A player-wide bus
 
 Each player has one **Bus Chain**. It runs after every voice's own chain, so it is one place to shape the whole sound.
 
-<!-- snippet: unity statements SfxPlayer _sfx, MusicPlayer _music, DspChainAsset sfxBus, DspChainAsset musicBus -->
-
-```csharp
-_sfx.BusChain = sfxBus;
-_music.BusChain = musicBus;
-```
-
-Unity gives a script no way to sum one source into another, so the bus runs once per voice rather than on the mixed
-output. Every bus effect, a limiter and a distortion included, acts on one voice at a time: two voices that each fit
+The player bus processes each voice before Unity mixes the output. Every bus effect, a limiter and a distortion included, acts on one voice at a time: two voices that each fit
 under a ceiling can still sum above it. A bus is a shared shaping stage, not an output limiter. Use a mix bus for that.
 
 ## A mix bus
 
 Unity sums every source before it calls an audio filter on the object that carries the `AudioListener`. An **Audio Mix
-Bus** on that object therefore shapes the whole mix, including sources this package does not play:
+Bus** on that object therefore shapes the whole mix, including sources this package does not play.
 
-<!-- snippet: unity statements GameObject _listenerObject, DspChainAsset masterChain -->
-
-```csharp
-_listenerObject.AddComponent<AudioMixBus>().Chain = masterChain;
-```
+See [Set up a DSP bus](editor-tools.md#set-up-a-dsp-bus).
 
 - A limiter here holds a ceiling over the sum. Two voices that each leave their own bus at -6 dB leave this one at
   -6 dB as well, instead of summing above it.
@@ -180,17 +165,7 @@ is -9.1 dB, the mirror the Peak mode does not give.
 
 ## Multiband equalizer
 
-To fit a drawn response, select a **DSP Chain** asset and open **Drawn EQ** in the Inspector.
-
-1. Select the output sample rate and a band limit. Drag across the plot in either direction or load one of the
-   example targets.
-2. Select **Fit target**. Compare the combined Bell response with the target on the 20 Hz to 20 kHz logarithmic
-   axis. The Inspector reports RMS error and the largest sampled error in dB. Compare different band limits and
-   use the one that meets your target.
-3. Select **Save new EQ chain**. The asset saves the target, preview rate, and band limit with its generated Bell stages.
-4. Reopen the asset to compare the target with **Current generated Bells**. Change the target or settings and select
-   **Fit target**. Select **Apply fit to this chain** to save the changes. Unity Undo restores the previous settings
-   and Bell parameters in one step.
+See [Draw an EQ curve](editor-tools.md#draw-an-eq-curve) for the editor steps.
 
 Applying a fit updates generated Bells in place, including Bells shared with other assets. A fit with fewer bands
 removes surplus Bells from the signal path and keeps their sub-assets so existing references still work. Manually
@@ -201,17 +176,7 @@ At lower rates, the shaded part of the plot lies above the fit range. Both curve
 The fitter scores points between draw samples and uses more points near the top of the fit range.
 It measures the result on 2,049 log-spaced points. The maximum error also includes Bell centers and visible draw points.
 
-You can also create one **Filter** asset per band and set its mode to **Bell**. Put the filters in a **Chain** so the signal passes
-through all bands in order. Assign the chain to a cue or track for local shaping, or use it on an [Audio Mix Bus](#a-mix-bus)
-for the listener mix. Inside a graph, put the whole chain in one node on the signal path.
-
-These starting points use **Quality** 1 on every band. Set **Peak Decibels** to 0 for a flat start and adjust the bands
-by ear. The same setup works with other band counts or center frequencies.
-
-| Bands | Center frequencies (Hz)                                           |
-| ----- | ----------------------------------------------------------------- |
-| 7     | 63, 125, 250, 500, 1,000, 2,000, 4,000                            |
-| 11    | 31, 63, 125, 250, 500, 1,000, 2,000, 4,000, 8,000, 12,000, 16,000 |
+See [Build a Bell equalizer](editor-tools.md#build-a-bell-equalizer) for serial chain settings.
 
 Nearby bands overlap. At any given frequency, their gains add in decibels, including the response away from each
 band's center. Each Bell also passes the dry signal, so splitting the bands across parallel graph branches and summing
@@ -287,36 +252,12 @@ A chain runs its stages in series. A **graph** runs chains side by side: a **DSP
 with a chain, and an edge carries one node's block into a later node. A node with several outgoing edges feeds every
 one, which is the fan-out, and a node with several incoming edges sums them, which is the fan-in.
 
-1. Create the graph with **Create > Wallstop Studios > DxAudio > DSP > Graph**.
-2. Add one node per chain the graph runs. Give each node a unique name, then assign its chain. A node with no chain is a
-   junction that passes its input on untouched, which is how a split or a join with no shaping of its own is authored.
-3. Add one edge per connection. Name the node the signal leaves and the node it enters.
-4. Set **Input Node** and **Output Node** to the names of the nodes that receive the voice's block and leave the graph.
-5. Assign the graph to a cue or a track. The graph's **Signal Path** section lists each node with the delay it adds,
-   every edge, and the graph's own delay.
+See [Create a node graph](editor-tools.md#create-a-node-graph) for the editor and C# steps.
 
 The graph runs after the cue's or track's chain and before the player's bus. A node's name is its identity because an
 edge names it, so two nodes may not share one, and an edge to a name no node holds is refused rather than guessed at.
 The cue inspector and the library check report a graph the runtime cannot build, which would otherwise pass the sound
 through unshaped.
-
-A graph can also be built in code. Pass the session's sample rate, such as `AudioSettings.outputSampleRate` in Unity.
-
-<!-- snippet: core statements DspChain roomChain, DspChain dryChain, int sampleRate, float[] buffer -->
-
-```csharp
-DspGraph graph = new();
-_ = graph.TryAddNode(new DspChain(), out int input);
-_ = graph.TryAddNode(roomChain, out int room);
-_ = graph.TryAddNode(dryChain, out int dry);
-_ = graph.TryAddNode(new DspChain(), out int output);
-_ = graph.TryAddEdge(input, room);
-_ = graph.TryAddEdge(input, dry);
-_ = graph.TryAddEdge(room, output);
-_ = graph.TryAddEdge(dry, output);
-_ = graph.TryPrepare(sampleRate, 1024, 2, input, output);
-graph.Process(buffer, 0, buffer.Length, 2);
-```
 
 - A branch that reports less delay is waited for: the graph delays that edge by the difference its chains report, so a
   pitch shifter in one branch and a limiter in another arrive together and sum without a comb. Read the graph's own
@@ -336,8 +277,6 @@ graph.Process(buffer, 0, buffer.Length, 2);
   branch buffer. A cue or a track names at most one chain and one graph.
 - A block whose shape no prepared chain matches passes through and counts in `AudioFilterHost.SkippedBlocks`, so a
   silent bypass is visible rather than guessed at.
-
-_Snippet compiled in CI._
 
 ## Noise Gate
 

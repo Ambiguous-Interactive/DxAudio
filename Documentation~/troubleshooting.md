@@ -1,3 +1,7 @@
+---
+doc_type: how-to
+---
+
 # Troubleshooting
 
 Start with the **Audio Diagnostics** overlay. Add the component, assign both players, and tick **Enabled** in Play mode.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail when a documentation link or a sample scene reference does not resolve.
+"""Check manual page types, documentation links, and sample scene references.
 
 The package ships two ignored trees: ``Documentation~`` (the manual) and
 ``Samples~`` (importable example content). Unity never imports them, so a
@@ -7,6 +7,7 @@ renamed page or a deleted script breaks nothing at compile time; the reader
 only finds out when a link leads nowhere or an imported scene loses the
 script on a GameObject. This lint closes both gaps:
 
+- Each manual page declares exactly one ``doc_type`` in its front matter.
 - Relative links in ``Documentation~``, ``Samples~`` and ``README.md`` must
   point at a path the repository commits. Membership comes from
   ``git ls-files``, so a link to an ignored or untracked scratch file fails
@@ -42,6 +43,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DOCUMENTATION_DIRECTORY = "Documentation~"
 SAMPLES_DIRECTORY = "Samples~"
 ROOT_MARKDOWN = ("README.md",)
+
+DOC_TYPE_FIELD = re.compile(r"^doc_type[ \t]*:[ \t]*(.*)$")
+DOC_TYPES = ("tutorial", "how-to", "reference", "explanation")
 
 INLINE_LINK = re.compile(r"\[[^\[\]]*\]\(\s*([^()\s]+)(?:\s+\"[^\"]*\")?\s*\)")
 HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
@@ -93,6 +97,21 @@ def markdown_files(root: Path) -> List[Path]:
         if base.is_dir():
             files.extend(base.rglob("*.md"))
     return sorted({path.resolve() for path in files if path.is_file()})
+
+
+def check_doc_type(lines: List[str]) -> Optional[str]:
+    """Check the manual's leading front matter and its purpose field."""
+    if lines and lines[0].rstrip() == "---":
+        values: List[str] = []
+        for line in lines[1:]:
+            if line.rstrip() == "---":
+                if len(values) == 1 and values[0] in DOC_TYPES:
+                    return None
+                break
+            field = DOC_TYPE_FIELD.match(line)
+            if field is not None:
+                values.append(field.group(1).strip())
+    return f"front matter must declare one doc_type ({', '.join(DOC_TYPES)})"
 
 
 def scene_files(root: Path) -> List[Path]:
@@ -214,7 +233,7 @@ def check_scene(scene: Path, root: Path, guids: Set[str]) -> List[str]:
 def parse_arguments(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="lint-docs-links",
-        description="Fail when a documentation link or a sample scene reference does not resolve.",
+        description="Check manual page types, documentation links, and sample scene references.",
     )
     parser.add_argument(
         "--repo-root",
@@ -234,11 +253,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     tracked = tracked_paths(root)
     anchor_cache: Dict[Path, Set[str]] = {}
     links = 0
+    manual_pages = 0
+    manual_root = root / DOCUMENTATION_DIRECTORY
     for source in checked_files:
         if options.verbose:
             print(f"[docs-links] checking {display(source, root)}")
         text = source.read_text(encoding="utf-8-sig", errors="replace")
-        for line in prose_lines(text.splitlines()):
+        lines = text.splitlines()
+        if source.is_relative_to(manual_root):
+            manual_pages += 1
+            type_failure = check_doc_type(lines)
+            if type_failure is not None:
+                problems.append(f"{display(source, root)}: {type_failure}")
+        for line in prose_lines(lines):
             for target in INLINE_LINK.findall(line):
                 links += 1
                 failure = check_link(source, target, root, anchor_cache, tracked)
@@ -254,11 +281,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if problems:
         for problem in problems:
             print(f"::error::{problem}", file=sys.stderr)
-        print(f"::error::documentation and sample references disagree in {len(problems)} place(s)")
+        print(f"::error::documentation and sample checks found errors in {len(problems)} place(s)")
         return 1
 
     print(
         f"[docs-links] ok: {links} link(s) in {len(checked_files)} file(s) resolve, "
+        f"{manual_pages} manual page(s) declare a doc_type, "
         f"and {len(scenes)} sample scene(s) reference committed assets"
     )
     return 0

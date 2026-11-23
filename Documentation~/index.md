@@ -1,32 +1,53 @@
+---
+doc_type: reference
+---
+
 # DxAudio documentation
 
 DxAudio plays sound effects and music in Unity 2021.3 and newer. Designers tune assets, and game code calls the players.
 
-| Section         | Where to go                                                                                                                 |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Getting Started | [Install](install.md), [Quickstart](quickstart.md), [BasicUsage sample](../Samples~/BasicUsage/)                            |
-| Guides          | [Sound effects](cues.md), [Music](music.md), [Ducks](ducks.md), [DSP effects](effects.md)                                   |
-| Concepts        | [Voice pool](cues.md#how-a-voice-is-chosen), [Clip lifetime](cues.md#clip-lifetime), [Duck composition](ducks.md#composing) |
-| Editor Tools    | [Authoring and Play Mode diagnostics](editor-tools.md)                                                                      |
-| Troubleshooting | [Playback, drops and samples](troubleshooting.md)                                                                           |
+[Home](index.md) |
+[Getting Started](#getting-started) |
+[Guides](#guides) |
+[Concepts](#concepts) |
+[Editor Tools](#editor-tools) |
+[Reference](#reference) |
+[Troubleshooting](#troubleshooting)
+
+## Getting Started
+
+- [Install DxAudio](install.md)
+- [Play your first sound](quickstart.md)
+- [Open the BasicUsage sample](../Samples~/BasicUsage/)
+
+## Guides
+
+- [Create and play a cue](cues.md)
+- [Set up music and switch tracks](music.md)
+- [Duck music under dialogue](ducks.md)
+- [Drive audio with DxMessaging](integration.md)
 
 ## Concepts
 
-- **Cue.** One sound effect with interchangeable takes, volume, pitch jitter, a rate limit, a priority and 3D falloff.
-- **SFX library.** The cues a player looks up by key and the number of voices it owns.
-- **Track.** One piece of music with a clip, a loop flag, a trim and a start offset under a context name.
-- **Music library.** The tracks a player looks up by context and the fade times.
-- **Duck.** A reason to lower and filter the music, with `One` or `Many` holders.
-- **Voice.** One `AudioSource` the player owns and reuses. Playing a cue claims a voice.
-- **Chain.** An ordered list of effects a cue, a track or a player's bus runs on its voices.
+- [Cue playback](cue-concepts.md) covers voice selection and clip lifetime.
+- [Music playback](music-concepts.md) covers contexts, clip load types, and output.
+- [Duck composition](duck-concepts.md) covers holder policies and combined gain and filters.
+
+## Editor Tools
+
+- [Authoring and Play Mode diagnostics](editor-tools.md)
+- [Build a DSP chain or graph](editor-tools.md#author-a-chain)
 
 ## Reference
 
-- [Cue fields](cues.md#cue-fields)
-- [Music events and state](music.md#events-and-state)
-- [DxMessaging messages](integration.md)
+- [Terms, asset fields, music state, and messages](reference.md)
+- [DSP effects and limits](effects.md)
+- [Changelog](../CHANGELOG.md)
+
+## Troubleshooting
+
+- [Diagnose silent sounds, dropped cues, and other playback problems](troubleshooting.md)
 
 ## See also
 
-- [Development](development.md)
-- [Changelog](../CHANGELOG.md)
+- [Work on the package](development.md)
