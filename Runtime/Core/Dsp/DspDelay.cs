@@ -52,16 +52,17 @@ namespace WallstopStudios.DxAudio
 
             float feedback = _feedback;
             float echoLevel = _echoLevel;
+            float[] history = _history;
             int end = offset + count;
             int position = _position;
             if (!_primed)
             {
                 // Overwrite the old history on the first trip through the ring so a voice reset takes constant time.
-                int prefix = Math.Min(count, _history.Length - position);
-                Array.Copy(buffer, offset, _history, position, prefix);
+                int prefix = Math.Min(count, history.Length - position);
+                Array.Copy(buffer, offset, history, position, prefix);
                 offset += prefix;
                 position += prefix;
-                if (position == _history.Length)
+                if (position == history.Length)
                 {
                     position = 0;
                     _primed = true;
@@ -70,12 +71,14 @@ namespace WallstopStudios.DxAudio
 
             for (int sample = offset; sample < end; ++sample)
             {
-                float input = buffer[sample];
-                float delayed = _history[position];
-                _history[position] = input + delayed * feedback;
-                buffer[sample] = input + delayed * echoLevel;
+                ref float output = ref buffer[sample];
+                ref float tap = ref history[position];
+                float input = output;
+                float delayed = tap;
+                tap = input + delayed * feedback;
+                output = input + delayed * echoLevel;
                 ++position;
-                if (position == _history.Length)
+                if (position == history.Length)
                 {
                     position = 0;
                 }

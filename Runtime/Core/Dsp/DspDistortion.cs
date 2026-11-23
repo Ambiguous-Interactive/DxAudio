@@ -113,11 +113,12 @@ namespace WallstopStudios.DxAudio
                 int frameStart = offset + (frame * stride);
                 for (int channel = 0; channel < stride; ++channel)
                 {
-                    int index = frameStart + channel;
-                    float shaped = (float)Math.Tanh(_activeDrive * buffer[index]);
-                    float filtered = _toneState[channel] + ((shaped - _toneState[channel]) * _activeToneCoefficient);
-                    _toneState[channel] = filtered;
-                    buffer[index] = filtered;
+                    ref float sample = ref buffer[frameStart + channel];
+                    ref float tone = ref _toneState[channel];
+                    float shaped = (float)Math.Tanh(_activeDrive * sample);
+                    float filtered = tone + ((shaped - tone) * _activeToneCoefficient);
+                    tone = filtered;
+                    sample = filtered;
                 }
             }
         }

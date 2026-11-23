@@ -156,6 +156,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [TestCase("Delay", TestName = "Rendering delay across reset and repeat does not allocate")]
+        [TestCase("Distortion", TestName = "Rendering distortion across reset and repeat does not allocate")]
         [TestCase("Chorus", TestName = "Rendering chorus across reset and repeat does not allocate")]
         [TestCase("Tremolo", TestName = "Rendering tremolo across reset and repeat does not allocate")]
         [TestCase("Phaser", TestName = "Rendering phaser across reset and repeat does not allocate")]
@@ -168,6 +169,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             const int Blocks = 128;
             DspEffect effect = stage switch
             {
+                "Distortion" => new DspDistortion(),
                 "Chorus" => new DspChorus { DepthSeconds = DspChorus.MaximumDepthSeconds },
                 "Tremolo" => new DspTremolo { RateHertz = DspTremolo.MaximumRateHertz, Depth = 1f },
                 "Phaser" => new DspPhaser { RateHertz = DspPhaser.MaximumRateHertz, Depth = 1f },
