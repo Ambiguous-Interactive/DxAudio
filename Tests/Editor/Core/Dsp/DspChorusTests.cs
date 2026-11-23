@@ -83,6 +83,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         [TestCase(1)]
         [TestCase(2)]
+        [TestCase(3)]
         [TestCase(8)]
         public void BlockSplitsAndResetPreserveTheSameWetSignal(int channels)
         {
@@ -97,7 +98,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             float[] input = new float[Frames * channels];
             for (int frame = 0; frame < Frames; ++frame)
             {
-                input[frame * channels] = (frame % 13 - 6) / 8f;
+                for (int channel = 0; channel < channels; ++channel)
+                {
+                    input[frame * channels + channel] = ((frame + channel) % 13 - 6) / 8f;
+                }
             }
 
             float[] expected = (float[])input.Clone();

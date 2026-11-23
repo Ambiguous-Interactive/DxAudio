@@ -19,6 +19,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Changed
 
+- Reduce CPU time for Chorus when several voices play at once ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Reduce CPU time for stereo Distortion when several voices play at once ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Reduce CPU time for Reverb when several voices play at once ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 
