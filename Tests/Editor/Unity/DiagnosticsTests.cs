@@ -116,7 +116,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(player.StopLoop(handle), Is.True);
             monitor.SamplePlayer();
 
-            MixMonitorTimeline timeline = monitor.Timeline;
+            MixMonitorTimeline<AudioClip> timeline = monitor.Timeline;
             Assert.That(timeline.Count, Is.EqualTo(2));
             Assert.That(timeline.Voice(1, handle.voice).isHeld, Is.True);
             Assert.That(timeline.Drops(1).notPlayable, Is.EqualTo(1));
@@ -133,6 +133,40 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(timeline.Count, Is.EqualTo(1));
             Assert.That(timeline.Drops(0).Total, Is.Zero);
             Assert.That(monitor.Capture.Counts.Total, Is.Zero);
+        }
+
+        [Test]
+        public void MixMonitorSelectsTheRecordedClipAfterItsVoiceIsReused()
+        {
+            using MadeObjects made = new();
+            SfxCue first = Cue(made, loop: false);
+            SfxCue second = Cue(made, loop: false);
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { first, second }, voiceCount: 1));
+            AudioSource source = player.GetComponentInChildren<AudioSource>();
+            Assert.That(source != null, Is.True);
+            DxAudioMixMonitorWindow monitor = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
+            monitor.SelectPlayer(player);
+
+            Assert.That(monitor.SelectClip(0, 0), Is.False);
+            Assert.That(monitor.Capture.Paused, Is.False);
+
+            player.Paused = true;
+            Assert.That(player.Play(first), Is.True);
+            AudioClip firstClip = source.clip;
+            source.timeSamples = 1_000;
+            monitor.SamplePlayer();
+            player.StopAll();
+            Assert.That(player.Play(second), Is.True);
+            monitor.SamplePlayer();
+
+            Assert.That(monitor.SelectClip(1, 0), Is.True);
+            Assert.That(monitor.Capture.Paused, Is.True);
+            Assert.That(monitor.SelectedClip(), Is.EqualTo((firstClip, 0.125f)));
+            Assert.That(monitor.Timeline.Clip(2, 0).clip, Is.SameAs(source.clip));
+            Assert.That(source.clip, Is.Not.SameAs(firstClip));
+
+            monitor.ToggleCapture();
+            Assert.That(monitor.SelectedClip().clip == null, Is.True);
         }
 
         [Test]

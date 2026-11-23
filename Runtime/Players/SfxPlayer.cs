@@ -406,9 +406,24 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        internal bool TryObserveVoiceState(int voice, out SfxVoiceState state)
+        internal bool TryObserveVoiceState(int voice, out SfxVoiceState state, out AudioClip clip, out float clipSeconds)
         {
-            return ReadVoiceState(voice, repairLostSound: false, out state, out _);
+            bool found = ReadVoiceState(voice, repairLostSound: false, out state, out _);
+            if (found && state.isUsable && !state.IsFree)
+            {
+                AudioSource source = _voices[voice];
+                AudioClip current = source.clip;
+                if (current != null)
+                {
+                    clip = current;
+                    clipSeconds = (float)source.timeSamples / current.frequency;
+                    return true;
+                }
+            }
+
+            clip = null;
+            clipSeconds = 0f;
+            return found;
         }
 
         private bool ReadVoiceState(int voice, bool repairLostSound, out SfxVoiceState state, out int lease)

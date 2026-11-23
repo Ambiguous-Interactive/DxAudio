@@ -166,6 +166,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             started = 0;
             long allocations = AllocationEvents(PlayAndDrop, MeasuredCalls);
             monitor.SamplePlayer();
+            player.Paused = true;
+            Assert.That(player.Play(cue), Is.True);
+            for (int index = 0; index < WarmupCalls; ++index)
+            {
+                monitor.SamplePlayer();
+            }
+
+            Assert.That(monitor.Timeline.Clip(monitor.Timeline.Count - 1, 0).clip != null, Is.True);
             long samplingAllocations = AllocationEvents(monitor.SamplePlayer, MeasuredCalls);
 
             Assert.That(started, Is.EqualTo(MeasuredCalls));
