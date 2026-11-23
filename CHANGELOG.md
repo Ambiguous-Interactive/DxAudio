@@ -26,7 +26,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Fixed
 
-- Reject oversized DSP graph layouts before preparing their effects, even when the requested buffer size would overflow ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
+- Reject DSP graph layouts that would bypass the buffer limit through integer overflow ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 
 ## [0.4.0] - 2026-11-20
 
