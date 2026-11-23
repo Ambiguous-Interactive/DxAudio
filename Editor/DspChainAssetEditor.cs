@@ -39,6 +39,16 @@ namespace WallstopStudios.DxAudio.Editor
                     DxAudioInspectorUi.AddChainRows(rows, asset);
                 }
             );
+            VisualElement problems = new();
+            section.Insert(1, problems);
+            void RefreshProblems()
+            {
+                problems.Clear();
+                problems.Add(new DxAudioInspectorUi.ProblemList(DxAudioValidation.Find(asset)));
+            }
+
+            RefreshProblems();
+            problems.TrackSerializedObjectValue(serializedObject, _ => RefreshProblems());
             DxAudioInspectorUi.RefreshWhilePlaying(rows, asset);
             Foldout eq = new Foldout { text = "Drawn EQ", value = false };
             eq.Add(new DspEqCurveAuthoring(asset));

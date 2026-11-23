@@ -49,7 +49,8 @@ tail before it rotates, because Unity keeps one `Logs/Editor-prev.log` and overw
 ## Artifacts
 
 - Write captures to `.artifacts/` (gitignored). Never commit captures or generated config.
-- A screenshot or state capture that backs a PR goes in the PR body only when it is user-facing; otherwise link the issue and keep the file local.
+- For a visual change, follow the [visual evidence rule](../../context.md#visual-evidence). Capture the base and candidate with matching Unity skin, window size, asset, and state.
+  Keep other state captures local and link the relevant issue.
 
 ## Related
 

@@ -1,5 +1,7 @@
 namespace WallstopStudios.DxAudio.Editor
 {
+    using System;
+    using System.Collections.Generic;
     using UnityEditor;
     using UnityEditor.UIElements;
     using UnityEngine;
@@ -54,6 +56,9 @@ namespace WallstopStudios.DxAudio.Editor
                 return;
             }
 
+            VisualElement problems = DxAudioInspectorUi.AddSection(container, "Problems");
+            IReadOnlyList<DxAudioValidation.Finding> findings = DxAudioValidation.Find(track, clip);
+            problems.Add(new DxAudioInspectorUi.ProblemList(findings, "No active problems.", index => FindFix(findings[index], container, track, clip)));
             VisualElement effects = DxAudioInspectorUi.AddSection(container, "Effects");
             VisualElement rows = new VisualElement();
             effects.Add(rows);
@@ -78,6 +83,16 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 section.Add(new HelpBox(_warning, HelpBoxMessageType.Warning));
             }
+        }
+
+        private Action FindFix(DxAudioValidation.Finding finding, VisualElement container, MusicTrack track, AudioClip clip)
+        {
+            return finding.Rule switch
+            {
+                DxAudioValidation.Rule.NoTrackClip => () => DxAudioInspectorUi.FocusProperty(container.parent, "_clip"),
+                DxAudioValidation.Rule.ClipLoadType => MusicClipImport.CanApply(clip) ? () => Write(track, clip, container) : null,
+                _ => () => DxAudioAuthoringWindow.Open(finding.Asset),
+            };
         }
 
         private VisualElement BuildClipImport(MusicTrack track, AudioClip clip, VisualElement container)

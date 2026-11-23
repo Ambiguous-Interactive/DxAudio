@@ -217,6 +217,27 @@ namespace WallstopStudios.DxAudio.Editor
             UpdateCards();
         }
 
+        internal void MarkProblem(int node, DxAudioValidation.Severity severity)
+        {
+            VisualElement card = _cards[node];
+            if (card.userData is DxAudioValidation.Severity current && (int)current <= (int)severity)
+            {
+                return;
+            }
+
+            if (card.childCount == 4)
+            {
+                card.RemoveAt(3);
+            }
+
+            Image badge = DxAudioInspectorUi.ProblemList.Badge(severity);
+            badge.style.position = Position.Absolute;
+            badge.style.right = 2f;
+            badge.style.top = 2f;
+            card.Add(badge);
+            card.userData = severity;
+        }
+
         internal void SelectNode(int index)
         {
             _selection.Clear();

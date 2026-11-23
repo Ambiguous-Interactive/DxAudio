@@ -58,6 +58,7 @@ namespace WallstopStudios.DxAudio.Editor
 
             _shown.Clear();
             _stages.Clear();
+            _stages.Add(new DxAudioInspectorUi.ProblemList(DxAudioValidation.Find(_chain)));
             bool editable = AssetDatabase.IsOpenForEdit(_chain);
             for (int index = 0; index < effects.Count; ++index)
             {
