@@ -71,7 +71,7 @@ jobs:
         (github.event.pull_request.user.login != 'dependabot[bot]' &&
           github.event.pull_request.head.repo.full_name == github.repository)
       }}
-    # The DSP affinity experiment needs the ELI-MACHINE topology.
+    # Collect the dispatch counter experiment on the machine that reproduced the spikes.
     runs-on: [self-hosted, Windows, RAM-64GB, fast]
     # Leave time for license return and lock release after the maximum wait and both validation modes.
     timeout-minutes: 490
@@ -195,15 +195,6 @@ jobs:
         shell: pwsh
         run: exit 1
 
-      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
-        with:
-          global-json-file: .net-tests/global.json
-
-      - name: Compile the DSP trace reducer
-        timeout-minutes: 5
-        shell: pwsh
-        run: dotnet build .github/perf-trace/Trace.csproj -c Release --artifacts-path "$env:RUNNER_TEMP/dxaudio-trace-tools"
-
       - name: Run EditMode tests without the optional integration
         id: run_editmode_plain
         timeout-minutes: 45
@@ -216,29 +207,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_TEST_LABEL: no-integration
           DXMESSAGING_VERSION: ""
-        run: |
-          $instance = "DxAudio-$($env:GITHUB_RUN_ID)-$($env:GITHUB_RUN_ATTEMPT)"
-          $trace = Join-Path $env:RUNNER_TEMP "$instance.etl"
-          wpr.exe -start CPU -filemode -instancename $instance
-          if ($LASTEXITCODE -ne 0) { throw "WPR could not start the DxAudio CPU trace ($LASTEXITCODE)." }
-          try {
-            ./scripts/unity/run-editmode-tests.ps1 -ActivationRetryBudgetSeconds 0
-          } finally {
-            try {
-              wpr.exe -stop $trace -skipPdbGen -instancename $instance
-              if ($LASTEXITCODE -ne 0) {
-                wpr.exe -cancel -instancename $instance
-                throw "WPR could not save the DxAudio CPU trace."
-              }
-              $results = Join-Path $env:RUNNER_TEMP "dxaudio-results-$($env:UNITY_VERSION)-no-integration/editmode-results.xml"
-              if (Test-Path -LiteralPath $results) {
-                dotnet "$env:RUNNER_TEMP/dxaudio-trace-tools/bin/Trace/release/Trace.dll" $trace $results
-                if ($LASTEXITCODE -ne 0) { throw "Could not correlate the DSP timings with the CPU trace." }
-              }
-            } finally {
-              Remove-Item -LiteralPath $trace -ErrorAction SilentlyContinue
-            }
-          }
+        run: ./scripts/unity/run-editmode-tests.ps1
 
       - name: Run EditMode tests with the optional integration
         id: run_editmode_integration

@@ -15,6 +15,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     /// </remarks>
     public sealed class DspHostTests
     {
+#if UNITY_EDITOR_WIN
+        // PERFORMANCE_DATA reserves sixteen hardware counter slots even for dispatch-only reads.
+        private const ushort DispatchDataSize = 288;
+#endif
+
         private static bool TryReadThreadCycles(out ulong cycles)
         {
 #if UNITY_EDITOR_WIN
@@ -30,21 +35,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static extern IntPtr GetCurrentThread();
 
         [DllImport("kernel32.dll", ExactSpelling = true)]
-        private static extern uint GetCurrentProcessId();
-
-        [DllImport("kernel32.dll", ExactSpelling = true)]
-        private static extern uint GetCurrentThreadId();
-
-        [DllImport("kernel32.dll", ExactSpelling = true)]
         private static extern void GetCurrentProcessorNumberEx(out ProcessorNumber processor);
-
-        [DllImport("kernel32.dll", ExactSpelling = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool QueryPerformanceCounter(out long timestamp);
-
-        [DllImport("kernel32.dll", ExactSpelling = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool QueryPerformanceFrequency(out long frequency);
 
         [DllImport("kernel32.dll", ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
@@ -488,20 +479,36 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             RenderPass[] baselinePasses = new RenderPass[Passes];
             RenderPass[] candidatePasses = new RenderPass[Passes];
             bool haveCycles = true;
+#if UNITY_EDITOR_WIN
+            using ThreadDispatchProfile dispatch = new();
+#endif
             void Measure(DspChain[] chains, long[] elapsed, RenderPass[] passes, int pass)
             {
                 // Bracket the pass, including copies between voices, outside the existing DSP stopwatch windows.
                 RenderPass context = default;
 #if UNITY_EDITOR_WIN
                 GetCurrentProcessorNumberEx(out context.StartCpu);
-                QueryPerformanceCounter(out context.StartTimestamp);
+                bool haveDispatchStart = dispatch.TryRead(out DispatchData dispatchStart);
 #endif
                 bool haveStart = TryReadThreadCycles(out ulong start);
+#if UNITY_EDITOR_WIN
+                long passStart = Stopwatch.GetTimestamp();
+#endif
                 elapsed[pass] = Render(chains);
+#if UNITY_EDITOR_WIN
+                context.OutsideRenderTicks = Stopwatch.GetTimestamp() - passStart - elapsed[pass];
+#endif
                 bool haveEnd = TryReadThreadCycles(out ulong end);
 #if UNITY_EDITOR_WIN
-                QueryPerformanceCounter(out context.EndTimestamp);
+                bool haveDispatchEnd = dispatch.TryRead(out DispatchData dispatchEnd);
                 GetCurrentProcessorNumberEx(out context.EndCpu);
+                if (haveDispatchStart && haveDispatchEnd && dispatchStart.Switches <= dispatchEnd.Switches && dispatchStart.Cycles <= dispatchEnd.Cycles)
+                {
+                    context.HasDispatch = true;
+                    context.DispatchCycles = dispatchEnd.Cycles - dispatchStart.Cycles;
+                    context.Switches = dispatchEnd.Switches - dispatchStart.Switches;
+                    context.WaitMask = dispatchEnd.WaitMask;
+                }
 #endif
                 haveCycles = haveCycles && haveStart && haveEnd && start <= end;
                 context.Cycles = haveCycles ? end - start : 0;
@@ -552,35 +559,32 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 ? $" Pass thread cycles at elapsed ranks, baseline {CyclesAtElapsedRanks(baselinePasses)}, candidate {CyclesAtElapsedRanks(candidatePasses)}."
                 : " Pass thread cycles unavailable.";
             string cpuPlacement = "";
+            string dispatchProfile = "";
 #if UNITY_EDITOR_WIN
             string CpuSpan(RenderPass pass)
             {
                 return $"{pass.StartCpu} to {pass.EndCpu}";
             }
 
-            string TraceSpan(RenderPass pass)
+            string DispatchAtRank(RenderPass pass)
             {
-                return $"{pass.StartTimestamp}-{pass.EndTimestamp} ({CpuSpan(pass)})";
+                return pass.HasDispatch ? $"{pass.DispatchCycles}/{pass.Switches}/0x{pass.WaitMask:X}/{pass.OutsideRenderTicks * tickMicroseconds:F2}" : "unavailable";
             }
 
             cpuPlacement =
                 $" Candidate CPU at elapsed p50, p95, p99, max: {CpuSpan(candidatePasses[Passes / 2])}, "
                 + $"{CpuSpan(candidatePasses[p95])}, {CpuSpan(candidatePasses[p99])}, {CpuSpan(candidatePasses[Passes - 1])}.";
-            if (budget < addedP95 || 2d * candidateTicks[p95] < candidateTicks[Passes - 1])
-            {
-                QueryPerformanceFrequency(out long qpcFrequency);
-                TestContext.Out.WriteLine(
-                    $"DxAudio DSP render: Windows trace for {effect} (bursts {bursts}), {voices} voices. "
-                        + $"PID {GetCurrentProcessId()}, TID {GetCurrentThreadId()}, QPC frequency {qpcFrequency}. "
-                        + $"Baseline p95 {TraceSpan(baselinePasses[p95])}. Candidate p50 {TraceSpan(candidatePasses[Passes / 2])}, "
-                        + $"p95 {TraceSpan(candidatePasses[p95])}, p99 {TraceSpan(candidatePasses[p99])}, max {TraceSpan(candidatePasses[Passes - 1])}."
-                );
-            }
+            dispatchProfile =
+                dispatch.Error == 0
+                    ? $" Dispatch cycles/switches/waits/outside render us at elapsed ranks, baseline p95 {DispatchAtRank(baselinePasses[p95])}, "
+                        + $"candidate p50/p95/p99/max {DispatchAtRank(candidatePasses[Passes / 2])}, {DispatchAtRank(candidatePasses[p95])}, "
+                        + $"{DispatchAtRank(candidatePasses[p99])}, {DispatchAtRank(candidatePasses[Passes - 1])}."
+                    : $" Dispatch profiling unavailable (Windows error {dispatch.Error}).";
 #endif
             TestContext.Out.WriteLine(
                 $"DxAudio DSP render: {effect} (bursts {bursts}), {voices} stereo voices at {Rate} Hz, {Frames} frames, {Passes} passes on {SystemInfo.processorType}: "
                     + $"p50/p95/p99/max in us, baseline {Distribution(baselineTicks)}, candidate {Distribution(candidateTicks)}, "
-                    + $"added p95 {addedP95:F2} us, budget {budget:F2} us.{threadCycles}{cpuPlacement}"
+                    + $"added p95 {addedP95:F2} us, budget {budget:F2} us.{threadCycles}{cpuPlacement}{dispatchProfile}"
             );
             Assert.That(addedP95, Is.LessThanOrEqualTo(budget), $"Added processing must fit within {budgetPercent}% of the block window.");
         }
@@ -985,14 +989,84 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             internal ulong Cycles;
 #if UNITY_EDITOR_WIN
-            internal long StartTimestamp;
-            internal long EndTimestamp;
+            internal bool HasDispatch;
+            internal ulong DispatchCycles;
+            internal uint Switches;
+            internal ulong WaitMask;
+            internal long OutsideRenderTicks;
             internal ProcessorNumber StartCpu;
             internal ProcessorNumber EndCpu;
 #endif
         }
 
 #if UNITY_EDITOR_WIN
+        [StructLayout(LayoutKind.Explicit, Size = DispatchDataSize)]
+        private struct DispatchData
+        {
+            [FieldOffset(0)]
+            internal ushort Size;
+
+            [FieldOffset(2)]
+            internal byte Version;
+
+            [FieldOffset(4)]
+            internal uint Switches;
+
+            [FieldOffset(8)]
+            internal ulong WaitMask;
+
+            [FieldOffset(16)]
+            internal ulong Cycles;
+        }
+
+        private sealed class ThreadDispatchProfile : IDisposable
+        {
+            private const uint Dispatch = 1;
+
+            internal uint Error { get; private set; }
+
+            private readonly IntPtr _handle;
+
+            internal ThreadDispatchProfile()
+            {
+                Error = EnableThreadProfiling(GetCurrentThread(), Dispatch, 0, out IntPtr handle);
+                _handle = Error == 0 ? handle : IntPtr.Zero;
+            }
+
+            [DllImport("kernel32.dll", ExactSpelling = true)]
+            private static extern uint EnableThreadProfiling(IntPtr thread, uint flags, ulong hardwareCounters, out IntPtr handle);
+
+            [DllImport("kernel32.dll", ExactSpelling = true)]
+            private static extern uint ReadThreadProfilingData(IntPtr handle, uint flags, ref DispatchData data);
+
+            [DllImport("kernel32.dll", ExactSpelling = true)]
+            private static extern uint DisableThreadProfiling(IntPtr handle);
+
+            public void Dispose()
+            {
+                if (_handle != IntPtr.Zero)
+                {
+                    uint error = DisableThreadProfiling(_handle);
+                    if (error != 0)
+                    {
+                        TestContext.Out.WriteLine($"Could not disable thread dispatch profiling (Windows error {error}).");
+                    }
+                }
+            }
+
+            internal bool TryRead(out DispatchData data)
+            {
+                data = new DispatchData { Size = DispatchDataSize, Version = 1 };
+                if (Error != 0)
+                {
+                    return false;
+                }
+
+                Error = ReadThreadProfilingData(_handle, Dispatch, ref data);
+                return Error == 0;
+            }
+        }
+
         [StructLayout(LayoutKind.Sequential, Size = 4)]
         private struct ProcessorNumber
         {
