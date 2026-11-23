@@ -166,10 +166,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             started = 0;
             long allocations = AllocationEvents(PlayAndDrop, MeasuredCalls);
             monitor.SamplePlayer();
+            long samplingAllocations = AllocationEvents(monitor.SamplePlayer, MeasuredCalls);
 
             Assert.That(started, Is.EqualTo(MeasuredCalls));
             Assert.That(monitor.Capture.Counts.notPlayable - before, Is.EqualTo(MeasuredCalls));
             Assert.That(allocations, Is.Zero, $"Play allocated {allocations} times over {MeasuredCalls:N0} cue pairs.");
+            Assert.That(samplingAllocations, Is.Zero, $"Sampling allocated {samplingAllocations} times over {MeasuredCalls:N0} reads.");
         }
 
         [TestCase("Distortion")]
