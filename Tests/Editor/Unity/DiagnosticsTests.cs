@@ -107,7 +107,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             SfxCue hum = Cue(made, loop: true);
             SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { hum }, voiceCount: 1));
             DxAudioMixMonitorWindow monitor = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
-            monitor.SelectPlayer(player);
+            monitor.SelectPlayers(player, null);
 
             Assert.That(player.TryPlayLooping(hum, out SfxLoopHandle handle), Is.True);
             Assert.That(player.Play("missing"), Is.False);
@@ -116,7 +116,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(player.StopLoop(handle), Is.True);
             monitor.SamplePlayer();
 
-            MixMonitorTimeline<AudioClip> timeline = monitor.Timeline;
+            MixMonitorTimeline<AudioClip, MusicTrack> timeline = monitor.Timeline;
             Assert.That(timeline.Count, Is.EqualTo(2));
             Assert.That(timeline.Voice(1, handle.voice).isHeld, Is.True);
             Assert.That(timeline.Drops(1).notPlayable, Is.EqualTo(1));
@@ -128,11 +128,56 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(timeline.Voice(2, handle.voice).IsFree, Is.True);
 
             SfxPlayer other = SfxPlayer(made, SfxLibrary.Create(new[] { hum }, voiceCount: 1));
-            monitor.SelectPlayer(other);
+            monitor.SelectPlayers(other, null);
 
             Assert.That(timeline.Count, Is.EqualTo(1));
             Assert.That(timeline.Drops(0).Total, Is.Zero);
             Assert.That(monitor.Capture.Counts.Total, Is.Zero);
+        }
+
+        [Test]
+        public void MixMonitorCapturesBothMusicFadesAndTheAppliedDuckRamp()
+        {
+            using MadeObjects made = new();
+            MusicTrack cave = made.Track(MusicTrack.Create(Clip(made), context: "cave"));
+            MusicTrack boss = made.Track(MusicTrack.Create(Clip(made), context: "boss"));
+            MusicPlayer music = made.Track(new GameObject("music")).AddComponent<MusicPlayer>();
+            music.Library = made.Track(MusicLibrary.Create(new[] { cave, boss }, fadeInSeconds: 1f, fadeOutSeconds: 1f));
+            music.Paused = true;
+            music.Play(cave);
+            music.Tick(1f);
+
+            DxAudioMixMonitorWindow monitor = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
+            monitor.SelectPlayers(null, music);
+            MusicDuck duck = made.Track(MusicDuck.Create(MusicDuckHolders.One, volumeScale: 0.25f, applySeconds: 1f));
+            MusicDuckLease lease = music.Duck(duck);
+            music.Play(boss);
+            music.Tick(0.25f);
+            monitor.SamplePlayer();
+            monitor.ToggleCapture();
+            music.Tick(1f);
+            monitor.SamplePlayer();
+
+            MixMonitorTimeline<AudioClip, MusicTrack> timeline = monitor.Timeline;
+            Assert.That(timeline.Count, Is.EqualTo(2));
+            Assert.That(timeline.Deck(0, 0), Is.EqualTo((cave, 1f)));
+            Assert.That(timeline.Deck(0, 1).track == null, Is.True);
+            Assert.That(timeline.Deck(1, 0).track, Is.SameAs(cave));
+            Assert.That(timeline.Deck(1, 0).fade, Is.EqualTo(1f - MusicEasing.Evaluate(music.Library.FadeOutEase, 0.25f)).Within(0.0001f));
+            Assert.That(timeline.Deck(1, 1).track, Is.SameAs(boss));
+            Assert.That(timeline.Deck(1, 1).fade, Is.EqualTo(MusicEasing.Evaluate(music.Library.FadeInEase, 0.25f)).Within(0.0001f));
+            Assert.That(timeline.DuckGain(0), Is.EqualTo(1f));
+            Assert.That(timeline.DuckGain(1), Is.InRange(0.251f, 0.999f));
+            Assert.That(music.Current, Is.SameAs(boss));
+
+            monitor.ToggleCapture();
+            Assert.That(timeline.StartsSegment(2), Is.True);
+            Assert.That(timeline.Deck(2, 0).track == null, Is.True);
+            Assert.That(timeline.Deck(2, 1), Is.EqualTo((boss, 1f)));
+            Assert.That(timeline.DuckGain(2), Is.EqualTo(0.25f));
+            Assert.That(music.Release(lease), Is.True);
+            music.Stop();
+            music.Tick(1f);
         }
 
         [Test]
@@ -145,7 +190,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             AudioSource source = player.GetComponentInChildren<AudioSource>();
             Assert.That(source != null, Is.True);
             DxAudioMixMonitorWindow monitor = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
-            monitor.SelectPlayer(player);
+            monitor.SelectPlayers(player, null);
 
             Assert.That(monitor.SelectClip(0, 0), Is.False);
             Assert.That(monitor.Capture.Paused, Is.False);
@@ -182,7 +227,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             voice.clip = null;
 
             DxAudioMixMonitorWindow monitor = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
-            monitor.SelectPlayer(player);
+            monitor.SelectPlayers(player, null);
 
             Assert.That(monitor.Timeline.Voice(0, 0).isPaused, Is.True);
             Assert.That(player.TryGetVoiceState(0, out SfxVoiceState repaired, out _), Is.True);

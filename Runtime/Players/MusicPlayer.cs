@@ -23,7 +23,7 @@ namespace WallstopStudios.DxAudio
     [AddComponentMenu("Wallstop Studios/DxAudio/Music Player")]
     public sealed class MusicPlayer : MonoBehaviour
     {
-        private const int VoiceCount = 3;
+        internal const int VoiceCount = 3;
         private const float SweptReleaseSeconds = 0.5f;
         private const float VolumeRampSeconds = 0.01f;
 
@@ -299,6 +299,24 @@ namespace WallstopStudios.DxAudio
         public int CopyDuckHolds(IMusicDuckReason[] reasons, object[] holders, long[] ids)
         {
             return _ducks.CopyHolds(reasons, holders, ids);
+        }
+
+        internal bool TryObserveDeck(int index, out MusicTrack track, out float fade)
+        {
+            if (0 <= index && index < _voices.Length)
+            {
+                Voice voice = _voices[index];
+                if (voice != null && voice.track != null && VoiceClip.HoldsSound(voice.source))
+                {
+                    track = voice.track;
+                    fade = voice.fade.Value;
+                    return true;
+                }
+            }
+
+            track = null;
+            fade = 0f;
+            return false;
         }
 
         /// <summary>Moves fades, ducks, and player volume on by <paramref name="deltaSeconds"/>. Called each frame.</summary>

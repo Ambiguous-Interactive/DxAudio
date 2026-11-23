@@ -137,8 +137,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
             AudioSource voice = player.GetComponentInChildren<AudioSource>();
             Assert.That(voice != null, Is.True, "The cue must use a pooled source.");
+            MusicPlayer music = made.Track(new GameObject("music")).AddComponent<MusicPlayer>();
+            MusicTrack track = made.Track(MusicTrack.Create(cue.Variants[0].Clip));
+            music.Paused = true;
+            music.Play(track);
             DxAudioMixMonitorWindow monitor = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
-            monitor.SelectPlayer(player);
+            monitor.SelectPlayers(player, music);
             if (!Application.isBatchMode)
             {
                 monitor.Show();
@@ -174,6 +178,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
 
             Assert.That(monitor.Timeline.Clip(monitor.Timeline.Count - 1, 0).clip != null, Is.True);
+            Assert.That(monitor.Timeline.Deck(monitor.Timeline.Count - 1, 0).track, Is.SameAs(track));
             long samplingAllocations = AllocationEvents(monitor.SamplePlayer, MeasuredCalls);
 
             Assert.That(started, Is.EqualTo(MeasuredCalls));
