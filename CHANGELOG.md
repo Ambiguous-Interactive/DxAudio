@@ -9,6 +9,7 @@ All notable changes to this package are documented here. The format follows
 ### Added
 
 - Add a Play Mode Mix Monitor to inspect SFX voice history and clip details, and filter drop markers ([#133](https://github.com/Ambiguous-Interactive/DxAudio/issues/133)).
+- Show music deck fades and applied duck gain in the Mix Monitor timeline ([#133](https://github.com/Ambiguous-Interactive/DxAudio/issues/133)).
 - Add DxAudio Problems with named validation rules, project severities, and shared or personal silences ([#135](https://github.com/Ambiguous-Interactive/DxAudio/issues/135)).
 - Add a Stereo Width effect for DSP chains and graphs to narrow or widen stereo signals ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add a room Reverb effect for DSP chains and graphs with adjustable decay and wet level ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).

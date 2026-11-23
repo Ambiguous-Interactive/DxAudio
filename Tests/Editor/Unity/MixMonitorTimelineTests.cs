@@ -6,9 +6,52 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     public sealed class MixMonitorTimelineTests
     {
         [Test]
+        public void MusicDeckFadesAndDuckGainStayWithTheirFrames()
+        {
+            MixMonitorTimeline<int, string> timeline = new(2, deckCount: 2);
+            timeline.Reset(0);
+            timeline.Sample(1d, SfxDropCounts.None, duckGain: 1f);
+            timeline.SetDeck(0, "Cave", 1f);
+
+            timeline.Sample(2d, SfxDropCounts.None, duckGain: 0.4f);
+            timeline.SetDeck(0, "Cave", 0.75f);
+            timeline.SetDeck(1, "Boss", 0.25f);
+
+            timeline.Interrupt();
+            timeline.Sample(3d, SfxDropCounts.None);
+            timeline.SetDeck(1, "Boss", 1f);
+
+            Assert.That(timeline.Deck(0, 0), Is.EqualTo(("Cave", 0.75f)));
+            Assert.That(timeline.Deck(0, 1), Is.EqualTo(("Boss", 0.25f)));
+            Assert.That(timeline.DuckGain(0), Is.EqualTo(0.4f));
+            Assert.That(timeline.Deck(1, 0), Is.EqualTo(((string)null, 0f)));
+            Assert.That(timeline.Deck(1, 1), Is.EqualTo(("Boss", 1f)));
+            Assert.That(timeline.DuckGain(1).HasValue, Is.False);
+            Assert.That(timeline.CanJoin(1, 2d), Is.False);
+
+            timeline.Reset(0);
+            timeline.Sample(4d, SfxDropCounts.None);
+            Assert.That(timeline.Deck(0, 0), Is.EqualTo(((string)null, 0f)));
+            Assert.That(timeline.Deck(0, 1), Is.EqualTo(((string)null, 0f)));
+            Assert.That(timeline.DuckGain(0).HasValue, Is.False);
+        }
+
+        [Test]
+        public void CurvesJoinOnlyAcrossObservedIntervals()
+        {
+            MixMonitorTimeline<int, string> timeline = new(3);
+            timeline.Sample(1d, SfxDropCounts.None);
+            timeline.Sample(1.0625d, SfxDropCounts.None);
+            timeline.Sample(2d, SfxDropCounts.None);
+
+            Assert.That(timeline.CanJoin(1, 0.125d), Is.True);
+            Assert.That(timeline.CanJoin(2, 0.125d), Is.False);
+        }
+
+        [Test]
         public void OldSamplesExpireAndVoiceRowsStayWithTheirFrames()
         {
-            MixMonitorTimeline<int> timeline = new(2);
+            MixMonitorTimeline<int, string> timeline = new(2);
             timeline.Reset(2);
             timeline.Sample(1d, SfxDropCounts.None);
             timeline.Sample(2d, SfxDropCounts.None);
@@ -27,7 +70,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void ClipDetailsStayWithTheSampleAfterAVoiceIsReused()
         {
-            MixMonitorTimeline<int> timeline = new(2);
+            MixMonitorTimeline<int, string> timeline = new(2);
             timeline.Reset(1);
             timeline.Sample(1d, SfxDropCounts.None);
             timeline.Sample(2d, SfxDropCounts.None);
@@ -50,7 +93,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void DropMarkersCountNewDropsAndKeepTheirCountsAfterWraparound()
         {
-            MixMonitorTimeline<int> timeline = new(2);
+            MixMonitorTimeline<int, string> timeline = new(2);
             timeline.Reset(0);
             timeline.Sample(1d, new SfxDropCounts(10, 0, 6, 0, 0));
             Assert.That(timeline.Drops(0).Total, Is.Zero);
@@ -66,7 +109,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void ResumeLeavesAGapAndStartsANewDropBaseline()
         {
-            MixMonitorTimeline<int> timeline = new(4);
+            MixMonitorTimeline<int, string> timeline = new(4);
             timeline.Reset(0);
             timeline.Sample(1d, SfxDropCounts.None);
             timeline.Interrupt();
@@ -82,7 +125,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void SamplesOlderThanTheVisibleTimeRangeExpire()
         {
-            MixMonitorTimeline<int> timeline = new(4);
+            MixMonitorTimeline<int, string> timeline = new(4);
             timeline.Reset(0);
             timeline.Sample(1d, SfxDropCounts.None);
             timeline.Sample(2d, SfxDropCounts.None);
@@ -95,7 +138,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void ResetClearsTheHistoryAndBaselinesTheNextPlayer()
         {
-            MixMonitorTimeline<int> timeline = new(2);
+            MixMonitorTimeline<int, string> timeline = new(2);
             timeline.Reset(2);
             timeline.Sample(1d, new SfxDropCounts(3, 0, 0, 0, 0));
             timeline.SetVoice(0, new SfxVoiceState(true, true, false, SfxPriority.High, 1f));

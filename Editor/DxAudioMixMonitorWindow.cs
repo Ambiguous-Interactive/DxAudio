@@ -10,6 +10,9 @@ namespace WallstopStudios.DxAudio.Editor
     {
         private const int SamplesPerSecond = 20;
         private const double SampleIntervalSeconds = 1d / SamplesPerSecond;
+        private const double MaxSampleGapSeconds = 2d * SampleIntervalSeconds;
+        private const double HistorySeconds = MixMonitorTimeline<AudioClip, MusicTrack>.HistorySeconds;
+        private const int HistoryCapacity = 1 + (int)(SamplesPerSecond * HistorySeconds);
         private const float TrackLabelWidth = 125f;
         private const float TrackHeight = 19f;
 
@@ -21,15 +24,22 @@ namespace WallstopStudios.DxAudio.Editor
         private static readonly CustomStyleProperty<Color> CursorColorRole = new("--dxa-theme-text");
 
         internal MixMonitorDropCapture Capture { get; } = new();
-        internal MixMonitorTimeline<AudioClip> Timeline { get; } = new(1 + (int)(SamplesPerSecond * MixMonitorTimeline<AudioClip>.HistorySeconds));
+        internal MixMonitorTimeline<AudioClip, MusicTrack> Timeline { get; } = new(HistoryCapacity, MusicPlayer.VoiceCount);
+
+        private bool HasSfx => _player != null || 0 < Timeline.VoiceCount || 0 < Capture.Counts.Total;
 
         [SerializeField]
         private SfxPlayer _player;
 
+        [SerializeField]
+        private MusicPlayer _music;
+
+        private readonly Vector3[] _line = new Vector3[HistoryCapacity];
         private double _nextSample;
         private int _cursor;
         private int _selectedVoice = -1;
         private bool _showVoices = true;
+        private bool _showMusic = true;
         private Vector2 _scroll;
         private IMGUIContainer _content;
         private Color _playingColor;
@@ -45,9 +55,12 @@ namespace WallstopStudios.DxAudio.Editor
         {
             DxAudioMixMonitorWindow window = GetWindow<DxAudioMixMonitorWindow>("Mix Monitor");
             GameObject selected = Selection.activeGameObject;
-            if (window._player == null && selected != null)
+            if (selected != null)
             {
-                window.SelectPlayer(selected.GetComponent<SfxPlayer>());
+                window.SelectPlayers(
+                    window._player == null ? selected.GetComponent<SfxPlayer>() : window._player,
+                    window._music == null ? selected.GetComponent<MusicPlayer>() : window._music
+                );
             }
         }
 
@@ -72,16 +85,27 @@ namespace WallstopStudios.DxAudio.Editor
             rootVisualElement.Add(_content);
         }
 
-        internal void SelectPlayer(SfxPlayer player)
+        internal void SelectPlayers(SfxPlayer sfx, MusicPlayer music)
         {
-            if (Capture.Paused || player == _player || (player != null && EditorUtility.IsPersistent(player)))
+            if (sfx != null && EditorUtility.IsPersistent(sfx))
+            {
+                sfx = _player;
+            }
+
+            if (music != null && EditorUtility.IsPersistent(music))
+            {
+                music = _music;
+            }
+
+            if (Capture.Paused || (sfx == _player && music == _music))
             {
                 return;
             }
 
-            _player = player;
+            _player = sfx;
+            _music = music;
             _selectedVoice = -1;
-            Timeline.Reset(player == null ? 0 : player.VoiceCount);
+            Timeline.Reset(sfx == null ? 0 : sfx.VoiceCount);
             _scroll = Vector2.zero;
             SamplePlayer();
         }
@@ -93,26 +117,38 @@ namespace WallstopStudios.DxAudio.Editor
                 return;
             }
 
-            if (_player == null)
+            if (_player == null && _music == null)
             {
                 Timeline.Reset(0);
                 Capture.Sample(SfxDropCounts.None);
                 return;
             }
 
-            if (Timeline.VoiceCount != _player.VoiceCount)
+            int voiceCount = _player == null ? 0 : _player.VoiceCount;
+            if (Timeline.VoiceCount != voiceCount)
             {
-                Timeline.Reset(_player.VoiceCount);
+                Timeline.Reset(voiceCount);
             }
 
-            SfxDropCounts counts = _player.DropCounts;
+            SfxDropCounts counts = _player == null ? SfxDropCounts.None : _player.DropCounts;
             Capture.Sample(counts);
-            Timeline.Sample(EditorApplication.timeSinceStartup, counts);
+            Timeline.Sample(EditorApplication.timeSinceStartup, counts, _music == null ? (float?)null : _music.Attenuation.volumeScale);
             for (int voice = 0; voice < Timeline.VoiceCount; ++voice)
             {
                 if (_player.TryObserveVoiceState(voice, out SfxVoiceState state, out AudioClip clip, out float clipSeconds))
                 {
                     Timeline.SetVoice(voice, state, clip, clipSeconds);
+                }
+            }
+
+            if (_music != null)
+            {
+                for (int deck = 0; deck < Timeline.DeckCount; ++deck)
+                {
+                    if (_music.TryObserveDeck(deck, out MusicTrack track, out float fade))
+                    {
+                        Timeline.SetDeck(deck, track, fade);
+                    }
                 }
             }
 
@@ -228,19 +264,24 @@ namespace WallstopStudios.DxAudio.Editor
         {
             using (new EditorGUI.DisabledScope(Capture.Paused))
             {
-                SfxPlayer selected = (SfxPlayer)EditorGUILayout.ObjectField("SFX Player", _player, typeof(SfxPlayer), allowSceneObjects: true);
-                SelectPlayer(selected);
+                SfxPlayer sfx = (SfxPlayer)EditorGUILayout.ObjectField("SFX Player", _player, typeof(SfxPlayer), allowSceneObjects: true);
+                MusicPlayer music = (MusicPlayer)EditorGUILayout.ObjectField("Music Player", _music, typeof(MusicPlayer), allowSceneObjects: true);
+                if (sfx != _player || music != _music)
+                {
+                    SelectPlayers(sfx, music);
+                    GUIUtility.ExitGUI();
+                }
             }
 
             if (!EditorApplication.isPlaying)
             {
-                EditorGUILayout.HelpBox("Enter Play Mode to capture SFX activity.", MessageType.Info);
+                EditorGUILayout.HelpBox("Enter Play Mode to capture audio activity.", MessageType.Info);
                 return;
             }
 
-            if (_player == null && !Capture.Paused)
+            if (_player == null && _music == null && !Capture.Paused)
             {
-                EditorGUILayout.HelpBox("Select an SFX Player from the scene.", MessageType.Info);
+                EditorGUILayout.HelpBox("Select an SFX or Music Player from the scene.", MessageType.Info);
                 return;
             }
 
@@ -253,7 +294,10 @@ namespace WallstopStudios.DxAudio.Editor
                     GUIUtility.ExitGUI();
                 }
 
-                GUILayout.Label($"Drops: {Capture.VisibleCount}  |  Silenced: {Capture.SilencedCount}", EditorStyles.miniLabel);
+                if (HasSfx)
+                {
+                    GUILayout.Label($"Drops: {Capture.VisibleCount}  |  Silenced: {Capture.SilencedCount}", EditorStyles.miniLabel);
+                }
             }
 
             if (Capture.Paused && 0 <= _selectedVoice)
@@ -269,9 +313,12 @@ namespace WallstopStudios.DxAudio.Editor
                     DrawTimeline();
                 }
 
-                foreach (SfxDropReason reason in MixMonitorDropCapture.Reasons)
+                if (HasSfx)
                 {
-                    DrawDrop(reason);
+                    foreach (SfxDropReason reason in MixMonitorDropCapture.Reasons)
+                    {
+                        DrawDrop(reason);
+                    }
                 }
             }
         }
@@ -293,7 +340,7 @@ namespace WallstopStudios.DxAudio.Editor
         {
             int latest = Timeline.Count - 1;
             double end = Timeline.Time(latest);
-            double start = end - MixMonitorTimeline<AudioClip>.HistorySeconds;
+            double start = end - HistorySeconds;
             using (new EditorGUI.DisabledScope(!Capture.Paused || latest == 0))
             {
                 _cursor = EditorGUILayout.IntSlider("Sample", _cursor, 0, Math.Max(1, latest));
@@ -311,18 +358,86 @@ namespace WallstopStudios.DxAudio.Editor
                 }
                 else
                 {
-                    GUI.Label(new Rect(x, ruler.y, 42f, TrackHeight), $"{(tick - 5) * MixMonitorTimeline<AudioClip>.HistorySeconds / 5d:0} s", EditorStyles.miniLabel);
+                    GUI.Label(new Rect(x, ruler.y, 42f, TrackHeight), $"{(tick - 5) * HistorySeconds / 5d:0} s", EditorStyles.miniLabel);
                 }
             }
 
-            DrawDropTrack(start, end, cursor);
-            _showVoices = EditorGUILayout.Foldout(_showVoices, "SFX voices", toggleOnLabelClick: true);
-            if (_showVoices)
+            if (HasSfx)
             {
-                for (int voice = 0; voice < Timeline.VoiceCount; ++voice)
+                DrawDropTrack(start, end, cursor);
+                _showVoices = EditorGUILayout.Foldout(_showVoices, "SFX voices", toggleOnLabelClick: true);
+                if (_showVoices)
                 {
-                    DrawVoiceTrack(voice, start, end, cursor);
+                    for (int voice = 0; voice < Timeline.VoiceCount; ++voice)
+                    {
+                        DrawVoiceTrack(voice, start, end, cursor);
+                    }
                 }
+            }
+
+            if (_music != null || Timeline.DuckGain(latest).HasValue)
+            {
+                _showMusic = EditorGUILayout.Foldout(_showMusic, "Music", toggleOnLabelClick: true);
+                if (_showMusic)
+                {
+                    for (int deck = 0; deck < Timeline.DeckCount; ++deck)
+                    {
+                        (MusicTrack track, float fade) = Timeline.Deck(_cursor, deck);
+                        string detail = track == null ? "Idle" : $"{fade:P0} {(string.IsNullOrEmpty(track.name) ? track.Context : track.name)}";
+                        DrawMusicCurve($"Deck {deck + 1}  {detail}", deck, start, end, cursor, _heldColor);
+                    }
+
+                    float? gain = Timeline.DuckGain(_cursor);
+                    DrawMusicCurve(gain.HasValue ? $"Duck gain  {gain.Value:P0}" : "Duck gain", -1, start, end, cursor, _playingColor);
+                }
+            }
+        }
+
+        private void DrawMusicCurve(string label, int deck, double start, double end, double cursor, Color color)
+        {
+            Rect row = ReserveTrack(label);
+            if (!_themeReady || Event.current.type != EventType.Repaint)
+            {
+                return;
+            }
+
+            MusicTrack previousTrack = null;
+            int points = 0;
+            using (new Handles.DrawingScope(color))
+            {
+                for (int frame = 0; frame < Timeline.Count; ++frame)
+                {
+                    (MusicTrack track, float fade) = 0 <= deck ? Timeline.Deck(frame, deck) : default;
+                    float? value = 0 <= deck ? (track != null ? fade : (float?)null) : Timeline.DuckGain(frame);
+                    if (!value.HasValue || previousTrack != track || !Timeline.CanJoin(frame, MaxSampleGapSeconds))
+                    {
+                        DrawCurveRun(points, color);
+                        points = 0;
+                    }
+
+                    if (value.HasValue)
+                    {
+                        _line[points++] = new Vector3(TrackX(in row, start, end, Timeline.Time(frame)), Mathf.Lerp(row.yMax - 3f, row.y + 3f, value.Value));
+                    }
+
+                    previousTrack = track;
+                }
+
+                DrawCurveRun(points, color);
+            }
+
+            DrawCursor(in row, start, end, cursor);
+        }
+
+        private void DrawCurveRun(int points, Color color)
+        {
+            if (1 < points)
+            {
+                Handles.DrawAAPolyLine(2f, points, _line);
+            }
+            else if (points == 1)
+            {
+                EditorGUI.DrawRect(new Rect(_line[0].x - 1f, _line[0].y - 1f, 2f, 2f), color);
             }
         }
 
@@ -391,7 +506,7 @@ namespace WallstopStudios.DxAudio.Editor
                 double until = time;
                 if (frame + 1 < Timeline.Count && !Timeline.StartsSegment(frame + 1))
                 {
-                    until = Math.Min(Timeline.Time(frame + 1), time + 2d * SampleIntervalSeconds);
+                    until = Math.Min(Timeline.Time(frame + 1), time + MaxSampleGapSeconds);
                 }
 
                 float left = TrackX(in track, start, end, time);

@@ -46,12 +46,14 @@ See [bus behavior](effects.md#a-player-wide-bus) before choosing where to place 
 
 ## Play Mode diagnostics
 
-Open **Tools > Wallstop Studios > DxAudio > Mix Monitor** in Play Mode and select an SFX Player from the scene.
+Open **Tools > Wallstop Studios > DxAudio > Mix Monitor** in Play Mode. Select an SFX Player, a Music Player, or both from the scene.
 The window shows each drop reason and its Problems rule ID. Counts cover the selected player's lifetime.
 Click **Pause** to hold the current counts. **Resume** refreshes them, including drops that occurred while paused.
 Click an occupied SFX voice bar to pause capture and inspect its recorded clip, playback position, and priority.
 Move the **Sample** slider to inspect the same voice at another point in the retained history.
 Click **Silence** to hide a reason's count and move it into the silenced total. Throttled drops start silenced.
+The **Music** section shows each deck's fade and the applied duck gain on the same ruler as the SFX timeline.
+Pause and move the **Sample** slider to read the deck's track and fade and the duck gain at a point in the capture.
 
 Add an **Audio Diagnostics** component (**Add Component > Wallstop Studios > DxAudio > Audio Diagnostics**) and assign the players. Tick
 **Enabled** in Play mode, or set `diagnostics.Enabled = true`. The overlay lists every busy voice with its priority and
