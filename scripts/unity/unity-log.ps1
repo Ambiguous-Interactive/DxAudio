@@ -169,7 +169,7 @@ function Write-UnityNUnitTimings {
         }
     }
     $renderTimings = @(
-        foreach ($output in $root.SelectNodes('.//test-case[starts-with(@fullname, "WallstopStudios.DxAudio.Tests.Editor.DspHostTests.DspChainsStayWithinTheRenderBudget(")]/output')) {
+        foreach ($output in $root.SelectNodes('.//test-case[starts-with(@fullname, "WallstopStudios.DxAudio.Tests.Editor.DspHostTests.RecordDspRenderWallTime(")]/output')) {
             foreach ($line in ((ConvertTo-SafeUnityReport -Text $output.InnerText) -split '\r?\n')) {
                 if ($line.StartsWith('DxAudio DSP render: ', [StringComparison]::Ordinal)) {
                     "  | $line"

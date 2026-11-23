@@ -72,6 +72,7 @@ if ($args -contains '-runTests') {
     }
     $failed = if ($env:CONTROL -eq 'contradictory-result') { 1 } else { 0 }
     $passed = if ($env:DXMESSAGING_VERSION) { 4 } else { 3 }
+    if ($env:CONTROL -eq 'render-timing') { $passed++ }
     $xml = '<test-run result="Passed" passed="' + $passed + '" total="' + $passed + '" failed="' + $failed + '" skipped="0" inconclusive="0">'
     $fixtureTime = if ($env:CONTROL -eq 'slow-fixture') { '120.100' } else { '4.100' }
     $xml += '<test-suite type="TestFixture" fullname="AnalyzerFixtures" duration="' + $fixtureTime + '">'
@@ -97,6 +98,10 @@ if ($args -contains '-runTests') {
         else { $xml += $case + '</test-suite>' }
     } elseif ($env:DXMESSAGING_VERSION) {
         $xml += '<test-case fullname="OtherTestOutsideIntegration" result="Passed" duration="0.200"/>'
+    }
+    if ($env:CONTROL -eq 'render-timing') {
+        $xml += '<test-case fullname="WallstopStudios.DxAudio.Tests.Editor.DspHostTests.RecordDspRenderWallTime(8,&quot;Noise Gate&quot;,False)" result="Passed" duration="0.200">'
+        $xml += '<output>DxAudio DSP render: Noise Gate, added p95 534.00 us, wall-time reference 426.67 us (over).</output></test-case>'
     }
     $xml += '</test-run>'
     if ($env:CONTROL -eq 'external-entity') { $xml = '<!DOCTYPE test-run [<!ENTITY control SYSTEM "file:///missing.xml">]>' + $xml }
@@ -278,6 +283,14 @@ class UnityRunnerTests(unittest.TestCase):
         self.assertEqual(status, 0, log)
         self.assertIn("::warning::Fixture AnalyzerFixtures took 120.100s", log)
         self.assertIn("### Unity EditMode timings", summary.read_text(encoding="utf-8"))
+
+    def test_over_reference_dsp_timing_is_reported(self):
+        summary = self.root / "summary.md"
+        status, log = self.run_validation(control="render-timing", summary=summary)
+        self.assertEqual(status, 0, log)
+        measurement = "DxAudio DSP render: Noise Gate, added p95 534.00 us, wall-time reference 426.67 us (over)."
+        self.assertIn(measurement, log)
+        self.assertIn(measurement, summary.read_text(encoding="utf-8"))
 
     def test_timeout_kills_the_editor_and_descendant(self):
         child = self.root / "late-child.ps1"

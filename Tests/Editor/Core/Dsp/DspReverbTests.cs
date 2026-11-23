@@ -130,9 +130,10 @@ namespace WallstopStudios.DxAudio.Tests
             Assert.That(output, Is.EqualTo(input));
         }
 
-        [TestCase(2)]
-        [TestCase(8)]
-        public void ChannelsMatchMonoAndSplitBlocksMatchWholeBlocks(int channels)
+        [TestCase(2, 1, TestName = "Single-frame stereo blocks preserve both halves of a pair")]
+        [TestCase(2, 257)]
+        [TestCase(8, 257)]
+        public void ChannelsMatchMonoAndSplitBlocksMatchWholeBlocks(int channels, int blockFrames)
         {
             const int Frames = 9923;
             float[] whole = new float[Frames * channels];
@@ -146,9 +147,9 @@ namespace WallstopStudios.DxAudio.Tests
             Prepare(1).Process(mono, 0, mono.Length, 1);
             Prepare(channels).Process(whole, 0, whole.Length, channels);
             DspReverb effect = Prepare(channels);
-            for (int frame = 0; frame < Frames; frame += 257)
+            for (int frame = 0; frame < Frames; frame += blockFrames)
             {
-                int length = Math.Min(257, Frames - frame);
+                int length = Math.Min(blockFrames, Frames - frame);
                 effect.Process(split, 1 + frame * channels, length * channels, channels);
             }
 

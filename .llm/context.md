@@ -161,6 +161,10 @@ npm run unity:tests    # EditMode through the host bridge, or batchmode when no 
 Escalate on failure; never relax a budget or skip a lane to make a run pass. Record measured outcomes in `progress/`,
 durable constraints here or in `.llm/references/`.
 
+Treat every test or CI failure as a defect to investigate. Preserve the failed run, establish its root cause, and
+verify a fix before landing. Do not retry an unchanged failure to seek a green result. Controlled reproductions
+must test a stated hypothesis and preserve their results, including failures.
+
 ### Planning and session records
 
 - `PLAN.md` holds the current task and selection rules only. Follow [plan-hygiene](./skills/plan-hygiene/SKILL.md).

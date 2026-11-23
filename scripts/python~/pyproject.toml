@@ -49,6 +49,7 @@ include = [
     "../../.github/scripts/test_auto_release.py",
     "../../.net-tests/prepare_analyzers.py",
     "../../.net-tests/run_checks.py",
+    "../../.net-tests/DspInstructions/check_dsp_instructions.py",
     "check.py",
 ]
 

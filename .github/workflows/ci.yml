@@ -17,12 +17,13 @@ concurrency:
 jobs:
   core-tests:
     name: Core tests (.NET)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 2
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           global-json-file: .net-tests/global.json
@@ -30,6 +31,19 @@ jobs:
           cache-dependency-path: .net-tests/**/packages.lock.json
       - name: Compile and analyze Core and run the .NET tests
         run: python3 .net-tests/run_checks.py --clean
+      - name: Install the DSP instruction profiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y mono-runtime libmono-system-core4.0-cil valgrind
+      - name: Check DSP instruction regressions
+        env:
+          BASE_REVISION: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          base="${BASE_REVISION:-HEAD^}"
+          if ! git cat-file -e "$base^{commit}"; then
+            git fetch --no-tags --depth=1 origin "$base"
+          fi
+          python3 .net-tests/DspInstructions/check_dsp_instructions.py "$base"
 
   package-checks:
     name: Format and meta files

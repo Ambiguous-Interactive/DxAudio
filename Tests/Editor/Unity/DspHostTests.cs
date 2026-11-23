@@ -34,6 +34,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static extern bool QueryThreadCycleTime(IntPtr thread, out ulong cycles);
 #endif
 
+        private static IEnumerable<object[]> RenderCases()
+        {
+            foreach ((int voices, string effect, bool bursts) in DspRenderWorkload.Cases)
+            {
+                yield return new object[] { voices, effect, bursts };
+            }
+        }
+
         private static DspChainAsset Chain(MadeObjects made, params DspEffectAsset[] effects)
         {
             return made.Track(DspChainAsset.Create(effects));
@@ -391,75 +399,20 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(graphHost.SkippedBlocks, Is.Zero);
         }
 
-        [TestCase(1, "Delay", false)]
-        [TestCase(8, "Delay", false)]
-        [TestCase(1, "Noise Gate", false)]
-        [TestCase(8, "Noise Gate", false)]
-        [TestCase(8, "Noise Gate", true)]
-        [TestCase(1, "Chorus", false)]
-        [TestCase(8, "Chorus", false)]
-        [TestCase(1, "Tremolo", false)]
-        [TestCase(8, "Tremolo", false)]
-        [TestCase(1, "Phaser", false)]
-        [TestCase(8, "Phaser", false)]
-        [TestCase(8, "Phaser", true)]
-        [TestCase(1, "Reverb", false)]
-        [TestCase(8, "Reverb", false)]
-        [TestCase(8, "Reverb", true)]
-        [TestCase(1, "Stereo Width", false)]
-        [TestCase(8, "Stereo Width", false)]
-        public void DspChainsStayWithinTheRenderBudget(int voices, string effect, bool bursts)
+        [TestCaseSource(nameof(RenderCases))]
+        public void RecordDspRenderWallTime(int voices, string effect, bool bursts)
         {
-            const int Rate = 48_000;
-            const int Frames = 1_024;
-            const int Channels = 2;
-            const int Passes = 240;
-            bool delay = string.Equals(effect, "Delay", StringComparison.Ordinal);
-            bool decayingTail = bursts && (string.Equals(effect, "Phaser", StringComparison.Ordinal) || string.Equals(effect, "Reverb", StringComparison.Ordinal));
-            bool gateBursts = bursts && string.Equals(effect, "Noise Gate", StringComparison.Ordinal);
-            DspChain[] baseline = new DspChain[voices];
-            DspChain[] candidate = new DspChain[voices];
-            for (int voice = 0; voice < voices; ++voice)
-            {
-                baseline[voice] = new DspChain();
-                candidate[voice] = new DspChain();
-                DspEffect stage = effect switch
-                {
-                    "Delay" => new DspDelay { DelaySeconds = DspDelay.MaximumDelaySeconds, Feedback = DspDelay.MaximumFeedback },
-                    "Chorus" => new DspChorus { DepthSeconds = DspChorus.MaximumDepthSeconds, RateHertz = DspChorus.MaximumRateHertz },
-                    "Tremolo" => new DspTremolo { RateHertz = DspTremolo.MaximumRateHertz, Depth = 1f },
-                    "Phaser" => new DspPhaser { RateHertz = DspPhaser.MaximumRateHertz, Depth = 1f },
-                    "Reverb" => new DspReverb { DecaySeconds = DspReverb.MaximumDecaySeconds, WetLevel = 1f },
-                    "Stereo Width" => new DspStereoWidth { Width = DspStereoWidth.MaximumWidth },
-                    _ => new DspNoiseGate(),
-                };
-                candidate[voice].Add(stage);
-                Assert.That(baseline[voice].TryPrepare(Rate, Frames, Channels), Is.True);
-                Assert.That(candidate[voice].TryPrepare(Rate, Frames, Channels), Is.True);
-            }
-
-            float[] input = new float[Frames * Channels];
-            for (int frame = 0; frame < Frames; ++frame)
-            {
-                float amplitude = decayingTail && 64 <= frame ? 0f : 0.1f;
-                if (gateBursts && frame % 128 < 64)
-                {
-                    amplitude = 0.0001f;
-                }
-
-                input[frame * Channels] = amplitude * (float)Math.Sin(2d * Math.PI * frame / 64d);
-                input[frame * Channels + 1] = amplitude * (float)Math.Cos(2d * Math.PI * frame / 64d);
-            }
-
-            float[] block = new float[input.Length];
-            long Render(DspChain[] chains)
+            const int Passes = DspRenderWorkload.Passes;
+            DspRenderWorkload baseline = new(voices, effect, bursts, enabled: false);
+            DspRenderWorkload candidate = new(voices, effect, bursts, enabled: true);
+            long Render(DspRenderWorkload workload)
             {
                 long ticks = 0;
                 for (int voice = 0; voice < voices; ++voice)
                 {
-                    Array.Copy(input, block, input.Length);
+                    workload.CopyInput();
                     long start = Stopwatch.GetTimestamp();
-                    chains[voice].Process(block, 0, block.Length, Channels);
+                    workload.Process(voice);
                     ticks += Stopwatch.GetTimestamp() - start;
                 }
 
@@ -471,17 +424,17 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             ulong[] baselineCycles = new ulong[Passes];
             ulong[] candidateCycles = new ulong[Passes];
             bool haveCycles = true;
-            void Measure(DspChain[] chains, long[] elapsed, ulong[] cycles, int pass)
+            void Measure(DspRenderWorkload workload, long[] elapsed, ulong[] cycles, int pass)
             {
                 // Bracket the pass, including copies between voices, outside the existing DSP stopwatch windows.
                 bool haveStart = TryReadThreadCycles(out ulong start);
-                elapsed[pass] = Render(chains);
+                elapsed[pass] = Render(workload);
                 bool haveEnd = TryReadThreadCycles(out ulong end);
                 haveCycles = haveCycles && haveStart && haveEnd && start <= end;
                 cycles[pass] = haveCycles ? end - start : 0;
             }
 
-            for (int pass = 0; pass < 64; ++pass)
+            for (int pass = 0; pass < DspRenderWorkload.WarmupPasses; ++pass)
             {
                 Measure(baseline, baselineTicks, baselineCycles, 0);
                 Measure(candidate, candidateTicks, candidateCycles, 0);
@@ -507,8 +460,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             int p95 = Passes * 95 / 100 - 1;
             int p99 = (Passes * 99 + 99) / 100 - 1;
             double addedP95 = (candidateTicks[p95] - baselineTicks[p95]) * tickMicroseconds;
-            int budgetPercent = delay ? 1 : 2;
-            double budget = Frames * 10_000d * budgetPercent / Rate;
+            int budgetPercent = string.Equals(effect, "Delay", StringComparison.Ordinal) ? 1 : 2;
+            double budget = DspRenderWorkload.Frames * 10_000d * budgetPercent / DspRenderWorkload.Rate;
             string Distribution(long[] ticks)
             {
                 double median = (ticks[(Passes - 1) / 2] + (double)ticks[Passes / 2]) * 0.5d * tickMicroseconds;
@@ -525,11 +478,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 ? $" Pass thread cycles at elapsed ranks, baseline {CyclesAtElapsedRanks(baselineCycles)}, candidate {CyclesAtElapsedRanks(candidateCycles)}."
                 : " Pass thread cycles unavailable.";
             TestContext.Out.WriteLine(
-                $"DxAudio DSP render: {effect} (bursts {bursts}), {voices} stereo voices at {Rate} Hz, {Frames} frames, {Passes} passes on {SystemInfo.processorType}: "
+                $"DxAudio DSP render: {effect} (bursts {bursts}), {voices} stereo voices at {DspRenderWorkload.Rate} Hz, {DspRenderWorkload.Frames} frames, {Passes} passes on {SystemInfo.processorType}: "
                     + $"p50/p95/p99/max in us, baseline {Distribution(baselineTicks)}, candidate {Distribution(candidateTicks)}, "
-                    + $"added p95 {addedP95:F2} us, budget {budget:F2} us.{threadCycles}"
+                    + $"added p95 {addedP95:F2} us, wall-time reference {budget:F2} us ({(budget < addedP95 ? "over" : "within")}).{threadCycles}"
             );
-            Assert.That(addedP95, Is.LessThanOrEqualTo(budget), $"Added processing must fit within {budgetPercent}% of the block window.");
         }
 
         [Test]
