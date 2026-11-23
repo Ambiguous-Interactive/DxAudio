@@ -103,7 +103,7 @@ _music.Paused = paused;
 Both levels default to 1 and clamp to the range from 0 to 1. They scale new and active voices and survive library
 changes. Music level changes ramp over 10 ms of update time and multiply the track level, fade, and duck gain.
 
-Muting detaches output and keeps state, so loops and music resume in time. Pause holds voices at their playheads
+Muting detaches output and keeps state, so loops and music resume in time. Pause holds each voice at its playhead
 and keeps loops, leases and mute state. A cue or track started during the pause waits at its start.
 See [voice selection](cues.md#how-a-voice-is-chosen) for how paused cues share the pool.
 The player pause settings work independently of `AudioListener.pause`.
