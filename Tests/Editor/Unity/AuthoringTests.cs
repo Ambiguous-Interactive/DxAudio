@@ -57,6 +57,24 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void GraphAndDrawnEqAttachTheSameImportedTheme()
+        {
+            using MadeObjects made = new();
+            DspGraphAsset graph = made.Track(DspGraphAsset.Create(new[] { new DspGraphNode("Input", null) }, null, "Input", "Input"));
+            DspChainAsset chain = made.Track(DspChainAsset.Create(null));
+            DspGraphCanvas canvas = new(graph, new DspGraphEdits(graph), null, null, null);
+            DspEqCurveAuthoring equalizer = new(chain);
+
+            Assert.That(canvas.styleSheets.count, Is.EqualTo(1));
+            StyleSheet theme = canvas.styleSheets[0];
+            Assert.That(theme != null, Is.True);
+            Assert.That(AssetDatabase.GetAssetPath(theme), Does.EndWith("/Editor/DxAudio.uss"));
+            Assert.That(equalizer.styleSheets.Contains(theme), Is.True);
+            Assert.That(canvas.ClassListContains("dxaudio--light"), Is.EqualTo(!EditorGUIUtility.isProSkin));
+            Assert.That(equalizer.ClassListContains("dxaudio--light"), Is.EqualTo(!EditorGUIUtility.isProSkin));
+        }
+
+        [Test]
         public void AnSfxLibraryCheckNamesEveryCueThePlayersCannotReach()
         {
             using MadeObjects made = new();

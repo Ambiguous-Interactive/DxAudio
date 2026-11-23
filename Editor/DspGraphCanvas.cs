@@ -13,6 +13,10 @@ namespace WallstopStudios.DxAudio.Editor
         private const float MinimumZoom = 0.12f;
         private const float MaximumZoom = 1.8f;
         private const int WireSegments = 20;
+        private static readonly CustomStyleProperty<Color> AccentColor = new("--dxa-theme-accent");
+        private static readonly CustomStyleProperty<Color> WireColor = new("--dxa-theme-wire");
+        private static readonly CustomStyleProperty<Color> RejectedColor = new("--dxa-theme-rejected");
+        private static readonly CustomStyleProperty<float> MarqueeOpacity = new("--dxa-marquee-opacity");
         private readonly DspGraphAsset _asset;
         private readonly DspGraphEdits _edits;
         private readonly Action<int> _selectNode;
@@ -22,7 +26,11 @@ namespace WallstopStudios.DxAudio.Editor
         private readonly VisualElement _cards = new() { pickingMode = PickingMode.Ignore };
         private readonly Label _empty = new("Right-click or choose Add Node to start a signal path.") { pickingMode = PickingMode.Ignore };
         private readonly Label _connectionFeedback = new() { pickingMode = PickingMode.Ignore };
-        private readonly Color _accent;
+        private Color _accent;
+        private Color _wire;
+        private Color _rejected;
+        private Color _marquee;
+        private bool _colorsResolved;
         private readonly string _viewKey;
         private Vector2[] _positions = Array.Empty<Vector2>();
         private (int from, int to)[] _links = Array.Empty<(int, int)>();
@@ -48,13 +56,9 @@ namespace WallstopStudios.DxAudio.Editor
             _selectNode = selectNode;
             _selectEdge = selectEdge;
             _report = report;
-            bool dark = EditorGUIUtility.isProSkin;
-            _accent = dark ? new Color(0.36f, 0.8f, 0.74f) : new Color(0.03f, 0.36f, 0.32f);
-            style.backgroundColor = dark ? new Color(0.12f, 0.14f, 0.16f) : new Color(0.82f, 0.85f, 0.87f);
-            style.flexGrow = 1;
-            style.minWidth = 200;
-            style.minHeight = 180;
-            style.overflow = Overflow.Hidden;
+            DxAudioEditorTheme.Apply(this);
+            AddToClassList("dxaudio-graph");
+            RegisterCallback<CustomStyleResolvedEvent>(ResolveColors);
             focusable = true;
             tooltip = "Middle-drag to pan. Scroll to zoom. Right-click to add a node or insert on a wire.";
             string guid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(asset));
@@ -71,19 +75,11 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             Add(_cards);
-            _empty.style.marginLeft = 16;
-            _empty.style.marginTop = 18;
+            _empty.AddToClassList("dxaudio-graph-empty");
+            _empty.AddToClassList("dxaudio-graph-text");
             Add(_empty);
-            _connectionFeedback.style.position = Position.Absolute;
-            _connectionFeedback.style.left = 12f;
-            _connectionFeedback.style.bottom = 12f;
-            _connectionFeedback.style.maxWidth = Length.Percent(90f);
-            _connectionFeedback.style.paddingLeft = 8f;
-            _connectionFeedback.style.paddingRight = 8f;
-            _connectionFeedback.style.paddingTop = 4f;
-            _connectionFeedback.style.paddingBottom = 4f;
-            _connectionFeedback.style.whiteSpace = WhiteSpace.Normal;
-            _connectionFeedback.style.backgroundColor = dark ? new Color(0.22f, 0.25f, 0.28f) : new Color(0.95f, 0.96f, 0.97f);
+            _connectionFeedback.AddToClassList("dxaudio-graph-feedback");
+            _connectionFeedback.AddToClassList("dxaudio-graph-text");
             _connectionFeedback.style.display = DisplayStyle.None;
             Add(_connectionFeedback);
             generateVisualContent += Draw;
@@ -145,6 +141,21 @@ namespace WallstopStudios.DxAudio.Editor
         private static void WriteVertex(MeshWriteData mesh, Vector2 point, Color color)
         {
             mesh.SetNextVertex(new Vertex { position = new Vector3(point.x, point.y, Vertex.nearZ), tint = color });
+        }
+
+        private static VisualElement MakeCard(string title, string subtitle, string ports)
+        {
+            VisualElement card = new() { tooltip = $"{title}\n{subtitle}\n{ports}" };
+            card.AddToClassList("dxaudio-graph-card");
+            foreach (string text in new[] { title, subtitle, ports })
+            {
+                Label label = new(text) { pickingMode = PickingMode.Ignore };
+                label.AddToClassList("dxaudio-graph-text");
+                label.EnableInClassList("dxaudio-graph-title", card.childCount == 0);
+                card.Add(label);
+            }
+
+            return card;
         }
 
         internal void Refresh()
@@ -377,44 +388,8 @@ namespace WallstopStudios.DxAudio.Editor
             return positions;
         }
 
-        private VisualElement MakeCard(string title, string subtitle, string ports)
-        {
-            bool dark = EditorGUIUtility.isProSkin;
-            VisualElement card = new() { tooltip = $"{title}\n{subtitle}\n{ports}" };
-            card.style.position = Position.Absolute;
-            card.style.paddingLeft = 12;
-            card.style.paddingRight = 12;
-            card.style.justifyContent = Justify.Center;
-            card.style.backgroundColor = dark ? new Color(0.22f, 0.25f, 0.28f) : new Color(0.96f, 0.97f, 0.98f);
-            card.style.borderTopLeftRadius = 7;
-            card.style.borderTopRightRadius = 7;
-            card.style.borderBottomLeftRadius = 7;
-            card.style.borderBottomRightRadius = 7;
-            card.style.borderLeftWidth = 1;
-            card.style.borderRightWidth = 1;
-            card.style.borderTopWidth = 2;
-            card.style.borderBottomWidth = 1;
-            card.style.overflow = Overflow.Hidden;
-            foreach (string text in new[] { title, subtitle, ports })
-            {
-                Label label = new(text) { pickingMode = PickingMode.Ignore };
-                label.style.whiteSpace = WhiteSpace.NoWrap;
-                label.style.textOverflow = TextOverflow.Ellipsis;
-                label.style.overflow = Overflow.Hidden;
-                if (card.childCount == 0)
-                {
-                    label.style.unityFontStyleAndWeight = FontStyle.Bold;
-                }
-
-                card.Add(label);
-            }
-
-            return card;
-        }
-
         private void UpdateCards()
         {
-            Color neutralBorder = EditorGUIUtility.isProSkin ? new Color(0.36f, 0.43f, 0.47f) : new Color(0.48f, 0.54f, 0.58f);
             for (int index = 0; index < _positions.Length && index < _cards.childCount; ++index)
             {
                 Rect rect = CardRect(index);
@@ -424,11 +399,7 @@ namespace WallstopStudios.DxAudio.Editor
                 card.style.width = rect.width;
                 card.style.height = rect.height;
                 card.style.fontSize = Mathf.Clamp(13f * _zoom, 8f, 19f);
-                Color edge = _selection.Contains(index) ? _accent : neutralBorder;
-                card.style.borderTopColor = edge;
-                card.style.borderBottomColor = edge;
-                card.style.borderLeftColor = edge;
-                card.style.borderRightColor = edge;
+                card.EnableInClassList("dxaudio-selected", _selection.Contains(index));
                 card[0].style.display = _zoom < 0.27f ? DisplayStyle.None : DisplayStyle.Flex;
                 card[1].style.display = _zoom < 0.58f ? DisplayStyle.None : DisplayStyle.Flex;
                 card[2].style.display = _zoom < 0.75f ? DisplayStyle.None : DisplayStyle.Flex;
@@ -795,36 +766,33 @@ namespace WallstopStudios.DxAudio.Editor
         {
             ClosePicker();
             _picker = new VisualElement();
-            _picker.style.position = Position.Absolute;
+            _picker.AddToClassList("dxaudio-graph-picker");
             _picker.style.left = Mathf.Clamp(point.x, 0f, Mathf.Max(0f, contentRect.width - 245f));
             _picker.style.top = Mathf.Clamp(point.y, 0f, Mathf.Max(0f, contentRect.height - 215f));
             _picker.style.width = Mathf.Min(240f, contentRect.width);
             _picker.style.height = Mathf.Min(210f, contentRect.height);
-            _picker.style.paddingTop = 6;
-            _picker.style.paddingLeft = 6;
-            _picker.style.paddingRight = 6;
-            _picker.style.backgroundColor = EditorGUIUtility.isProSkin ? new Color(0.22f, 0.25f, 0.28f) : new Color(0.95f, 0.96f, 0.97f);
             TextField search = new() { tooltip = "Type to filter. Use Up and Down to select, Enter to confirm, and Escape to close." };
             ScrollView results = new();
             results.style.flexGrow = 1f;
             results.style.minHeight = 0f;
-            _picker.Add(new Label(title));
+            Label heading = new(title);
+            heading.AddToClassList("dxaudio-graph-text");
+            _picker.Add(heading);
             _picker.Add(search);
             _picker.Add(results);
             Add(_picker);
             List<Action> choices = new();
             int selected = -1;
-            Color selectedBackground = EditorGUIUtility.isProSkin ? new Color(0.23f, 0.42f, 0.43f) : new Color(0.68f, 0.83f, 0.81f);
             void SelectResult(int index, bool scroll)
             {
                 if (0 <= selected)
                 {
-                    results.contentContainer[selected].style.backgroundColor = StyleKeyword.Null;
+                    results.contentContainer[selected].RemoveFromClassList("dxaudio-selected");
                 }
 
                 selected = index;
                 VisualElement row = results.contentContainer[selected];
-                row.style.backgroundColor = selectedBackground;
+                row.AddToClassList("dxaudio-selected");
                 if (scroll)
                 {
                     results.ScrollTo(row);
@@ -848,13 +816,17 @@ namespace WallstopStudios.DxAudio.Editor
                         }
 
                         choices.Add(Finish);
-                        results.Add(new Button(Finish) { text = name, tooltip = details });
+                        Button result = new(Finish) { text = name, tooltip = details };
+                        result.AddToClassList("dxaudio-graph-result");
+                        results.Add(result);
                     }
                 );
 
                 if (choices.Count == 0)
                 {
-                    results.Add(new Label("No matching nodes."));
+                    Label empty = new("No matching nodes.");
+                    empty.AddToClassList("dxaudio-graph-text");
+                    results.Add(empty);
                 }
                 else
                 {
@@ -986,40 +958,51 @@ namespace WallstopStudios.DxAudio.Editor
             return result;
         }
 
+        private void ResolveColors(CustomStyleResolvedEvent evt)
+        {
+            ICustomStyle style = evt.customStyle;
+            bool hasOpacity = style.TryGetValue(MarqueeOpacity, out float opacity);
+            _colorsResolved =
+                style.TryGetValue(AccentColor, out _accent) && style.TryGetValue(WireColor, out _wire) && style.TryGetValue(RejectedColor, out _rejected) && hasOpacity;
+            _marquee = _accent;
+            _marquee.a = opacity;
+            MarkDirtyRepaint();
+        }
+
         private void Draw(MeshGenerationContext context)
         {
-            bool dark = EditorGUIUtility.isProSkin;
-            Color wire = dark ? new Color(0.46f, 0.57f, 0.62f) : new Color(0.35f, 0.44f, 0.50f);
-            Color rejected = dark ? new Color(0.85f, 0.32f, 0.30f) : new Color(0.70f, 0.18f, 0.17f);
+            if (!_colorsResolved)
+            {
+                return;
+            }
+
             for (int index = 0; index < _links.Length; ++index)
             {
                 (int from, int to) = _links[index];
                 if (0 <= from && 0 <= to)
                 {
-                    DrawWire(context, Port(from, output: true), Port(to, output: false), index == _edge ? _accent : wire, index == _edge ? 4f : 2f);
+                    DrawWire(context, Port(from, output: true), Port(to, output: false), index == _edge ? _accent : _wire, index == _edge ? 4f : 2f);
                 }
             }
 
             if (0 <= _source)
             {
                 Vector2 end = 0 <= _target ? Port(_target, output: false) : _pointer;
-                Color candidate = 0 <= _target && !_validTarget ? rejected : _accent;
+                Color candidate = 0 <= _target && !_validTarget ? _rejected : _accent;
                 DrawWire(context, Port(_source, output: true), end, candidate, 3f);
             }
 
             for (int index = 0; index < _positions.Length; ++index)
             {
                 float inputRadius = index == _target ? 6f : 4f;
-                Color inputColor = index == _target ? (_validTarget ? _accent : rejected) : wire;
+                Color inputColor = index == _target ? (_validTarget ? _accent : _rejected) : _wire;
                 DrawRect(context, new Rect(Port(index, output: false) - Vector2.one * inputRadius, Vector2.one * (2f * inputRadius)), inputColor);
                 DrawRect(context, new Rect(Port(index, output: true) - Vector2.one * 4f, Vector2.one * 8f), _accent);
             }
 
             if (_boxing)
             {
-                Color shade = _accent;
-                shade.a = 0.24f;
-                DrawRect(context, Box(_down, _pointer), shade);
+                DrawRect(context, Box(_down, _pointer), _marquee);
             }
         }
     }

@@ -13,6 +13,7 @@ from typing import TypedDict, cast
 ROOT = Path(__file__).resolve().parents[1]
 IMAGES = "docs/images/brand"
 HEX = re.compile(r"#[0-9a-fA-F]{3,8}(?![\w-])")
+EDITOR_COLOR = re.compile(r"\b(?:Color|Color32)\s*\(|" + HEX.pattern)
 SWATCH = re.compile(r"#[0-9a-f]{6}")
 GENERATED = "Generated from docs/brand/tokens.json by scripts/brand_check.py."
 
@@ -23,6 +24,7 @@ class BrandTokens(TypedDict):
     fonts: dict[str, str]
     textContrast: list[tuple[str, str]]
     graphicContrast: list[tuple[str, str]]
+    editorSkins: dict[str, dict[str, str]]
 
 
 def luminance(color: str) -> float:
@@ -45,9 +47,9 @@ def check_contrast(colors: dict[str, str], pairs: list[tuple[str, str]], minimum
         print(f"{foreground} on {background}: {ratio:.2f}:1")
 
 
-def stylesheet(selector: str, variables: dict[str, str]) -> str:
+def variable_block(selector: str, variables: dict[str, str]) -> str:
     declarations = "".join(f"    --dxa-{name}: {value};\n" for name, value in variables.items())
-    return f"/* {GENERATED} */\n{selector} {{\n{declarations}}}\n"
+    return f"{selector} {{\n{declarations}}}\n"
 
 
 def svg(template: str, values: dict[str, str]) -> str:
@@ -56,7 +58,42 @@ def svg(template: str, values: dict[str, str]) -> str:
     return f"<!-- {GENERATED} -->\n" + Template(source).substitute(variables)
 
 
-def rendered_assets(colors: dict[str, str], fonts: dict[str, str]) -> dict[str, str]:
+def editor_stylesheet(colors: dict[str, str], skins: dict[str, dict[str, str]]) -> str:
+    rules = (ROOT / ".github" / "brand" / "editor.uss.tmpl").read_text(encoding="utf-8")
+    blocks: list[str] = []
+    for skin in ("dark", "light"):
+        roles = {role: colors[token] for role, token in skins[skin].items()}
+        print(f"Editor {skin} skin:")
+        check_contrast(
+            roles,
+            [("text", background) for background in ("canvas", "surface", "selection")]
+            + [(signal, "surface") for signal in ("target", "fit", "saved")],
+            4.5,
+        )
+        check_contrast(
+            roles,
+            [
+                (mark, background)
+                for mark in ("accent", "wire", "rejected")
+                for background in ("canvas", "surface")
+            ]
+            + [
+                (signal, background)
+                for signal in ("target", "fit", "saved")
+                for background in ("out-of-range", "grid")
+            ],
+            3,
+        )
+        variables = {f"theme-{role}": color for role, color in roles.items()}
+        if skin == "dark":
+            blocks.append(variable_block(".dxaudio", colors | variables))
+        else:
+            blocks.append(variable_block(".dxaudio.dxaudio--light", variables))
+    return "\n".join([f"/* {GENERATED} */", *blocks, rules])
+
+
+def rendered_assets(tokens: BrandTokens, colors: dict[str, str]) -> dict[str, str]:
+    fonts = tokens["fonts"]
     manifest = cast("dict[str, str]", json.loads((ROOT / "package.json").read_bytes()))
     css_fonts = {key: json.dumps(value) for key, value in fonts.items()}
     return {
@@ -67,10 +104,12 @@ def rendered_assets(colors: dict[str, str], fonts: dict[str, str]) -> dict[str, 
             "mark", {"ring": colors["accent"], "glyph": colors["accent-tint"]}
         ),
         f"{IMAGES}/dxaudio-mark-light.svg": svg(
-            "mark", {"ring": colors["light-mark-ring"], "glyph": colors["light-mark-glyph"]}
+            "mark",
+            {"ring": colors["light-mark-ring"], "glyph": colors["light-mark-glyph"]},
         ),
-        "Editor/DxAudio.uss": stylesheet(".dxaudio", colors),
-        "docs/stylesheets/dxaudio.css": stylesheet(":root", colors | css_fonts),
+        "Editor/DxAudio.uss": editor_stylesheet(colors, tokens["editorSkins"]),
+        "docs/stylesheets/dxaudio.css": f"/* {GENERATED} */\n"
+        + variable_block(":root", colors | css_fonts),
     }
 
 
@@ -114,6 +153,18 @@ def check_assets(expected: dict[str, str], palette: set[str], *, write: bool) ->
     return problems
 
 
+def check_editor_colors() -> list[str]:
+    problems = [
+        f"{path.relative_to(ROOT)}:{line_number}: {match[0]}"
+        for path in sorted((ROOT / "Editor").rglob("*.cs"))
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        for match in EDITOR_COLOR.finditer(line)
+    ]
+    if problems:
+        problems.append(f"{len(problems)} Editor color literals. Use DxAudio.uss theme roles.")
+    return problems
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write", action="store_true", help="regenerate the assets")
@@ -129,14 +180,19 @@ def main() -> int:
         colors = colors | {key: colors[target] for key, target in tokens["aliases"].items()}
         check_contrast(colors, tokens["textContrast"], 4.5)
         check_contrast(colors, tokens["graphicContrast"], 3)
-        assets = rendered_assets(colors, tokens["fonts"])
+        assets = rendered_assets(tokens, colors)
         problems = check_assets(assets, palette, write=args.write)
+        problems.extend(check_editor_colors())
     except (OSError, ValueError, KeyError, TypeError) as error:
         print(f"Brand check failed: {error}")
         return 1
     if problems:
         print("\n".join(problems))
-        print("Regenerate missing or stale outputs with uv run scripts/brand_check.py --write.")
+        if any(
+            problem.startswith(("Missing brand output:", "Stale brand output:"))
+            for problem in problems
+        ):
+            print("Regenerate missing or stale outputs with uv run scripts/brand_check.py --write.")
         return 1
     print("Brand assets match tokens.json and pass contrast checks.")
     return 0
