@@ -1,9 +1,13 @@
+---
+doc_type: how-to
+---
+
 # Development
 
 ## The engine-free core
 
 `Runtime/Core` (the arbiter, rate limit, take selection, duck stack, attenuation, ramps, hand-off and override) uses no
-Unity types. Use those types directly to build your own player, and test them on plain .NET:
+Unity types. Run the Core suite on plain .NET:
 
 ```bash
 npm test

@@ -1,3 +1,7 @@
+---
+doc_type: tutorial
+---
+
 # Quickstart
 
 This page plays a cue and starts music in an empty scene. It takes about five minutes.
