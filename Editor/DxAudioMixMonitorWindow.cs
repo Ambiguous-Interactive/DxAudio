@@ -13,12 +13,12 @@ namespace WallstopStudios.DxAudio.Editor
         private const float TrackLabelWidth = 125f;
         private const float TrackHeight = 19f;
 
-        private static readonly CustomStyleProperty<Color> PlayingColor = new("--dxa-theme-accent");
-        private static readonly CustomStyleProperty<Color> HeldColor = new("--dxa-theme-target");
-        private static readonly CustomStyleProperty<Color> PausedColor = new("--dxa-theme-wire");
-        private static readonly CustomStyleProperty<Color> DropColor = new("--dxa-theme-fit");
-        private static readonly CustomStyleProperty<Color> TrackColor = new("--dxa-theme-surface");
-        private static readonly CustomStyleProperty<Color> CursorColor = new("--dxa-theme-text");
+        private static readonly CustomStyleProperty<Color> PlayingColorRole = new("--dxa-theme-accent");
+        private static readonly CustomStyleProperty<Color> HeldColorRole = new("--dxa-theme-target");
+        private static readonly CustomStyleProperty<Color> PausedColorRole = new("--dxa-theme-wire");
+        private static readonly CustomStyleProperty<Color> DropColorRole = new("--dxa-theme-fit");
+        private static readonly CustomStyleProperty<Color> TrackColorRole = new("--dxa-theme-surface");
+        private static readonly CustomStyleProperty<Color> CursorColorRole = new("--dxa-theme-text");
 
         internal MixMonitorDropCapture Capture { get; } = new();
         internal MixMonitorTimeline Timeline { get; } = new(1 + (int)(SamplesPerSecond * MixMonitorTimeline.HistorySeconds));
@@ -50,7 +50,10 @@ namespace WallstopStudios.DxAudio.Editor
             }
         }
 
-        private static float TrackX(in Rect track, double start, double end, double time) => Mathf.Lerp(track.x + 2f, track.xMax - 2f, (float)((time - start) / (end - start)));
+        private static float TrackX(in Rect track, double start, double end, double time)
+        {
+            return Mathf.Lerp(track.x + 2f, track.xMax - 2f, (float)((time - start) / (end - start)));
+        }
 
         private static GUIContent DropLabel(SfxDropReason reason)
         {
@@ -150,12 +153,12 @@ namespace WallstopStudios.DxAudio.Editor
         {
             ICustomStyle style = evt.customStyle;
             _themeReady =
-                style.TryGetValue(PlayingColor, out _playingColor)
-                && style.TryGetValue(HeldColor, out _heldColor)
-                && style.TryGetValue(PausedColor, out _pausedColor)
-                && style.TryGetValue(DropColor, out _dropColor)
-                && style.TryGetValue(TrackColor, out _trackColor)
-                && style.TryGetValue(CursorColor, out _cursorColor);
+                style.TryGetValue(PlayingColorRole, out _playingColor)
+                && style.TryGetValue(HeldColorRole, out _heldColor)
+                && style.TryGetValue(PausedColorRole, out _pausedColor)
+                && style.TryGetValue(DropColorRole, out _dropColor)
+                && style.TryGetValue(TrackColorRole, out _trackColor)
+                && style.TryGetValue(CursorColorRole, out _cursorColor);
             _content.MarkDirtyRepaint();
         }
 
@@ -343,9 +346,9 @@ namespace WallstopStudios.DxAudio.Editor
                 float left = TrackX(in track, start, end, time);
                 float right = TrackX(in track, start, end, until);
                 Color color =
-                    state.isHeld ? HeldColor
-                    : state.isPaused ? PausedColor
-                    : PlayingColor;
+                    state.isPaused ? _pausedColor
+                    : state.isHeld ? _heldColor
+                    : _playingColor;
                 EditorGUI.DrawRect(new Rect(Mathf.Min(left, track.xMax - 1f), track.y + 3f, Mathf.Max(1f, right - left), track.height - 6f), color);
             }
 

@@ -70,15 +70,30 @@ namespace WallstopStudios.DxAudio.Editor
             _voices[_latest * VoiceCount + voice] = state;
         }
 
-        internal double Time(int frame) => _frames[Slot(frame)].time;
+        internal double Time(int frame)
+        {
+            return _frames[Slot(frame)].time;
+        }
 
-        internal bool StartsSegment(int frame) => _frames[Slot(frame)].startsSegment;
+        internal bool StartsSegment(int frame)
+        {
+            return _frames[Slot(frame)].startsSegment;
+        }
 
-        internal SfxDropCounts Drops(int frame) => _frames[Slot(frame)].drops;
+        internal SfxDropCounts Drops(int frame)
+        {
+            return _frames[Slot(frame)].drops;
+        }
 
-        internal ref readonly SfxVoiceState Voice(int frame, int voice) => ref _voices[Slot(frame) * VoiceCount + voice];
+        internal ref readonly SfxVoiceState Voice(int frame, int voice)
+        {
+            return ref _voices[Slot(frame) * VoiceCount + voice];
+        }
 
-        private int Slot(int frame) => (_oldest + frame) % _frames.Length;
+        private int Slot(int frame)
+        {
+            return (_oldest + frame) % _frames.Length;
+        }
 
         private readonly struct Frame
         {
