@@ -1,4 +1,4 @@
-name: DSP CPU throughput investigation
+name: DSP CPU interval counter investigation
 
 on:
   push:
@@ -15,8 +15,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Compare fixed CPU work under original and high QoS
+      - name: Correlate fixed work with processor counters
         shell: pwsh
         env:
           DOTNET_TieredCompilation: "0"
-        run: ./.github/throughput-probe.ps1
+        run: ./.github/throughput-pdh.ps1

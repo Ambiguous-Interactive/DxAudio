@@ -1,23 +1,6 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-powercfg.exe /getactivescheme
-powercfg.exe /query SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMIN
-powercfg.exe /query SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMAX
-
-try {
-    Get-WinEvent -FilterHashtable @{
-        LogName = 'System'
-        ProviderName = 'Microsoft-Windows-Kernel-Processor-Power'
-        Id = 37
-        StartTime = (Get-Date).AddHours(-6)
-    } -MaxEvents 30 | ForEach-Object {
-        Write-Host ("Firmware frequency limit event {0:o}: {1}" -f $_.TimeCreated.ToUniversalTime(), $_.Message)
-    }
-} catch {
-    Write-Host "Firmware frequency limit query: $($_.FullyQualifiedErrorId)"
-}
-
 Add-Type -TypeDefinition @'
 using System;
 using System.ComponentModel;
@@ -54,52 +37,102 @@ public static class DxaThreadDispatchProbe
     [DllImport("kernel32.dll", ExactSpelling = true)]
     private static extern uint DisableThreadProfiling(IntPtr handle);
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Throttling
-    {
-        public uint Version;
-        public uint ControlMask;
-        public uint StateMask;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct ProcessorPower
-    {
-        public uint Number;
-        public uint MaximumMhz;
-        public uint CurrentMhz;
-        public uint LimitMhz;
-        public uint MaximumIdleState;
-        public uint CurrentIdleState;
-    }
-
     [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]
     private static extern UIntPtr SetThreadAffinityMask(IntPtr thread, UIntPtr affinityMask);
 
-    [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]
-    private static extern bool GetThreadInformation(IntPtr thread, int infoClass, ref Throttling state, uint size);
+    [StructLayout(LayoutKind.Explicit, Size = 16)]
+    private struct PdhValue
+    {
+        [FieldOffset(0)] public uint Status;
+        [FieldOffset(8)] public double Value;
+    }
 
-    [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]
-    private static extern bool SetThreadInformation(IntPtr thread, int infoClass, ref Throttling state, uint size);
+    [DllImport("pdh.dll", CharSet = CharSet.Unicode, EntryPoint = "PdhOpenQueryW", ExactSpelling = true)]
+    private static extern uint PdhOpenQuery(string source, UIntPtr data, out IntPtr query);
 
-    [DllImport("powrprof.dll", ExactSpelling = true)]
-    private static extern uint CallNtPowerInformation(int level, IntPtr input, uint inputSize, [Out] ProcessorPower[] power, uint size);
+    [DllImport("pdh.dll", CharSet = CharSet.Unicode, EntryPoint = "PdhAddEnglishCounterW", ExactSpelling = true)]
+    private static extern uint PdhAddEnglishCounter(IntPtr query, string path, UIntPtr data, out IntPtr counter);
 
-    private const int ThreadPowerThrottling = 3;
+    [DllImport("pdh.dll", ExactSpelling = true)]
+    private static extern uint PdhCollectQueryData(IntPtr query);
+
+    [DllImport("pdh.dll", ExactSpelling = true)]
+    private static extern uint PdhGetFormattedCounterValue(IntPtr counter, uint format, IntPtr type, out PdhValue value);
+
+    [DllImport("pdh.dll", ExactSpelling = true)]
+    private static extern uint PdhCloseQuery(IntPtr query);
+
+    private sealed class ProcessorCounters : IDisposable
+    {
+        private static readonly string[] Names = { "% Processor Performance", "% Processor Utility", "% Processor Time", "% DPC Time", "% Interrupt Time" };
+        private readonly IntPtr _query;
+        private readonly IntPtr[] _counters = new IntPtr[Names.Length];
+
+        public ProcessorCounters(int cpu)
+        {
+            uint open = PdhOpenQuery(null, UIntPtr.Zero, out _query);
+            if (open != 0)
+            {
+                Console.WriteLine("  PDH open failed: 0x{0:X8}", open);
+                return;
+            }
+            for (int i = 0; i < _counters.Length; i++)
+            {
+                string path = @"\Processor Information(0," + cpu + @")\" + Names[i];
+                uint result = PdhAddEnglishCounter(_query, path, UIntPtr.Zero, out _counters[i]);
+                if (result != 0)
+                {
+                    Console.WriteLine("  PDH {0} unavailable: 0x{1:X8}", Names[i], result);
+                }
+            }
+        }
+
+        public bool Sample()
+        {
+            if (_query == IntPtr.Zero)
+            {
+                return false;
+            }
+            uint result = PdhCollectQueryData(_query);
+            if (result != 0)
+            {
+                Console.WriteLine("  PDH sample failed: 0x{0:X8}", result);
+            }
+            return result == 0;
+        }
+
+        public void Report()
+        {
+            for (int i = 0; i < _counters.Length; i++)
+            {
+                if (_counters[i] == IntPtr.Zero)
+                {
+                    continue;
+                }
+                uint result = PdhGetFormattedCounterValue(_counters[i], 0x8200, IntPtr.Zero, out PdhValue value);
+                if (result == 0 && value.Status <= 1)
+                {
+                    Console.WriteLine("  PDH {0}: {1:F2}", Names[i], value.Value);
+                }
+                else
+                {
+                    Console.WriteLine("  PDH {0} read failed: 0x{1:X8}, status 0x{2:X8}", Names[i], result, value.Status);
+                }
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_query != IntPtr.Zero)
+            {
+                Require(PdhCloseQuery(_query), "PdhCloseQuery");
+            }
+        }
+    }
 
     public static void RunThroughput()
     {
         IntPtr thread = GetCurrentThread();
-        uint structSize = (uint)Marshal.SizeOf<Throttling>();
-        Throttling original = new Throttling { Version = 1 };
-        if (!GetThreadInformation(thread, ThreadPowerThrottling, ref original, structSize))
-        {
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "GetThreadInformation");
-        }
-        Console.WriteLine("Initial thread power policy: control=0x{0:X}, state=0x{1:X}", original.ControlMask, original.StateMask);
-        Throttling high = original;
-        high.ControlMask |= 1;
-        high.StateMask &= ~1u;
         Require(EnableThreadProfiling(thread, Dispatch, 0, out IntPtr profile), "EnableThreadProfiling");
         try
         {
@@ -112,14 +145,10 @@ public static class DxaThreadDispatchProbe
                 }
                 try
                 {
-                    foreach (bool useHigh in new[] { false, true, true, false })
+                    using var counters = new ProcessorCounters(cpu);
+                    for (int arm = 0; arm < 12; arm++)
                     {
-                        Throttling state = useHigh ? high : original;
-                        if (!SetThreadInformation(thread, ThreadPowerThrottling, ref state, structSize))
-                        {
-                            throw new Win32Exception(Marshal.GetLastWin32Error(), "SetThreadInformation");
-                        }
-                        MeasureThroughput(profile, cpu, useHigh);
+                        MeasureThroughput(profile, cpu, arm, counters);
                     }
                 }
                 finally
@@ -133,13 +162,7 @@ public static class DxaThreadDispatchProbe
         }
         finally
         {
-            bool restored = SetThreadInformation(thread, ThreadPowerThrottling, ref original, structSize);
-            int restoreError = Marshal.GetLastWin32Error();
             Require(DisableThreadProfiling(profile), "DisableThreadProfiling");
-            if (!restored)
-            {
-                throw new Win32Exception(restoreError, "Restore thread power policy");
-            }
         }
     }
 
@@ -155,7 +178,7 @@ public static class DxaThreadDispatchProbe
         return state;
     }
 
-    private static void MeasureThroughput(IntPtr profile, int cpu, bool high)
+    private static void MeasureThroughput(IntPtr profile, int cpu, int arm, ProcessorCounters counters)
     {
         const int samples = 1024;
         const uint seed = 391782497;
@@ -168,11 +191,8 @@ public static class DxaThreadDispatchProbe
         double[] wall = new double[samples];
         ulong[] cycles = new ulong[samples];
         uint[] switches = new uint[samples];
-        var power = new ProcessorPower[Environment.ProcessorCount];
-        uint powerSize = (uint)(power.Length * Marshal.SizeOf<ProcessorPower>());
-        uint beforePower = CallNtPowerInformation(11, IntPtr.Zero, 0, power, powerSize);
-        string beforeState = PowerState(beforePower, power, cpu);
-        Console.WriteLine("CPU {0}, {1}, started {2:o}, power {3}", cpu, high ? "HighQoS" : "original QoS", DateTime.UtcNow, beforeState);
+        Console.WriteLine("CPU {0}, window {1}, started {2:o}", cpu, arm, DateTime.UtcNow);
+        bool collected = counters.Sample();
         for (int i = 0; i < samples; i++)
         {
             PerformanceData before = Read(profile);
@@ -188,8 +208,10 @@ public static class DxaThreadDispatchProbe
             cycles[i] = after.Cycles - before.Cycles;
             switches[i] = after.ContextSwitchCount - before.ContextSwitchCount;
         }
-        uint afterPower = CallNtPowerInformation(11, IntPtr.Zero, 0, power, powerSize);
-        string afterState = PowerState(afterPower, power, cpu);
+        if (collected && counters.Sample())
+        {
+            counters.Report();
+        }
         int[] order = new int[samples];
         for (int i = 0; i < samples; i++)
         {
@@ -201,17 +223,7 @@ public static class DxaThreadDispatchProbe
             int index = order[Math.Max(0, (samples * rank + 99) / 100 - 1)];
             Console.WriteLine("  p{0}: {1:F2} us, {2} dispatch cycles, {3} switches", rank, wall[index], cycles[index], switches[index]);
         }
-        Console.WriteLine("  Ended {0:o}, power {1}, checksum {2}", DateTime.UtcNow, afterState, expected);
-    }
-
-    private static string PowerState(uint result, ProcessorPower[] power, int cpu)
-    {
-        if (result != 0 || cpu >= power.Length || power[cpu].Number != cpu)
-        {
-            return "unavailable (power status 0x" + result.ToString("X") + ")";
-        }
-        return string.Format("{0} current, {1} limited, {2} nominal MHz",
-            power[cpu].CurrentMhz, power[cpu].LimitMhz, power[cpu].MaximumMhz);
+        Console.WriteLine("  Ended {0:o}, checksum {1}", DateTime.UtcNow, expected);
     }
 
     private static PerformanceData Read(IntPtr handle)
