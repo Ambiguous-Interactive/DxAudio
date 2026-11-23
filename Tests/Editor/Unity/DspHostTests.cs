@@ -43,6 +43,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         [DllImport("kernel32.dll", ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool QueryPerformanceCounter(out long timestamp);
+
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool QueryPerformanceFrequency(out long frequency);
+
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool QueryThreadCycleTime(IntPtr thread, out ulong cycles);
 #endif
 
@@ -489,13 +497,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 RenderPass context = default;
 #if UNITY_EDITOR_WIN
                 GetCurrentProcessorNumberEx(out context.StartCpu);
-                context.StartTimestamp = Stopwatch.GetTimestamp();
+                QueryPerformanceCounter(out context.StartTimestamp);
 #endif
                 bool haveStart = TryReadThreadCycles(out ulong start);
                 elapsed[pass] = Render(chains);
                 bool haveEnd = TryReadThreadCycles(out ulong end);
 #if UNITY_EDITOR_WIN
-                context.EndTimestamp = Stopwatch.GetTimestamp();
+                QueryPerformanceCounter(out context.EndTimestamp);
                 GetCurrentProcessorNumberEx(out context.EndCpu);
 #endif
                 haveCycles = haveCycles && haveStart && haveEnd && start <= end;
@@ -568,9 +576,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 + $"{CpuSpan(candidatePasses[p95])}, {CpuSpan(candidatePasses[p99])}, {CpuSpan(candidatePasses[Passes - 1])}.";
             if (budget < addedP95)
             {
+                QueryPerformanceFrequency(out long qpcFrequency);
                 TestContext.Out.WriteLine(
                     $"DxAudio DSP render: Windows trace for {effect} (bursts {bursts}), {voices} voices. "
-                        + $"PID {GetCurrentProcessId()}, TID {GetCurrentThreadId()}, QPC frequency {Stopwatch.Frequency}. "
+                        + $"PID {GetCurrentProcessId()}, TID {GetCurrentThreadId()}, QPC frequency {qpcFrequency}. "
                         + $"Baseline p95 {TraceSpan(baselinePasses[p95])}. Candidate p50 {TraceSpan(candidatePasses[Passes / 2])}, "
                         + $"p95 {TraceSpan(candidatePasses[p95])}, p99 {TraceSpan(candidatePasses[p99])}, max {TraceSpan(candidatePasses[Passes - 1])}."
                 );
