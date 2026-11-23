@@ -194,12 +194,14 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
-            long floats = (long)NodeCount * maxBlockSize * channels;
-            if (MaximumPreparedBytes < floats * sizeof(float))
+            const int maximumSamples = MaximumPreparedBytes / sizeof(float);
+            long blockSamples = (long)maxBlockSize * channels;
+            if (maximumSamples / NodeCount < blockSamples)
             {
                 return false;
             }
 
+            long samples = NodeCount * blockSamples;
             for (int node = 0; node < NodeCount; ++node)
             {
                 if (!_chains[node].TryPrepare(sampleRate, maxBlockSize, channels))
@@ -239,11 +241,11 @@ namespace WallstopStudios.DxAudio
                 _edgeDelayFrames[edge] = delay;
                 if (0 < delay)
                 {
-                    floats += ((long)delay + maxBlockSize) * channels;
+                    samples += ((long)delay + maxBlockSize) * channels;
                 }
             }
 
-            if (MaximumPreparedBytes < floats * sizeof(float))
+            if (maximumSamples < samples)
             {
                 return false;
             }
@@ -251,7 +253,7 @@ namespace WallstopStudios.DxAudio
             float[][] buffers = new float[NodeCount][];
             for (int node = 0; node < NodeCount; ++node)
             {
-                buffers[node] = new float[maxBlockSize * channels];
+                buffers[node] = new float[(int)blockSamples];
             }
 
             float[][] lines = new float[EdgeCount][];
@@ -269,7 +271,7 @@ namespace WallstopStudios.DxAudio
             _input = inputNode;
             _output = outputNode;
             LatencySamples = _age[outputNode];
-            PreparedBytes = (int)(floats * sizeof(float));
+            PreparedBytes = (int)samples * sizeof(float);
             IsPrepared = true;
             Reset();
             return true;
