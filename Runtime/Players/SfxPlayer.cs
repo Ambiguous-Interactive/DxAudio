@@ -260,29 +260,7 @@ namespace WallstopStudios.DxAudio
         /// <returns><see langword="false"/> when the pool has no such voice.</returns>
         public bool TryGetVoiceState(int voice, out SfxVoiceState state, out int lease)
         {
-            if (voice < 0 || _voices.Length <= voice)
-            {
-                state = default;
-                lease = 0;
-                return false;
-            }
-
-            AudioSource source = _voices[voice];
-            bool usable = source != null;
-            if (usable && VoiceClip.HasLostSound(source))
-            {
-                /*
-                    A source whose clip was released, or whose data was unloaded while it played, reports playback
-                    while it makes no sound. It is not busy, and it is silent, so stop it while the pool is being read
-                    anyway.
-                */
-                source.Stop();
-                _voicePaused[voice] = false;
-            }
-
-            state = new SfxVoiceState(usable, VoiceClip.IsSounding(source), _held[voice], _priorities[voice], _startedAt[voice], isPaused: usable && _voicePaused[voice]);
-            lease = _held[voice] ? _leases[voice] : 0;
-            return true;
+            return ReadVoiceState(voice, repairLostSound: true, out state, out lease);
         }
 
         /// <summary>Plays the cue the library lists under <paramref name="key"/>, flat.</summary>
@@ -426,6 +404,38 @@ namespace WallstopStudios.DxAudio
                     _voicePaused[index] = false;
                 }
             }
+        }
+
+        internal bool TryObserveVoiceState(int voice, out SfxVoiceState state)
+        {
+            return ReadVoiceState(voice, repairLostSound: false, out state, out _);
+        }
+
+        private bool ReadVoiceState(int voice, bool repairLostSound, out SfxVoiceState state, out int lease)
+        {
+            if (voice < 0 || _voices.Length <= voice)
+            {
+                state = default;
+                lease = 0;
+                return false;
+            }
+
+            AudioSource source = _voices[voice];
+            bool usable = source != null;
+            if (repairLostSound && usable && VoiceClip.HasLostSound(source))
+            {
+                /*
+                    A source whose clip was released, or whose data was unloaded while it played, reports playback
+                    while it makes no sound. It is not busy, and it is silent, so stop it while the pool is being read
+                    anyway.
+                */
+                source.Stop();
+                _voicePaused[voice] = false;
+            }
+
+            state = new SfxVoiceState(usable, VoiceClip.IsSounding(source), _held[voice], _priorities[voice], _startedAt[voice], isPaused: usable && _voicePaused[voice]);
+            lease = _held[voice] ? _leases[voice] : 0;
+            return true;
         }
 
         private void Awake()
