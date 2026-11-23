@@ -13,6 +13,7 @@ namespace WallstopStudios.DxAudio.Editor
         private const double MaxSampleGapSeconds = 2d * SampleIntervalSeconds;
         private const double HistorySeconds = MixMonitorTimeline<AudioClip, MusicTrack>.HistorySeconds;
         private const int HistoryCapacity = 1 + (int)(SamplesPerSecond * HistorySeconds);
+        private const int DuckHoldCapacity = 32;
         private const float TrackLabelWidth = 125f;
         private const float TrackHeight = 19f;
 
@@ -24,7 +25,7 @@ namespace WallstopStudios.DxAudio.Editor
         private static readonly CustomStyleProperty<Color> CursorColorRole = new("--dxa-theme-text");
 
         internal MixMonitorDropCapture Capture { get; } = new();
-        internal MixMonitorTimeline<AudioClip, MusicTrack> Timeline { get; } = new(HistoryCapacity, MusicPlayer.VoiceCount);
+        internal MixMonitorTimeline<AudioClip, MusicTrack> Timeline { get; } = new(HistoryCapacity, MusicPlayer.VoiceCount, DuckHoldCapacity);
 
         private bool HasSfx => _player != null || 0 < Timeline.VoiceCount || 0 < Capture.Counts.Total;
 
@@ -35,11 +36,15 @@ namespace WallstopStudios.DxAudio.Editor
         private MusicPlayer _music;
 
         private readonly Vector3[] _line = new Vector3[HistoryCapacity];
+        private readonly IMusicDuckReason[] _duckReasons = new IMusicDuckReason[DuckHoldCapacity];
+        private readonly object[] _duckHolders = new object[DuckHoldCapacity];
+        private readonly long[] _duckIds = new long[DuckHoldCapacity];
         private double _nextSample;
         private int _cursor;
         private int _selectedVoice = -1;
         private bool _showVoices = true;
         private bool _showMusic = true;
+        private bool _showDucks = true;
         private Vector2 _scroll;
         private IMGUIContainer _content;
         private Color _playingColor;
@@ -74,6 +79,17 @@ namespace WallstopStudios.DxAudio.Editor
             return DxAudioValidation.TryFromDrop(null, reason, out DxAudioValidation.Finding finding)
                 ? new GUIContent($"{reason} ({DxAudioValidation.Id(finding.Rule)})", DxAudioValidation.Description(finding.Rule))
                 : new GUIContent(reason.ToString());
+        }
+
+        private static string DuckName(IMusicDuckReason reason)
+        {
+            if (reason is MusicDuck asset && asset == null)
+            {
+                return "Destroyed duck";
+            }
+
+            string name = reason.ToString();
+            return string.IsNullOrEmpty(name) ? "Unnamed duck" : name;
         }
 
         public void CreateGUI()
@@ -143,6 +159,13 @@ namespace WallstopStudios.DxAudio.Editor
 
             if (_music != null)
             {
+                int holds = _music.CopyDuckHolds(_duckReasons, _duckHolders, _duckIds);
+                Timeline.SetDuckHolds(_duckReasons, _duckIds, holds);
+                // Only the timeline should retain references, and holders do not belong to the history.
+                int copied = Math.Min(holds, DuckHoldCapacity);
+                Array.Clear(_duckReasons, 0, copied);
+                Array.Clear(_duckHolders, 0, copied);
+
                 for (int deck = 0; deck < Timeline.DeckCount; ++deck)
                 {
                     if (_music.TryObserveDeck(deck, out MusicTrack track, out float fade))
@@ -386,9 +409,76 @@ namespace WallstopStudios.DxAudio.Editor
                         string detail = track == null ? "Idle" : $"{fade:P0} {(string.IsNullOrEmpty(track.name) ? track.Context : track.name)}";
                         DrawMusicCurve($"Deck {deck + 1}  {detail}", deck, start, end, cursor, _heldColor);
                     }
+                }
 
+                _showDucks = EditorGUILayout.Foldout(_showDucks, "Ducks", toggleOnLabelClick: true);
+                if (_showDucks)
+                {
+                    DrawDuckHolds(start, end, cursor);
                     float? gain = Timeline.DuckGain(_cursor);
-                    DrawMusicCurve(gain.HasValue ? $"Duck gain  {gain.Value:P0}" : "Duck gain", -1, start, end, cursor, _playingColor);
+                    DrawMusicCurve(gain.HasValue ? $"Duck gain  {gain.Value:P0}" : "Duck gain", -1, start, end, cursor, _heldColor);
+                }
+            }
+        }
+
+        private void DrawDuckHolds(double start, double end, double cursor)
+        {
+            int omitted = Timeline.OmittedDuckHolds(_cursor);
+            if (0 < omitted)
+            {
+                EditorGUILayout.LabelField($"{omitted} additional holds at this sample", EditorStyles.miniLabel);
+            }
+
+            for (int row = 0; row < Timeline.DuckCapacity; ++row)
+            {
+                int first = 0;
+                while (first < Timeline.Count && Timeline.DuckHold(first, row).reason == null)
+                {
+                    ++first;
+                }
+
+                if (first == Timeline.Count)
+                {
+                    continue;
+                }
+
+                IMusicDuckReason selected = Timeline.DuckHold(_cursor, row).reason;
+                Rect track = ReserveTrack(selected == null ? $"Hold {row + 1}" : DuckName(selected));
+                for (int frame = first; frame < Timeline.Count; )
+                {
+                    (IMusicDuckReason reason, long id) = Timeline.DuckHold(frame, row);
+                    if (reason == null)
+                    {
+                        ++frame;
+                        continue;
+                    }
+
+                    double from = Timeline.Time(frame++);
+                    while (frame < Timeline.Count && Timeline.CanJoin(frame, MaxSampleGapSeconds) && Timeline.DuckHold(frame, row).id == id)
+                    {
+                        ++frame;
+                    }
+
+                    int endFrame = frame < Timeline.Count && Timeline.CanJoin(frame, MaxSampleGapSeconds) ? frame : frame - 1;
+                    float left = TrackX(in track, start, end, from);
+                    float right = TrackX(in track, start, end, Timeline.Time(endFrame));
+                    Rect bar = new(left, track.y + 2f, Mathf.Max(1f, right - left), track.height - 4f);
+                    if (_themeReady && Event.current.type == EventType.Repaint)
+                    {
+                        Color fill = _heldColor;
+                        fill.a *= 0.35f;
+                        EditorGUI.DrawRect(bar, fill);
+                        EditorGUI.DrawRect(new Rect(bar.x, bar.y, 1f, bar.height), _heldColor);
+                        EditorGUI.DrawRect(new Rect(bar.x, bar.yMax - 1f, bar.width, 1f), _heldColor);
+                    }
+
+                    string name = DuckName(reason);
+                    GUI.Label(bar, new GUIContent(name, $"{name} ({reason.Holders}, hold #{id})"), EditorStyles.miniLabel);
+                }
+
+                if (_themeReady && Event.current.type == EventType.Repaint)
+                {
+                    DrawCursor(in track, start, end, cursor);
                 }
             }
         }

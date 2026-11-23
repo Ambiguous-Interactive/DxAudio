@@ -142,6 +142,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             music.Paused = true;
             music.Play(track);
             DxAudioMixMonitorWindow monitor = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
+            MusicDuck duck = made.Track(MusicDuck.Create(MusicDuckHolders.Many, 0.5f, applySeconds: 0f));
+            for (int hold = 0; hold < monitor.Timeline.DuckCapacity; ++hold)
+            {
+                music.Duck(duck);
+            }
+
             monitor.SelectPlayers(player, music);
             if (!Application.isBatchMode)
             {
@@ -179,6 +185,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(monitor.Timeline.Clip(monitor.Timeline.Count - 1, 0).clip != null, Is.True);
             Assert.That(monitor.Timeline.Deck(monitor.Timeline.Count - 1, 0).track, Is.SameAs(track));
+            Assert.That(monitor.Timeline.DuckHold(monitor.Timeline.Count - 1, monitor.Timeline.DuckCapacity - 1).reason, Is.SameAs(duck));
             long samplingAllocations = AllocationEvents(monitor.SamplePlayer, MeasuredCalls);
 
             Assert.That(started, Is.EqualTo(MeasuredCalls));
