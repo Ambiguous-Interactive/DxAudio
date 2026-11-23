@@ -59,6 +59,8 @@ Title at most 50 characters, naming the user-visible effect. No validation trans
 bot, or automation that has not reviewed the pull request. Asking an existing reviewer to re-review after its threads are
 resolved is allowed, and is the way out of a stale blocking review.
 
+For any visual change, follow the [visual evidence rule](../../context.md#visual-evidence) and attach the comparison in the description.
+
 ## Tooling
 
 Use the MCP servers first, and the shell only for what they cannot do.

@@ -192,8 +192,8 @@ namespace WallstopStudios.DxAudio.Editor
                 report.Clear();
                 if (target != null)
                 {
-                    List<string> problems = target is SfxLibrary sfx ? DxAudioValidation.Validate(sfx) : DxAudioValidation.Validate((MusicLibrary)target);
-                    DxAudioInspectorUi.AddFindings(report, problems, "Every member is reachable.");
+                    List<DxAudioValidation.Finding> problems = target is SfxLibrary sfx ? DxAudioValidation.Find(sfx) : DxAudioValidation.Find((MusicLibrary)target);
+                    report.Add(new DxAudioInspectorUi.ProblemList(problems, "No active problems.", index => () => open(problems[index].Asset)));
                 }
             }
 

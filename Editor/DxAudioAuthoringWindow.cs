@@ -6,6 +6,7 @@ namespace WallstopStudios.DxAudio.Editor
     using UnityEditor.UIElements;
     using UnityEngine;
     using UnityEngine.UIElements;
+    using static DxAudioValidation;
     using Object = UnityEngine.Object;
 
     internal sealed class DxAudioAuthoringWindow : EditorWindow
@@ -27,12 +28,14 @@ namespace WallstopStudios.DxAudio.Editor
 
         private readonly List<Object> _assets = new();
         private readonly List<Object> _matches = new();
+        private readonly Dictionary<Object, List<Finding>> _browserProblems = new();
         private ToolbarSearchField _search;
         private ListView _list;
         private VisualElement _work;
         private ScrollView _details;
         private VisualElement _findings;
         private Label _status;
+        private Label _problemCount;
         private DspAuditionPanel _audition;
         private DspGraphAsset _graph;
         private DspGraphEdits _edits;
@@ -43,6 +46,11 @@ namespace WallstopStudios.DxAudio.Editor
 
         internal static void Open(Object asset)
         {
+            Open(asset, -1);
+        }
+
+        internal static void Open(Object asset, int chainSlot)
+        {
             DxAudioAuthoringWindow window = GetWindow<DxAudioAuthoringWindow>();
             window.titleContent = new GUIContent("DxAudio Authoring");
             window.minSize = new Vector2(680, 400);
@@ -50,6 +58,10 @@ namespace WallstopStudios.DxAudio.Editor
             if (asset != null)
             {
                 window.SetTarget(asset);
+                if (0 <= chainSlot)
+                {
+                    window.rootVisualElement.schedule.Execute(() => window._work?.Q<DspChainRack>()?.RevealStage(chainSlot));
+                }
             }
         }
 
@@ -112,6 +124,8 @@ namespace WallstopStudios.DxAudio.Editor
                     text = "Save Asset",
                 }
             );
+            _problemCount = new Label() { tooltip = "Visible problems on the selected asset" };
+            toolbar.Add(_problemCount);
             root.Add(toolbar);
 
             TwoPaneSplitView body = new(0, 210, TwoPaneSplitViewOrientation.Horizontal);
@@ -130,8 +144,8 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 itemsSource = _matches,
                 fixedItemHeight = 24f,
-                makeItem = () => new Label(),
-                bindItem = (item, index) => BindAsset((Label)item, index),
+                makeItem = () => DxAudioInspectorUi.Row(),
+                bindItem = BindAsset,
             };
             _list.AddToClassList("dxaudio-assets");
             _list.style.flexGrow = 1;
@@ -169,12 +183,14 @@ namespace WallstopStudios.DxAudio.Editor
         {
             EditorApplication.projectChanged += RefreshAssets;
             Undo.undoRedoPerformed += RefreshGraph;
+            DxAudioProblemSettings.Changed += RefreshGraph;
         }
 
         private void OnDisable()
         {
             EditorApplication.projectChanged -= RefreshAssets;
             Undo.undoRedoPerformed -= RefreshGraph;
+            DxAudioProblemSettings.Changed -= RefreshGraph;
             if (_edits != null)
             {
                 _edits.Changed -= RefreshGraph;
@@ -183,13 +199,59 @@ namespace WallstopStudios.DxAudio.Editor
             _audition?.Stop();
         }
 
-        private void BindAsset(Label label, int index)
+        private void BindAsset(VisualElement row, int index)
         {
+            row.Clear();
             Object asset = _matches[index];
             string type = TypeLabel(asset);
-            label.text = asset == null ? "Deleted asset" : $"{asset.name}  ·  {type}";
-            label.tooltip = asset == null ? string.Empty : AssetDatabase.GetAssetPath(asset);
-            label.style.paddingLeft = 6;
+            if (asset == null)
+            {
+                DxAudioInspectorUi.AddText(row, "Deleted asset");
+                return;
+            }
+
+            row.style.paddingLeft = 6;
+            row.tooltip = AssetDatabase.GetAssetPath(asset);
+            Severity highest = Severity.Off;
+            DxAudioProblemSettings settings = DxAudioProblemSettings.instance;
+            foreach (Finding finding in AssetProblems(asset))
+            {
+                Severity severity = settings.SeverityFor(finding.Rule);
+                if ((int)severity < (int)highest && settings.IsVisible(finding))
+                {
+                    highest = severity;
+                }
+            }
+
+            if (highest != Severity.Off)
+            {
+                row.Add(DxAudioInspectorUi.ProblemList.Badge(highest));
+            }
+
+            DxAudioInspectorUi.AddText(row, $"{asset.name}  ·  {type}");
+        }
+
+        private List<Finding> AssetProblems(Object asset)
+        {
+            if (!_browserProblems.TryGetValue(asset, out List<Finding> findings))
+            {
+                findings = DxAudioValidation.FindAsset(asset);
+                _browserProblems[asset] = findings;
+            }
+
+            return findings;
+        }
+
+        private void UpdateProblemCount()
+        {
+            if (_problemCount == null)
+            {
+                return;
+            }
+
+            int visible = _target == null ? 0 : AssetProblems(_target).FindAll(DxAudioProblemSettings.instance.IsVisible).Count;
+            _problemCount.text = visible == 1 ? "1 problem" : $"{visible} problems";
+            _problemCount.style.display = visible == 0 ? DisplayStyle.None : DisplayStyle.Flex;
         }
 
         private void RefreshAssets()
@@ -200,6 +262,7 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             _assets.Clear();
+            _browserProblems.Clear();
             foreach (Type type in AssetTypes)
             {
                 foreach (string guid in AssetDatabase.FindAssets($"t:{type.Name}"))
@@ -226,6 +289,10 @@ namespace WallstopStudios.DxAudio.Editor
             if (_target == null)
             {
                 ShowTarget();
+            }
+            else
+            {
+                UpdateProblemCount();
             }
         }
 
@@ -297,6 +364,10 @@ namespace WallstopStudios.DxAudio.Editor
             _findings.Clear();
             Report(string.Empty);
             _audition.SetTarget(_target);
+            if (_graph == null)
+            {
+                UpdateProblemCount();
+            }
 
             if (_target == null)
             {
@@ -313,6 +384,7 @@ namespace WallstopStudios.DxAudio.Editor
             ScrollView scroll = new();
             scroll.style.flexGrow = 1;
             _work.Add(scroll);
+            _work.TrackSerializedObjectValue(new SerializedObject(_target), _ => RefreshGraph());
             if (_target is DspChainAsset chain)
             {
                 scroll.Add(new DspChainRack(chain));
@@ -373,36 +445,47 @@ namespace WallstopStudios.DxAudio.Editor
 
         private void RefreshGraph()
         {
+            _browserProblems.Clear();
             if (_graph == null || _canvas == null)
             {
+                RefreshProblemBadges();
                 return;
             }
 
             _canvas.Refresh();
             _findings.Clear();
-            int count = 0;
-            ScrollView problems = new();
-            problems.style.maxHeight = 94;
-            _prepared = _graph.CollectProblems(
-                (node, edge, message) =>
+            List<DxAudioValidation.Finding> findings = new();
+            List<Action> fixes = new();
+            DxAudioProblemSettings settings = DxAudioProblemSettings.instance;
+            _prepared = DxAudioValidation.CollectGraph(
+                _graph,
+                (node, edge, finding) =>
                 {
-                    ++count;
-                    if (node < 0 && edge < 0)
+                    findings.Add(finding);
+                    fixes.Add(0 <= node || 0 <= edge ? () => FocusFinding(node, edge) : null);
+                    if (0 <= node && settings.IsVisible(finding))
                     {
-                        problems.Add(new HelpBox(message, HelpBoxMessageType.Warning));
-                    }
-                    else
-                    {
-                        problems.Add(new Button(() => FocusFinding(node, edge)) { text = message });
+                        _canvas.MarkProblem(node, settings.SeverityFor(finding.Rule));
                     }
                 }
             );
-            if (0 < count)
+            _browserProblems[_graph] = findings;
+            RefreshProblemBadges();
+            if (0 < findings.Count)
             {
+                ScrollView problems = new();
+                problems.style.maxHeight = 148;
+                problems.Add(new DxAudioInspectorUi.ProblemList(findings, fix: index => fixes[index]));
                 _findings.Add(problems);
             }
 
             BuildGraphDetails();
+        }
+
+        private void RefreshProblemBadges()
+        {
+            _list?.RefreshItems();
+            UpdateProblemCount();
         }
 
         private void FocusFinding(int node, int edge)

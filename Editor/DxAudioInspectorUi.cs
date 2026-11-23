@@ -1,9 +1,12 @@
 namespace WallstopStudios.DxAudio.Editor
 {
+    using System;
     using System.Collections.Generic;
+    using UnityEditor;
     using UnityEditor.UIElements;
     using UnityEngine;
     using UnityEngine.UIElements;
+    using static DxAudioValidation;
 
     /// <summary>The headings, rows and help lines the DxAudio authoring surfaces share.</summary>
     /// <remarks>
@@ -48,18 +51,14 @@ namespace WallstopStudios.DxAudio.Editor
             return label;
         }
 
-        /// <summary>Adds one warning per finding, or one clear line when there are none.</summary>
-        internal static void AddFindings(VisualElement parent, IReadOnlyList<string> findings, string clear)
+        internal static void FocusProperty(VisualElement root, string path)
         {
-            if (findings.Count == 0)
+            PropertyField field = root.Query<PropertyField>().Where(candidate => string.Equals(candidate.bindingPath, path, StringComparison.Ordinal)).First();
+            if (field != null)
             {
-                parent.Add(new HelpBox(clear, HelpBoxMessageType.Info));
-                return;
-            }
-
-            for (int index = 0; index < findings.Count; ++index)
-            {
-                parent.Add(new HelpBox(findings[index], HelpBoxMessageType.Warning));
+                field.GetFirstAncestorOfType<ScrollView>()?.ScrollTo(field);
+                field.focusable = true;
+                field.Focus();
             }
         }
 
@@ -133,28 +132,16 @@ namespace WallstopStudios.DxAudio.Editor
                 return;
             }
 
-            AddFindings(parent, asset.FindProblems(), "The graph is ready to play.");
-            if (!asset.TryCreateGraph(out DspGraph graph))
-            {
-                return;
-            }
-
-            int sampleRate = DspGraphAsset.ReferenceSampleRate;
-            bool prepared = graph.TryPrepare(
-                sampleRate,
-                DspGraphAsset.ReferenceBlockFrames,
-                DspGraphAsset.ReferenceChannels,
-                asset.IndexOfNode(asset.InputNode),
-                asset.IndexOfNode(asset.OutputNode)
-            );
-
+            List<DxAudioValidation.Finding> findings = new();
+            DspGraph graph = DxAudioValidation.CollectGraph(asset, (_, _, finding) => findings.Add(finding));
+            parent.Add(new DxAudioInspectorUi.ProblemList(findings, "No active problems."));
             IReadOnlyList<DspGraphNode> nodes = asset.Nodes;
             for (int index = 0; index < nodes.Count; ++index)
             {
                 DspGraphNode node = nodes[index];
                 VisualElement row = Row();
                 AddText(row, node == null ? $"Node {index + 1}: empty" : $"Node \"{node.Name}\": {Describe(node)}");
-                if (prepared && graph.TryGetNodeLatency(index, out int latency))
+                if (graph != null && graph.TryGetNodeLatency(index, out int latency))
                 {
                     AddText(row, $"{latency} samples");
                 }
@@ -169,9 +156,9 @@ namespace WallstopStudios.DxAudio.Editor
                 parent.Add(new Label(edge == null ? $"Edge {index + 1}: empty" : $"\"{edge.From}\" -> \"{edge.To}\""));
             }
 
-            if (prepared)
+            if (graph != null)
             {
-                parent.Add(new Label($"The graph delays the signal {graph.LatencySamples} samples at {sampleRate} Hz."));
+                parent.Add(new Label($"The graph delays the signal {graph.LatencySamples} samples at {DspGraphAsset.ReferenceSampleRate} Hz."));
             }
         }
 
@@ -292,6 +279,166 @@ namespace WallstopStudios.DxAudio.Editor
         private static AudioMixBus[] MixBuses()
         {
             return Resources.FindObjectsOfTypeAll<AudioMixBus>();
+        }
+
+        internal sealed class ProblemList : VisualElement
+        {
+            private readonly IReadOnlyList<Finding> _findings;
+            private readonly string _clear;
+            private readonly Func<int, Action> _fix;
+            private bool _showSilenced;
+
+            internal ProblemList(IReadOnlyList<Finding> findings, string clear = null, Func<int, Action> fix = null)
+            {
+                _findings = findings;
+                _clear = clear;
+                _fix = fix;
+                RegisterCallback<AttachToPanelEvent>(_ =>
+                {
+                    DxAudioProblemSettings.Changed += Draw;
+                    Draw();
+                });
+                RegisterCallback<DetachFromPanelEvent>(_ => DxAudioProblemSettings.Changed -= Draw);
+                Draw();
+            }
+
+            internal static Image Badge(Severity severity)
+            {
+                string icon =
+                    severity == Severity.Error ? "console.erroricon.sml"
+                    : severity == Severity.Warn ? "console.warnicon.sml"
+                    : "console.infoicon.sml";
+                Image badge = new()
+                {
+                    image = EditorGUIUtility.IconContent(icon).image,
+                    tooltip = severity.ToString(),
+                    pickingMode = PickingMode.Ignore,
+                };
+                badge.style.width = 14f;
+                badge.style.height = 14f;
+                return badge;
+            }
+
+            private void Draw()
+            {
+                Clear();
+                DxAudioProblemSettings settings = DxAudioProblemSettings.instance;
+                int visible = 0;
+                int hidden = 0;
+                for (int index = 0; index < _findings.Count; ++index)
+                {
+                    Finding finding = _findings[index];
+                    Severity severity = settings.SeverityFor(finding.Rule);
+                    if (severity == Severity.Off)
+                    {
+                        continue;
+                    }
+
+                    bool shared = settings.IsSharedSilence(finding);
+                    bool personal = DxAudioProblemSettings.IsPersonalSilence(finding.Rule);
+                    if (shared || personal)
+                    {
+                        ++hidden;
+                        if (!_showSilenced)
+                        {
+                            continue;
+                        }
+                    }
+
+                    ++visible;
+                    DrawFinding(settings, finding, severity, shared, personal, _fix?.Invoke(index));
+                }
+
+                if (visible == 0 && hidden == 0 && _clear != null)
+                {
+                    Add(new HelpBox(_clear, HelpBoxMessageType.Info));
+                }
+
+                if (0 < hidden)
+                {
+                    VisualElement row = DxAudioInspectorUi.Row();
+                    DxAudioInspectorUi.AddText(row, $"{hidden} silenced");
+                    row.Add(
+                        new Button(() =>
+                        {
+                            _showSilenced = !_showSilenced;
+                            Draw();
+                        })
+                        {
+                            text = _showSilenced ? "Hide" : "Show",
+                        }
+                    );
+                    Add(row);
+                }
+            }
+
+            private void DrawFinding(DxAudioProblemSettings settings, Finding finding, Severity severity, bool shared, bool personal, Action fix)
+            {
+                HelpBoxMessageType icon =
+                    severity == Severity.Error ? HelpBoxMessageType.Error
+                    : severity == Severity.Warn ? HelpBoxMessageType.Warning
+                    : HelpBoxMessageType.Info;
+                string silenced =
+                    shared && personal ? " (shared and personal silence)"
+                    : shared ? " (shared silence)"
+                    : personal ? " (personal silence)"
+                    : string.Empty;
+                Add(new HelpBox(finding.Label + silenced, icon));
+                if (fix != null)
+                {
+                    Button button = new(fix) { text = "Fix", tooltip = "Go to the source of this problem." };
+                    button.style.alignSelf = Align.FlexStart;
+                    Add(button);
+                }
+
+                Foldout options = new() { text = shared || personal ? "Manage Silence" : "Silence", value = false };
+                if (DxAudioProblemSettings.TryAssetId(finding, out string guid, out long localId))
+                {
+                    if (shared)
+                    {
+                        options.Add(
+                            new Button(() =>
+                            {
+                                settings.RemoveSilence(finding.Rule, guid, localId);
+                                settings.Persist();
+                            })
+                            {
+                                text = "Restore Shared Finding",
+                            }
+                        );
+                    }
+                    else
+                    {
+                        TextField reason = new("Reason");
+                        Button save = new(() =>
+                        {
+                            if (settings.TrySilence(finding, reason.value))
+                            {
+                                settings.Persist();
+                            }
+                        })
+                        {
+                            text = "Silence for This Asset",
+                        };
+                        save.SetEnabled(false);
+                        reason.RegisterValueChangedCallback(evt => save.SetEnabled(!string.IsNullOrWhiteSpace(evt.newValue)));
+                        options.Add(reason);
+                        options.Add(save);
+                    }
+                }
+
+                options.Add(
+                    new Button(() =>
+                    {
+                        DxAudioProblemSettings.SetPersonalSilence(finding.Rule, !personal);
+                    })
+                    {
+                        text = personal ? "Show This Rule for Me" : "Hide This Rule for Me",
+                    }
+                );
+                options.Add(new Button(() => SettingsService.OpenProjectSettings(DxAudioProblemSettings.SettingsPath)) { text = "Change Rule Severity" });
+                Add(options);
+            }
         }
     }
 }

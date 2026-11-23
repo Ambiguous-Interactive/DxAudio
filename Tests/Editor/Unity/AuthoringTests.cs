@@ -7,6 +7,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     using UnityEngine;
     using UnityEngine.UIElements;
     using WallstopStudios.DxAudio.Editor;
+    using static WallstopStudios.DxAudio.Editor.DxAudioValidation;
 
     public sealed class AuthoringTests
     {
@@ -26,6 +27,17 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
 
             return true;
+        }
+
+        private static void AssertRules(IReadOnlyList<Finding> findings, params Rule[] expected)
+        {
+            List<Rule> actual = new();
+            foreach (Finding finding in findings)
+            {
+                actual.Add(finding.Rule);
+            }
+
+            Assert.That(actual, Is.EqualTo(expected));
         }
 
         private static List<string> Labels(VisualElement view)
@@ -87,6 +99,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             List<string> findings = DxAudioValidation.Validate(library);
             string messages = Joined(findings);
 
+            AssertRules(DxAudioValidation.Find(library), Rule.DuplicateKey, Rule.NoPlayableTake, Rule.NoLookup, Rule.EmptyLibrarySlot);
             Assert.That(findings, Has.Count.EqualTo(4));
             Assert.That(messages, Does.Contain("shares the key 'step'"));
             Assert.That(messages, Does.Contain("has no playable take"));
@@ -131,6 +144,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             List<string> findings = DxAudioValidation.Validate(library);
             string messages = Joined(findings);
 
+            AssertRules(DxAudioValidation.Find(library), Rule.DuplicateContext, Rule.NoLookup, Rule.NoTrackClip, Rule.EmptyLibrarySlot);
             Assert.That(findings, Has.Count.EqualTo(4));
             Assert.That(messages, Does.Contain("shares the context 'town'"));
             Assert.That(messages, Does.Contain("names no context"));
@@ -175,6 +189,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(findings, Has.Count.EqualTo(1));
             Assert.That(messages, Does.Contain("asks for a Streaming clip"));
             Assert.That(messages, Does.Contain("imported as DecompressOnLoad"));
+            AssertRules(DxAudioValidation.Find(library), Rule.ClipLoadType);
         }
 
         [Test]
@@ -265,6 +280,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             SfxCue loop = made.Track(SfxCue.Create(new[] { variant }, loop: true));
             SfxCue oneShot = made.Track(SfxCue.Create(new[] { variant }));
 
+            AssertRules(DxAudioValidation.Find(loop), Rule.LoopOffset);
             Assert.That(Joined(DxAudioValidation.Validate(loop)), Does.Contain("start offsets are ignored"));
             Assert.That(DxAudioValidation.Validate(oneShot), Is.Empty);
         }
@@ -282,6 +298,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(findings, Has.Count.EqualTo(1));
             Assert.That(Joined(findings), Does.Contain("follows its own take number"));
+            AssertRules(DxAudioValidation.Find(cue), Rule.SelfFollow);
         }
 
         [Test]
@@ -406,16 +423,180 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             SfxCue silent = made.Track(SfxCue.Create(new[] { new SfxVariant() }, key: "step"));
             SfxLibrary library = made.Track(SfxLibrary.Create(new[] { silent, null }));
             List<Object> libraries = new() { library };
-            List<List<string>> findings = new() { DxAudioValidation.Validate(library) };
+            List<List<Finding>> findings = new() { DxAudioValidation.Find(library) };
 
-            VisualElement report = DxAudioLibraryWindow.BuildReport(libraries, findings);
+            DxAudioProblemSettings settings = DxAudioProblemSettings.instance;
+            Severity takeSeverity = settings.SeverityFor(Rule.NoPlayableTake);
+            Severity slotSeverity = settings.SeverityFor(Rule.EmptyLibrarySlot);
+            bool takeHidden = DxAudioProblemSettings.IsPersonalSilence(Rule.NoPlayableTake);
+            bool slotHidden = DxAudioProblemSettings.IsPersonalSilence(Rule.EmptyLibrarySlot);
+            try
+            {
+                settings.SetSeverity(Rule.NoPlayableTake, Severity.Error);
+                settings.SetSeverity(Rule.EmptyLibrarySlot, Severity.Warn);
+                DxAudioProblemSettings.SetPersonalSilence(Rule.NoPlayableTake, false, notify: false);
+                DxAudioProblemSettings.SetPersonalSilence(Rule.EmptyLibrarySlot, false, notify: false);
 
-            Assert.That(report.Q<Label>().text, Is.EqualTo("1 library, 2 problems"));
-            Assert.That(report.Query<HelpBox>().ToList(), Has.Count.EqualTo(2));
+                VisualElement report = DxAudioLibraryWindow.BuildProblemReport(libraries, findings);
+
+                Assert.That(report.Q<Label>().text, Is.EqualTo("1 library, 2 problems"));
+                HelpBox failure = report.Q<HelpBox>("DxAudioValidationFailed");
+                Assert.That(failure.style.display.value, Is.EqualTo(DisplayStyle.Flex));
+                Assert.That(failure.text, Is.EqualTo("Validation failed. One error needs a fix or a shared silence."));
+                List<HelpBox> boxes = report.Q<DxAudioInspectorUi.ProblemList>().Query<HelpBox>().ToList();
+                Assert.That(boxes, Has.Count.EqualTo(2));
+                Assert.That(boxes[0].text, Does.StartWith("DXA101 "));
+                Assert.That(boxes[0].messageType, Is.EqualTo(HelpBoxMessageType.Error));
+                Assert.That(boxes[1].text, Does.StartWith("DXA107 "));
+                Assert.That(boxes[1].messageType, Is.EqualTo(HelpBoxMessageType.Warning));
+
+                settings.SetSeverity(Rule.NoPlayableTake, Severity.Warn);
+                VisualElement warnings = DxAudioLibraryWindow.BuildProblemReport(libraries, findings);
+                Assert.That(warnings.Q<HelpBox>("DxAudioValidationFailed").style.display.value, Is.EqualTo(DisplayStyle.None));
+            }
+            finally
+            {
+                settings.SetSeverity(Rule.NoPlayableTake, takeSeverity);
+                settings.SetSeverity(Rule.EmptyLibrarySlot, slotSeverity);
+                DxAudioProblemSettings.SetPersonalSilence(Rule.NoPlayableTake, takeHidden, notify: false);
+                DxAudioProblemSettings.SetPersonalSilence(Rule.EmptyLibrarySlot, slotHidden, notify: false);
+            }
 
             VisualElement empty = DxAudioLibraryWindow.BuildReport(new List<Object>(), new List<List<string>>());
             Assert.That(empty.Q<Label>().text, Is.EqualTo("0 libraries, 0 problems"));
             Assert.That(empty.Q<HelpBox>() != null, Is.True, "an empty project says so");
+        }
+
+        [Test]
+        public void AProjectLibraryErrorNeedsAReasonedSharedSilenceToPassValidation()
+        {
+            using MadeObjects made = new();
+            DxAudioProblemSettings settings = DxAudioProblemSettings.instance;
+            Severity original = settings.SeverityFor(Rule.NoPlayableTake);
+            bool personal = DxAudioProblemSettings.IsPersonalSilence(Rule.NoPlayableTake);
+            SfxCue broken = made.Track(SfxCue.Create(new[] { new SfxVariant() }, key: "broken"));
+            SfxCue other = made.Track(SfxCue.Create(new[] { new SfxVariant() }, key: "other"));
+            SfxLibrary library = made.Track(SfxLibrary.Create(null));
+            string path = AssetDatabase.GenerateUniqueAssetPath("Assets/DxAudioProblemFixture.asset");
+            string guid = string.Empty;
+            long brokenId = 0;
+            try
+            {
+                AssetDatabase.CreateAsset(library, path);
+                AssetDatabase.AddObjectToAsset(broken, library);
+                AssetDatabase.AddObjectToAsset(other, library);
+                using (SerializedObject serialized = new(library))
+                {
+                    SerializedProperty cues = serialized.FindProperty("_cues");
+                    cues.arraySize = 2;
+                    cues.GetArrayElementAtIndex(0).objectReferenceValue = broken;
+                    cues.GetArrayElementAtIndex(1).objectReferenceValue = other;
+                    serialized.ApplyModifiedPropertiesWithoutUndo();
+                }
+
+                AssetDatabase.SaveAssetIfDirty(library);
+                Finding finding = new(Rule.NoPlayableTake, broken, "No playable take.");
+                Finding sibling = new(Rule.NoPlayableTake, other, "No playable take.");
+                Assert.That(DxAudioProblemSettings.TryAssetId(finding, out guid, out brokenId), Is.True);
+                Assert.That(DxAudioProblemSettings.TryAssetId(sibling, out string siblingGuid, out long siblingId), Is.True);
+                Assert.That(siblingGuid, Is.EqualTo(guid));
+                Assert.That(siblingId, Is.Not.EqualTo(brokenId));
+
+                settings.SetSeverity(finding.Rule, Severity.Error);
+                DxAudioProblemSettings.SetPersonalSilence(finding.Rule, true, notify: false);
+                Assert.That(DxAudioLibraryWindow.FindProjectErrors().Exists(error => error.Asset == broken && error.Rule == finding.Rule), Is.True);
+                Assert.That(Assert.Throws<System.InvalidOperationException>(DxAudioValidation.ValidateProjectLibraries).Message, Does.Contain("DXA101"));
+                DxAudioInspectorUi.ProblemList list = new(new[] { finding });
+                Assert.That(list.Q<HelpBox>() == null, Is.True);
+                Assert.That(list.Q<Button>().text, Is.EqualTo("Show"));
+
+                Assert.That(settings.TrySilence(finding, " "), Is.False);
+                Assert.That(settings.BlocksValidation(finding), Is.True);
+                Assert.That(settings.TrySilence(finding, "Fixture for testing invalid inputs."), Is.True);
+                DxAudioProblemSettings.SetPersonalSilence(finding.Rule, false, notify: false);
+                Assert.That(settings.IsVisible(finding), Is.False);
+                Assert.That(settings.IsVisible(sibling), Is.True);
+                List<Finding> remaining = DxAudioLibraryWindow.FindProjectErrors();
+                Assert.That(remaining.Exists(error => error.Asset == broken && error.Rule == finding.Rule), Is.False);
+                Assert.That(remaining.Exists(error => error.Asset == other && error.Rule == finding.Rule), Is.True);
+
+                settings.RemoveSilence(finding.Rule, guid, brokenId);
+                settings.SetSeverity(finding.Rule, Severity.Info);
+                Assert.That(settings.IsVisible(finding), Is.True);
+                Assert.That(settings.BlocksValidation(finding), Is.False);
+                settings.SetSeverity(finding.Rule, Severity.Off);
+                Assert.That(settings.IsVisible(finding), Is.False);
+            }
+            finally
+            {
+                settings.RemoveSilence(Rule.NoPlayableTake, guid, brokenId);
+                settings.SetSeverity(Rule.NoPlayableTake, original);
+                DxAudioProblemSettings.SetPersonalSilence(Rule.NoPlayableTake, personal, notify: false);
+                AssetDatabase.DeleteAsset(path);
+            }
+        }
+
+        [Test]
+        public void ProjectLibrariesHaveNoUnsilencedErrors()
+        {
+            Assert.DoesNotThrow(DxAudioValidation.ValidateProjectLibraries);
+        }
+
+        [Test]
+        public void TheCatalogReportsInvalidVariationAndMissingChainEffects()
+        {
+            using MadeObjects made = new();
+            DspChainAsset chain = made.Track(DspChainAsset.Create(new DspEffectAsset[] { null }));
+            SfxVariation variation = new(true, 90f, -90f, 0f, 0f);
+            SfxCue cue = made.Track(SfxCue.CreateWithVariation(new[] { Variant(made) }, variation, key: "broken", chain: chain));
+            SfxLibrary library = made.Track(SfxLibrary.Create(new[] { cue }));
+            AssertRules(DxAudioValidation.Find(library), Rule.InvalidVariation, Rule.MissingChainEffect);
+
+            DspGraphAsset graph = made.Track(DspGraphAsset.Create(new[] { new DspGraphNode("Input", chain) }, null, "Input", "Input"));
+            List<Finding> graphFindings = new();
+            DxAudioValidation.CollectGraph(
+                graph,
+                (node, _, finding) =>
+                {
+                    Assert.That(node, Is.Zero);
+                    graphFindings.Add(finding);
+                }
+            );
+            AssertRules(graphFindings, Rule.MissingChainEffect);
+        }
+
+        [Test]
+        public void AGraphWithAProblemStillShowsItsAuthoredNodesAndEdges()
+        {
+            using MadeObjects made = new();
+            DspGraphAsset graph = made.Track(
+                DspGraphAsset.Create(
+                    new[] { new DspGraphNode("Input", null), new DspGraphNode("Output", null), new DspGraphNode("Spare", null) },
+                    new[] { new DspGraphEdge("Input", "Output") },
+                    "Input",
+                    "Output"
+                )
+            );
+            VisualElement view = new();
+            DxAudioInspectorUi.AddGraphRows(view, graph);
+            string labels = Joined(Labels(view));
+
+            Assert.That(labels, Does.Contain("Node \"Spare\"").And.Contain("\"Input\" -> \"Output\""));
+            Assert.That(labels, Does.Not.Contain("The graph delays the signal"));
+            AssertRules(DxAudioValidation.FindAsset(graph), Rule.InvalidGraph);
+            Assert.That(DefaultSeverity(Rule.InvalidGraph), Is.EqualTo(Severity.Warn));
+        }
+
+        [TestCase(SfxDropReason.NotPlayable, "DXA301", TestName = "AnUnplayableDropReportsDXA301")]
+        [TestCase(SfxDropReason.WrongPlayMethod, "DXA301", TestName = "AWrongPlayMethodDropReportsDXA301")]
+        [TestCase(SfxDropReason.NoVoice, "DXA302", TestName = "ANoVoiceDropReportsDXA302")]
+        [TestCase(SfxDropReason.LoopLimit, "DXA302", TestName = "ALoopLimitDropReportsDXA302")]
+        [TestCase(SfxDropReason.Throttled, "DXA303", TestName = "AThrottledDropReportsDXA303")]
+        public void APlaybackDropHasAStableRuleId(SfxDropReason reason, string id)
+        {
+            Assert.That(TryFromDrop(null, reason, out Finding finding), Is.True);
+            Assert.That(Id(finding.Rule), Is.EqualTo(id));
+            Assert.That(finding.Message, Does.Contain(reason.ToString()));
         }
 
         [Test]
@@ -483,6 +664,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 string rows = Joined(Labels(editor.CreateInspectorGUI()));
 
                 Assert.That(Order(rows, "1. ", "6 bit", "Stage 2: empty", "3. ", "DspLimiterAsset"), Is.True, "an empty slot keeps its own row");
+
+                List<Finding> findings = DxAudioValidation.Find(chain);
+                AssertRules(findings, Rule.MissingChainEffect);
+                DspChainRack rack = new(chain);
+                Foldout empty = rack.Query<Foldout>().Where(stage => string.Equals(stage.text, "2. Empty stage", System.StringComparison.Ordinal)).First();
+                Assert.That(empty.value, Is.False);
+                rack.RevealStage(findings[0].Slot);
+                Assert.That(empty.value, Is.True);
             }
             finally
             {

@@ -181,6 +181,12 @@ sentence on one line, at most 300 rendered characters; Prettier preserves the au
 `.editorconfig`, which `.prettierrc.json` and `.csharpierrc` carry. See
 [simple-writing](./skills/simple-writing/SKILL.md).
 
+### Visual evidence
+
+For every visual change, attach before-and-after comparisons to the pull request description. Use PNGs for stills and animated WebP or GIF files at 45 frames per second or higher
+for animations. Use the same view and conditions for both captures. If the environment makes capture or attachment impossible, state the specific limitation in the pull request
+description and include any comparisons that are available.
+
 ### Merging
 
 An agent with write access merges its own pull requests once every check passes; it does not leave green work for a

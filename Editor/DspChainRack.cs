@@ -10,6 +10,7 @@ namespace WallstopStudios.DxAudio.Editor
     {
         private readonly DspChainAsset _chain;
         private readonly VisualElement _stages = new();
+        private readonly VisualElement _problems = new();
         private readonly List<DspEffectAsset> _shown = new();
 
         internal DspChainRack(DspChainAsset chain, bool showTitle = true)
@@ -19,6 +20,7 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 Add(new Label(chain.name));
             }
+            Add(_problems);
             Add(_stages);
 
             ObjectField addStage = new("Add Existing Effect") { objectType = typeof(DspEffectAsset), allowSceneObjects = false };
@@ -48,6 +50,16 @@ namespace WallstopStudios.DxAudio.Editor
             RefreshStages(force: true);
         }
 
+        internal void RevealStage(int slot)
+        {
+            if (0 <= slot && slot < _stages.childCount && _stages[slot] is Foldout stage)
+            {
+                stage.value = true;
+                stage.GetFirstAncestorOfType<ScrollView>()?.ScrollTo(stage);
+                stage.Focus();
+            }
+        }
+
         private void RefreshStages(bool force = false)
         {
             IReadOnlyList<DspEffectAsset> effects = _chain.Effects;
@@ -58,6 +70,9 @@ namespace WallstopStudios.DxAudio.Editor
 
             _shown.Clear();
             _stages.Clear();
+            _problems.Clear();
+            List<DxAudioValidation.Finding> findings = DxAudioValidation.Find(_chain);
+            _problems.Add(new DxAudioInspectorUi.ProblemList(findings, fix: index => () => RevealStage(findings[index].Slot)));
             bool editable = AssetDatabase.IsOpenForEdit(_chain);
             for (int index = 0; index < effects.Count; ++index)
             {

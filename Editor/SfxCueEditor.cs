@@ -67,16 +67,37 @@ namespace WallstopStudios.DxAudio.Editor
             return asset.ApplyModifiedProperties();
         }
 
-        private static void RebuildAuthoring(VisualElement container, SfxCue cue)
+        private static void RebuildAuthoring(VisualElement container, VisualElement fields, SfxCue cue)
         {
             container.Clear();
             VisualElement check = DxAudioInspectorUi.AddSection(container, "Authoring Check");
-            DxAudioInspectorUi.AddFindings(check, DxAudioValidation.Validate(cue), "Every take is ready to play.");
+            IReadOnlyList<DxAudioValidation.Finding> findings = DxAudioValidation.Find(cue);
+            check.Add(new DxAudioInspectorUi.ProblemList(findings, "No active problems.", index => () => FixFinding(findings[index], fields)));
             VisualElement effects = DxAudioInspectorUi.AddSection(container, "Effects");
             VisualElement rows = new VisualElement();
             effects.Add(rows);
             DxAudioInspectorUi.AddChainRows(rows, cue.Chain);
             DxAudioInspectorUi.RefreshWhilePlaying(rows, cue.Chain);
+        }
+
+        private static void FixFinding(DxAudioValidation.Finding finding, VisualElement fields)
+        {
+            switch (finding.Rule)
+            {
+                case DxAudioValidation.Rule.NoPlayableTake:
+                case DxAudioValidation.Rule.LoopOffset:
+                    DxAudioInspectorUi.FocusProperty(fields, "_variants");
+                    break;
+                case DxAudioValidation.Rule.InvalidVariation:
+                    DxAudioInspectorUi.FocusProperty(fields, "_variation");
+                    break;
+                case DxAudioValidation.Rule.SelfFollow:
+                    DxAudioInspectorUi.FocusProperty(fields, "_followsTakeOf");
+                    break;
+                default:
+                    DxAudioAuthoringWindow.Open(finding.Asset);
+                    break;
+            }
         }
 
         private static VisualElement BuildClipDrop(SerializedObject asset)
@@ -183,9 +204,9 @@ namespace WallstopStudios.DxAudio.Editor
             });
             VisualElement authoring = new VisualElement();
             root.Add(authoring);
-            RebuildAuthoring(authoring, cue);
+            RebuildAuthoring(authoring, settings, cue);
             // IMGUI redrew this section on every repaint; a serialized change rebuilds it the same way.
-            authoring.TrackSerializedObjectValue(serializedObject, _ => RebuildAuthoring(authoring, cue));
+            authoring.TrackSerializedObjectValue(serializedObject, _ => RebuildAuthoring(authoring, settings, cue));
             return root;
         }
 

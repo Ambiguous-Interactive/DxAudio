@@ -2,26 +2,77 @@ namespace WallstopStudios.DxAudio.Editor
 {
     using System;
     using System.Collections.Generic;
+    using UnityEditor;
+    using UnityEngine;
+    using Object = UnityEngine.Object;
 
-    /// <summary>Checks DxAudio assets for content a player cannot reach, and for a clip that ignores its track.</summary>
-    /// <remarks>
-    /// An empty take, a key two cues share, or a track no context names is silent at run time rather than
-    /// wrong-sounding, so it is easiest to find before play. A music clip whose import type does not follow its
-    /// track still plays, but holds more or less memory than the track asks for. These checks only read assets: they
-    /// never change one, and nothing in the runtime assemblies depends on them.
-    /// </remarks>
+    /// <summary>Checks DxAudio authoring assets without changing them.</summary>
     public static class DxAudioValidation
     {
-        /// <summary>Every problem that would keep a listed cue from answering its key.</summary>
+        internal static readonly Rule[] Rules = (Rule[])Enum.GetValues(typeof(Rule));
+
+        /// <summary>Every problem with a sound library and its members.</summary>
         public static List<string> Validate(SfxLibrary library)
         {
-            List<string> findings = new();
-            if (library == null)
+            return library == null ? new List<string> { "There is no SFX library to check." } : Messages(Find(library));
+        }
+
+        /// <summary>Every problem with a music library and its members.</summary>
+        public static List<string> Validate(MusicLibrary library)
+        {
+            return library == null ? new List<string> { "There is no music library to check." } : Messages(Find(library));
+        }
+
+        /// <summary>Every problem with one cue, for the cue inspector.</summary>
+        public static List<string> Validate(SfxCue cue)
+        {
+            return cue == null ? new List<string> { "There is no cue to check." } : Messages(Find(cue));
+        }
+
+        /// <summary>Throws if a project library has an active error. Use as a Unity batchmode execute method.</summary>
+        public static void ValidateProjectLibraries()
+        {
+            List<Finding> findings = DxAudioLibraryWindow.FindProjectErrors();
+            if (findings.Count == 0)
             {
-                findings.Add("There is no SFX library to check.");
-                return findings;
+                return;
             }
 
+            List<string> errors = new(findings.Count);
+            foreach (Finding finding in findings)
+            {
+                errors.Add($"{AssetDatabase.GetAssetPath(finding.Asset)}: {finding.Label}");
+            }
+
+            throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
+        }
+
+        internal static List<Finding> FindAsset(Object asset)
+        {
+            switch (asset)
+            {
+                case SfxLibrary sfx:
+                    return Find(sfx);
+                case MusicLibrary music:
+                    return Find(music);
+                case SfxCue cue:
+                    return Find(cue);
+                case MusicTrack track:
+                    return Find(track, track.Clip);
+                case DspChainAsset chain:
+                    return Find(chain);
+                case DspGraphAsset graph:
+                    List<Finding> findings = new();
+                    CollectGraph(graph, (_, _, finding) => findings.Add(finding));
+                    return findings;
+                default:
+                    return new List<Finding>();
+            }
+        }
+
+        internal static List<Finding> Find(SfxLibrary library)
+        {
+            List<Finding> findings = new();
             Dictionary<string, SfxCue> firstByKey = new(StringComparer.Ordinal);
             IReadOnlyList<SfxCue> cues = library.Cues;
             for (int index = 0; index < cues.Count; ++index)
@@ -29,35 +80,19 @@ namespace WallstopStudios.DxAudio.Editor
                 SfxCue cue = cues[index];
                 if (cue == null)
                 {
-                    findings.Add($"Slot {index + 1} is empty. Remove it or assign a cue.");
+                    findings.Add(new Finding(Rule.EmptyLibrarySlot, library, EmptySlot(index, "cue")));
                     continue;
                 }
 
-                string name = CueName(cue, index);
-                if (!cue.IsPlayable)
-                {
-                    findings.Add($"{name} has no playable take; no take has a clip.");
-                }
-
-                if (cue.FollowsTakeOf == cue)
-                {
-                    findings.Add($"{name} follows its own take number, so it never follows anything.");
-                }
-
-                if (cue.IsLooping && HasAuthoredStartOffset(cue))
-                {
-                    findings.Add($"{name} loops, so its take start offsets are ignored; a loop restarts at zero.");
-                }
-
-                AddGraphFindings(findings, cue.Graph, name);
-
+                string name = MemberName(cue, index);
+                AddCue(findings, cue, name);
                 if (string.IsNullOrWhiteSpace(cue.Key))
                 {
-                    findings.Add($"{name} has no key, so nothing can look it up in this library.");
+                    findings.Add(new Finding(Rule.NoLookup, cue, $"{name} has no key, so nothing can look it up in this library."));
                     continue;
                 }
 
-                // The runtime index skips a cue with no take, so it cannot be the one a shared key serves.
+                // The runtime index skips an unplayable member when choosing the first match.
                 if (!cue.IsPlayable)
                 {
                     continue;
@@ -65,7 +100,7 @@ namespace WallstopStudios.DxAudio.Editor
 
                 if (firstByKey.TryGetValue(cue.Key, out SfxCue first))
                 {
-                    findings.Add($"{name} shares the key '{cue.Key}' with '{first.name}'; only the first is reachable.");
+                    findings.Add(new Finding(Rule.DuplicateKey, cue, $"{name} shares the key '{cue.Key}' with '{first.name}'; only the first is reachable."));
                 }
                 else
                 {
@@ -76,16 +111,9 @@ namespace WallstopStudios.DxAudio.Editor
             return findings;
         }
 
-        /// <summary>Every problem that would keep a listed track from answering its context.</summary>
-        public static List<string> Validate(MusicLibrary library)
+        internal static List<Finding> Find(MusicLibrary library)
         {
-            List<string> findings = new();
-            if (library == null)
-            {
-                findings.Add("There is no music library to check.");
-                return findings;
-            }
-
+            List<Finding> findings = new();
             Dictionary<string, MusicTrack> firstByContext = new(StringComparer.Ordinal);
             IReadOnlyList<MusicTrack> tracks = library.Tracks;
             for (int index = 0; index < tracks.Count; ++index)
@@ -93,33 +121,18 @@ namespace WallstopStudios.DxAudio.Editor
                 MusicTrack track = tracks[index];
                 if (track == null)
                 {
-                    findings.Add($"Slot {index + 1} is empty. Remove it or assign a track.");
+                    findings.Add(new Finding(Rule.EmptyLibrarySlot, library, EmptySlot(index, "track")));
                     continue;
                 }
 
-                string name = TrackName(track, index);
-                if (!track.IsPlayable)
-                {
-                    findings.Add($"{name} has no clip, so it cannot play.");
-                }
-                else if (MusicClipImport.TryGetAppliedLoadType(track.Clip, out MusicClipLoadType applied) && applied != track.ResolvedClipLoadType)
-                {
-                    findings.Add(
-                        $"{name} asks for a {track.ResolvedClipLoadType} clip, but the clip is imported as "
-                            + $"{applied}; the track inspector applies the choice to the clip, which every user of "
-                            + "the clip shares."
-                    );
-                }
-
-                AddGraphFindings(findings, track.Graph, name);
-
+                string name = MemberName(track, index);
+                AddTrack(findings, track, name, track.Clip);
                 if (string.IsNullOrWhiteSpace(track.Context))
                 {
-                    findings.Add($"{name} names no context, so no lookup reaches it.");
+                    findings.Add(new Finding(Rule.NoLookup, track, $"{name} names no context, so no lookup reaches it."));
                     continue;
                 }
 
-                // The runtime index skips a track with no clip, so it cannot be the one a shared context serves.
                 if (!track.IsPlayable)
                 {
                     continue;
@@ -127,7 +140,7 @@ namespace WallstopStudios.DxAudio.Editor
 
                 if (firstByContext.TryGetValue(track.Context, out MusicTrack first))
                 {
-                    findings.Add($"{name} shares the context '{track.Context}' with '{first.name}'; only the first is reachable.");
+                    findings.Add(new Finding(Rule.DuplicateContext, track, $"{name} shares the context '{track.Context}' with '{first.name}'; only the first is reachable."));
                 }
                 else
                 {
@@ -138,68 +151,192 @@ namespace WallstopStudios.DxAudio.Editor
             return findings;
         }
 
-        /// <summary>Every problem with one cue, for the cue inspector.</summary>
-        public static List<string> Validate(SfxCue cue)
+        internal static List<Finding> Find(SfxCue cue)
         {
-            List<string> findings = new();
-            if (cue == null)
+            List<Finding> findings = new();
+            AddCue(findings, cue, "This cue");
+            return findings;
+        }
+
+        internal static List<Finding> Find(MusicTrack track, AudioClip clip)
+        {
+            List<Finding> findings = new();
+            AddTrack(findings, track, "This track", clip);
+            return findings;
+        }
+
+        internal static List<Finding> Find(DspChainAsset chain)
+        {
+            List<Finding> findings = new();
+            AddChain(findings, chain);
+            return findings;
+        }
+
+        internal static DspGraph CollectGraph(DspGraphAsset graph, Action<int, int, Finding> report)
+        {
+            DspGraph prepared = graph.CollectProblems((node, edge, message) => report(node, edge, new Finding(Rule.InvalidGraph, graph, message)));
+            for (int index = 0; index < graph.NodeCount; ++index)
             {
-                findings.Add("There is no cue to check.");
-                return findings;
+                DspChainAsset chain = graph.Nodes[index]?.Chain;
+                if (chain == null)
+                {
+                    continue;
+                }
+
+                foreach (Finding finding in Find(chain))
+                {
+                    report(index, -1, finding);
+                }
             }
 
+            return prepared;
+        }
+
+        internal static string Id(Rule rule)
+        {
+            return $"DXA{(int)rule}";
+        }
+
+        internal static Severity DefaultSeverity(Rule rule)
+        {
+            switch (rule)
+            {
+                case Rule.NoPlayableTake:
+                case Rule.NoTrackClip:
+                case Rule.InvalidVariation:
+                case Rule.MissingChainEffect:
+                case Rule.UnplayableDrop:
+                    return Severity.Error;
+                case Rule.LoopOffset:
+                case Rule.ThrottledDrop:
+                    return Severity.Info;
+                default:
+                    return Severity.Warn;
+            }
+        }
+
+        internal static string Description(Rule rule)
+        {
+            return rule switch
+            {
+                Rule.NoPlayableTake => "Cue has no playable take",
+                Rule.NoTrackClip => "Track has no clip",
+                Rule.InvalidVariation => "Cue has invalid variation bounds",
+                Rule.NoLookup => "Cue has no key or track has no context",
+                Rule.DuplicateKey => "Duplicate cue key",
+                Rule.DuplicateContext => "Duplicate music context",
+                Rule.EmptyLibrarySlot => "Empty library slot",
+                Rule.SelfFollow => "Cue follows its own take",
+                Rule.ClipLoadType => "Track load type differs from the clip import",
+                Rule.LoopOffset => "Loop ignores take start offsets",
+                Rule.MissingChainEffect => "Chain slot is missing its effect",
+                Rule.InvalidGraph => "Graph has a signal path or preparation problem",
+                Rule.UnplayableDrop => "Drop: NotPlayable or WrongPlayMethod",
+                Rule.CapacityDrop => "Drop: NoVoice or LoopLimit",
+                Rule.ThrottledDrop => "Drop: Throttled",
+                _ => string.Empty,
+            };
+        }
+
+        internal static bool TryFromDrop(SfxCue cue, SfxDropReason reason, out Finding finding)
+        {
+            Rule rule;
+            switch (reason)
+            {
+                case SfxDropReason.NotPlayable:
+                case SfxDropReason.WrongPlayMethod:
+                    rule = Rule.UnplayableDrop;
+                    break;
+                case SfxDropReason.NoVoice:
+                case SfxDropReason.LoopLimit:
+                    rule = Rule.CapacityDrop;
+                    break;
+                case SfxDropReason.Throttled:
+                    rule = Rule.ThrottledDrop;
+                    break;
+                default:
+                    finding = default;
+                    return false;
+            }
+
+            finding = new Finding(rule, cue, $"Cue dropped: {reason}.");
+            return true;
+        }
+
+        private static void AddCue(List<Finding> findings, SfxCue cue, string name)
+        {
             if (!cue.IsPlayable)
             {
-                findings.Add("This cue has no playable take; no take has a clip.");
-            }
-
-            if (cue.FollowsTakeOf == cue)
-            {
-                findings.Add("This cue follows its own take number, so it never follows anything.");
-            }
-
-            if (cue.IsLooping && HasAuthoredStartOffset(cue))
-            {
-                findings.Add("This cue loops, so its take start offsets are ignored; a loop restarts at zero.");
+                findings.Add(new Finding(Rule.NoPlayableTake, cue, $"{name} has no playable take; no take has a clip."));
             }
 
             if (cue.Variation.HasInvalidBounds)
             {
-                findings.Add("This cue has invalid playback variation bounds. Check the pitch, level, and cutoff ranges.");
+                findings.Add(new Finding(Rule.InvalidVariation, cue, $"{name} has invalid playback variation bounds. Check the pitch, level, and cutoff ranges."));
             }
 
-            AddGraphFindings(findings, cue.Graph, "This cue");
-            return findings;
+            if (cue.FollowsTakeOf == cue)
+            {
+                findings.Add(new Finding(Rule.SelfFollow, cue, $"{name} follows its own take number, so it never follows anything."));
+            }
+
+            if (cue.IsLooping && HasAuthoredStartOffset(cue))
+            {
+                findings.Add(new Finding(Rule.LoopOffset, cue, $"{name} loops, so its take start offsets are ignored; a loop restarts at zero."));
+            }
+
+            AddGraph(findings, cue.Graph, name);
+            AddChain(findings, cue.Chain);
         }
 
-        /// <summary>Adds one finding per problem that keeps the graph <paramref name="owner"/> names from playing.</summary>
-        /// <remarks>
-        /// A graph the runtime cannot build passes every block through, so the cue plays unshaped rather than failing
-        /// to play. That is silent at run time and easy to miss by ear, which is why the check is here.
-        /// </remarks>
-        private static void AddGraphFindings(List<string> findings, DspGraphAsset graph, string owner)
+        private static void AddTrack(List<Finding> findings, MusicTrack track, string name, AudioClip clip)
         {
-            if (graph == null)
+            if (clip == null)
+            {
+                findings.Add(new Finding(Rule.NoTrackClip, track, $"{name} has no clip, so it cannot play."));
+            }
+            else if (MusicClipImport.TryGetAppliedLoadType(clip, out MusicClipLoadType applied) && applied != track.ResolvedClipLoadType)
+            {
+                findings.Add(new Finding(Rule.ClipLoadType, track, $"{name} asks for a {track.ResolvedClipLoadType} clip, but the clip is imported as {applied}."));
+            }
+
+            AddGraph(findings, track.Graph, name);
+            AddChain(findings, track.Chain);
+        }
+
+        private static void AddGraph(List<Finding> findings, DspGraphAsset graph, string owner)
+        {
+            if (graph != null)
+            {
+                string name = string.IsNullOrWhiteSpace(graph.name) ? "an unnamed graph" : $"the graph '{graph.name}'";
+                CollectGraph(
+                    graph,
+                    (_, _, finding) =>
+                    {
+                        string status = finding.Rule == Rule.InvalidGraph ? ", which cannot play" : string.Empty;
+                        findings.Add(new Finding(finding.Rule, finding.Asset, $"{owner} names {name}{status}: {finding.Message}"));
+                    }
+                );
+            }
+        }
+
+        private static void AddChain(List<Finding> findings, DspChainAsset chain)
+        {
+            if (chain == null)
             {
                 return;
             }
 
-            string name = string.IsNullOrWhiteSpace(graph.name) ? "an unnamed graph" : $"the graph '{graph.name}'";
-            IReadOnlyList<string> problems = graph.FindProblems();
-            for (int index = 0; index < problems.Count; ++index)
+            IReadOnlyList<DspEffectAsset> effects = chain.Effects;
+            for (int index = 0; index < effects.Count; ++index)
             {
-                findings.Add($"{owner} names {name}, which cannot play: {problems[index]}");
+                if (effects[index] == null)
+                {
+                    findings.Add(
+                        new Finding(Rule.MissingChainEffect, chain, $"Chain '{chain.name}' has no effect in slot {index + 1}. Assign an effect or remove the slot.", index)
+                    );
+                }
             }
-        }
-
-        private static string CueName(SfxCue cue, int index)
-        {
-            return string.IsNullOrWhiteSpace(cue.name) ? $"Slot {index + 1}" : $"'{cue.name}'";
-        }
-
-        private static string TrackName(MusicTrack track, int index)
-        {
-            return string.IsNullOrWhiteSpace(track.name) ? $"Slot {index + 1}" : $"'{track.name}'";
         }
 
         private static bool HasAuthoredStartOffset(SfxCue cue)
@@ -215,6 +352,76 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             return false;
+        }
+
+        private static List<string> Messages(List<Finding> findings)
+        {
+            List<string> messages = new(findings.Count);
+            foreach (Finding finding in findings)
+            {
+                messages.Add(finding.Message);
+            }
+
+            return messages;
+        }
+
+        private static string EmptySlot(int index, string member)
+        {
+            return $"Slot {index + 1} is empty. Remove it or assign a {member}.";
+        }
+
+        private static string MemberName(Object asset, int index)
+        {
+            return string.IsNullOrWhiteSpace(asset.name) ? $"Slot {index + 1}" : $"'{asset.name}'";
+        }
+
+        internal enum Severity
+        {
+            [Obsolete("Select a severity.", true)]
+            Unknown = 0,
+            Error = 1,
+            Warn = 2,
+            Info = 3,
+            Off = 4,
+        }
+
+        internal enum Rule
+        {
+            [Obsolete("Select a rule.", true)]
+            Unknown = 0,
+            NoPlayableTake = 101,
+            NoTrackClip = 102,
+            InvalidVariation = 103,
+            NoLookup = 104,
+            DuplicateKey = 105,
+            DuplicateContext = 106,
+            EmptyLibrarySlot = 107,
+            SelfFollow = 108,
+            ClipLoadType = 109,
+            LoopOffset = 110,
+            MissingChainEffect = 201,
+            InvalidGraph = 202,
+            UnplayableDrop = 301,
+            CapacityDrop = 302,
+            ThrottledDrop = 303,
+        }
+
+        internal readonly struct Finding
+        {
+            internal string Label => $"{Id(Rule)} {Message}";
+
+            internal readonly Rule Rule;
+            internal readonly Object Asset;
+            internal readonly string Message;
+            internal readonly int Slot;
+
+            internal Finding(Rule rule, Object asset, string message, int slot = -1)
+            {
+                Rule = rule;
+                Asset = asset;
+                Message = message;
+                Slot = slot;
+            }
         }
     }
 }
