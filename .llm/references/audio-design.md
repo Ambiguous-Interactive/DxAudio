@@ -115,6 +115,12 @@ Stop() -> fade out
 Per-frame time: music duck application at three voices stays under 1.5 us per frame at p95, with no allocation. Measure
 with [measure-audio-behaviour](../skills/measure-audio-behaviour/SKILL.md). A budget is only real when a probe pins it.
 
+DSP render CI compares Callgrind instruction counts for the candidate and base revision on the same Linux Mono runtime.
+Each of the 17 shared cases warms 64 passes and measures 240 passes at 48 kHz with 1,024-frame stereo blocks.
+The instruction check allows at most 2% growth in any case. Unity EditMode reports p50, p95, p99, and maximum wall time
+in both integration states. The wall-time references remain 1% of the block window for Delay and 2% for other effects.
+Instruction counts track code cost. Use Unity wall time to assess deadline headroom.
+
 ## Device and format notes
 
 - `AudioSource` configuration is per pooled voice and owned by `SfxPlayer`. Do not reconfigure an `AudioSource` per play
