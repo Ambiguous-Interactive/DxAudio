@@ -5,6 +5,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     using NUnit.Framework;
     using UnityEditor;
     using UnityEngine;
+    using WallstopStudios.DxAudio.Editor;
 
     public sealed class DiagnosticsTests
     {
@@ -97,6 +98,61 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(player.TryGetVoiceState(7, out _, out int outOfRange), Is.False);
             Assert.That(outOfRange, Is.Zero);
+        }
+
+        [Test]
+        public void MixMonitorCapturesAHeldVoiceAndDropMarkersFromItsSelectedPlayer()
+        {
+            using MadeObjects made = new();
+            SfxCue hum = Cue(made, loop: true);
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { hum }, voiceCount: 1));
+            DxAudioMixMonitorWindow monitor = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
+            monitor.SelectPlayer(player);
+
+            Assert.That(player.TryPlayLooping(hum, out SfxLoopHandle handle), Is.True);
+            Assert.That(player.Play("missing"), Is.False);
+            monitor.SamplePlayer();
+            monitor.ToggleCapture();
+            Assert.That(player.StopLoop(handle), Is.True);
+            monitor.SamplePlayer();
+
+            MixMonitorTimeline timeline = monitor.Timeline;
+            Assert.That(timeline.Count, Is.EqualTo(2));
+            Assert.That(timeline.Voice(1, handle.voice).isHeld, Is.True);
+            Assert.That(timeline.Drops(1).notPlayable, Is.EqualTo(1));
+
+            monitor.ToggleCapture();
+
+            Assert.That(timeline.Count, Is.EqualTo(3));
+            Assert.That(timeline.StartsSegment(2), Is.True);
+            Assert.That(timeline.Voice(2, handle.voice).IsFree, Is.True);
+
+            SfxPlayer other = SfxPlayer(made, SfxLibrary.Create(new[] { hum }, voiceCount: 1));
+            monitor.SelectPlayer(other);
+
+            Assert.That(timeline.Count, Is.EqualTo(1));
+            Assert.That(timeline.Drops(0).Total, Is.Zero);
+            Assert.That(monitor.Capture.Counts.Total, Is.Zero);
+        }
+
+        [Test]
+        public void MixMonitorLeavesLostVoiceRepairToThePlayer()
+        {
+            using MadeObjects made = new();
+            SfxCue hit = Cue(made, loop: false);
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { hit }, voiceCount: 1));
+            AudioSource voice = player.GetComponentInChildren<AudioSource>();
+            Assert.That(voice != null, Is.True);
+            player.Paused = true;
+            Assert.That(player.Play(hit), Is.True);
+            voice.clip = null;
+
+            DxAudioMixMonitorWindow monitor = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
+            monitor.SelectPlayer(player);
+
+            Assert.That(monitor.Timeline.Voice(0, 0).isPaused, Is.True);
+            Assert.That(player.TryGetVoiceState(0, out SfxVoiceState repaired, out _), Is.True);
+            Assert.That(repaired.IsFree, Is.True);
         }
 
         [Test]
