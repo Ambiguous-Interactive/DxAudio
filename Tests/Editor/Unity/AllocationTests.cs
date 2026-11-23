@@ -4,6 +4,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     using NUnit.Framework;
     using Unity.Profiling;
     using UnityEngine;
+    using WallstopStudios.DxAudio.Editor;
 
     /// <summary>Checks managed allocations during warmed play and render calls.</summary>
     public sealed class AllocationTests
@@ -126,6 +127,49 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             long allocations = AllocationEvents(play, MeasuredCalls);
 
             Assert.That(allocations, Is.Zero, $"Keyed Play allocated {allocations} times over {MeasuredCalls:N0} plays.");
+        }
+
+        [Test]
+        public void PlayingWithTheMixMonitorEnabledDoesNotAllocate()
+        {
+            using MadeObjects made = new();
+            SfxCue cue = Cue(made, key: "hit");
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
+            AudioSource voice = player.GetComponentInChildren<AudioSource>();
+            Assert.That(voice != null, Is.True, "The cue must use a pooled source.");
+            DxAudioMixMonitorWindow monitor = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
+            monitor.SelectPlayer(player);
+            if (!Application.isBatchMode)
+            {
+                monitor.Show();
+            }
+
+            int started = 0;
+            void PlayAndDrop()
+            {
+                if (player.Play("hit"))
+                {
+                    ++started;
+                }
+
+                voice.Stop();
+                player.Play("missing");
+            }
+
+            for (int index = 0; index < WarmupCalls; ++index)
+            {
+                PlayAndDrop();
+            }
+
+            monitor.SamplePlayer();
+            int before = monitor.Capture.Counts.notPlayable;
+            started = 0;
+            long allocations = AllocationEvents(PlayAndDrop, MeasuredCalls);
+            monitor.SamplePlayer();
+
+            Assert.That(started, Is.EqualTo(MeasuredCalls));
+            Assert.That(monitor.Capture.Counts.notPlayable - before, Is.EqualTo(MeasuredCalls));
+            Assert.That(allocations, Is.Zero, $"Play allocated {allocations} times over {MeasuredCalls:N0} cue pairs.");
         }
 
         [TestCase("Distortion")]
