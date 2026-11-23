@@ -394,14 +394,14 @@ namespace WallstopStudios.DxAudio.Editor
                 }
 
                 Foldout options = new() { text = shared || personal ? "Manage Silence" : "Silence", value = false };
-                if (DxAudioProblemSettings.TryAssetGuid(finding, out string guid))
+                if (DxAudioProblemSettings.TryAssetId(finding, out string guid, out long localId))
                 {
                     if (shared)
                     {
                         options.Add(
                             new Button(() =>
                             {
-                                settings.RemoveSilence(finding.Rule, guid);
+                                settings.RemoveSilence(finding.Rule, guid, localId);
                                 settings.Persist();
                             })
                             {

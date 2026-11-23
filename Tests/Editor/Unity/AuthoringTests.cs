@@ -449,16 +449,23 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Severity original = settings.SeverityFor(Rule.NoPlayableTake);
             bool personal = DxAudioProblemSettings.IsPersonalSilence(Rule.NoPlayableTake);
             SfxCue broken = made.Track(SfxCue.Create(new[] { new SfxVariant() }, key: "broken"));
-            SfxLibrary library = made.Track(SfxLibrary.Create(new[] { broken }));
+            SfxCue other = made.Track(SfxCue.Create(new[] { new SfxVariant() }, key: "other"));
+            SfxLibrary library = made.Track(SfxLibrary.Create(new[] { broken, other }));
             string path = AssetDatabase.GenerateUniqueAssetPath("Assets/DxAudioProblemFixture.asset");
             string guid = string.Empty;
+            long brokenId = 0;
             try
             {
                 AssetDatabase.CreateAsset(library, path);
                 AssetDatabase.AddObjectToAsset(broken, library);
+                AssetDatabase.AddObjectToAsset(other, library);
                 AssetDatabase.SaveAssetIfDirty(library);
                 Finding finding = new(Rule.NoPlayableTake, broken, "No playable take.");
-                Assert.That(DxAudioProblemSettings.TryAssetGuid(finding, out guid), Is.True);
+                Finding sibling = new(Rule.NoPlayableTake, other, "No playable take.");
+                Assert.That(DxAudioProblemSettings.TryAssetId(finding, out guid, out brokenId), Is.True);
+                Assert.That(DxAudioProblemSettings.TryAssetId(sibling, out string siblingGuid, out long siblingId), Is.True);
+                Assert.That(siblingGuid, Is.EqualTo(guid));
+                Assert.That(siblingId, Is.Not.EqualTo(brokenId));
 
                 settings.SetSeverity(finding.Rule, Severity.Error);
                 DxAudioProblemSettings.SetPersonalSilence(finding.Rule, true, notify: false);
@@ -473,9 +480,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 Assert.That(settings.TrySilence(finding, "Fixture for testing invalid inputs."), Is.True);
                 DxAudioProblemSettings.SetPersonalSilence(finding.Rule, false, notify: false);
                 Assert.That(settings.IsVisible(finding), Is.False);
-                Assert.That(DxAudioLibraryWindow.FindProjectErrors().Exists(error => error.Asset == broken && error.Rule == finding.Rule), Is.False);
+                Assert.That(settings.IsVisible(sibling), Is.True);
+                List<Finding> remaining = DxAudioLibraryWindow.FindProjectErrors();
+                Assert.That(remaining.Exists(error => error.Asset == broken && error.Rule == finding.Rule), Is.False);
+                Assert.That(remaining.Exists(error => error.Asset == other && error.Rule == finding.Rule), Is.True);
 
-                settings.RemoveSilence(finding.Rule, guid);
+                settings.RemoveSilence(finding.Rule, guid, brokenId);
                 settings.SetSeverity(finding.Rule, Severity.Info);
                 Assert.That(settings.IsVisible(finding), Is.True);
                 Assert.That(settings.BlocksValidation(finding), Is.False);
@@ -484,7 +494,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
             finally
             {
-                settings.RemoveSilence(Rule.NoPlayableTake, guid);
+                settings.RemoveSilence(Rule.NoPlayableTake, guid, brokenId);
                 settings.SetSeverity(Rule.NoPlayableTake, original);
                 DxAudioProblemSettings.SetPersonalSilence(Rule.NoPlayableTake, personal, notify: false);
                 AssetDatabase.DeleteAsset(path);

@@ -21,10 +21,11 @@ namespace WallstopStudios.DxAudio.Editor
         [SerializeField]
         private List<Silence> _silences = new();
 
-        internal static bool TryAssetGuid(Finding finding, out string guid)
+        internal static bool TryAssetId(Finding finding, out string guid, out long localId)
         {
             guid = string.Empty;
-            return finding.Asset != null && AssetDatabase.TryGetGUIDAndLocalFileIdentifier(finding.Asset, out guid, out long _);
+            localId = 0L;
+            return finding.Asset != null && AssetDatabase.TryGetGUIDAndLocalFileIdentifier(finding.Asset, out guid, out localId);
         }
 
         internal static bool IsPersonalSilence(Rule rule) => EditorPrefs.GetBool(PersonalKey(rule));
@@ -82,28 +83,30 @@ namespace WallstopStudios.DxAudio.Editor
         internal bool IsVisible(Finding finding) => SeverityFor(finding.Rule) != Severity.Off && !IsSharedSilence(finding) && !IsPersonalSilence(finding.Rule);
 
         internal bool IsSharedSilence(Finding finding) =>
-            TryAssetGuid(finding, out string guid) && _silences.Exists(entry => entry.rule == finding.Rule && entry.guid == guid && !string.IsNullOrWhiteSpace(entry.reason));
+            TryAssetId(finding, out string guid, out long localId)
+            && _silences.Exists(entry => entry.Matches(finding.Rule, guid, localId) && !string.IsNullOrWhiteSpace(entry.reason));
 
         internal bool TrySilence(Finding finding, string reason)
         {
-            if (string.IsNullOrWhiteSpace(reason) || !TryAssetGuid(finding, out string guid))
+            if (string.IsNullOrWhiteSpace(reason) || !TryAssetId(finding, out string guid, out long localId))
             {
                 return false;
             }
 
-            RemoveSilence(finding.Rule, guid);
+            RemoveSilence(finding.Rule, guid, localId);
             _silences.Add(
                 new Silence
                 {
                     rule = finding.Rule,
                     guid = guid,
+                    localId = localId,
                     reason = reason.Trim(),
                 }
             );
             return true;
         }
 
-        internal void RemoveSilence(Rule rule, string guid) => _silences.RemoveAll(entry => entry.rule == rule && entry.guid == guid);
+        internal void RemoveSilence(Rule rule, string guid, long localId) => _silences.RemoveAll(entry => entry.Matches(rule, guid, localId));
 
         internal void Persist()
         {
@@ -166,7 +169,7 @@ namespace WallstopStudios.DxAudio.Editor
                 Silence entry = _silences[index];
                 string path = AssetDatabase.GUIDToAssetPath(entry.guid);
                 EditorGUILayout.BeginHorizontal();
-                GUILayout.Label($"{Id(entry.rule)}  {(string.IsNullOrEmpty(path) ? entry.guid : path)}\n{entry.reason}", EditorStyles.wordWrappedLabel);
+                GUILayout.Label($"{Id(entry.rule)}  {(string.IsNullOrEmpty(path) ? entry.guid : path)} ({entry.localId})\n{entry.reason}", EditorStyles.wordWrappedLabel);
                 bool remove = GUILayout.Button("Restore", GUILayout.Width(70f));
                 EditorGUILayout.EndHorizontal();
                 if (remove)
@@ -199,7 +202,10 @@ namespace WallstopStudios.DxAudio.Editor
         {
             public Rule rule;
             public string guid;
+            public long localId;
             public string reason;
+
+            public bool Matches(Rule targetRule, string targetGuid, long targetLocalId) => rule == targetRule && guid == targetGuid && localId == targetLocalId;
         }
     }
 }
