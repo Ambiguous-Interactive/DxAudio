@@ -2,7 +2,7 @@ namespace WallstopStudios.DxAudio.Editor
 {
     using System;
 
-    internal sealed class MixMonitorTimeline
+    internal sealed class MixMonitorTimeline<TClip>
     {
         internal const double HistorySeconds = 10d;
 
@@ -10,7 +10,7 @@ namespace WallstopStudios.DxAudio.Editor
         internal int VoiceCount { get; private set; }
 
         private readonly Frame[] _frames;
-        private SfxVoiceState[] _voices = Array.Empty<SfxVoiceState>();
+        private (SfxVoiceState state, TClip clip, float clipSeconds)[] _voices = Array.Empty<(SfxVoiceState, TClip, float)>();
         private SfxDropCounts _previous;
         private int _oldest;
         private int _latest;
@@ -25,8 +25,12 @@ namespace WallstopStudios.DxAudio.Editor
         {
             if (voiceCount != VoiceCount)
             {
-                _voices = new SfxVoiceState[_frames.Length * voiceCount];
+                _voices = new (SfxVoiceState, TClip, float)[_frames.Length * voiceCount];
                 VoiceCount = voiceCount;
+            }
+            else if (0 < Count)
+            {
+                Array.Clear(_voices, 0, _voices.Length);
             }
 
             Count = 0;
@@ -44,13 +48,13 @@ namespace WallstopStudios.DxAudio.Editor
         {
             while (0 < Count && (Count == _frames.Length || _frames[_oldest].time < time - HistorySeconds))
             {
+                Array.Clear(_voices, _oldest * VoiceCount, VoiceCount);
                 _oldest = (_oldest + 1) % _frames.Length;
                 --Count;
             }
 
             _latest = Slot(Count);
             ++Count;
-            Array.Clear(_voices, _latest * VoiceCount, VoiceCount);
             SfxDropCounts drops = _interrupted
                 ? SfxDropCounts.None
                 : new SfxDropCounts(
@@ -65,9 +69,9 @@ namespace WallstopStudios.DxAudio.Editor
             _interrupted = false;
         }
 
-        internal void SetVoice(int voice, in SfxVoiceState state)
+        internal void SetVoice(int voice, in SfxVoiceState state, TClip clip = default, float clipSeconds = 0f)
         {
-            _voices[_latest * VoiceCount + voice] = state;
+            _voices[_latest * VoiceCount + voice] = (state, clip, clipSeconds);
         }
 
         internal double Time(int frame)
@@ -87,7 +91,13 @@ namespace WallstopStudios.DxAudio.Editor
 
         internal ref readonly SfxVoiceState Voice(int frame, int voice)
         {
-            return ref _voices[Slot(frame) * VoiceCount + voice];
+            return ref _voices[Slot(frame) * VoiceCount + voice].state;
+        }
+
+        internal (TClip clip, float seconds) Clip(int frame, int voice)
+        {
+            ref readonly (SfxVoiceState state, TClip clip, float clipSeconds) sample = ref _voices[Slot(frame) * VoiceCount + voice];
+            return (sample.clip, sample.clipSeconds);
         }
 
         private int Slot(int frame)

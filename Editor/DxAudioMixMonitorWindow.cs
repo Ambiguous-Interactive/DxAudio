@@ -21,13 +21,14 @@ namespace WallstopStudios.DxAudio.Editor
         private static readonly CustomStyleProperty<Color> CursorColorRole = new("--dxa-theme-text");
 
         internal MixMonitorDropCapture Capture { get; } = new();
-        internal MixMonitorTimeline Timeline { get; } = new(1 + (int)(SamplesPerSecond * MixMonitorTimeline.HistorySeconds));
+        internal MixMonitorTimeline<AudioClip> Timeline { get; } = new(1 + (int)(SamplesPerSecond * MixMonitorTimeline<AudioClip>.HistorySeconds));
 
         [SerializeField]
         private SfxPlayer _player;
 
         private double _nextSample;
         private int _cursor;
+        private int _selectedVoice = -1;
         private bool _showVoices = true;
         private Vector2 _scroll;
         private IMGUIContainer _content;
@@ -79,6 +80,7 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             _player = player;
+            _selectedVoice = -1;
             Timeline.Reset(player == null ? 0 : player.VoiceCount);
             _scroll = Vector2.zero;
             SamplePlayer();
@@ -108,9 +110,9 @@ namespace WallstopStudios.DxAudio.Editor
             Timeline.Sample(EditorApplication.timeSinceStartup, counts);
             for (int voice = 0; voice < Timeline.VoiceCount; ++voice)
             {
-                if (_player.TryObserveVoiceState(voice, out SfxVoiceState state))
+                if (_player.TryObserveVoiceState(voice, out SfxVoiceState state, out AudioClip clip, out float clipSeconds))
                 {
-                    Timeline.SetVoice(voice, state);
+                    Timeline.SetVoice(voice, state, clip, clipSeconds);
                 }
             }
 
@@ -126,8 +128,32 @@ namespace WallstopStudios.DxAudio.Editor
             }
             else
             {
+                _selectedVoice = -1;
                 SamplePlayer();
             }
+        }
+
+        internal bool SelectClip(int frame, int voice)
+        {
+            if (Timeline.Clip(frame, voice).clip == null)
+            {
+                return false;
+            }
+
+            if (!Capture.Paused)
+            {
+                ToggleCapture();
+            }
+
+            _cursor = frame;
+            _selectedVoice = voice;
+            Repaint();
+            return true;
+        }
+
+        internal (AudioClip clip, float seconds) SelectedClip()
+        {
+            return 0 <= _selectedVoice ? Timeline.Clip(_cursor, _selectedVoice) : default;
         }
 
         private Rect ReserveTrack(string name)
@@ -179,6 +205,7 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 Capture.Reset();
                 Timeline.Reset(0);
+                _selectedVoice = -1;
                 _nextSample = 0d;
             }
 
@@ -222,9 +249,16 @@ namespace WallstopStudios.DxAudio.Editor
                 if (GUILayout.Button(Capture.Paused ? "Resume" : "Pause", EditorStyles.toolbarButton, GUILayout.Width(65f)))
                 {
                     ToggleCapture();
+                    Repaint();
+                    GUIUtility.ExitGUI();
                 }
 
                 GUILayout.Label($"Drops: {Capture.VisibleCount}  |  Silenced: {Capture.SilencedCount}", EditorStyles.miniLabel);
+            }
+
+            if (Capture.Paused && 0 <= _selectedVoice)
+            {
+                DrawSelectedClip();
             }
 
             using (EditorGUILayout.ScrollViewScope scroll = new(_scroll))
@@ -242,11 +276,24 @@ namespace WallstopStudios.DxAudio.Editor
             }
         }
 
+        private void DrawSelectedClip()
+        {
+            (AudioClip clip, float seconds) = SelectedClip();
+            if (clip == null)
+            {
+                EditorGUILayout.LabelField($"Voice {_selectedVoice + 1}", "No clip at this sample");
+                return;
+            }
+
+            string detail = $"{clip.name}  |  {seconds:F3} s  |  {Timeline.Voice(_cursor, _selectedVoice).priority} priority";
+            EditorGUILayout.LabelField(new GUIContent($"Voice {_selectedVoice + 1} clip"), new GUIContent(detail, detail));
+        }
+
         private void DrawTimeline()
         {
             int latest = Timeline.Count - 1;
             double end = Timeline.Time(latest);
-            double start = end - MixMonitorTimeline.HistorySeconds;
+            double start = end - MixMonitorTimeline<AudioClip>.HistorySeconds;
             using (new EditorGUI.DisabledScope(!Capture.Paused || latest == 0))
             {
                 _cursor = EditorGUILayout.IntSlider("Sample", _cursor, 0, Math.Max(1, latest));
@@ -264,7 +311,7 @@ namespace WallstopStudios.DxAudio.Editor
                 }
                 else
                 {
-                    GUI.Label(new Rect(x, ruler.y, 42f, TrackHeight), $"{(tick - 5) * MixMonitorTimeline.HistorySeconds / 5d:0} s", EditorStyles.miniLabel);
+                    GUI.Label(new Rect(x, ruler.y, 42f, TrackHeight), $"{(tick - 5) * MixMonitorTimeline<AudioClip>.HistorySeconds / 5d:0} s", EditorStyles.miniLabel);
                 }
             }
 
@@ -323,11 +370,15 @@ namespace WallstopStudios.DxAudio.Editor
                 : selected.isUsable ? "Idle"
                 : "Unavailable";
             Rect track = ReserveTrack($"{voice + 1}  {status}");
-            if (!_themeReady || Event.current.type != EventType.Repaint)
+            Event evt = Event.current;
+            bool draw = evt.type == EventType.Repaint;
+            bool click = evt.type == EventType.MouseDown && evt.button == 0 && track.Contains(evt.mousePosition);
+            if (!_themeReady || (!draw && !click))
             {
                 return;
             }
 
+            int hit = -1;
             for (int frame = 0; frame < Timeline.Count; ++frame)
             {
                 ref readonly SfxVoiceState state = ref Timeline.Voice(frame, voice);
@@ -345,14 +396,34 @@ namespace WallstopStudios.DxAudio.Editor
 
                 float left = TrackX(in track, start, end, time);
                 float right = TrackX(in track, start, end, until);
-                Color color =
-                    state.isPaused ? _pausedColor
-                    : state.isHeld ? _heldColor
-                    : _playingColor;
-                EditorGUI.DrawRect(new Rect(Mathf.Min(left, track.xMax - 1f), track.y + 3f, Mathf.Max(1f, right - left), track.height - 6f), color);
+                Rect cell = new(Mathf.Min(left, track.xMax - 1f), track.y + 3f, Mathf.Max(1f, right - left), track.height - 6f);
+                if (draw)
+                {
+                    Color color =
+                        state.isPaused ? _pausedColor
+                        : state.isHeld ? _heldColor
+                        : _playingColor;
+                    EditorGUI.DrawRect(cell, color);
+                    if (voice == _selectedVoice && frame == _cursor)
+                    {
+                        EditorGUI.DrawRect(new Rect(cell.x, cell.yMax - 2f, cell.width, 2f), _cursorColor);
+                    }
+                }
+                else if (cell.Contains(evt.mousePosition))
+                {
+                    hit = frame;
+                }
             }
 
-            DrawCursor(in track, start, end, cursor);
+            if (draw)
+            {
+                DrawCursor(in track, start, end, cursor);
+            }
+            else if (0 <= hit && SelectClip(hit, voice))
+            {
+                evt.Use();
+                GUIUtility.ExitGUI();
+            }
         }
 
         private void DrawDrop(SfxDropReason reason)

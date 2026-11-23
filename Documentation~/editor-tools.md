@@ -49,6 +49,8 @@ See [bus behavior](effects.md#a-player-wide-bus) before choosing where to place 
 Open **Tools > Wallstop Studios > DxAudio > Mix Monitor** in Play Mode and select an SFX Player from the scene.
 The window shows each drop reason and its Problems rule ID. Counts cover the selected player's lifetime.
 Click **Pause** to hold the current counts. **Resume** refreshes them, including drops that occurred while paused.
+Click an occupied SFX voice bar to pause capture and inspect its recorded clip, playback position, and priority.
+Move the **Sample** slider to inspect the same voice at another point in the retained history.
 Click **Silence** to hide a reason's count and move it into the silenced total. Throttled drops start silenced.
 
 Add an **Audio Diagnostics** component (**Add Component > Wallstop Studios > DxAudio > Audio Diagnostics**) and assign the players. Tick
