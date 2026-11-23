@@ -39,9 +39,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private static extern void GetCurrentProcessorNumberEx(out ProcessorNumber processor);
 
         [DllImport("kernel32.dll", ExactSpelling = true)]
-        private static extern UIntPtr SetThreadAffinityMask(IntPtr thread, UIntPtr mask);
-
-        [DllImport("kernel32.dll", ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool QueryPerformanceCounter(out long timestamp);
 
@@ -511,33 +508,28 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 passes[pass] = context;
             }
 
-            void MeasurePasses()
+            for (int pass = 0; pass < 64; ++pass)
             {
-                for (int pass = 0; pass < 64; ++pass)
-                {
-                    Measure(baseline, baselineTicks, baselinePasses, 0);
-                    Measure(candidate, candidateTicks, candidatePasses, 0);
-                }
-
-                for (int pass = 0; pass < Passes; ++pass)
-                {
-                    if (pass % 2 == 0)
-                    {
-                        Measure(baseline, baselineTicks, baselinePasses, pass);
-                        Measure(candidate, candidateTicks, candidatePasses, pass);
-                    }
-                    else
-                    {
-                        Measure(candidate, candidateTicks, candidatePasses, pass);
-                        Measure(baseline, baselineTicks, baselinePasses, pass);
-                    }
-                }
-
-                Array.Sort(baselineTicks, baselinePasses);
-                Array.Sort(candidateTicks, candidatePasses);
+                Measure(baseline, baselineTicks, baselinePasses, 0);
+                Measure(candidate, candidateTicks, candidatePasses, 0);
             }
 
-            MeasurePasses();
+            for (int pass = 0; pass < Passes; ++pass)
+            {
+                if (pass % 2 == 0)
+                {
+                    Measure(baseline, baselineTicks, baselinePasses, pass);
+                    Measure(candidate, candidateTicks, candidatePasses, pass);
+                }
+                else
+                {
+                    Measure(candidate, candidateTicks, candidatePasses, pass);
+                    Measure(baseline, baselineTicks, baselinePasses, pass);
+                }
+            }
+
+            Array.Sort(baselineTicks, baselinePasses);
+            Array.Sort(candidateTicks, candidatePasses);
             double tickMicroseconds = 1_000_000d / Stopwatch.Frequency;
             int p95 = Passes * 95 / 100 - 1;
             int p99 = (Passes * 99 + 99) / 100 - 1;
@@ -574,7 +566,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             cpuPlacement =
                 $" Candidate CPU at elapsed p50, p95, p99, max: {CpuSpan(candidatePasses[Passes / 2])}, "
                 + $"{CpuSpan(candidatePasses[p95])}, {CpuSpan(candidatePasses[p99])}, {CpuSpan(candidatePasses[Passes - 1])}.";
-            if (budget < addedP95)
+            if (budget < addedP95 || 2d * candidateTicks[p95] < candidateTicks[Passes - 1])
             {
                 QueryPerformanceFrequency(out long qpcFrequency);
                 TestContext.Out.WriteLine(
@@ -590,57 +582,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                     + $"p50/p95/p99/max in us, baseline {Distribution(baselineTicks)}, candidate {Distribution(candidateTicks)}, "
                     + $"added p95 {addedP95:F2} us, budget {budget:F2} us.{threadCycles}{cpuPlacement}"
             );
-#if UNITY_EDITOR_WIN
-            if (
-                voices == 8
-                && (delay || gateBursts || decayingTail || string.Equals(effect, "Chorus", StringComparison.Ordinal) || string.Equals(effect, "Reverb", StringComparison.Ordinal))
-                && string.Equals(Environment.GetEnvironmentVariable("RUNNER_NAME"), "ELI-MACHINE", StringComparison.Ordinal)
-                && SystemInfo.processorType.Contains("i9-13900KF", StringComparison.Ordinal)
-                && SystemInfo.processorCount == 32
-            )
-            {
-                // The diagnosed ELI topology has P-cores on CPUs 0-15 and E-cores on 16-31. Balance arm order.
-                int[] cpus = { 6, 20, 20, 6 };
-                IntPtr thread = GetCurrentThread();
-                for (int arm = 0; arm < cpus.Length; ++arm)
-                {
-                    int cpu = cpus[arm];
-                    UIntPtr previousMask = SetThreadAffinityMask(thread, new UIntPtr(1UL << cpu));
-                    if (previousMask == UIntPtr.Zero)
-                    {
-                        TestContext.Out.WriteLine($"DxAudio DSP render: Affinity control could not select CPU {cpu}.");
-                        continue;
-                    }
-
-                    try
-                    {
-                        for (int voice = 0; voice < voices; ++voice)
-                        {
-                            baseline[voice].Reset();
-                            candidate[voice].Reset();
-                        }
-
-                        haveCycles = true;
-                        MeasurePasses();
-                        double armP95 = (candidateTicks[p95] - baselineTicks[p95]) * tickMicroseconds;
-                        string armCycles = haveCycles ? $" Candidate cycles {CyclesAtElapsedRanks(candidatePasses)}." : "";
-                        TestContext.Out.WriteLine(
-                            $"DxAudio DSP render: Affinity arm {arm + 1} on CPU {cpu}, {effect} (bursts {bursts}), "
-                                + $"baseline {Distribution(baselineTicks)}, candidate {Distribution(candidateTicks)} us p50/p95/p99/max, "
-                                + $"added p95 {armP95:F2} us, budget {budget:F2} us. Candidate slots at p50/p95 "
-                                + $"{CpuSpan(candidatePasses[Passes / 2])} and {CpuSpan(candidatePasses[p95])}.{armCycles}"
-                        );
-                    }
-                    finally
-                    {
-                        if (SetThreadAffinityMask(thread, previousMask) == UIntPtr.Zero)
-                        {
-                            throw new InvalidOperationException("Could not restore the DSP test thread affinity.");
-                        }
-                    }
-                }
-            }
-#endif
             Assert.That(addedP95, Is.LessThanOrEqualTo(budget), $"Added processing must fit within {budgetPercent}% of the block window.");
         }
 
