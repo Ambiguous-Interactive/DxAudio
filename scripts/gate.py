@@ -137,6 +137,7 @@ LANES: Tuple[Tuple[str, Tuple[Step, ...]], ...] = (
     (
         "harness",
         (
+            Step("harness.brand", "Generated brand assets", (*_PYTHON_LAUNCHER, "scripts/brand_check.py")),
             Step(
                 "harness.skills-index",
                 "Skills index regeneration",

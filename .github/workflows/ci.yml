@@ -105,6 +105,8 @@ jobs:
           if-no-files-found: error
       - name: Check Unity runner controls
         run: python3 .net-tests/UnityValidation/test_runner.py
+      - name: Check generated brand assets
+        run: uv run scripts/brand_check.py
       - name: Check documentation version pins
         run: python3 .github/scripts/sync_docs_version.py
       - name: Check the consumer package
