@@ -1,8 +1,8 @@
 # DxAudio
 
 <picture>
-  <source media="(prefers-color-scheme: light)" srcset="docs/images/brand/dxaudio-banner-light.svg">
-  <img src="docs/images/brand/dxaudio-banner.svg" alt="DxAudio. Cue assets, pooled voices and music ducks." width="800" height="200">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/Ambiguous-Interactive/DxAudio/main/docs/images/brand/dxaudio-banner-light.svg">
+  <img src="https://raw.githubusercontent.com/Ambiguous-Interactive/DxAudio/main/docs/images/brand/dxaudio-banner.svg" alt="DxAudio. Cue assets, pooled voices and music ducks." width="800" height="200">
 </picture>
 
 [![Documentation](https://img.shields.io/badge/docs-manual-12705F)](Documentation~/index.md)
@@ -108,9 +108,9 @@ See the [install guide](Documentation~/install.md) for registry setup and sample
 
 Open **Tools > Wallstop Studios > DxAudio > Authoring** to audition cues, edit DSP graphs and check libraries.
 
-| Cue authoring                                                                                                              | DSP graph                                                                                                          |
-| -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| [![Cue settings and audition controls](Documentation~/images/cue-authoring.png)](Documentation~/editor-tools.md#authoring) | [![Graph with parallel audio routes](Documentation~/images/dsp-graph.png)](Documentation~/effects.md#a-node-graph) |
+| Cue authoring                                                                                                                                                                                   | DSP graph                                                                                                                                                                               |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [![Cue settings and audition controls](https://raw.githubusercontent.com/Ambiguous-Interactive/DxAudio/main/Documentation~/images/cue-authoring.png)](Documentation~/editor-tools.md#authoring) | [![Graph with parallel audio routes](https://raw.githubusercontent.com/Ambiguous-Interactive/DxAudio/main/Documentation~/images/dsp-graph.png)](Documentation~/effects.md#a-node-graph) |
 
 ## Documentation
 
