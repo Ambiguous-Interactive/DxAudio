@@ -15,6 +15,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             (1, "Delay", false),
             (8, "Delay", false),
+            (1, "Distortion", false),
+            (8, "Distortion", false),
             (1, "Noise Gate", false),
             (8, "Noise Gate", false),
             (8, "Noise Gate", true),
@@ -78,6 +80,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             return effect switch
             {
                 "Delay" => new DspDelay { DelaySeconds = DspDelay.MaximumDelaySeconds, Feedback = DspDelay.MaximumFeedback },
+                "Distortion" => new DspDistortion { Drive = 20f, ToneHz = 3_000f },
                 "Chorus" => new DspChorus { DepthSeconds = DspChorus.MaximumDepthSeconds, RateHertz = DspChorus.MaximumRateHertz },
                 "Tremolo" => new DspTremolo { RateHertz = DspTremolo.MaximumRateHertz, Depth = 1f },
                 "Phaser" => new DspPhaser { RateHertz = DspPhaser.MaximumRateHertz, Depth = 1f },
