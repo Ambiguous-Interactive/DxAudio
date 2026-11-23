@@ -21,6 +21,7 @@ DOC_PINS = {
     "README.md": INSTALL_PINS,
     "Documentation~/install.md": INSTALL_PINS,
     "docs/images/brand/dxaudio-banner.svg": (("banner chip", BANNER_CHIP),),
+    "docs/images/brand/dxaudio-banner-light.svg": (("banner chip", BANNER_CHIP),),
 }
 
 

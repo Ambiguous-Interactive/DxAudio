@@ -47,6 +47,10 @@ https://github.com/Ambiguous-Interactive/DxAudio.git#v0.4.0
 Download `com.wallstop-studios.dxaudio-<version>.tgz` from a
 [release](https://github.com/Ambiguous-Interactive/DxAudio/releases), then choose **+ > Add package from tarball**.
 
+## Dependencies
+
+DxAudio needs no other package. Its assemblies reference only Unity. The optional [DxMessaging integration](integration.md) compiles only when you install DxMessaging.
+
 ## What the package contains
 
 | Folder            | Ships | Contents                                                           |
