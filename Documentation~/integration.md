@@ -8,9 +8,10 @@ messages into player calls and the player's drops into facts, so a game sends a 
 to the player.
 
 A loop is a held state, so the player answers with the id that ends it. Register for that answer before sending the
-request. Import `DxMessaging.Core.Extensions` for the emit methods.
+request. This example assumes one caller for the `hum` cue on this player. The message identifies the cue by key.
+Import `DxMessaging.Core.Extensions` for the emit methods.
 
-<!-- snippet: integration statements MessageRegistrationToken _registration, GameObject sfxPlayerObject, Action<SfxCueDroppedMessage> HandleDropped -->
+<!-- snippet: integration statements MessageRegistrationToken _registration, GameObject sfxPlayerObject, Action<SfxCueDroppedMessage> HandleDropped, Action<long> SaveLoopId -->
 
 ```csharp
 _registration.RegisterGameObjectBroadcast<SfxLoopStartedMessage>(sfxPlayerObject, HandleLoopStarted);
@@ -28,9 +29,20 @@ loop.EmitGameObjectTargeted(sfxPlayerObject);
 
 void HandleLoopStarted(SfxLoopStartedMessage message)
 {
-    SfxLoopStopRequest stop = new(message.loopId);
-    stop.EmitGameObjectTargeted(sfxPlayerObject);
+    if (message.key == "hum")
+    {
+        SaveLoopId(message.loopId);
+    }
 }
+```
+
+When the loop should end, send a stop request with the saved id.
+
+<!-- snippet: integration statements GameObject sfxPlayerObject, long loopId -->
+
+```csharp
+SfxLoopStopRequest stop = new(loopId);
+stop.EmitGameObjectTargeted(sfxPlayerObject);
 ```
 
 | Message                 | Kind       | Does                                        |
@@ -47,9 +59,10 @@ The adapter mints each loop id and ends every loop it started when it is disable
 nothing. A request the player's own library cannot answer is reported once, as `SfxCueDroppedMessage`, rather than
 twice.
 
-Add **MusicPlayerMessaging** beside a **MusicPlayer** for music and pause:
+Add **MusicPlayerMessaging** beside a **MusicPlayer** for music and pause.
+This example uses one caller for the dialogue duck on this player.
 
-<!-- snippet: integration statements MessageRegistrationToken _registration, GameObject musicPlayerObject, Action<MusicTrackChangedMessage> HandleTrack, MusicDuck _dialogueDuck, GameObject speaker -->
+<!-- snippet: integration statements MessageRegistrationToken _registration, GameObject musicPlayerObject, Action<MusicTrackChangedMessage> HandleTrack, MusicDuck _dialogueDuck, GameObject speaker, Action<long> SaveDuckId -->
 
 ```csharp
 _registration.RegisterGameObjectBroadcast<MusicTrackChangedMessage>(musicPlayerObject, HandleTrack);
@@ -61,15 +74,25 @@ music.EmitUntargeted();
 MusicDuckRequest duck = new(_dialogueDuck, speaker);
 duck.EmitGameObjectTargeted(musicPlayerObject);
 
-// The answer carries the id that releases this hold.
-void HandleDuck(MusicDuckStartedMessage message)
-{
-    MusicUnduckRequest unduck = new(message.duckId);
-    unduck.EmitGameObjectTargeted(musicPlayerObject);
-}
-
 AudioPauseRequest pause = new(true);
 pause.EmitUntargeted();
+
+void HandleDuck(MusicDuckStartedMessage message)
+{
+    if (message.duck == _dialogueDuck)
+    {
+        SaveDuckId(message.duckId);
+    }
+}
+```
+
+When dialogue ends, send an unduck request with the saved id.
+
+<!-- snippet: integration statements GameObject musicPlayerObject, long duckId -->
+
+```csharp
+MusicUnduckRequest unduck = new(duckId);
+unduck.EmitGameObjectTargeted(musicPlayerObject);
 ```
 
 | Message                    | Kind       | Does                                          |

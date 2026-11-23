@@ -110,25 +110,25 @@ A pool too small for the busiest moment drops cues. Raise **Voice Count**, or gi
 The players never own a clip. A game that loads and unloads clips itself, with Addressables or `Resources`, decides when
 a clip goes. These are the rules that make a release safe:
 
-| Moment                                       | What happens                                                                                        |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Released before its cue plays                | The cue has nothing to play: `Play` returns false and `CueDropped` reports `NotPlayable`.           |
-| Released while an SFX loop plays it          | The hold ends within a frame and the handle then stops nothing.                                     |
-| Released while an SFX one-shot plays         | The voice makes no sound and is not busy, so the next `Play` stops it while it reads the pool.      |
-| Released while its music plays               | The music stops. Asking for its context again returns true and starts it once the track has a clip. |
-| Its data unloaded while an SFX loop plays it | Same as a release: the hold ends within a frame and the handle then stops nothing.                  |
-| Its data unloaded while its music plays      | `IsPlaying` reads false, and the next frame stops the voice so the music after it starts cleanly.   |
+| Moment                                      | What happens                                                                                        |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Released before its cue plays               | The cue has nothing to play: `Play` returns false and `CueDropped` reports `NotPlayable`.           |
+| Released while an SFX loop plays it         | The hold ends within a frame and the handle then stops nothing.                                     |
+| Released while an SFX one-shot plays        | The voice makes no sound and is not busy, so the next `Play` stops it while it reads the pool.      |
+| Released while its music plays              | The music stops. Asking for its context again returns true and starts it once the track has a clip. |
+| Its data unloaded during an active SFX loop | The hold ends within a frame while its source reports playback.                                     |
+| Its data unloaded while its music plays     | `IsPlaying` reads false, and the next frame stops the voice so the music after it starts cleanly.   |
 
-Unity clears a source's clip when that clip's asset is destroyed, and keeps the clip assigned when its audio data is
-unloaded, by `AudioClip.UnloadAudioData`, `Resources.UnloadAsset`, or an Addressables release. In both cases the source
-still reports playback with no sound. The players check the clip and its load state instead of trusting that report, so
-a voice never stays stranded and a music context never sticks as silent. `Unloaded` and `Failed` count as gone, and the
-check reads a voice that reports playback, so a streaming clip that reports `Loading` or `Partially` as it starts is not
-mistaken for a released one.
+`AudioClip.UnloadAudioData` leaves the clip assigned. DxAudio treats `Unloaded` and `Failed` as lost data when a source
+reports playback. A paused source reports no playback. Stop a paused loop before unloading its audio data to free its
+voice. Call `AudioClip.LoadAudioData` before playing a clip whose data you unloaded. If Unity loads it in the background,
+wait for the clip to finish loading.
 
-Releasing early is safe but cuts the sound short. `Stop` and `StopLoop` end a sound on purpose, so let a music fade
-finish before unloading its clip if you want to hear it. Load a clip again with `AudioClip.LoadAudioData`, or start it
-again and Unity loads it as it plays.
+`Resources.UnloadAsset` invalidates the clip object. Load a new clip and assign that object to the cue or track.
+If releasing an Addressables handle unloads the clip asset, load it again and assign the new clip.
+
+Stop a cue or loop before unloading its clip when you want to end the sound. Let a music fade finish before unloading
+its clip if you want to hear the full fade.
 
 ## Next
 

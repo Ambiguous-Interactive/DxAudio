@@ -8,7 +8,7 @@
 [![Documentation](https://img.shields.io/badge/docs-manual-12705F)](Documentation~/index.md)
 [![Unity 2021.3 or newer](https://img.shields.io/badge/Unity-2021.3%2B-12705F)](Documentation~/install.md)
 [![npm package version](https://img.shields.io/npm/v/com.wallstop-studios.dxaudio?color=12705F)](Documentation~/install.md#from-npm)
-[![OpenUPM package version](https://img.shields.io/npm/v/com.wallstop-studios.dxaudio?registry_uri=https%3A%2F%2Fpackage.openupm.com&label=OpenUPM&color=12705F)](https://openupm.com/packages/com.wallstop-studios.dxaudio/)
+[![OpenUPM package version](https://img.shields.io/npm/v/com.wallstop-studios.dxaudio?registry_uri=https%3A%2F%2Fpackage.openupm.com&label=OpenUPM&color=12705F)](Documentation~/install.md#from-openupm)
 [![MIT No Attribution license](https://img.shields.io/badge/license-MIT--0-12705F)](LICENSE.md)
 
 Data-driven sound effects and music for Unity, with no package dependencies.
@@ -45,6 +45,8 @@ DxAudio supports Unity 2021.3 and newer.
 
 <details open>
 <summary>OpenUPM</summary>
+
+Run this command with the [OpenUPM CLI](https://openupm.com/docs/getting-started-cli.html).
 
 ```bash
 openupm add com.wallstop-studios.dxaudio
