@@ -89,7 +89,9 @@ namespace WallstopStudios.DxAudio
                 float rightSecond = history[pairedChannel].Second;
                 float rightThird = history[pairedChannel].Third;
                 float rightFourth = history[pairedChannel].Fourth;
-                int frame = offset;
+                // Advance before each read so the cursors stop on the last valid pair.
+                int sample = offset + channel - channels;
+                int pairedSample = offset + pairedChannel - channels;
                 int framesRemaining = totalFrames;
                 while (0 < framesRemaining)
                 {
@@ -100,15 +102,17 @@ namespace WallstopStudios.DxAudio
 
                     int frames = Math.Min(sweep.FramesLeft, framesRemaining);
                     framesRemaining -= frames;
-                    int stop = frame + channels * frames;
+                    int stop = sample + channels * frames;
                     float coefficient = sweep.Coefficient;
                     float step = sweep.Step;
-                    for (; frame < stop; frame += channels)
+                    do
                     {
-                        int sample = frame + channel;
-                        int pairedSample = frame + pairedChannel;
-                        float left = buffer[sample];
-                        float right = buffer[pairedSample];
+                        sample += channels;
+                        pairedSample += channels;
+                        ref float leftSample = ref buffer[sample];
+                        ref float rightSample = ref buffer[pairedSample];
+                        float left = leftSample;
+                        float right = rightSample;
 
                         // Each first-order section keeps one delayed value.
                         float left1 = coefficient * left + leftFirst;
@@ -127,10 +131,10 @@ namespace WallstopStudios.DxAudio
                         float right4 = coefficient * right3 + rightFourth;
                         leftFourth = left3 - coefficient * left4;
                         rightFourth = right3 - coefficient * right4;
-                        buffer[sample] = dry * left + wet * left4;
-                        buffer[pairedSample] = dry * right + wet * right4;
+                        leftSample = dry * left + wet * left4;
+                        rightSample = dry * right + wet * right4;
                         coefficient += step;
-                    }
+                    } while (sample < stop);
 
                     sweep.Coefficient = coefficient;
                     sweep.FramesLeft -= frames;
