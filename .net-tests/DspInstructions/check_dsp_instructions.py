@@ -46,6 +46,7 @@ def build(runtime: Path, output: Path, refs: Path, compiler: Path) -> None:
             "-optimize+",
             "-noconfig",
             "-nostdlib+",
+            "-warnaserror+",
             "-langversion:9.0",
             "-target:exe",
             f"-out:{output}",
