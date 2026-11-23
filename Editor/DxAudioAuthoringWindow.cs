@@ -46,6 +46,11 @@ namespace WallstopStudios.DxAudio.Editor
 
         internal static void Open(Object asset)
         {
+            Open(asset, -1);
+        }
+
+        internal static void Open(Object asset, int chainSlot)
+        {
             DxAudioAuthoringWindow window = GetWindow<DxAudioAuthoringWindow>();
             window.titleContent = new GUIContent("DxAudio Authoring");
             window.minSize = new Vector2(680, 400);
@@ -53,6 +58,10 @@ namespace WallstopStudios.DxAudio.Editor
             if (asset != null)
             {
                 window.SetTarget(asset);
+                if (0 <= chainSlot)
+                {
+                    window.rootVisualElement.schedule.Execute(() => window._work?.Q<DspChainRack>()?.RevealStage(chainSlot));
+                }
             }
         }
 
@@ -281,6 +290,10 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 ShowTarget();
             }
+            else
+            {
+                UpdateProblemCount();
+            }
         }
 
         private void Filter()
@@ -432,13 +445,9 @@ namespace WallstopStudios.DxAudio.Editor
 
         private void RefreshGraph()
         {
+            _browserProblems.Clear();
             if (_graph == null || _canvas == null)
             {
-                if (_target != null)
-                {
-                    _browserProblems.Remove(_target);
-                }
-
                 RefreshProblemBadges();
                 return;
             }

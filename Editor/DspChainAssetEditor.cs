@@ -1,5 +1,6 @@
 namespace WallstopStudios.DxAudio.Editor
 {
+    using System.Collections.Generic;
     using UnityEditor;
     using UnityEditor.UIElements;
     using UnityEngine.UIElements;
@@ -44,7 +45,8 @@ namespace WallstopStudios.DxAudio.Editor
             void RefreshProblems()
             {
                 problems.Clear();
-                problems.Add(new DxAudioInspectorUi.ProblemList(DxAudioValidation.Find(asset)));
+                List<DxAudioValidation.Finding> findings = DxAudioValidation.Find(asset);
+                problems.Add(new DxAudioInspectorUi.ProblemList(findings, fix: index => () => DxAudioAuthoringWindow.Open(asset, findings[index].Slot)));
             }
 
             RefreshProblems();

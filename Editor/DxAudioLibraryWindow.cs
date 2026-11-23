@@ -74,7 +74,8 @@ namespace WallstopStudios.DxAudio.Editor
                 summary.text = Summary(libraries.Count, visible);
                 int errors = BlockingErrors(findings).Count;
                 failure.style.display = errors == 0 ? DisplayStyle.None : DisplayStyle.Flex;
-                failure.text = $"Validation failed. {errors} errors need a fix or a shared silence.";
+                failure.text =
+                    errors == 1 ? "Validation failed. One error needs a fix or a shared silence." : $"Validation failed. {errors} errors need a fix or a shared silence.";
             }
 
             report.RegisterCallback<AttachToPanelEvent>(_ =>

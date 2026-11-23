@@ -135,18 +135,13 @@ namespace WallstopStudios.DxAudio.Editor
             List<DxAudioValidation.Finding> findings = new();
             DspGraph graph = DxAudioValidation.CollectGraph(asset, (_, _, finding) => findings.Add(finding));
             parent.Add(new DxAudioInspectorUi.ProblemList(findings, "No active problems."));
-            if (graph == null)
-            {
-                return;
-            }
-
             IReadOnlyList<DspGraphNode> nodes = asset.Nodes;
             for (int index = 0; index < nodes.Count; ++index)
             {
                 DspGraphNode node = nodes[index];
                 VisualElement row = Row();
                 AddText(row, node == null ? $"Node {index + 1}: empty" : $"Node \"{node.Name}\": {Describe(node)}");
-                if (graph.TryGetNodeLatency(index, out int latency))
+                if (graph != null && graph.TryGetNodeLatency(index, out int latency))
                 {
                     AddText(row, $"{latency} samples");
                 }
@@ -161,7 +156,10 @@ namespace WallstopStudios.DxAudio.Editor
                 parent.Add(new Label(edge == null ? $"Edge {index + 1}: empty" : $"\"{edge.From}\" -> \"{edge.To}\""));
             }
 
-            parent.Add(new Label($"The graph delays the signal {graph.LatencySamples} samples at {DspGraphAsset.ReferenceSampleRate} Hz."));
+            if (graph != null)
+            {
+                parent.Add(new Label($"The graph delays the signal {graph.LatencySamples} samples at {DspGraphAsset.ReferenceSampleRate} Hz."));
+            }
         }
 
         /// <summary>What a node runs, as one line: its chain, or that it is a junction.</summary>

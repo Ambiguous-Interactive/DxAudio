@@ -205,7 +205,6 @@ namespace WallstopStudios.DxAudio.Editor
                 case Rule.NoTrackClip:
                 case Rule.InvalidVariation:
                 case Rule.MissingChainEffect:
-                case Rule.InvalidGraph:
                 case Rule.UnplayableDrop:
                     return Severity.Error;
                 case Rule.LoopOffset:
@@ -231,7 +230,7 @@ namespace WallstopStudios.DxAudio.Editor
                 Rule.ClipLoadType => "Track load type differs from the clip import",
                 Rule.LoopOffset => "Loop ignores take start offsets",
                 Rule.MissingChainEffect => "Chain slot is missing its effect",
-                Rule.InvalidGraph => "Graph cannot be built",
+                Rule.InvalidGraph => "Graph has a signal path or preparation problem",
                 Rule.UnplayableDrop => "Drop: NotPlayable or WrongPlayMethod",
                 Rule.CapacityDrop => "Drop: NoVoice or LoopLimit",
                 Rule.ThrottledDrop => "Drop: Throttled",
@@ -333,7 +332,9 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 if (effects[index] == null)
                 {
-                    findings.Add(new Finding(Rule.MissingChainEffect, chain, $"Chain '{chain.name}' has no effect in slot {index + 1}. Assign an effect or remove the slot."));
+                    findings.Add(
+                        new Finding(Rule.MissingChainEffect, chain, $"Chain '{chain.name}' has no effect in slot {index + 1}. Assign an effect or remove the slot.", index)
+                    );
                 }
             }
         }
@@ -412,12 +413,14 @@ namespace WallstopStudios.DxAudio.Editor
             internal readonly Rule Rule;
             internal readonly Object Asset;
             internal readonly string Message;
+            internal readonly int Slot;
 
-            internal Finding(Rule rule, Object asset, string message)
+            internal Finding(Rule rule, Object asset, string message, int slot = -1)
             {
                 Rule = rule;
                 Asset = asset;
                 Message = message;
+                Slot = slot;
             }
         }
     }
