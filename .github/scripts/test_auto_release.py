@@ -65,6 +65,7 @@ class ReleaseDecisionTests(unittest.TestCase):
             "README.md": 2,
             "Documentation~/install.md": 2,
             "docs/images/brand/dxaudio-banner.svg": 1,
+            "docs/images/brand/dxaudio-banner-light.svg": 1,
         }
         paths = ("package.json", ".llm/context.md", *pins)
         base = {path: (ROOT / path).read_text(encoding="utf-8") for path in paths}

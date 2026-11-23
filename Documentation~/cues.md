@@ -107,9 +107,28 @@ A pool too small for the busiest moment drops cues. Raise **Voice Count**, or gi
 
 ## Clip lifetime
 
-The player never owns a clip. If the game unloads or destroys a clip while it plays, the player frees the voice within a
-frame instead of leaving it held and silent. A cue whose clip is gone is refused as `NotPlayable`. See the
-[README clip lifetime table](../README.md#clip-lifetime).
+The players never own a clip. A game that loads and unloads clips itself, with Addressables or `Resources`, decides when
+a clip goes. These are the rules that make a release safe:
+
+| Moment                                      | What happens                                                                                        |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Released before its cue plays               | The cue has nothing to play: `Play` returns false and `CueDropped` reports `NotPlayable`.           |
+| Released while an SFX loop plays it         | The hold ends within a frame and the handle then stops nothing.                                     |
+| Released while an SFX one-shot plays        | The voice makes no sound and is not busy, so the next `Play` stops it while it reads the pool.      |
+| Released while its music plays              | The music stops. Asking for its context again returns true and starts it once the track has a clip. |
+| Its data unloaded during an active SFX loop | The hold ends within a frame while its source reports playback.                                     |
+| Its data unloaded while its music plays     | `IsPlaying` reads false, and the next frame stops the voice so the music after it starts cleanly.   |
+
+`AudioClip.UnloadAudioData` leaves the clip assigned. DxAudio treats `Unloaded` and `Failed` as lost data when a source
+reports playback. A paused source reports no playback. Stop a paused loop before unloading its audio data to free its
+voice. Call `AudioClip.LoadAudioData` before playing a clip whose data you unloaded. If Unity loads it in the background,
+wait for the clip to finish loading.
+
+`Resources.UnloadAsset` invalidates the clip object. Load a new clip and assign that object to the cue or track.
+If releasing an Addressables handle unloads the clip asset, load it again and assign the new clip.
+
+Stop a cue or loop before unloading its clip when you want to end the sound. Let a music fade finish before unloading
+its clip if you want to hear the full fade.
 
 ## Next
 

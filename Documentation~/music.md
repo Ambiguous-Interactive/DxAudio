@@ -89,20 +89,26 @@ the result to each music voice. `Attenuation` reports the value applied this fra
 
 ## Volume, mute, and pause
 
-<!-- snippet: unity statements SfxPlayer _sfx, MusicPlayer _music, (float SoundLevel, float MusicLevel, bool MusicOn) settings, bool paused -->
+<!-- snippet: unity statements SfxPlayer _sfx, MusicPlayer _music, (float SoundLevel, float MusicLevel, bool SoundOn, bool MusicOn) settings, bool paused -->
 
 ```csharp
 _sfx.Volume = settings.SoundLevel;
 _music.Volume = settings.MusicLevel;
+_sfx.Muted = !settings.SoundOn;
 _music.Muted = !settings.MusicOn;
+_sfx.Paused = paused;
 _music.Paused = paused;
 ```
 
 Both levels default to 1 and clamp to the range from 0 to 1. They scale new and active voices and survive library
 changes. Music level changes ramp over 10 ms of update time and multiply the track level, fade, and duck gain.
 
-Muting detaches output and keeps state, so the track resumes in time. Pause holds the voice at its playhead and keeps
-leases, so resume continues rather than restarts. It is separate from `AudioListener.pause`.
+Muting detaches output and keeps state, so loops and music resume in time. Pause holds each voice at its playhead
+and keeps loops, leases and mute state. A cue or track started during the pause waits at its start.
+See [voice selection](cues.md#how-a-voice-is-chosen) for how paused cues share the pool.
+The player pause settings work independently of `AudioListener.pause`.
+
+For a cue or music track whose clip you load or unload yourself, see [Clip lifetime](cues.md#clip-lifetime).
 
 ## Next
 

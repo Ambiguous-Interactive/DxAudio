@@ -96,10 +96,39 @@ def rendered_assets(tokens: BrandTokens, colors: dict[str, str]) -> dict[str, st
     fonts = tokens["fonts"]
     manifest = cast("dict[str, str]", json.loads((ROOT / "package.json").read_bytes()))
     css_fonts = {key: json.dumps(value) for key, value in fonts.items()}
+    banner = colors | fonts | {"version": manifest["version"]}
+    light_roles = {
+        "ground": "white",
+        "banner-mid": "ink",
+        "banner-end": "editor-light-selection",
+        "line": "editor-light-grid",
+        "line-strong": "editor-light-wire",
+        "muted": "line-strong",
+        "ink": "editor-light-text",
+        "body": "line-strong",
+        "accent": "editor-light-accent",
+        "accent-tint": "light-mark-ring",
+        "accent-deep": "light-mark-glyph",
+        "well": "white",
+        "credit": "line-strong",
+    }
+    light_banner = banner | {role: colors[token] for role, token in light_roles.items()}
+    check_contrast(
+        light_banner,
+        [
+            (role, background)
+            for role in ("ink", "muted", "accent", "body", "credit")
+            for background in ("ground", "banner-mid", "banner-end")
+        ]
+        + [("ground", "accent"), ("ink", "well")],
+        4.5,
+    )
+    card = {
+        f"card-{role}": colors[role] for role in ("well", "line", "ink", "accent", "music", "duck")
+    }
     return {
-        f"{IMAGES}/dxaudio-banner.svg": svg(
-            "banner", colors | fonts | {"version": manifest["version"]}
-        ),
+        f"{IMAGES}/dxaudio-banner.svg": svg("banner", banner | card),
+        f"{IMAGES}/dxaudio-banner-light.svg": svg("banner", light_banner | card),
         f"{IMAGES}/dxaudio-mark.svg": svg(
             "mark", {"ring": colors["accent"], "glyph": colors["accent-tint"]}
         ),

@@ -71,6 +71,6 @@ name ends in `~`. A copy under `Assets/` keeps its script references.
 
 ## More
 
-- [README](../README.md) for the full reference.
+- [Editor tools](editor-tools.md#play-mode-diagnostics) to inspect voices, drops and duck holders.
 - [Cues](cues.md) for pool and priority rules.
 - [Ducks](ducks.md) for composition rules.
