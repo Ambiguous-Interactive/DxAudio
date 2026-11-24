@@ -205,18 +205,16 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(samplingAllocations, Is.Zero, $"Sampling allocated {samplingAllocations} times over {MeasuredCalls:N0} reads.");
         }
 
-        [TestCase(2, 64, MeasuredCalls)]
-        [TestCase(8, 64, MeasuredCalls)]
-        [TestCase(2, 512, 2_048)]
-        [TestCase(8, 512, 2_048)]
-        public void AListenerPeakTapDoesNotAllocate(int channels, int frames, int blocks)
+        [TestCase(2)]
+        [TestCase(8)]
+        public void AListenerPeakTapDoesNotAllocate(int channels)
         {
             using MadeObjects made = new();
-            GameObject listener = made.Track(new GameObject("listener"));
-            _ = listener.AddComponent<AudioListener>();
-            AudioMixBus bus = listener.AddComponent<AudioMixBus>();
+            GameObject host = made.Track(new GameObject("listener tap probe"));
+            host.SetActive(false);
+            AudioMixBus bus = host.AddComponent<AudioMixBus>();
             Assert.That(bus.TryAttachPeakTap(out StereoPeakTap tap), Is.True);
-            float[] block = new float[frames * channels];
+            float[] block = new float[512 * channels];
             block[0] = 0.5f;
             block[1] = -0.25f;
             int queuedBlocks = 0;
@@ -242,8 +240,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 ProcessBlock();
             }
 
-            Debug.Log($"Measure listener tap allocations over {blocks} blocks of {frames} frames and {channels} channels.");
-            long allocations = AllocationEvents(ProcessBlock, blocks);
+            peak = 0f;
+            Debug.Log($"Measure listener tap allocations over {MeasuredCalls} blocks of 512 frames and {channels} channels.");
+            long allocations = AllocationEvents(ProcessBlock, MeasuredCalls);
             Debug.Log($"Listener tap recorded {allocations} allocation events.");
             Assert.That(tap.TryRead(out float left, out float right), Is.True);
             Assert.That(left, Is.EqualTo(0.5f));

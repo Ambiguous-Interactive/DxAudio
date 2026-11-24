@@ -280,8 +280,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             const int BlocksPerRead = 16;
             using MadeObjects made = new();
             AudioMixBus bus = Bus(made, null);
-            _ = bus.gameObject.AddComponent<AudioListener>();
-            MixMonitorMasterMeter meter = new();
+            bus.gameObject.SetActive(false);
             float[] block = new float[Frames * channels];
             for (int frame = 0; frame < Frames; ++frame)
             {
@@ -293,10 +292,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             long Measure(bool enabled)
             {
-                meter.Clear();
+                StereoPeakTap tap = null;
                 if (enabled)
                 {
-                    meter.Sample(bus, 0d);
+                    Assert.That(bus.TryAttachPeakTap(out tap), Is.True);
                 }
 
                 long ticks = 0;
@@ -309,13 +308,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                     }
 
                     ticks += Stopwatch.GetTimestamp() - start;
-                    if (enabled)
+                    if (tap != null)
                     {
-                        meter.Sample(bus, group * 0.05d);
-                        Assert.That(meter.TruePeak.HasValue, Is.True, "the callback must enqueue every measured block");
+                        Assert.That(tap.TryReadTruePeak(out _, out bool overrun), Is.True, "the callback must enqueue every measured block");
+                        Assert.That(overrun, Is.False);
+                        tap.TryRead(out _, out _);
                     }
                 }
 
+                bus.DetachPeakTap(tap);
                 return ticks;
             }
 
