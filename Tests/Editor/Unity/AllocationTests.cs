@@ -152,6 +152,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
 
             monitor.SelectPlayers(player, music);
+            monitor.SetPlayerAudition(forSfx: true, -6f, muted: false, solo: true);
             if (!Application.isBatchMode)
             {
                 monitor.Show();

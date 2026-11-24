@@ -227,6 +227,132 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void SfxAuditionScalesCurrentAndNewVoicesWithGameVolume()
+        {
+            using MadeObjects made = new();
+            SfxCue first = Cue(made, loop: false);
+            SfxCue second = Cue(made, loop: false);
+            SfxPlayer sfx = SfxPlayer(made, SfxLibrary.Create(new[] { first, second }, voiceCount: 2));
+            sfx.Paused = true;
+            sfx.Volume = 0.8f;
+
+            Assert.That(sfx.Play(first), Is.True);
+            AudioSource firstVoice = SourceWithClip(sfx, first.Variants[0].Clip);
+            Assert.That(firstVoice != null, Is.True);
+            sfx.SetAuditionGain(0.5f);
+            Assert.That(firstVoice.volume, Is.EqualTo(0.4f).Within(0.001f));
+
+            Assert.That(sfx.Play(second), Is.True);
+            AudioSource secondVoice = SourceWithClip(sfx, second.Variants[0].Clip);
+            Assert.That(secondVoice != null, Is.True);
+            Assert.That(secondVoice.volume, Is.EqualTo(0.4f).Within(0.001f));
+
+            sfx.SetAuditionGain(0f);
+            sfx.Volume = 0.6f;
+            sfx.Muted = true;
+            Assert.That(firstVoice.volume, Is.Zero);
+            Assert.That(secondVoice.volume, Is.Zero);
+            sfx.SetAuditionGain(1f);
+
+            Assert.That(firstVoice.volume, Is.EqualTo(0.6f).Within(0.001f));
+            Assert.That(secondVoice.volume, Is.EqualTo(0.6f).Within(0.001f));
+            Assert.That(sfx.Volume, Is.EqualTo(0.6f));
+            Assert.That(sfx.Muted && firstVoice.mute && secondVoice.mute, Is.True);
+        }
+
+        [Test]
+        public void MusicAuditionComposesWithFadesAndDucks()
+        {
+            using MadeObjects made = new();
+            MusicTrack track = made.Track(MusicTrack.Create(Clip(made), volumeScale: 0.8f));
+            MusicDuck duck = made.Track(MusicDuck.Create(MusicDuckHolders.One, volumeScale: 0.5f, applySeconds: 0f));
+            MusicPlayer music = MusicPlayer(made);
+            music.Paused = true;
+            music.Volume = 0.5f;
+            music.Library = made.Track(MusicLibrary.Create(new[] { track }, fadeInSeconds: 1f));
+            music.SetAuditionGain(0.5f);
+            music.Play(track);
+            MusicDuckLease lease = music.Duck(duck);
+            try
+            {
+                music.Tick(0.5f);
+                AudioSource voice = SourceWithClip(music, track.Clip);
+                Assert.That(voice != null, Is.True);
+                Assert.That(voice.volume, Is.EqualTo(0.1f * MusicEasing.Evaluate(music.Library.FadeInEase, 0.5f)).Within(0.001f));
+
+                music.SetAuditionGain(0f);
+                Assert.That(voice.volume, Is.Zero);
+                music.Tick(0.5f);
+                music.SetAuditionGain(1f);
+
+                Assert.That(voice.volume, Is.EqualTo(0.2f).Within(0.001f));
+                Assert.That(voice.clip, Is.SameAs(track.Clip));
+                Assert.That(music.Volume, Is.EqualTo(0.5f));
+                Assert.That(music.IsHeld(lease), Is.True);
+            }
+            finally
+            {
+                _ = music.Release(lease);
+            }
+        }
+
+        [Test]
+        public void MixMonitorSoloAndMuteRestoreWhenSelectionChangesOrWindowCloses()
+        {
+            using MadeObjects made = new();
+            SfxCue cue = Cue(made, loop: false);
+            SfxPlayer sfx = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
+            sfx.Paused = true;
+            Assert.That(sfx.Play(cue), Is.True);
+            AudioSource sfxVoice = SourceWithClip(sfx, cue.Variants[0].Clip);
+            MusicTrack track = made.Track(MusicTrack.Create(Clip(made)));
+            MusicPlayer music = MusicPlayer(made);
+            music.Paused = true;
+            music.Library = made.Track(MusicLibrary.Create(new[] { track }, fadeInSeconds: 0f));
+            music.Play(track);
+            AudioSource musicVoice = SourceWithClip(music, track.Clip);
+            Assert.That(sfxVoice != null && musicVoice != null, Is.True);
+            DxAudioMixMonitorWindow monitor = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
+            monitor.SelectPlayers(sfx, music);
+
+            monitor.SetPlayerAudition(forSfx: true, -6f, muted: false, solo: true);
+            Assert.That(sfxVoice.volume, Is.EqualTo(AudioMath.DecibelsToLinear(-6f)).Within(0.001f));
+            Assert.That(musicVoice.volume, Is.Zero);
+
+            monitor.SetPlayerAudition(forSfx: false, 0f, muted: false, solo: true);
+            Assert.That(sfxVoice.volume, Is.Zero);
+            Assert.That(musicVoice.volume, Is.EqualTo(1f));
+            monitor.SetPlayerAudition(forSfx: false, 0f, muted: false, solo: false);
+            Assert.That(sfxVoice.volume, Is.EqualTo(AudioMath.DecibelsToLinear(-6f)).Within(0.001f));
+            Assert.That(musicVoice.volume, Is.EqualTo(1f));
+
+            monitor.SelectPlayers(null, music);
+            Assert.That(sfxVoice.volume, Is.EqualTo(1f));
+            monitor.SetPlayerAudition(forSfx: false, -6f, muted: true, solo: false);
+            Assert.That(musicVoice.volume, Is.Zero);
+            made.DestroyNow(monitor);
+            Assert.That(musicVoice.volume, Is.EqualTo(1f));
+        }
+
+        [TestCase(false, TestName = "Mix Monitor clears solo when its target is destroyed")]
+        [TestCase(true, TestName = "Mix Monitor clears solo when the other player is destroyed")]
+        public void MixMonitorClearsSoloWhenEitherPlayerIsDestroyed(bool soloSfx)
+        {
+            using MadeObjects made = new();
+            SfxPlayer sfx = SfxPlayer(made, SfxLibrary.Create(null, voiceCount: 1));
+            MusicPlayer music = MusicPlayer(made);
+            DxAudioMixMonitorWindow monitor = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
+            monitor.SelectPlayers(sfx, music);
+            monitor.SetPlayerAudition(forSfx: soloSfx, 0f, muted: false, solo: true);
+            Assert.That(monitor.HasPlayerSolo, Is.True);
+
+            made.DestroyNow(music.gameObject);
+            monitor.RefreshPlayerAudition();
+
+            Assert.That(monitor.HasPlayerSolo, Is.False);
+        }
+
+        [Test]
         public void PlayerVolumeSurvivesLibraryChangesAndAppliesToNewVoices()
         {
             using MadeObjects made = new();

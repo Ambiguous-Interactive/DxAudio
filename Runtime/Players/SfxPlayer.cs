@@ -119,14 +119,7 @@ namespace WallstopStudios.DxAudio
                 }
 
                 _volume = volume;
-                for (int index = 0; index < _voices.Length; ++index)
-                {
-                    AudioSource voice = _voices[index];
-                    if (voice != null)
-                    {
-                        voice.volume = _voiceGains[index] * volume;
-                    }
-                }
+                ApplyVoiceVolumes();
             }
         }
 
@@ -203,6 +196,13 @@ namespace WallstopStudios.DxAudio
         /// <summary>Every cue this player dropped, counted by reason. Reading it allocates nothing.</summary>
         public SfxDropCounts DropCounts => new(_droppedNotPlayable, _droppedThrottled, _droppedNoVoice, _droppedLoopLimit, _droppedWrongPlayMethod);
 
+        private float EffectiveVolume =>
+#if UNITY_EDITOR
+            _volume * _auditionGain;
+#else
+            _volume;
+#endif
+
         [SerializeField]
         private SfxLibrary _library;
 
@@ -235,6 +235,7 @@ namespace WallstopStudios.DxAudio
         private bool[] _voicePaused = Array.Empty<bool>();
         private int[] _leases = Array.Empty<int>();
 #if UNITY_EDITOR
+        private float _auditionGain = 1f;
         private (int observed, int stolen)[] _observedPlays = Array.Empty<(int, int)>();
 #endif
         private int _heldCount;
@@ -410,6 +411,17 @@ namespace WallstopStudios.DxAudio
         }
 
 #if UNITY_EDITOR
+        internal void SetAuditionGain(float gain)
+        {
+            if (_auditionGain == gain)
+            {
+                return;
+            }
+
+            _auditionGain = gain;
+            ApplyVoiceVolumes();
+        }
+
         internal bool TryObserveVoiceState(int voice, out SfxVoiceState state, out AudioClip clip, out float clipSeconds, out int playbackId, out int stolenPlaybackId)
         {
             bool found = ReadVoiceState(voice, repairLostSound: false, out state, out _);
@@ -609,7 +621,7 @@ namespace WallstopStudios.DxAudio
             voice.time = play.StartSeconds;
             float gain = AudioMath.Clamp01(play.Volume);
             _voiceGains[index] = gain;
-            voice.volume = gain * _volume;
+            voice.volume = gain * EffectiveVolume;
             voice.pitch = play.Pitch;
             voice.loop = cue.IsLooping;
             voice.mute = _muted;
@@ -630,6 +642,20 @@ namespace WallstopStudios.DxAudio
             voice.minDistance = cue.FalloffStartUnits;
             voice.maxDistance = cue.FalloffEndUnits;
             voice.transform.position = cue.IsHeardCentred ? Centred(position.Value) : position.Value;
+        }
+
+        private void ApplyVoiceVolumes()
+        {
+            float volume = EffectiveVolume;
+            int count = _voices.Length;
+            for (int index = 0; index < count; ++index)
+            {
+                AudioSource voice = _voices[index];
+                if (voice != null)
+                {
+                    voice.volume = _voiceGains[index] * volume;
+                }
+            }
         }
 
         /// <summary>The same distance from the listener as <paramref name="source"/>, straight ahead of it.</summary>

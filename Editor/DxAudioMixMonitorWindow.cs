@@ -24,9 +24,12 @@ namespace WallstopStudios.DxAudio.Editor
         private static readonly CustomStyleProperty<Color> CutColorRole = new("--dxa-theme-rejected");
         private static readonly CustomStyleProperty<Color> TrackColorRole = new("--dxa-theme-surface");
         private static readonly CustomStyleProperty<Color> CursorColorRole = new("--dxa-theme-text");
+        private static readonly GUIContent PlayerSoloLabel = new("Solo in Monitor", "Silence the other player selected in this window.");
+        private static DxAudioMixMonitorWindow _auditionOwner;
 
         internal MixMonitorDropCapture Capture { get; } = new();
         internal MixMonitorTimeline<AudioClip, MusicTrack> Timeline { get; } = new(HistoryCapacity, MusicPlayer.VoiceCount, DuckHoldCapacity);
+        internal bool HasPlayerSolo => _sfxAudition.solo || _musicAudition.solo;
 
         private bool HasSfx => _player != null || 0 < Timeline.VoiceCount || 0 < Capture.Counts.Total;
 
@@ -40,6 +43,8 @@ namespace WallstopStudios.DxAudio.Editor
         private AudioMixBus _masterBus;
 
         private readonly MixMonitorMasterMeter _masterMeter = new();
+        private (float decibels, bool muted, bool solo) _sfxAudition;
+        private (float decibels, bool muted, bool solo) _musicAudition;
 
         private readonly Vector3[] _line = new Vector3[HistoryCapacity];
         private readonly float[] _cutEdges = new float[HistoryCapacity];
@@ -158,6 +163,37 @@ namespace WallstopStudios.DxAudio.Editor
             rootVisualElement.Add(_content);
         }
 
+        internal void SetPlayerAudition(bool forSfx, float decibels, bool muted, bool solo)
+        {
+            if ((forSfx ? _player == null : _music == null) || !AudioMath.IsFinite(decibels))
+            {
+                return;
+            }
+
+            DxAudioMixMonitorWindow previous = _auditionOwner;
+            if (previous != null && previous != this)
+            {
+                previous.ClearPlayerAudition();
+                previous.Repaint();
+            }
+
+            _auditionOwner = this;
+            decibels = Mathf.Clamp(decibels, MixMonitorMasterMeter.MinimumFaderDecibels, 0f);
+            solo = solo && _player != null && _music != null;
+            if (forSfx)
+            {
+                _sfxAudition = (decibels, muted, solo);
+                _musicAudition.solo = _musicAudition.solo && !solo;
+            }
+            else
+            {
+                _musicAudition = (decibels, muted, solo);
+                _sfxAudition.solo = _sfxAudition.solo && !solo;
+            }
+
+            ApplyPlayerAudition();
+        }
+
         internal void SelectPlayers(SfxPlayer sfx, MusicPlayer music)
         {
             if (sfx != null && EditorUtility.IsPersistent(sfx))
@@ -175,6 +211,7 @@ namespace WallstopStudios.DxAudio.Editor
                 return;
             }
 
+            ClearPlayerAudition();
             _player = sfx;
             _music = music;
             _selectedVoice = -1;
@@ -182,6 +219,17 @@ namespace WallstopStudios.DxAudio.Editor
             Timeline.Reset(sfx == null ? 0 : sfx.VoiceCount);
             _scroll = Vector2.zero;
             SamplePlayer();
+        }
+
+        internal void RefreshPlayerAudition()
+        {
+            if (HasPlayerSolo && (_player == null || _music == null))
+            {
+                _sfxAudition.solo = false;
+                _musicAudition.solo = false;
+                ApplyPlayerAudition();
+                _content?.MarkDirtyRepaint();
+            }
         }
 
         internal void SamplePlayer()
@@ -318,11 +366,13 @@ namespace WallstopStudios.DxAudio.Editor
         {
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
             EditorApplication.projectChanged -= _waveforms.Clear;
+            ClearPlayerAudition();
             _masterMeter.Clear();
         }
 
         private void OnPlayModeChanged(PlayModeStateChange state)
         {
+            ClearPlayerAudition();
             _masterMeter.Clear();
             if (state == PlayModeStateChange.EnteredPlayMode || state == PlayModeStateChange.ExitingPlayMode)
             {
@@ -345,6 +395,7 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             _nextSample = now + SampleIntervalSeconds;
+            RefreshPlayerAudition();
             _masterMeter.Sample(_masterBus, now);
             if (!Capture.Paused)
             {
@@ -418,8 +469,63 @@ namespace WallstopStudios.DxAudio.Editor
                     }
                 }
 
+                if (_player != null)
+                {
+                    DrawPlayerAudition("SFX", forSfx: true, _sfxAudition);
+                }
+
+                if (_music != null)
+                {
+                    DrawPlayerAudition("Music", forSfx: false, _musicAudition);
+                }
+
                 DrawMaster();
             }
+        }
+
+        private void DrawPlayerAudition(string title, bool forSfx, (float decibels, bool muted, bool solo) audition)
+        {
+            EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
+            EditorGUI.BeginChangeCheck();
+            float decibels = EditorGUILayout.Slider("Audition Fader (dB)", audition.decibels, MixMonitorMasterMeter.MinimumFaderDecibels, 0f);
+            bool muted = EditorGUILayout.Toggle("Audition Mute", audition.muted);
+            using (new EditorGUI.DisabledScope(_player == null || _music == null))
+            {
+                audition.solo = EditorGUILayout.Toggle(PlayerSoloLabel, audition.solo);
+            }
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                SetPlayerAudition(forSfx, decibels, muted, audition.solo);
+            }
+        }
+
+        private void ApplyPlayerAudition()
+        {
+            if (_player != null)
+            {
+                bool silent = _sfxAudition.muted || _musicAudition.solo;
+                _player.SetAuditionGain(silent ? 0f : AudioMath.DecibelsToLinear(_sfxAudition.decibels));
+            }
+
+            if (_music != null)
+            {
+                bool silent = _musicAudition.muted || _sfxAudition.solo;
+                _music.SetAuditionGain(silent ? 0f : AudioMath.DecibelsToLinear(_musicAudition.decibels));
+            }
+        }
+
+        private void ClearPlayerAudition()
+        {
+            if (_auditionOwner != this)
+            {
+                return;
+            }
+
+            _auditionOwner = null;
+            _sfxAudition = default;
+            _musicAudition = default;
+            ApplyPlayerAudition();
         }
 
         private void DrawMaster()
