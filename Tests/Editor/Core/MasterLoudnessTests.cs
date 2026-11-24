@@ -181,8 +181,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(meter.Integrated, Is.EqualTo(-36d).Within(0.1));
         }
 
-        [Test]
-        public void AGapClearsLoudnessAndAQueuedDeviceChangeUsesItsOwnRate()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void AGapClearsLoudnessAndAQueuedDeviceChangeUsesItsOwnRate(bool readBeforeNewAudio)
         {
             StereoPeakTap tap = new(48_000);
             MasterLoudness meter = new();
@@ -214,6 +215,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             tap.Observe(oldTone, 2);
             tap.SetSampleRate(44_100);
+            if (readBeforeNewAudio)
+            {
+                Assert.That(tap.TryReadTruePeak(out _, out bool deviceOverrun, meter), Is.False);
+                Assert.That(deviceOverrun, Is.False);
+                Assert.That(meter.Integrated.HasValue, Is.False);
+            }
+
             for (int block = 0; block < 40; ++block)
             {
                 tap.Observe(newTone, 2);

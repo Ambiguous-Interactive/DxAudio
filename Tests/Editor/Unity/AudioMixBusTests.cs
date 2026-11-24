@@ -165,7 +165,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void TheMasterDisplaysPostChainLoudnessAndClearsItOnDetach()
+        public void TheMasterClearsPostChainLoudnessAfterAStopOrDetach()
         {
             using MadeObjects made = new();
             AudioMixBus bus = Bus(made, Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -12f, lookaheadSeconds: 0f))));
@@ -199,10 +199,23 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             meter.Sample(bus, 3.5d);
             Assert.That(meter.ShortTermLufs.HasValue, Is.False);
-            Assert.That(meter.IntegratedLufs, Is.EqualTo(reference.Integrated).Within(0.01));
+            Assert.That(meter.IntegratedLufs.HasValue, Is.False);
+
+            bus.ProcessBuffer(block, channels);
+            meter.Sample(bus, 3.52d);
+            Assert.That(meter.HasSignal, Is.True);
+            Assert.That(meter.IntegratedLufs.HasValue, Is.False);
+
+            for (int index = 1; index < 25; ++index)
+            {
+                bus.ProcessBuffer(block, channels);
+                meter.Sample(bus, 3.52d + index * 0.02d);
+            }
+            Assert.That(meter.IntegratedLufs.HasValue, Is.True);
+            Assert.That(meter.ShortTermLufs.HasValue, Is.False);
 
             listener.enabled = false;
-            meter.Sample(bus, 3.55d);
+            meter.Sample(bus, 4.05d);
             Assert.That(meter.IsAttached, Is.False);
             Assert.That(meter.IntegratedLufs.HasValue, Is.False);
         }

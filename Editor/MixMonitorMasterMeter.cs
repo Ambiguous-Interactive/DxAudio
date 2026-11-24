@@ -58,7 +58,13 @@ namespace WallstopStudios.DxAudio.Editor
                 _lastSignalTime = now;
             }
 
-            HasSignal = received || (HasSignal && now < _lastSignalTime + SignalTimeoutSeconds);
+            bool hasSignal = received || (HasSignal && now < _lastSignalTime + SignalTimeoutSeconds);
+            if (HasSignal && !hasSignal)
+            {
+                _loudness.Reset();
+            }
+
+            HasSignal = hasSignal;
             _left.Sample(received ? left : null, HasSignal, now);
             _right.Sample(received ? right : null, HasSignal, now);
 
