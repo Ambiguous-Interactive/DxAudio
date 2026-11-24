@@ -178,6 +178,9 @@ namespace WallstopStudios.DxAudio
         private MusicAttenuation _rampTo = MusicAttenuation.Unattenuated;
         private MusicRamp _duckProgress = MusicRamp.At(1f);
         private MusicRamp _volumeRamp = MusicRamp.At(1f);
+#if UNITY_EDITOR
+        private float _auditionGain = 1f;
+#endif
         private float _clock;
 
         private static bool IsPlayable(MusicTrack track)
@@ -318,6 +321,26 @@ namespace WallstopStudios.DxAudio
             fade = 0f;
             return false;
         }
+
+#if UNITY_EDITOR
+        internal void SetAuditionGain(float gain)
+        {
+            if (_auditionGain == gain)
+            {
+                return;
+            }
+
+            _auditionGain = gain;
+            float volume = _volumeRamp.Value;
+            foreach (Voice voice in _voices)
+            {
+                if (voice != null && voice.source != null)
+                {
+                    ApplyVolume(voice, voice.fade.Value, volume);
+                }
+            }
+        }
+#endif
 
         /// <summary>Moves fades, ducks, and player volume on by <paramref name="deltaSeconds"/>. Called each frame.</summary>
         internal void Tick(float deltaSeconds)
@@ -584,12 +607,21 @@ namespace WallstopStudios.DxAudio
         private void Apply(Voice voice, float fade, float volume)
         {
             MusicAttenuation attenuation = Attenuation;
-            float trim = voice.track != null ? voice.track.VolumeScale : 1f;
-            voice.source.volume = trim * fade * attenuation.volumeScale * volume;
+            ApplyVolume(voice, fade, volume);
             voice.lowPass.cutoffFrequency = attenuation.lowPassCutoffHz;
             voice.lowPass.enabled = attenuation.lowPassCutoffHz < MusicAttenuation.OpenLowPassCutoffHz;
             voice.highPass.cutoffFrequency = attenuation.highPassCutoffHz;
             voice.highPass.enabled = MusicAttenuation.OpenHighPassCutoffHz < attenuation.highPassCutoffHz;
+        }
+
+        private void ApplyVolume(Voice voice, float fade, float volume)
+        {
+            float trim = voice.track != null ? voice.track.VolumeScale : 1f;
+            float gain = trim * fade * Attenuation.volumeScale * volume;
+#if UNITY_EDITOR
+            gain *= _auditionGain;
+#endif
+            voice.source.volume = gain;
         }
 
         private void EnsureVoices()
