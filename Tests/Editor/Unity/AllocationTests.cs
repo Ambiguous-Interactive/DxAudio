@@ -40,9 +40,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             return player;
         }
 
-        private static SfxCue Cue(MadeObjects made, string key = null)
+        private static SfxCue Cue(MadeObjects made, string key = null, SfxPriority priority = SfxPriority.Medium)
         {
-            return made.Track(SfxCue.Create(new[] { new SfxVariant(Clip(made)), new SfxVariant(Clip(made)) }, key: key, loop: false, minimumIntervalSeconds: 0f));
+            return made.Track(
+                SfxCue.Create(new[] { new SfxVariant(Clip(made)), new SfxVariant(Clip(made)) }, key: key, loop: false, minimumIntervalSeconds: 0f, priority: priority)
+            );
         }
 
         private static AudioClip Clip(MadeObjects made)
@@ -133,8 +135,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void PlayingWithTheMixMonitorEnabledDoesNotAllocate()
         {
             using MadeObjects made = new();
-            SfxCue cue = Cue(made, key: "hit");
-            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
+            SfxCue cue = Cue(made, key: "hit", priority: SfxPriority.Low);
+            SfxCue high = Cue(made, key: "high", priority: SfxPriority.High);
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue, high }, voiceCount: 1));
             AudioSource voice = player.GetComponentInChildren<AudioSource>();
             Assert.That(voice != null, Is.True, "The cue must use a pooled source.");
             MusicPlayer music = made.Track(new GameObject("music")).AddComponent<MusicPlayer>();
@@ -154,12 +157,19 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 monitor.Show();
             }
 
-            int started = 0;
-            void PlayAndDrop()
+            int steals = 0;
+            void PlayStealAndDrop()
             {
-                if (player.Play("hit"))
+                if (
+                    player.Play("hit")
+                    && player.TryObserveVoiceState(0, out _, out _, out _, out int victim, out _)
+                    && player.Play("high")
+                    && player.TryObserveVoiceState(0, out _, out _, out _, out _, out int stolenPlaybackId)
+                    && victim != 0
+                    && stolenPlaybackId == victim
+                )
                 {
-                    ++started;
+                    ++steals;
                 }
 
                 voice.Stop();
@@ -168,13 +178,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             for (int index = 0; index < WarmupCalls; ++index)
             {
-                PlayAndDrop();
+                PlayStealAndDrop();
             }
 
             monitor.SamplePlayer();
             int before = monitor.Capture.Counts.notPlayable;
-            started = 0;
-            long allocations = AllocationEvents(PlayAndDrop, MeasuredCalls);
+            steals = 0;
+            long allocations = AllocationEvents(PlayStealAndDrop, MeasuredCalls);
             monitor.SamplePlayer();
             player.Paused = true;
             Assert.That(player.Play(cue), Is.True);
@@ -189,9 +199,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(monitor.Timeline.DuckHold(monitor.Timeline.Count - 1, monitor.Timeline.DuckCapacity - 1).reason, Is.SameAs(duck));
             long samplingAllocations = AllocationEvents(monitor.SamplePlayer, MeasuredCalls);
 
-            Assert.That(started, Is.EqualTo(MeasuredCalls));
+            Assert.That(steals, Is.EqualTo(MeasuredCalls));
             Assert.That(monitor.Capture.Counts.notPlayable - before, Is.EqualTo(MeasuredCalls));
-            Assert.That(allocations, Is.Zero, $"Play allocated {allocations} times over {MeasuredCalls:N0} cue pairs.");
+            Assert.That(allocations, Is.Zero, $"Play and steal allocated {allocations} times over {MeasuredCalls:N0} cue pairs.");
             Assert.That(samplingAllocations, Is.Zero, $"Sampling allocated {samplingAllocations} times over {MeasuredCalls:N0} reads.");
         }
 

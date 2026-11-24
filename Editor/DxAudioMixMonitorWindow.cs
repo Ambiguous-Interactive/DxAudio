@@ -21,6 +21,7 @@ namespace WallstopStudios.DxAudio.Editor
         private static readonly CustomStyleProperty<Color> HeldColorRole = new("--dxa-theme-target");
         private static readonly CustomStyleProperty<Color> PausedColorRole = new("--dxa-theme-wire");
         private static readonly CustomStyleProperty<Color> DropColorRole = new("--dxa-theme-fit");
+        private static readonly CustomStyleProperty<Color> CutColorRole = new("--dxa-theme-rejected");
         private static readonly CustomStyleProperty<Color> TrackColorRole = new("--dxa-theme-surface");
         private static readonly CustomStyleProperty<Color> CursorColorRole = new("--dxa-theme-text");
 
@@ -36,6 +37,7 @@ namespace WallstopStudios.DxAudio.Editor
         private MusicPlayer _music;
 
         private readonly Vector3[] _line = new Vector3[HistoryCapacity];
+        private readonly float[] _cutEdges = new float[HistoryCapacity];
         private readonly MixMonitorWaveforms _waveforms = new();
         private readonly IMusicDuckReason[] _duckReasons = new IMusicDuckReason[DuckHoldCapacity];
         private readonly object[] _duckHolders = new object[DuckHoldCapacity];
@@ -52,6 +54,7 @@ namespace WallstopStudios.DxAudio.Editor
         private Color _heldColor;
         private Color _pausedColor;
         private Color _dropColor;
+        private Color _cutColor;
         private Color _trackColor;
         private Color _cursorColor;
         private bool _themeReady;
@@ -169,9 +172,9 @@ namespace WallstopStudios.DxAudio.Editor
             bool canReadWaveform = true;
             for (int voice = 0; voice < Timeline.VoiceCount; ++voice)
             {
-                if (_player.TryObserveVoiceState(voice, out SfxVoiceState state, out AudioClip clip, out float clipSeconds, out int playbackId))
+                if (_player.TryObserveVoiceState(voice, out SfxVoiceState state, out AudioClip clip, out float clipSeconds, out int playbackId, out int stolenPlaybackId))
                 {
-                    Timeline.SetVoice(voice, state, clip, clipSeconds, _waveforms.Observe(clip, ref canReadWaveform), playbackId);
+                    Timeline.SetVoice(voice, state, clip, clipSeconds, _waveforms.Observe(clip, ref canReadWaveform), playbackId, stolenPlaybackId);
                 }
             }
 
@@ -260,6 +263,7 @@ namespace WallstopStudios.DxAudio.Editor
                 && style.TryGetValue(HeldColorRole, out _heldColor)
                 && style.TryGetValue(PausedColorRole, out _pausedColor)
                 && style.TryGetValue(DropColorRole, out _dropColor)
+                && style.TryGetValue(CutColorRole, out _cutColor)
                 && style.TryGetValue(TrackColorRole, out _trackColor)
                 && style.TryGetValue(CursorColorRole, out _cursorColor);
             _content.MarkDirtyRepaint();
@@ -619,6 +623,7 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             int hit = -1;
+            int cuts = 0;
             for (int frame = 0; frame < Timeline.Count; ++frame)
             {
                 ref readonly SfxVoiceState state = ref Timeline.Voice(frame, voice);
@@ -663,6 +668,11 @@ namespace WallstopStudios.DxAudio.Editor
                     {
                         EditorGUI.DrawRect(new Rect(cell.x, cell.yMax - 2f, cell.width, 2f), _cursorColor);
                     }
+
+                    if (Timeline.VoiceWasStolen(frame, voice, MaxSampleGapSeconds))
+                    {
+                        _cutEdges[cuts++] = cell.xMax;
+                    }
                 }
                 else if (cell.Contains(evt.mousePosition))
                 {
@@ -673,6 +683,11 @@ namespace WallstopStudios.DxAudio.Editor
             if (draw)
             {
                 DrawCursor(in track, start, end, cursor);
+                for (int cut = 0; cut < cuts; ++cut)
+                {
+                    float left = Mathf.Max(track.x, _cutEdges[cut] - 2f);
+                    EditorGUI.DrawRect(new Rect(left, track.y + 3f, _cutEdges[cut] - left, track.height - 6f), _cutColor);
+                }
             }
             else if (0 <= hit && SelectClip(hit, voice))
             {

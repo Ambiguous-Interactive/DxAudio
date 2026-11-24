@@ -48,6 +48,30 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(timeline.VoiceClipEnd(0, 0, 1f, 0.1d), Is.EqualTo(0.2f));
         }
 
+        [TestCase(17, false, 1.05d, true, TestName = "A stolen clip ends with a cut edge")]
+        [TestCase(0, false, 1.05d, false, TestName = "An idle slot can be reused without a cut")]
+        [TestCase(19, false, 1.05d, false, TestName = "An unobserved victim does not mark an earlier clip")]
+        [TestCase(17, true, 1.05d, false, TestName = "A cut does not bridge a capture pause")]
+        [TestCase(17, false, 2d, false, TestName = "A cut does not bridge a long editor tick")]
+        public void CutEdgeBelongsToTheObservedVictim(int stolenPlaybackId, bool interrupted, double secondTime, bool cut)
+        {
+            MixMonitorTimeline<int, string> timeline = new(2);
+            timeline.Reset(1);
+            SfxVoiceState playing = new(true, true, false, SfxPriority.Low, 1f);
+            timeline.Sample(1d, SfxDropCounts.None);
+            timeline.SetVoice(0, playing, clip: 1, playbackId: 17);
+            if (interrupted)
+            {
+                timeline.Interrupt();
+            }
+
+            timeline.Sample(secondTime, SfxDropCounts.None);
+            timeline.SetVoice(0, SfxVoiceState.Idle, stolenPlaybackId: stolenPlaybackId);
+
+            Assert.That(timeline.VoiceWasStolen(0, 0, 0.1d), Is.EqualTo(cut));
+            Assert.That(timeline.VoiceWasStolen(1, 0, 0.1d), Is.False);
+        }
+
         [Test]
         public void OverlappingDuckHoldsKeepTheirLanesWhenAnotherHolderReleases()
         {

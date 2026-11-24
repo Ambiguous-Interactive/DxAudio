@@ -19,7 +19,14 @@ namespace WallstopStudios.DxAudio.Editor
         private readonly (IMusicDuckReason reason, long id)[] _duckHolds;
         private readonly int[] _omittedDuckHolds;
         private readonly bool[] _assignedDuckInputs;
-        private (SfxVoiceState state, TClip clip, float clipSeconds, float[] peaks, int playbackId)[] _voices = Array.Empty<(SfxVoiceState, TClip, float, float[], int)>();
+        private (SfxVoiceState state, TClip clip, float clipSeconds, float[] peaks, int playbackId, int stolenPlaybackId)[] _voices = Array.Empty<(
+            SfxVoiceState,
+            TClip,
+            float,
+            float[],
+            int,
+            int
+        )>();
         private SfxDropCounts _previous;
         private int _oldest;
         private int _latest;
@@ -40,7 +47,7 @@ namespace WallstopStudios.DxAudio.Editor
         {
             if (voiceCount != VoiceCount)
             {
-                _voices = new (SfxVoiceState, TClip, float, float[], int)[_frames.Length * voiceCount];
+                _voices = new (SfxVoiceState, TClip, float, float[], int, int)[_frames.Length * voiceCount];
                 VoiceCount = voiceCount;
             }
             else if (0 < Count)
@@ -94,9 +101,9 @@ namespace WallstopStudios.DxAudio.Editor
             _interrupted = false;
         }
 
-        internal void SetVoice(int voice, in SfxVoiceState state, TClip clip = default, float clipSeconds = 0f, float[] peaks = null, int playbackId = 0)
+        internal void SetVoice(int voice, in SfxVoiceState state, TClip clip = default, float clipSeconds = 0f, float[] peaks = null, int playbackId = 0, int stolenPlaybackId = 0)
         {
-            _voices[_latest * VoiceCount + voice] = (state, clip, clipSeconds, peaks, playbackId);
+            _voices[_latest * VoiceCount + voice] = (state, clip, clipSeconds, peaks, playbackId, stolenPlaybackId);
         }
 
         internal void SetDeck(int deck, TTrack track, float fade)
@@ -210,6 +217,18 @@ namespace WallstopStudios.DxAudio.Editor
         internal float[] VoicePeaks(int frame, int voice)
         {
             return _voices[Slot(frame) * VoiceCount + voice].peaks;
+        }
+
+        internal bool VoiceWasStolen(int frame, int voice, double maxGapSeconds)
+        {
+            int nextFrame = frame + 1;
+            if (Count <= nextFrame || !CanJoin(nextFrame, maxGapSeconds))
+            {
+                return false;
+            }
+
+            int victim = _voices[Slot(frame) * VoiceCount + voice].playbackId;
+            return victim != 0 && victim == _voices[Slot(nextFrame) * VoiceCount + voice].stolenPlaybackId;
         }
 
         internal float VoiceClipEnd(int frame, int voice, float duration, double maxGapSeconds)

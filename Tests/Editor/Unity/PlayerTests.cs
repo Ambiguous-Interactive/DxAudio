@@ -3,6 +3,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     using System.Collections.Generic;
     using NUnit.Framework;
     using UnityEngine;
+    using WallstopStudios.DxAudio.Editor;
 
     public sealed class PlayerTests
     {
@@ -430,6 +431,43 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(player.Play(low), Is.False, "the paused High cue will resume, so Low cannot take its voice");
             Assert.That(player.DropCounts.Total, Is.EqualTo(1));
+        }
+
+        [TestCase(true, TestName = "The Mix Monitor keeps the sampled victim through two steals")]
+        [TestCase(false, TestName = "The Mix Monitor leaves no cut after a dropped cue and ordinary reuse")]
+        public void TheMixMonitorMarksOnlyThePlaybackThatWasStolen(bool steal)
+        {
+            using MadeObjects made = new();
+            SfxCue first = Cue(made, loop: false, priority: SfxPriority.Low);
+            SfxCue next = Cue(made, loop: false, priority: SfxPriority.Medium);
+            SfxCue last = Cue(made, loop: false, priority: SfxPriority.High);
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { first, next, last }, voiceCount: 1));
+            DxAudioMixMonitorWindow monitor = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
+            monitor.SelectPlayers(player, null);
+
+            Assert.That(player.Play(first), Is.True);
+            AudioSource source = PlayingSource(player);
+            Assert.That(source != null, Is.True);
+            monitor.SamplePlayer();
+            int victimFrame = monitor.Timeline.Count - 1;
+
+            if (steal)
+            {
+                Assert.That(player.Play(next), Is.True);
+            }
+            else
+            {
+                Assert.That(player.Play(first), Is.False);
+                source.Stop();
+            }
+
+            Assert.That(player.Play(last), Is.True);
+            source.Stop();
+            monitor.SamplePlayer();
+            monitor.SamplePlayer();
+
+            Assert.That(monitor.Timeline.VoiceWasStolen(victimFrame, 0, 1d), Is.EqualTo(steal));
+            Assert.That(monitor.Timeline.VoiceWasStolen(victimFrame + 1, 0, 1d), Is.False);
         }
 
         [Test]
