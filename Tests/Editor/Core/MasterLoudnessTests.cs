@@ -70,6 +70,69 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(meter.ShortTerm, Is.EqualTo(-72d).Within(0.1));
         }
 
+        [TestCase(0)]
+        [TestCase(1)]
+        [TestCase(2)]
+        public void TheOrderedGateMatchesAFullScanAcrossInsertionOrders(int order)
+        {
+            const double AbsoluteGate = 0.25d;
+            LoudnessGate gate = new(AbsoluteGate);
+            double[] blocks = new double[1_024];
+            for (int index = 0; index < 1_024; ++index)
+            {
+                int rank = order switch
+                {
+                    0 => index,
+                    1 => 1_023 - index,
+                    _ => index * 137 % 1_024,
+                };
+                double block = Math.Pow(1.06d, rank / 2) * 0.01d;
+                blocks[index] = block;
+                gate.Add(block);
+
+                double absoluteSum = 0d;
+                int absoluteCount = 0;
+                for (int prior = 0; prior <= index; ++prior)
+                {
+                    if (AbsoluteGate < blocks[prior])
+                    {
+                        absoluteSum += blocks[prior];
+                        ++absoluteCount;
+                    }
+                }
+
+                double threshold = Math.Max(AbsoluteGate, 0.1d * (absoluteSum / absoluteCount));
+                double relativeSum = 0d;
+                int relativeCount = 0;
+                for (int prior = 0; prior <= index; ++prior)
+                {
+                    if (threshold < blocks[prior])
+                    {
+                        relativeSum += blocks[prior];
+                        ++relativeCount;
+                    }
+                }
+
+                double? reading = gate.Mean();
+                if (relativeCount == 0)
+                {
+                    Assert.That(reading.HasValue, Is.False);
+                }
+                else
+                {
+                    double expected = relativeSum / relativeCount;
+                    Assert.That(reading, Is.EqualTo(expected).Within(1e-12d * expected));
+                }
+            }
+
+            gate.Clear();
+            gate.Add(AbsoluteGate);
+            Assert.That(gate.Mean().HasValue, Is.False);
+            gate.Add(1d);
+            gate.Add(2d);
+            Assert.That(gate.Mean(), Is.EqualTo(1.5d));
+        }
+
         [Test]
         public void ShortTermRollsOverTheLastThreeSecondsWithoutGating()
         {

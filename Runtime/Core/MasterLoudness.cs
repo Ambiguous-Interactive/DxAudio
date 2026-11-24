@@ -1,7 +1,6 @@
 namespace WallstopStudios.DxAudio
 {
     using System;
-    using System.Collections.Generic;
 
     /// <summary>Measures BS.1770 integrated and EBU short-term loudness on the editor thread.</summary>
     internal sealed class MasterLoudness
@@ -29,26 +28,8 @@ namespace WallstopStudios.DxAudio
         {
             get
             {
-                int count = _gateBlocks.Count;
-                if (_integratedBlockCount != count)
-                {
-                    double threshold = Math.Max(AbsoluteGate, 0.1d * (_gateSum / count));
-                    double energy = 0d;
-                    int included = 0;
-                    foreach (double block in _gateBlocks)
-                    {
-                        if (threshold < block)
-                        {
-                            energy += block;
-                            ++included;
-                        }
-                    }
-
-                    _integrated = ToLufs(energy / included);
-                    _integratedBlockCount = count;
-                }
-
-                return _integrated;
+                double? energy = _gate.Mean();
+                return energy.HasValue ? ToLufs(energy.Value) : null;
             }
         }
 
@@ -56,8 +37,7 @@ namespace WallstopStudios.DxAudio
         private readonly FilterState[] _highPassState = new FilterState[TruePeakFilter.MaxChannels];
         private readonly double[] _hops = new double[ShortTermHops];
 
-        // Store one energy per accepted block so the changing relative gate stays exact.
-        private readonly List<double> _gateBlocks = new();
+        private readonly LoudnessGate _gate = new(AbsoluteGate);
         private double[] _weights;
         private Biquad _shelf;
         private Biquad _highPass;
@@ -68,9 +48,6 @@ namespace WallstopStudios.DxAudio
         private double _energy;
         private int _nextHop;
         private int _filledHops;
-        private double _gateSum;
-        private int _integratedBlockCount;
-        private double? _integrated;
 
         private static double ToLufs(double energy)
         {
@@ -113,10 +90,7 @@ namespace WallstopStudios.DxAudio
             _energy = 0d;
             _nextHop = 0;
             _filledHops = 0;
-            _gateBlocks.Clear();
-            _gateSum = 0d;
-            _integratedBlockCount = 0;
-            _integrated = null;
+            _gate.Clear();
         }
 
         private void Configure(int channels, int sampleRate)
@@ -206,12 +180,7 @@ namespace WallstopStudios.DxAudio
             _frames = 0;
             if (GateHops <= _filledHops)
             {
-                double block = MeanOfLatest(GateHops);
-                if (AbsoluteGate < block)
-                {
-                    _gateBlocks.Add(block);
-                    _gateSum += block;
-                }
+                _gate.Add(MeanOfLatest(GateHops));
             }
         }
 
