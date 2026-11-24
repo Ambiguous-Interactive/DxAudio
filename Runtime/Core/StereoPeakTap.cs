@@ -3,12 +3,23 @@ namespace WallstopStudios.DxAudio
     using System;
     using System.Threading;
 
-    /// <summary>Captures listener samples and front-channel peaks for the editor.</summary>
+    /// <summary>Applies editor audition gain and captures the resulting listener samples.</summary>
     internal sealed class StereoPeakTap
     {
         private const long UnreadEmpty = long.MinValue;
+        private const float RampSeconds = 0.005f;
+
+        internal float AuditionGain
+        {
+            set => _auditionGain = value;
+        }
+
         private readonly ListenerMeterTap _listener;
         private long _pending = UnreadEmpty;
+
+        // The editor publishes the target. The listener callback owns the ramp.
+        private volatile float _auditionGain = 1f;
+        private float _appliedGain = 1f;
 
         internal StereoPeakTap(int sampleRate)
         {
@@ -42,6 +53,7 @@ namespace WallstopStudios.DxAudio
                 return;
             }
 
+            ApplyAudition(samples, channels);
             _listener.Enqueue(samples, channels);
 
             float left = 0f;
@@ -104,6 +116,47 @@ namespace WallstopStudios.DxAudio
             left = Left(pair);
             right = Right(pair);
             return true;
+        }
+
+        private void ApplyAudition(float[] samples, int channels)
+        {
+            float target = _auditionGain;
+            float gain = _appliedGain;
+            if (target == 1f && gain == 1f)
+            {
+                return;
+            }
+
+            int length = samples.Length;
+            int end = length - length % channels;
+            int index = 0;
+            if (gain != target)
+            {
+                float step = 1f / Math.Max(1f, _listener.SampleRate * RampSeconds);
+                while (index < end && gain != target)
+                {
+                    gain = gain < target ? Math.Min(gain + step, target) : Math.Max(gain - step, target);
+                    int nextFrame = index + channels;
+                    for (; index < nextFrame; ++index)
+                    {
+                        samples[index] *= gain;
+                    }
+                }
+
+                _appliedGain = gain;
+            }
+
+            if (target == 0f)
+            {
+                Array.Clear(samples, index, end - index);
+            }
+            else if (target != 1f)
+            {
+                for (; index < end; ++index)
+                {
+                    samples[index] *= target;
+                }
+            }
         }
     }
 }
