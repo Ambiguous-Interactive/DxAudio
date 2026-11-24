@@ -19,7 +19,6 @@ namespace WallstopStudios.DxAudio.Editor
         private Channel _left;
         private Channel _right;
         private Channel _truePeak;
-        private double _lastTruePeakTime;
         private double _lastSignalTime;
 
         internal static bool CanMonitor(AudioMixBus bus)
@@ -70,13 +69,11 @@ namespace WallstopStudios.DxAudio.Editor
             }
             if (receivedTruePeak)
             {
-                _lastTruePeakTime = now;
                 TruePeakOverrun = false;
             }
 
-            bool hasTruePeak = receivedTruePeak || (TruePeak.HasValue && now < _lastTruePeakTime + SignalTimeoutSeconds);
-            _truePeak.Sample(receivedTruePeak ? peak : null, hasTruePeak, now);
-            TruePeak = hasTruePeak ? _truePeak.Held : null;
+            _truePeak.Sample(receivedTruePeak ? peak : null, receivedTruePeak, now);
+            TruePeak = receivedTruePeak || 0f < _truePeak.Held ? _truePeak.Held : null;
         }
 
         internal void Clear()

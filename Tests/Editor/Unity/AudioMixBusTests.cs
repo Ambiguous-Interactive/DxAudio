@@ -165,6 +165,25 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void ATruePeakRemainsVisibleForOneSecondWithoutCallbacks()
+        {
+            using MadeObjects made = new();
+            AudioMixBus bus = Bus(made, null);
+            _ = bus.gameObject.AddComponent<AudioListener>();
+            MixMonitorMasterMeter meter = new();
+            meter.Sample(bus, 0d);
+            bus.ProcessBuffer(new[] { 0.8f, 0.2f }, 2);
+            meter.Sample(bus, 0d);
+
+            meter.Sample(bus, 0.3d);
+            Assert.That(meter.HasSignal, Is.False);
+            Assert.That(meter.TruePeak, Is.EqualTo(0.8f));
+
+            meter.Sample(bus, 1d);
+            Assert.That(meter.TruePeak.HasValue, Is.False);
+        }
+
+        [Test]
         public void TheMasterMeterHoldsEachPeakUntilItsOwnDeadline()
         {
             using MadeObjects made = new();
