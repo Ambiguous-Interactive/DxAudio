@@ -448,7 +448,7 @@ namespace WallstopStudios.DxAudio.Editor
 
         private void SamplePlayerMeters(double now)
         {
-            if (_player != null && _player.isActiveAndEnabled)
+            if (_player != null)
             {
                 int voiceCount = _player.VoiceCount;
                 for (int index = 0; index < voiceCount; ++index)
@@ -458,7 +458,7 @@ namespace WallstopStudios.DxAudio.Editor
             }
             _sfxMeter.FinishSample(now);
 
-            if (_music != null && _music.isActiveAndEnabled)
+            if (_music != null)
             {
                 for (int index = 0; index < MusicPlayer.VoiceCount; ++index)
                 {
