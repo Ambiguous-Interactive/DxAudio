@@ -176,6 +176,9 @@ namespace WallstopStudios.DxAudio
             _liveChannels = 0;
             _slots.Clear();
             Select(_chain);
+#if UNITY_EDITOR
+            _peakTap?.RequestTruePeakReset();
+#endif
         }
 
 #if UNITY_EDITOR

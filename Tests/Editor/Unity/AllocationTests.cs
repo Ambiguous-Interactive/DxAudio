@@ -213,14 +213,26 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             GameObject listener = made.Track(new GameObject("listener"));
             _ = listener.AddComponent<AudioListener>();
             AudioMixBus bus = listener.AddComponent<AudioMixBus>();
-            MixMonitorMasterMeter meter = new();
-            meter.Sample(bus, 0d);
+            Assert.That(bus.TryAttachPeakTap(out StereoPeakTap tap), Is.True);
             float[] block = new float[512 * channels];
             block[0] = 0.5f;
             block[1] = -0.25f;
+            int queuedBlocks = 0;
+            bool lostAudio = false;
+            float peak = 0f;
             void ProcessBlock()
             {
                 bus.ProcessBuffer(block, channels);
+                if (++queuedBlocks == 16)
+                {
+                    queuedBlocks = 0;
+                    if (tap.TryReadTruePeak(out float value, out bool overrun))
+                    {
+                        peak = Math.Max(peak, value);
+                    }
+
+                    lostAudio |= overrun;
+                }
             }
 
             for (int index = 0; index < WarmupCalls; ++index)
@@ -228,12 +240,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 ProcessBlock();
             }
 
-            meter.Sample(bus, 0.05d);
             long allocations = AllocationEvents(ProcessBlock, MeasuredCalls);
-            meter.Sample(bus, 0.1d);
-            Assert.That(meter.HasSignal, Is.True);
-            Assert.That(meter.Left.Level, Is.EqualTo(0.5f));
-            Assert.That(meter.Right.Level, Is.EqualTo(0.25f));
+            Assert.That(tap.TryRead(out float left, out float right), Is.True);
+            Assert.That(left, Is.EqualTo(0.5f));
+            Assert.That(right, Is.EqualTo(0.25f));
+            Assert.That(peak, Is.EqualTo(0.5f));
+            Assert.That(lostAudio, Is.False);
             Assert.That(allocations, Is.Zero);
         }
 
