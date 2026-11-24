@@ -405,7 +405,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             using MadeObjects made = new();
             AudioMixBus bus = Bus(made, null);
             bus.gameObject.SetActive(false);
-            float[] block = new float[Frames * channels];
+            int samplesPerBlock = Frames * channels;
+            float[] block = new float[samplesPerBlock];
             for (int frame = 0; frame < Frames; ++frame)
             {
                 for (int channel = 0; channel < channels; ++channel)
@@ -415,9 +416,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
 
             float[][] rendered = new float[BlocksPerRead][];
-            for (int index = 0; index < rendered.Length; ++index)
+            for (int index = 0; index < BlocksPerRead; ++index)
             {
-                rendered[index] = new float[block.Length];
+                rendered[index] = new float[samplesPerBlock];
             }
 
             (long Callback, long Drain) Measure(bool enabled, MasterLoudness loudness = null)
@@ -434,13 +435,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 {
                     foreach (float[] output in rendered)
                     {
-                        Array.Copy(block, output, block.Length);
+                        Array.Copy(block, output, samplesPerBlock);
                     }
 
                     long start = Stopwatch.GetTimestamp();
                     if (rampAuditionGain && tap != null)
                     {
-                        for (int index = 0; index < rendered.Length; ++index)
+                        for (int index = 0; index < BlocksPerRead; ++index)
                         {
                             tap.AuditionGain = index % 2 == 0 ? 0f : 1f;
                             bus.ProcessBuffer(rendered[index], channels);
