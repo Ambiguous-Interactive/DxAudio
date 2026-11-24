@@ -17,6 +17,9 @@
     <Compile Include="../Tests/Editor/Unity/DspAuditionProcessorTests.cs" />
     <Compile Include="../Editor/MixMonitorDropCapture.cs" />
     <Compile Include="../Tests/Editor/Unity/MixMonitorDropCaptureTests.cs" />
+    <Compile Include="../Editor/MixMonitorPeakChannel.cs" />
+    <Compile Include="../Editor/MixMonitorPlayerMeter.cs" />
+    <Compile Include="../Tests/Editor/Unity/MixMonitorPlayerMeterTests.cs" />
     <Compile Include="../Editor/MixMonitorTimeline.cs" />
     <Compile Include="../Tests/Editor/Unity/MixMonitorTimelineTests.cs" />
     <Compile Include="*.cs" />

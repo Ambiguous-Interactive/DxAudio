@@ -25,6 +25,10 @@ namespace WallstopStudios.DxAudio.Editor
         private static readonly CustomStyleProperty<Color> TrackColorRole = new("--dxa-theme-surface");
         private static readonly CustomStyleProperty<Color> CursorColorRole = new("--dxa-theme-text");
         private static readonly GUIContent PlayerSoloLabel = new("Solo in Monitor", "Silence the other player selected in this window.");
+        private static readonly GUIContent PlayerPeakLabel = new(
+            "Sampled source peaks (dBFS)",
+            "Shows short output windows from the selected player's voices. Peaks between reads can be missed."
+        );
         private static DxAudioMixMonitorWindow _auditionOwner;
 
         internal MixMonitorDropCapture Capture { get; } = new();
@@ -43,6 +47,9 @@ namespace WallstopStudios.DxAudio.Editor
         private AudioMixBus _masterBus;
 
         private readonly MixMonitorMasterMeter _masterMeter = new();
+        private readonly float[] _meterSamples = new float[MixMonitorPlayerMeter.SampleCount];
+        private readonly MixMonitorPlayerMeter _sfxMeter = new();
+        private readonly MixMonitorPlayerMeter _musicMeter = new(spectrum: true);
         private (float decibels, bool muted, bool solo) _sfxAudition;
         private (float decibels, bool muted, bool solo) _musicAudition;
 
@@ -212,6 +219,15 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             ClearPlayerAudition();
+            if (sfx != _player)
+            {
+                _sfxMeter.Clear();
+            }
+            if (music != _music)
+            {
+                _musicMeter.Clear();
+            }
+
             _player = sfx;
             _music = music;
             _selectedVoice = -1;
@@ -397,6 +413,8 @@ namespace WallstopStudios.DxAudio.Editor
         {
             ClearPlayerAudition();
             _masterMeter.Clear();
+            _sfxMeter.Clear();
+            _musicMeter.Clear();
             if (state == PlayModeStateChange.EnteredPlayMode || state == PlayModeStateChange.ExitingPlayMode)
             {
                 Capture.Reset();
@@ -420,11 +438,52 @@ namespace WallstopStudios.DxAudio.Editor
             _nextSample = now + SampleIntervalSeconds;
             RefreshPlayerAudition();
             _masterMeter.Sample(_masterBus, now);
+            SamplePlayerMeters(now);
             if (!Capture.Paused)
             {
                 SamplePlayer();
             }
             _content?.MarkDirtyRepaint();
+        }
+
+        private void SamplePlayerMeters(double now)
+        {
+            if (_player != null && _player.isActiveAndEnabled)
+            {
+                int voiceCount = _player.VoiceCount;
+                for (int index = 0; index < voiceCount; ++index)
+                {
+                    SampleSource(_player.GetMonitorSource(index), _sfxMeter);
+                }
+            }
+            _sfxMeter.FinishSample(now);
+
+            if (_music != null && _music.isActiveAndEnabled)
+            {
+                for (int index = 0; index < MusicPlayer.VoiceCount; ++index)
+                {
+                    SampleSource(_music.GetMonitorSource(index), _musicMeter);
+                }
+            }
+            _musicMeter.FinishSample(now);
+        }
+
+        private void SampleSource(AudioSource source, MixMonitorPlayerMeter meter)
+        {
+            if (!VoiceClip.IsSounding(source) || source.mute || source.isVirtual || source.volume <= 0f)
+            {
+                return;
+            }
+
+            Array.Clear(_meterSamples, 0, _meterSamples.Length);
+            source.GetOutputData(_meterSamples, 0);
+            meter.AddChannel(_meterSamples, right: false);
+            if (1 < source.clip.channels)
+            {
+                Array.Clear(_meterSamples, 0, _meterSamples.Length);
+                source.GetOutputData(_meterSamples, 1);
+            }
+            meter.AddChannel(_meterSamples, right: true);
         }
 
         private void DrawWindow()
@@ -498,6 +557,10 @@ namespace WallstopStudios.DxAudio.Editor
                 }
 
                 DrawMaster();
+                if (_music != null)
+                {
+                    DrawMusicSpectrum();
+                }
             }
         }
 
@@ -517,6 +580,11 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 SetPlayerAudition(forSfx, decibels, muted, audition.solo);
             }
+
+            MixMonitorPlayerMeter meter = forSfx ? _sfxMeter : _musicMeter;
+            EditorGUILayout.LabelField(PlayerPeakLabel, EditorStyles.miniLabel);
+            DrawMeterChannel("L", meter.Left);
+            DrawMeterChannel("R", meter.Right);
         }
 
         private void ApplyPlayerAudition()
@@ -586,8 +654,8 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             EditorGUILayout.LabelField(_masterMeter.HasSignal ? "Live sample peaks (dBFS)" : "Waiting for listener audio", EditorStyles.miniLabel);
-            DrawMasterChannel("L", _masterMeter.Left);
-            DrawMasterChannel("R", _masterMeter.Right);
+            DrawMeterChannel("L", _masterMeter.Left);
+            DrawMeterChannel("R", _masterMeter.Right);
 
             float? truePeak = _masterMeter.TruePeak;
             string reading = _masterMeter.TruePeakOverrun ? "Audio gap" : "-";
@@ -600,7 +668,41 @@ namespace WallstopStudios.DxAudio.Editor
             EditorGUILayout.LabelField("Integrated (LUFS)", FormatLoudness(_masterMeter.IntegratedLufs));
         }
 
-        private void DrawMasterChannel(string label, MixMonitorMasterMeter.Channel channel)
+        private void DrawMusicSpectrum()
+        {
+            EditorGUILayout.LabelField("Music spectrum", EditorStyles.boldLabel);
+            Rect plot = GUILayoutUtility.GetRect(100f, 64f, GUILayout.ExpandWidth(true));
+            EditorGUI.DrawRect(plot, _trackColor);
+
+            ReadOnlySpan<float> spectrum = _musicMeter.Spectrum;
+            int sampleRate = AudioSettings.outputSampleRate;
+            const int bands = 32;
+            int binCount = spectrum.Length;
+            float logMax = Mathf.Log(binCount - 1);
+            float width = plot.width / bands;
+            for (int band = 0; band < bands; ++band)
+            {
+                int first = Mathf.CeilToInt(Mathf.Exp(logMax * band / bands));
+                int end = band + 1 == bands ? binCount : Mathf.Max(first + 1, Mathf.CeilToInt(Mathf.Exp(logMax * (band + 1) / bands)));
+                float peak = 0f;
+                for (int bin = first; bin < end; ++bin)
+                {
+                    peak = Mathf.Max(peak, spectrum[bin]);
+                }
+
+                float height = plot.height * Mathf.InverseLerp(AudioMath.SilentDecibels, 0f, AudioMath.LinearToDecibels(peak));
+                EditorGUI.DrawRect(new Rect(plot.x + width * band, plot.yMax - height, Mathf.Max(1f, width - 1f), height), _playingColor);
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Label($"{(float)sampleRate / MixMonitorPlayerMeter.SampleCount:0} Hz", EditorStyles.miniLabel);
+                GUILayout.FlexibleSpace();
+                GUILayout.Label($"{sampleRate / 2000f:0.#} kHz", EditorStyles.miniLabel);
+            }
+        }
+
+        private void DrawMeterChannel(string label, MixMonitorPeakChannel channel)
         {
             float decibels = AudioMath.LinearToDecibels(channel.Level);
             float fraction = Mathf.InverseLerp(AudioMath.SilentDecibels, 0f, decibels);
