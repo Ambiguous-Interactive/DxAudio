@@ -101,7 +101,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
                 foreach (float sample in output)
                 {
-                    renderedSignal |= 0.01f < Math.Abs(sample);
+                    renderedSignal = renderedSignal || 0.01f < Math.Abs(sample);
                 }
                 peaks[0] = Math.Max(peaks[0], meter.Spectrum[LowBin]);
                 peaks[1] = Math.Max(peaks[1], meter.Spectrum[HighBin]);
