@@ -7,6 +7,7 @@ namespace WallstopStudios.DxAudio
     internal sealed class StereoPeakTap
     {
         private const long UnreadEmpty = long.MinValue;
+        private readonly TruePeakTap _truePeak = new();
         private long _pending = UnreadEmpty;
 
         private static long Pack(float left, float right)
@@ -24,12 +25,19 @@ namespace WallstopStudios.DxAudio
             return BitConverter.Int32BitsToSingle(unchecked((int)pair));
         }
 
+        internal void RequestTruePeakReset()
+        {
+            _truePeak.RequestReset();
+        }
+
         internal void Observe(float[] samples, int channels)
         {
             if (channels <= 0 || samples.Length < channels)
             {
                 return;
             }
+
+            _truePeak.Enqueue(samples, channels);
 
             float left = 0f;
             float right = 0f;
@@ -70,6 +78,11 @@ namespace WallstopStudios.DxAudio
 
                 previous = observed;
             }
+        }
+
+        internal bool TryReadTruePeak(out float peak, out bool overrun)
+        {
+            return _truePeak.TryRead(out peak, out overrun);
         }
 
         internal bool TryRead(out float left, out float right)

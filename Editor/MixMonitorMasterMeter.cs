@@ -9,6 +9,8 @@ namespace WallstopStudios.DxAudio.Editor
 
         internal Channel Left => _left;
         internal Channel Right => _right;
+        internal float? TruePeak { get; private set; }
+        internal bool TruePeakOverrun { get; private set; }
         internal bool IsAttached => _tap != null;
         internal bool HasSignal { get; private set; }
 
@@ -16,6 +18,7 @@ namespace WallstopStudios.DxAudio.Editor
         private StereoPeakTap _tap;
         private Channel _left;
         private Channel _right;
+        private Channel _truePeak;
         private double _lastSignalTime;
 
         internal static bool CanMonitor(AudioMixBus bus)
@@ -55,6 +58,22 @@ namespace WallstopStudios.DxAudio.Editor
             HasSignal = received || (HasSignal && now < _lastSignalTime + SignalTimeoutSeconds);
             _left.Sample(received ? left : null, HasSignal, now);
             _right.Sample(received ? right : null, HasSignal, now);
+
+            bool receivedTruePeak = _tap.TryReadTruePeak(out float peak, out bool overrun);
+            if (overrun)
+            {
+                TruePeakOverrun = true;
+                TruePeak = null;
+                _truePeak = default;
+                return;
+            }
+            if (receivedTruePeak)
+            {
+                TruePeakOverrun = false;
+            }
+
+            _truePeak.Sample(receivedTruePeak ? peak : null, receivedTruePeak, now);
+            TruePeak = receivedTruePeak || 0f < _truePeak.Held ? _truePeak.Held : null;
         }
 
         internal void Clear()
@@ -69,6 +88,9 @@ namespace WallstopStudios.DxAudio.Editor
             HasSignal = false;
             _left = default;
             _right = default;
+            _truePeak = default;
+            TruePeak = null;
+            TruePeakOverrun = false;
         }
 
         internal struct Channel

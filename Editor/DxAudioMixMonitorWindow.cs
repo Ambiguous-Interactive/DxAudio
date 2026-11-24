@@ -426,6 +426,14 @@ namespace WallstopStudios.DxAudio.Editor
             EditorGUILayout.LabelField(_masterMeter.HasSignal ? "Live sample peaks (dBFS)" : "Waiting for listener audio", EditorStyles.miniLabel);
             DrawMasterChannel("L", _masterMeter.Left);
             DrawMasterChannel("R", _masterMeter.Right);
+
+            float? truePeak = _masterMeter.TruePeak;
+            string reading = _masterMeter.TruePeakOverrun ? "Audio gap" : "-";
+            if (0f < truePeak.GetValueOrDefault())
+            {
+                reading = (20f * Mathf.Log10(truePeak.Value)).ToString("0.0");
+            }
+            EditorGUILayout.LabelField("True peak (dBTP)", reading);
         }
 
         private void DrawMasterChannel(string label, MixMonitorMasterMeter.Channel channel)

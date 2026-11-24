@@ -131,6 +131,59 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void TheMasterDisplaysPostChainTruePeakAndHoldsItThroughSilence()
+        {
+            using MadeObjects made = new();
+            AudioMixBus bus = Bus(made, Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -6f, lookaheadSeconds: 0f))));
+            _ = bus.gameObject.AddComponent<AudioListener>();
+            MixMonitorMasterMeter meter = new();
+            meter.Sample(bus, 0d);
+            Assert.That(meter.TruePeak.HasValue, Is.False);
+
+            int channels = bus.ChannelCount;
+            float[] block = new float[64 * channels];
+            for (int frame = 0; frame < 64; ++frame)
+            {
+                block[frame * channels] = frame % 4 < 2 ? 0.75f : -0.75f;
+            }
+
+            bus.ProcessBuffer(block, channels);
+            meter.Sample(bus, 0.05d);
+            float expected = AudioMath.DecibelsToLinear(-6f) * Mathf.Sqrt(2f);
+            Assert.That(meter.TruePeak, Is.EqualTo(expected).Within(0.03f));
+            Assert.That(meter.Left.Level, Is.EqualTo(AudioMath.DecibelsToLinear(-6f)).Within(0.001f));
+
+            Array.Clear(block, 0, block.Length);
+            bus.ProcessBuffer(block, channels);
+            meter.Sample(bus, 0.1d);
+            Assert.That(meter.TruePeak, Is.EqualTo(expected).Within(0.03f));
+            bus.ProcessBuffer(block, channels);
+            meter.Sample(bus, 1.1d);
+            Assert.That(meter.TruePeak, Is.Zero);
+            meter.Clear();
+            Assert.That(meter.TruePeak.HasValue, Is.False);
+        }
+
+        [Test]
+        public void ATruePeakRemainsVisibleForOneSecondWithoutCallbacks()
+        {
+            using MadeObjects made = new();
+            AudioMixBus bus = Bus(made, null);
+            _ = bus.gameObject.AddComponent<AudioListener>();
+            MixMonitorMasterMeter meter = new();
+            meter.Sample(bus, 0d);
+            bus.ProcessBuffer(new[] { 0.8f, 0.2f }, 2);
+            meter.Sample(bus, 0d);
+
+            meter.Sample(bus, 0.3d);
+            Assert.That(meter.HasSignal, Is.False);
+            Assert.That(meter.TruePeak, Is.EqualTo(0.8f));
+
+            meter.Sample(bus, 1d);
+            Assert.That(meter.TruePeak.HasValue, Is.False);
+        }
+
+        [Test]
         public void TheMasterMeterHoldsEachPeakUntilItsOwnDeadline()
         {
             using MadeObjects made = new();
@@ -224,32 +277,47 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             const int SampleRate = 48_000;
             const int Batches = 21;
             const int BlocksPerBatch = 1_024;
+            const int BlocksPerRead = 16;
             using MadeObjects made = new();
             AudioMixBus bus = Bus(made, null);
-            _ = bus.gameObject.AddComponent<AudioListener>();
-            MixMonitorMasterMeter meter = new();
+            bus.gameObject.SetActive(false);
             float[] block = new float[Frames * channels];
             for (int frame = 0; frame < Frames; ++frame)
             {
-                block[frame * channels] = ((float)frame / Frames) - 0.5f;
-                block[frame * channels + 1] = 0.25f - ((float)frame / Frames);
+                for (int channel = 0; channel < channels; ++channel)
+                {
+                    block[frame * channels + channel] = 0.65f * Mathf.Sin(frame * (0.21f + channel * 0.067f));
+                }
             }
 
             long Measure(bool enabled)
             {
-                meter.Clear();
+                StereoPeakTap tap = null;
                 if (enabled)
                 {
-                    meter.Sample(bus, 0d);
+                    Assert.That(bus.TryAttachPeakTap(out tap), Is.True);
                 }
 
-                long start = Stopwatch.GetTimestamp();
-                for (int index = 0; index < BlocksPerBatch; ++index)
+                long ticks = 0;
+                for (int group = 0; group < BlocksPerBatch / BlocksPerRead; ++group)
                 {
-                    bus.ProcessBuffer(block, channels);
+                    long start = Stopwatch.GetTimestamp();
+                    for (int index = 0; index < BlocksPerRead; ++index)
+                    {
+                        bus.ProcessBuffer(block, channels);
+                    }
+
+                    ticks += Stopwatch.GetTimestamp() - start;
+                    if (tap != null)
+                    {
+                        Assert.That(tap.TryReadTruePeak(out _, out bool overrun), Is.True, "the callback must enqueue every measured block");
+                        Assert.That(overrun, Is.False);
+                        tap.TryRead(out _, out _);
+                    }
                 }
 
-                return Stopwatch.GetTimestamp() - start;
+                bus.DetachPeakTap(tap);
+                return ticks;
             }
 
             _ = Measure(false);

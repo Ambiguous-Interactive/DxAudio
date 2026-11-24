@@ -210,17 +210,29 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         public void AListenerPeakTapDoesNotAllocate(int channels)
         {
             using MadeObjects made = new();
-            GameObject listener = made.Track(new GameObject("listener"));
-            _ = listener.AddComponent<AudioListener>();
-            AudioMixBus bus = listener.AddComponent<AudioMixBus>();
-            MixMonitorMasterMeter meter = new();
-            meter.Sample(bus, 0d);
+            GameObject host = made.Track(new GameObject("listener tap probe"));
+            host.SetActive(false);
+            AudioMixBus bus = host.AddComponent<AudioMixBus>();
+            Assert.That(bus.TryAttachPeakTap(out StereoPeakTap tap), Is.True);
             float[] block = new float[512 * channels];
             block[0] = 0.5f;
             block[1] = -0.25f;
+            int queuedBlocks = 0;
+            bool lostAudio = false;
+            float peak = 0f;
             void ProcessBlock()
             {
                 bus.ProcessBuffer(block, channels);
+                if (++queuedBlocks == 16)
+                {
+                    queuedBlocks = 0;
+                    if (tap.TryReadTruePeak(out float value, out bool overrun))
+                    {
+                        peak = Math.Max(peak, value);
+                    }
+
+                    lostAudio = lostAudio || overrun;
+                }
             }
 
             for (int index = 0; index < WarmupCalls; ++index)
@@ -228,12 +240,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 ProcessBlock();
             }
 
-            meter.Sample(bus, 0.05d);
+            peak = 0f;
+            Debug.Log($"Measure listener tap allocations over {MeasuredCalls} blocks of 512 frames and {channels} channels.");
             long allocations = AllocationEvents(ProcessBlock, MeasuredCalls);
-            meter.Sample(bus, 0.1d);
-            Assert.That(meter.HasSignal, Is.True);
-            Assert.That(meter.Left.Level, Is.EqualTo(0.5f));
-            Assert.That(meter.Right.Level, Is.EqualTo(0.25f));
+            Debug.Log($"Listener tap recorded {allocations} allocation events.");
+            Assert.That(tap.TryRead(out float left, out float right), Is.True);
+            Assert.That(left, Is.EqualTo(0.5f));
+            Assert.That(right, Is.EqualTo(0.25f));
+            Assert.That(peak, Is.EqualTo(0.5f));
+            Assert.That(lostAudio, Is.False);
             Assert.That(allocations, Is.Zero);
         }
 
