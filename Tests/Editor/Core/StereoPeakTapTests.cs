@@ -5,12 +5,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
     public sealed class StereoPeakTapTests
     {
+        private const int SampleRate = 48_000;
+
         [TestCase(1)]
         [TestCase(2)]
         [TestCase(8)]
         public void TruePeakFindsAnIntersampleCrestAcrossUnevenBlocks(int channels)
         {
-            StereoPeakTap tap = new();
+            StereoPeakTap tap = new(SampleRate);
             float[] cycle = { 0.75f, 0.75f, -0.75f, -0.75f };
             float[] first = new float[7 * channels];
             float[] second = new float[57 * channels];
@@ -34,8 +36,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void SingleFrameCallbacksGiveTheSameTruePeakAsAContiguousBlock()
         {
-            StereoPeakTap whole = new();
-            StereoPeakTap split = new();
+            StereoPeakTap whole = new(SampleRate);
+            StereoPeakTap split = new(SampleRate);
             float[] signal = { 0f, 0f, 0.75f, 0.75f, -0.75f, -0.75f, 0f, 0f, 0f, 0f, 0f, 0f };
             whole.Observe(signal, 1);
             foreach (float sample in signal)
@@ -53,13 +55,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TestCase(2, true)]
         public void TruePeakClearsFilterHistoryOnLayoutOrDeviceChanges(int nextChannels, bool configurationChanged)
         {
-            StereoPeakTap tap = new();
-            StereoPeakTap fresh = new();
+            StereoPeakTap tap = new(SampleRate);
+            StereoPeakTap fresh = new(SampleRate);
             tap.Observe(new[] { 1f, 1f, -1f, -1f }, 2);
             Assert.That(tap.TryReadTruePeak(out _, out _), Is.True);
             if (configurationChanged)
             {
-                tap.RequestTruePeakReset();
+                tap.SetSampleRate(SampleRate);
             }
 
             float[] silence = new float[24];
@@ -74,7 +76,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void AFullTruePeakQueueReportsAGapAndRestartsTheFilter()
         {
-            StereoPeakTap tap = new();
+            StereoPeakTap tap = new(SampleRate);
             float[] block = new float[4096];
             block[block.Length - 1] = 1f;
             for (int index = 0; index < 33; ++index)
@@ -98,7 +100,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void AReadKeepsEachChannelsLoudestSampleAcrossBlocks()
         {
-            StereoPeakTap tap = new();
+            StereoPeakTap tap = new(SampleRate);
             tap.Observe(new[] { 0.05f, -0.2f, -1.25f, 0.3f }, 2);
             tap.Observe(new[] { 0.3f, -0.8f }, 2);
 
@@ -117,7 +119,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TestCase(4, 0.5f, 0.25f)]
         public void ReadsMonoOrTheFrontTwoChannels(int channels, float expectedLeft, float expectedRight)
         {
-            StereoPeakTap tap = new();
+            StereoPeakTap tap = new(SampleRate);
             float[] block = channels == 1 ? new[] { 0.1f, -0.5f } : new[] { 0.5f, 0f, 10f, 12f, 0.1f, -0.25f, 0f, 0f };
             tap.Observe(block, channels);
 
@@ -129,7 +131,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void IgnoresIncompleteFramesAndNonFiniteSamples()
         {
-            StereoPeakTap tap = new();
+            StereoPeakTap tap = new(SampleRate);
             tap.Observe(new[] { 1f }, 2);
             tap.Observe(new[] { 1f }, 0);
             Assert.That(tap.TryRead(out _, out _), Is.False);

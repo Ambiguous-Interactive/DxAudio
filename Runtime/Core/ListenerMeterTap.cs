@@ -3,40 +3,50 @@ namespace WallstopStudios.DxAudio
     using System;
     using System.Threading;
 
-    /// <summary>Moves listener blocks from the audio callback to the editor's true-peak filter.</summary>
-    internal sealed class TruePeakTap
+    /// <summary>Moves listener blocks from the audio callback to the editor meters.</summary>
+    internal sealed class ListenerMeterTap
     {
         // Over 300 ms at 48 kHz and eight channels, with a normal read every 50 ms.
         private const int Capacity = 1 << 17;
         private const int Mask = Capacity - 1;
-        private const int HeaderSize = 2;
+        private const int HeaderSize = 3;
         private readonly float[] _queue = new float[Capacity];
         private readonly TruePeakFilter _filter = new();
+        private long _format;
         private int _writing;
         private int _written;
         private int _read;
+        private int _readRevision;
         private int _reset;
         private int _overrun;
         private bool _gap;
 
-        internal void RequestReset()
+        internal ListenerMeterTap(int sampleRate)
         {
-            Volatile.Write(ref _reset, 1);
+            _format = sampleRate;
+        }
+
+        internal void SetSampleRate(int sampleRate)
+        {
+            // Publish the rate and its revision together, including resets at the same rate.
+            int revision = unchecked((int)(Volatile.Read(ref _format) >> 32) + 1);
+            Volatile.Write(ref _format, ((long)revision << 32) | (uint)sampleRate);
         }
 
         internal void Enqueue(float[] samples, int channels)
         {
+            int revision = (int)(Volatile.Read(ref _format) >> 32);
             // ProcessBuffer can also be driven explicitly while Unity is delivering audio.
             if (Interlocked.CompareExchange(ref _writing, 1, 0) != 0)
             {
-                RequestReset();
+                Volatile.Write(ref _reset, 1);
                 Volatile.Write(ref _overrun, 1);
                 return;
             }
 
             try
             {
-                WriteBlock(samples, channels);
+                WriteBlock(samples, channels, revision);
             }
             finally
             {
@@ -44,11 +54,21 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        internal bool TryRead(out float peak, out bool overrun)
+        internal bool TryRead(out float peak, out bool overrun, MasterLoudness loudness)
         {
             int end = Volatile.Read(ref _written);
+            long format = Volatile.Read(ref _format);
+            int revision = (int)(format >> 32);
+            int sampleRate = unchecked((int)format);
+            if (_readRevision != revision)
+            {
+                _filter.Reset();
+                loudness?.Reset();
+                _readRevision = revision;
+            }
+
             int read = _read;
-            bool received = read != end;
+            bool received = false;
             float maximum = 0f;
             while (read != end)
             {
@@ -60,20 +80,28 @@ namespace WallstopStudios.DxAudio
                     continue;
                 }
 
-                if (channels < 0)
+                int count = (int)_queue[start + 1];
+                if (revision == BitConverter.SingleToInt32Bits(_queue[start + 2]))
                 {
-                    _filter.Reset();
-                    channels = -channels;
+                    if (channels < 0)
+                    {
+                        _filter.Reset();
+                        loudness?.Reset();
+                        channels = -channels;
+                    }
+
+                    maximum = Math.Max(maximum, _filter.Observe(_queue, start + HeaderSize, count, channels));
+                    loudness?.Observe(_queue, start + HeaderSize, count, channels, sampleRate);
+                    received = true;
                 }
 
-                int count = (int)_queue[start + 1];
-                maximum = Math.Max(maximum, _filter.Observe(_queue, start + HeaderSize, count, channels));
                 read = unchecked(read + HeaderSize + count);
                 Volatile.Write(ref _read, read);
             }
 
             if (Interlocked.Exchange(ref _overrun, 0) == 1)
             {
+                loudness?.Reset();
                 peak = 0f;
                 overrun = true;
                 return false;
@@ -84,11 +112,12 @@ namespace WallstopStudios.DxAudio
             return received;
         }
 
-        private void WriteBlock(float[] samples, int channels)
+        private void WriteBlock(float[] samples, int channels, int revision)
         {
             if (TruePeakFilter.MaxChannels < channels)
             {
                 _gap = true;
+                Volatile.Write(ref _overrun, 1);
                 return;
             }
 
@@ -117,6 +146,7 @@ namespace WallstopStudios.DxAudio
             _gap = false;
             _queue[start] = reset ? -channels : channels;
             _queue[start + 1] = count;
+            _queue[start + 2] = BitConverter.Int32BitsToSingle(revision);
             Array.Copy(samples, 0, _queue, start + HeaderSize, count);
             Volatile.Write(ref _written, unchecked(written + padding + HeaderSize + count));
         }
