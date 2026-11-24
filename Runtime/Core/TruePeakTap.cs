@@ -12,6 +12,7 @@ namespace WallstopStudios.DxAudio
         private const int HeaderSize = 2;
         private readonly float[] _queue = new float[Capacity];
         private readonly TruePeakFilter _filter = new();
+        private int _writing;
         private int _written;
         private int _read;
         private int _reset;
@@ -25,39 +26,22 @@ namespace WallstopStudios.DxAudio
 
         internal void Enqueue(float[] samples, int channels)
         {
-            if (TruePeakFilter.MaxChannels < channels)
+            // ProcessBuffer can also be driven explicitly while Unity is delivering audio.
+            if (Interlocked.CompareExchange(ref _writing, 1, 0) != 0)
             {
-                _gap = true;
-                return;
-            }
-
-            int length = samples.Length;
-            int count = length - length % channels;
-            int written = _written;
-            int start = written & Mask;
-            int tail = Capacity - start;
-            int free = Capacity - unchecked(written - Volatile.Read(ref _read));
-            int padding = count <= tail - HeaderSize ? 0 : tail;
-            if (free - padding - HeaderSize < count)
-            {
-                _gap = true;
+                RequestReset();
                 Volatile.Write(ref _overrun, 1);
                 return;
             }
 
-            // A zero header skips the unused tail. Each queued block stays contiguous.
-            if (padding != 0)
+            try
             {
-                _queue[start] = 0f;
-                start = 0;
+                WriteBlock(samples, channels);
             }
-
-            bool reset = Interlocked.Exchange(ref _reset, 0) == 1 || _gap;
-            _gap = false;
-            _queue[start] = reset ? -channels : channels;
-            _queue[start + 1] = count;
-            Array.Copy(samples, 0, _queue, start + HeaderSize, count);
-            Volatile.Write(ref _written, unchecked(written + padding + HeaderSize + count));
+            finally
+            {
+                Volatile.Write(ref _writing, 0);
+            }
         }
 
         internal bool TryRead(out float peak, out bool overrun)
@@ -98,6 +82,43 @@ namespace WallstopStudios.DxAudio
             peak = maximum;
             overrun = false;
             return received;
+        }
+
+        private void WriteBlock(float[] samples, int channels)
+        {
+            if (TruePeakFilter.MaxChannels < channels)
+            {
+                _gap = true;
+                return;
+            }
+
+            int length = samples.Length;
+            int count = length - length % channels;
+            int written = _written;
+            int start = written & Mask;
+            int tail = Capacity - start;
+            int free = Capacity - unchecked(written - Volatile.Read(ref _read));
+            int padding = count <= tail - HeaderSize ? 0 : tail;
+            if (free - padding - HeaderSize < count)
+            {
+                _gap = true;
+                Volatile.Write(ref _overrun, 1);
+                return;
+            }
+
+            // A zero header skips the unused tail. Each queued block stays contiguous.
+            if (padding != 0)
+            {
+                _queue[start] = 0f;
+                start = 0;
+            }
+
+            bool reset = Interlocked.Exchange(ref _reset, 0) == 1 || _gap;
+            _gap = false;
+            _queue[start] = reset ? -channels : channels;
+            _queue[start + 1] = count;
+            Array.Copy(samples, 0, _queue, start + HeaderSize, count);
+            Volatile.Write(ref _written, unchecked(written + padding + HeaderSize + count));
         }
     }
 }
