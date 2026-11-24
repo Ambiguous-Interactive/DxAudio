@@ -170,6 +170,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             yield return new EnterPlayMode();
 
+            if (AudioSettings.speakerMode == AudioSpeakerMode.Mono)
+            {
+                Assert.Ignore("The stereo fixture requires left and right output channels.");
+            }
+
             using MadeObjects made = new();
             int frameRate = Time.captureFramerate;
             Time.captureFramerate = 30;
