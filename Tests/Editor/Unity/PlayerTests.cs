@@ -334,6 +334,24 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(musicVoice.volume, Is.EqualTo(1f));
         }
 
+        [TestCase(false, TestName = "Mix Monitor clears solo when its target is destroyed")]
+        [TestCase(true, TestName = "Mix Monitor clears solo when the other player is destroyed")]
+        public void MixMonitorClearsSoloWhenEitherPlayerIsDestroyed(bool soloSfx)
+        {
+            using MadeObjects made = new();
+            SfxPlayer sfx = SfxPlayer(made, SfxLibrary.Create(null, voiceCount: 1));
+            MusicPlayer music = MusicPlayer(made);
+            DxAudioMixMonitorWindow monitor = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
+            monitor.SelectPlayers(sfx, music);
+            monitor.SetPlayerAudition(forSfx: soloSfx, 0f, muted: false, solo: true);
+            Assert.That(monitor.HasPlayerSolo, Is.True);
+
+            made.DestroyNow(music.gameObject);
+            monitor.RefreshPlayerAudition();
+
+            Assert.That(monitor.HasPlayerSolo, Is.False);
+        }
+
         [Test]
         public void PlayerVolumeSurvivesLibraryChangesAndAppliesToNewVoices()
         {

@@ -24,10 +24,12 @@ namespace WallstopStudios.DxAudio.Editor
         private static readonly CustomStyleProperty<Color> CutColorRole = new("--dxa-theme-rejected");
         private static readonly CustomStyleProperty<Color> TrackColorRole = new("--dxa-theme-surface");
         private static readonly CustomStyleProperty<Color> CursorColorRole = new("--dxa-theme-text");
+        private static readonly GUIContent PlayerSoloLabel = new("Solo in Monitor", "Silence the other player selected in this window.");
         private static DxAudioMixMonitorWindow _auditionOwner;
 
         internal MixMonitorDropCapture Capture { get; } = new();
         internal MixMonitorTimeline<AudioClip, MusicTrack> Timeline { get; } = new(HistoryCapacity, MusicPlayer.VoiceCount, DuckHoldCapacity);
+        internal bool HasPlayerSolo => _sfxAudition.solo || _musicAudition.solo;
 
         private bool HasSfx => _player != null || 0 < Timeline.VoiceCount || 0 < Capture.Counts.Total;
 
@@ -219,6 +221,17 @@ namespace WallstopStudios.DxAudio.Editor
             SamplePlayer();
         }
 
+        internal void RefreshPlayerAudition()
+        {
+            if (HasPlayerSolo && (_player == null || _music == null))
+            {
+                _sfxAudition.solo = false;
+                _musicAudition.solo = false;
+                ApplyPlayerAudition();
+                _content?.MarkDirtyRepaint();
+            }
+        }
+
         internal void SamplePlayer()
         {
             if (Capture.Paused)
@@ -382,14 +395,7 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             _nextSample = now + SampleIntervalSeconds;
-            if ((_player == null && _sfxAudition.solo) || (_music == null && _musicAudition.solo))
-            {
-                _sfxAudition.solo = false;
-                _musicAudition.solo = false;
-                ApplyPlayerAudition();
-                _content?.MarkDirtyRepaint();
-            }
-
+            RefreshPlayerAudition();
             _masterMeter.Sample(_masterBus, now);
             if (!Capture.Paused)
             {
@@ -485,7 +491,7 @@ namespace WallstopStudios.DxAudio.Editor
             bool muted = EditorGUILayout.Toggle("Audition Mute", audition.muted);
             using (new EditorGUI.DisabledScope(_player == null || _music == null))
             {
-                audition.solo = EditorGUILayout.Toggle("Audition Solo", audition.solo);
+                audition.solo = EditorGUILayout.Toggle(PlayerSoloLabel, audition.solo);
             }
 
             if (EditorGUI.EndChangeCheck())
