@@ -652,7 +652,10 @@ namespace WallstopStudios.DxAudio.Editor
                         {
                             float duration = clip.length;
                             float untilSeconds = Timeline.VoiceClipEnd(frame, voice, duration, MaxSampleGapSeconds);
-                            DrawWaveform(in cell, peaks, seconds / duration, untilSeconds / duration, _trackColor);
+                            if (seconds < untilSeconds)
+                            {
+                                DrawWaveform(in cell, peaks, seconds / duration, untilSeconds / duration, _trackColor);
+                            }
                         }
                     }
 
