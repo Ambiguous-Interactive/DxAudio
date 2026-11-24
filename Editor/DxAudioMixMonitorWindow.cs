@@ -457,9 +457,10 @@ namespace WallstopStudios.DxAudio.Editor
             if (_player != null)
             {
                 int voiceCount = _player.VoiceCount;
+                bool hasRightChannel = AudioSettings.speakerMode != AudioSpeakerMode.Mono;
                 for (int index = 0; index < voiceCount; ++index)
                 {
-                    SampleSource(_player.GetMonitorSource(index), _sfxMeter);
+                    SampleSfxSource(_player.GetMonitorSource(index), hasRightChannel);
                 }
             }
             _sfxMeter.FinishSample(now);
@@ -518,7 +519,7 @@ namespace WallstopStudios.DxAudio.Editor
             _musicTapSources[index] = null;
         }
 
-        private void SampleSource(AudioSource source, MixMonitorPlayerMeter meter)
+        private void SampleSfxSource(AudioSource source, bool hasRightChannel)
         {
             if (!VoiceClip.IsSounding(source) || source.mute || source.isVirtual || source.volume <= 0f)
             {
@@ -527,19 +528,13 @@ namespace WallstopStudios.DxAudio.Editor
 
             Array.Clear(_meterSamples, 0, _meterSamples.Length);
             source.GetOutputData(_meterSamples, 0);
-            if (source.clip.channels == 1)
+            _sfxMeter.AddChannel(_meterSamples, right: false);
+            if (hasRightChannel)
             {
-                // The source window is mono. Map it to the same constant-power stereo pan.
-                float rightPower = (1f + source.panStereo) * 0.5f;
-                meter.AddChannel(_meterSamples, right: false, Mathf.Sqrt(1f - rightPower));
-                meter.AddChannel(_meterSamples, right: true, Mathf.Sqrt(rightPower));
-                return;
+                Array.Clear(_meterSamples, 0, _meterSamples.Length);
+                source.GetOutputData(_meterSamples, 1);
+                _sfxMeter.AddChannel(_meterSamples, right: true);
             }
-
-            meter.AddChannel(_meterSamples, right: false);
-            Array.Clear(_meterSamples, 0, _meterSamples.Length);
-            source.GetOutputData(_meterSamples, 1);
-            meter.AddChannel(_meterSamples, right: true);
         }
 
         private void DrawWindow()
