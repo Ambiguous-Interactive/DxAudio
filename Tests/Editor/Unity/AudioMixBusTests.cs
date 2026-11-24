@@ -371,6 +371,26 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(first.IsAttached, Is.False);
         }
 
+        [Test]
+        public void ADetachedMasterTapReleasesMuteForACallbackHoldingIt()
+        {
+            using MadeObjects made = new();
+            AudioMixBus bus = Bus(made, null);
+            bus.gameObject.SetActive(false);
+            Assert.That(bus.TryAttachPeakTap(out StereoPeakTap tap), Is.True);
+            tap.AuditionGain = 0f;
+            int channels = bus.ChannelCount;
+            int count = Math.Max(512, bus.PreparedSampleRate / 50) * channels;
+            float[] muted = FullScale(count);
+            bus.ProcessBuffer(muted, channels);
+            Assert.That(muted[count - 1], Is.Zero);
+
+            bus.DetachPeakTap(tap);
+            float[] retained = FullScale(count);
+            tap.Observe(retained, channels);
+            Assert.That(retained[count - 1], Is.EqualTo(1f));
+        }
+
         [TestCase(2, false)]
         [TestCase(8, false)]
         [TestCase(2, true)]

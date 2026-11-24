@@ -205,8 +205,10 @@ namespace WallstopStudios.DxAudio
 
         internal void DetachPeakTap(StereoPeakTap tap)
         {
-            if (_peakTap == tap)
+            if (tap != null && _peakTap == tap)
             {
+                // A callback can have read this tap before the editor removes it.
+                tap.AuditionGain = 1f;
                 _peakTap = null;
             }
         }
