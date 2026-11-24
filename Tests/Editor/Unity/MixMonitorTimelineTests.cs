@@ -6,7 +6,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     public sealed class MixMonitorTimelineTests
     {
         [TestCase(false, false, false, 0.8f, 0.9f, 0.9f, TestName = "Waveform follows the observed playhead")]
+        [TestCase(false, false, false, 0.2f, 0.35f, 0.35f, TestName = "Waveform covers fast playback")]
+        [TestCase(false, false, false, 0.2f, 0.8f, 0.2f, TestName = "Waveform does not span a large forward seek")]
         [TestCase(true, false, false, 0.98f, 0.03f, 1.03f, TestName = "Loop waveform wraps past the end")]
+        [TestCase(true, false, false, 0.8f, 0.6f, 0.8f, TestName = "Waveform does not treat a large backward seek as a wrap")]
         [TestCase(false, false, false, 0.98f, 0.03f, 0.98f, TestName = "One-shot waveform does not wrap on a seek")]
         [TestCase(true, true, false, 0.8f, 0.9f, 0.8f, TestName = "Paused waveform stays at the saved playhead")]
         [TestCase(true, false, true, 0.8f, 0.9f, 0.8f, TestName = "Waveform does not interpolate across a capture interruption")]

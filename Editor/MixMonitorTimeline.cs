@@ -7,6 +7,7 @@ namespace WallstopStudios.DxAudio.Editor
         where TTrack : class
     {
         internal const double HistorySeconds = 10d;
+        private const double MaximumAudioClipPitch = 3d;
 
         internal int Count { get; private set; }
         internal int VoiceCount { get; private set; }
@@ -234,12 +235,14 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             float nextSeconds = _voices[next].clipSeconds;
-            if (seconds <= nextSeconds)
+            if (nextSeconds < seconds && first.isHeld && second.isHeld)
             {
-                return nextSeconds;
+                nextSeconds += duration;
             }
 
-            return first.isHeld && second.isHeld ? nextSeconds + duration : seconds;
+            // Allow the full capture gap for audio buffer timing, even if the editor ticks sooner.
+            double maxAdvance = MaximumAudioClipPitch * maxGapSeconds;
+            return seconds <= nextSeconds && nextSeconds - seconds <= maxAdvance ? nextSeconds : seconds;
         }
 
         private int Slot(int frame)
