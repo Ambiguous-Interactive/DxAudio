@@ -131,6 +131,24 @@ namespace WallstopStudios.DxAudio.Editor
             return double.IsNegativeInfinity(lufs.Value) ? "-\u221e" : lufs.Value.ToString("0.0");
         }
 
+        private static void DrawMasterInserts(DspChain chain)
+        {
+            if (chain == null || chain.Count == 0)
+            {
+                EditorGUILayout.LabelField("Inserts", "None");
+                return;
+            }
+
+            EditorGUILayout.LabelField("Inserts", EditorStyles.miniBoldLabel);
+            using (new EditorGUI.IndentLevelScope())
+            {
+                for (int index = 0; index < chain.Count; ++index)
+                {
+                    EditorGUILayout.LabelField(chain[index].DisplayName);
+                }
+            }
+        }
+
         public void CreateGUI()
         {
             DxAudioEditorTheme.Apply(rootVisualElement);
@@ -431,6 +449,15 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 EditorGUILayout.LabelField("Waiting to connect to the listener bus.", EditorStyles.miniLabel);
                 return;
+            }
+
+            DrawMasterInserts(_masterBus.LiveChain);
+            EditorGUI.BeginChangeCheck();
+            float decibels = EditorGUILayout.Slider("Audition Fader (dB)", _masterMeter.FaderDecibels, MixMonitorMasterMeter.MinimumFaderDecibels, 0f);
+            bool muted = EditorGUILayout.Toggle("Audition Mute", _masterMeter.Muted);
+            if (EditorGUI.EndChangeCheck())
+            {
+                _masterMeter.SetAudition(decibels, muted);
             }
 
             EditorGUILayout.LabelField(_masterMeter.HasSignal ? "Live sample peaks (dBFS)" : "Waiting for listener audio", EditorStyles.miniLabel);

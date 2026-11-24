@@ -10,6 +10,9 @@ namespace WallstopStudios.DxAudio
         private const int Capacity = 1 << 17;
         private const int Mask = Capacity - 1;
         private const int HeaderSize = 3;
+
+        internal int SampleRate => unchecked((int)Volatile.Read(ref _format));
+
         private readonly float[] _queue = new float[Capacity];
         private readonly TruePeakFilter _filter = new();
         private long _format;

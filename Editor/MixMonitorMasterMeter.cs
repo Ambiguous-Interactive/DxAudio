@@ -4,9 +4,13 @@ namespace WallstopStudios.DxAudio.Editor
 
     internal sealed class MixMonitorMasterMeter
     {
+        internal const float MinimumFaderDecibels = -60f;
+
         // A listener block can span more than one editor poll.
         private const double SignalTimeoutSeconds = 0.25d;
 
+        internal float FaderDecibels { get; private set; }
+        internal bool Muted { get; private set; }
         internal Channel Left => _left;
         internal Channel Right => _right;
         internal double? ShortTermLufs => HasSignal ? _loudness.ShortTerm : null;
@@ -55,6 +59,18 @@ namespace WallstopStudios.DxAudio.Editor
             ReadCapturedAudio(_tap, now);
         }
 
+        internal void SetAudition(float decibels, bool muted)
+        {
+            if (_tap == null || !AudioMath.IsFinite(decibels))
+            {
+                return;
+            }
+
+            FaderDecibels = Mathf.Clamp(decibels, MinimumFaderDecibels, 0f);
+            Muted = muted;
+            _tap.AuditionGain = muted ? 0f : AudioMath.DecibelsToLinear(FaderDecibels);
+        }
+
         internal void ReadCapturedAudio(StereoPeakTap tap, double now)
         {
             bool received = tap.TryRead(out float left, out float right);
@@ -99,6 +115,8 @@ namespace WallstopStudios.DxAudio.Editor
 
             _bus = null;
             _tap = null;
+            FaderDecibels = 0f;
+            Muted = false;
             HasSignal = false;
             _left = default;
             _right = default;

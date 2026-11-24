@@ -223,6 +223,50 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void MasterAuditionFollowsTheInsertsAndClearsOnDetach()
+        {
+            using MadeObjects made = new();
+            DspChainAsset chain = Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -6f, lookaheadSeconds: 0f)));
+            AudioMixBus bus = Bus(made, chain);
+            _ = bus.gameObject.AddComponent<AudioListener>();
+            MixMonitorMasterMeter meter = new();
+            meter.Sample(bus, 0d);
+            Assert.That(meter.IsAttached, Is.True);
+            // Drive the attached tap without native audio callbacks changing the synthetic input.
+            bus.gameObject.SetActive(false);
+            int channels = bus.ChannelCount;
+            int count = Math.Max(512, bus.PreparedSampleRate / 50) * channels;
+            float postInsert = AudioMath.DecibelsToLinear(-6f);
+            float postFader = postInsert * AudioMath.DecibelsToLinear(-12f);
+
+            meter.SetAudition(-12f, false);
+            float[] attenuated = FullScale(count);
+            bus.ProcessBuffer(attenuated, channels);
+            Assert.That(attenuated[count - 1], Is.EqualTo(postFader).Within(0.001f));
+
+            meter.SetAudition(meter.FaderDecibels, true);
+            float[] muted = FullScale(count);
+            bus.ProcessBuffer(muted, channels);
+            Assert.That(muted[count - 1], Is.Zero);
+            Assert.That(meter.FaderDecibels, Is.EqualTo(-12f));
+
+            meter.SetAudition(meter.FaderDecibels, false);
+            float[] unmuted = FullScale(count);
+            bus.ProcessBuffer(unmuted, channels);
+            Assert.That(unmuted[count - 1], Is.EqualTo(postFader).Within(0.001f));
+
+            meter.SetAudition(meter.FaderDecibels, true);
+            meter.Sample(bus, 0.05d);
+            float[] detached = FullScale(count);
+            bus.ProcessBuffer(detached, channels);
+            Assert.That(detached[count - 1], Is.EqualTo(postInsert).Within(0.001f));
+            Assert.That(meter.IsAttached, Is.False);
+            Assert.That(meter.FaderDecibels, Is.Zero);
+            Assert.That(meter.Muted, Is.False);
+            Assert.That(bus.Chain, Is.SameAs(chain));
+        }
+
+        [Test]
         public void ATruePeakRemainsVisibleForOneSecondWithoutCallbacks()
         {
             using MadeObjects made = new();
@@ -327,9 +371,31 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(first.IsAttached, Is.False);
         }
 
-        [TestCase(2)]
-        [TestCase(8)]
-        public void AListenerPeakTapUsesLessThanOnePercentOfABlockDeadline(int channels)
+        [Test]
+        public void ADetachedMasterTapReleasesMuteForACallbackHoldingIt()
+        {
+            using MadeObjects made = new();
+            AudioMixBus bus = Bus(made, null);
+            bus.gameObject.SetActive(false);
+            Assert.That(bus.TryAttachPeakTap(out StereoPeakTap tap), Is.True);
+            tap.AuditionGain = 0f;
+            int channels = bus.ChannelCount;
+            int count = Math.Max(512, bus.PreparedSampleRate / 50) * channels;
+            float[] muted = FullScale(count);
+            bus.ProcessBuffer(muted, channels);
+            Assert.That(muted[count - 1], Is.Zero);
+
+            bus.DetachPeakTap(tap);
+            float[] retained = FullScale(count);
+            tap.Observe(retained, channels);
+            Assert.That(retained[count - 1], Is.EqualTo(1f));
+        }
+
+        [TestCase(2, false)]
+        [TestCase(8, false)]
+        [TestCase(2, true)]
+        [TestCase(8, true)]
+        public void AListenerPeakTapUsesLessThanOnePercentOfABlockDeadline(int channels, bool rampAuditionGain)
         {
             const int Frames = 512;
             const int SampleRate = 48_000;
@@ -339,13 +405,20 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             using MadeObjects made = new();
             AudioMixBus bus = Bus(made, null);
             bus.gameObject.SetActive(false);
-            float[] block = new float[Frames * channels];
+            int samplesPerBlock = Frames * channels;
+            float[] block = new float[samplesPerBlock];
             for (int frame = 0; frame < Frames; ++frame)
             {
                 for (int channel = 0; channel < channels; ++channel)
                 {
                     block[frame * channels + channel] = 0.65f * Mathf.Sin(frame * (0.21f + channel * 0.067f));
                 }
+            }
+
+            float[][] rendered = new float[BlocksPerRead][];
+            for (int index = 0; index < BlocksPerRead; ++index)
+            {
+                rendered[index] = new float[samplesPerBlock];
             }
 
             (long Callback, long Drain) Measure(bool enabled, MasterLoudness loudness = null)
@@ -360,10 +433,26 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 long drain = 0;
                 for (int group = 0; group < BlocksPerBatch / BlocksPerRead; ++group)
                 {
-                    long start = Stopwatch.GetTimestamp();
-                    for (int index = 0; index < BlocksPerRead; ++index)
+                    foreach (float[] output in rendered)
                     {
-                        bus.ProcessBuffer(block, channels);
+                        Array.Copy(block, output, samplesPerBlock);
+                    }
+
+                    long start = Stopwatch.GetTimestamp();
+                    if (rampAuditionGain && tap != null)
+                    {
+                        for (int index = 0; index < BlocksPerRead; ++index)
+                        {
+                            tap.AuditionGain = index % 2 == 0 ? 0f : 1f;
+                            bus.ProcessBuffer(rendered[index], channels);
+                        }
+                    }
+                    else
+                    {
+                        foreach (float[] output in rendered)
+                        {
+                            bus.ProcessBuffer(output, channels);
+                        }
                     }
 
                     callback += Stopwatch.GetTimestamp() - start;
@@ -417,7 +506,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             double drainMedian = addedDrain[Batches / 2] * ticksToMicrosecondsPerBlock * BlocksPerRead;
             double drainP95 = addedDrain[p95Index] * ticksToMicrosecondsPerBlock * BlocksPerRead;
             double budget = Frames * 10_000d / SampleRate;
-            string report = $"Listener meter tap, {channels} channels: added p50 {median:F2} us, p95 {p95:F2} us, budget {budget:F2} us.";
+            string mode = rampAuditionGain ? "full audition ramps" : "unity gain";
+            string report = $"Listener meter tap, {channels} channels, {mode}: added p50 {median:F2} us, p95 {p95:F2} us, budget {budget:F2} us.";
             TestContext.Out.WriteLine(report);
             TestContext.Out.WriteLine($"Added loudness drain per {BlocksPerRead} blocks: p50 {drainMedian:F2} us, p95 {drainP95:F2} us.");
             Assert.That(median, Is.LessThan(budget), report);

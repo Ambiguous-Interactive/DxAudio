@@ -205,23 +205,26 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(samplingAllocations, Is.Zero, $"Sampling allocated {samplingAllocations} times over {MeasuredCalls:N0} reads.");
         }
 
-        [TestCase(2)]
-        [TestCase(8)]
-        public void AListenerPeakTapDoesNotAllocate(int channels)
+        [TestCase(2, 1f)]
+        [TestCase(8, 1f)]
+        [TestCase(2, 0.5f)]
+        [TestCase(8, 0.5f)]
+        public void AListenerPeakTapDoesNotAllocate(int channels, float gain)
         {
             using MadeObjects made = new();
             GameObject host = made.Track(new GameObject("listener tap probe"));
             host.SetActive(false);
             AudioMixBus bus = host.AddComponent<AudioMixBus>();
             Assert.That(bus.TryAttachPeakTap(out StereoPeakTap tap), Is.True);
+            tap.AuditionGain = gain;
             float[] block = new float[512 * channels];
-            block[0] = 0.5f;
-            block[1] = -0.25f;
             int queuedBlocks = 0;
             bool lostAudio = false;
             float peak = 0f;
             void ProcessBlock()
             {
+                block[0] = 0.5f;
+                block[1] = -0.25f;
                 bus.ProcessBuffer(block, channels);
                 if (++queuedBlocks == 16)
                 {
@@ -240,14 +243,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 ProcessBlock();
             }
 
+            _ = tap.TryRead(out _, out _);
             peak = 0f;
             Debug.Log($"Measure listener tap allocations over {MeasuredCalls} blocks of 512 frames and {channels} channels.");
             long allocations = AllocationEvents(ProcessBlock, MeasuredCalls);
             Debug.Log($"Listener tap recorded {allocations} allocation events.");
             Assert.That(tap.TryRead(out float left, out float right), Is.True);
-            Assert.That(left, Is.EqualTo(0.5f));
-            Assert.That(right, Is.EqualTo(0.25f));
-            Assert.That(peak, Is.EqualTo(0.5f));
+            Assert.That(left, Is.EqualTo(0.5f * gain));
+            Assert.That(right, Is.EqualTo(0.25f * gain));
+            Assert.That(peak, Is.EqualTo(0.5f * gain));
             Assert.That(lostAudio, Is.False);
             Assert.That(allocations, Is.Zero);
         }

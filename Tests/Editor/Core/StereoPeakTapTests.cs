@@ -1,11 +1,78 @@
 namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System;
+    using System.Threading.Tasks;
     using NUnit.Framework;
 
     public sealed class StereoPeakTapTests
     {
         private const int SampleRate = 48_000;
+
+        [TestCase(2)]
+        [TestCase(8)]
+        public void AuditionGainRampsAcrossBlocksThenMetersTheOutput(int channels)
+        {
+            StereoPeakTap tap = new(SampleRate) { AuditionGain = 0.5f };
+            float[] first = new float[60 * channels];
+            float[] second = new float[512 * channels];
+            Array.Fill(first, 0.5f);
+            Array.Fill(second, 0.5f);
+
+            tap.Observe(first, channels);
+            tap.Observe(second, channels);
+            Assert.That(first[0], Is.InRange(0.49f, 0.5f));
+            Assert.That(first[first.Length - 1], Is.EqualTo(0.375f).Within(0.00001f));
+            Assert.That(second[0], Is.EqualTo(0.375f - 0.5f / 240f).Within(0.00001f));
+            Assert.That(second[second.Length - 1], Is.EqualTo(0.25f));
+
+            Assert.That(tap.TryRead(out _, out _), Is.True);
+            Assert.That(tap.TryReadTruePeak(out _, out _), Is.True);
+            Array.Fill(second, 0.5f);
+            tap.Observe(second, channels);
+            Assert.That(tap.TryRead(out float left, out float right), Is.True);
+            Assert.That(left, Is.EqualTo(0.25f));
+            Assert.That(right, Is.EqualTo(0.25f));
+            Assert.That(tap.TryReadTruePeak(out float truePeak, out _), Is.True);
+            StereoPeakTap reference = new(SampleRate);
+            Array.Fill(second, 0.25f);
+            reference.Observe(second, channels);
+            Assert.That(reference.TryReadTruePeak(out _, out _), Is.True);
+            reference.Observe(second, channels);
+            Assert.That(reference.TryReadTruePeak(out float expectedPeak, out _), Is.True);
+            Assert.That(truePeak, Is.EqualTo(expectedPeak));
+        }
+
+        [Test]
+        public void AuditionMuteStaysSilentAfterOverlappingBlocks()
+        {
+            StereoPeakTap tap = new(SampleRate);
+            const int Channels = 8;
+            float[] shortBlock = new float[60 * Channels];
+            float[] longBlock = new float[512 * Channels];
+            Action observeShort = () =>
+            {
+                tap.Observe(shortBlock, Channels);
+            };
+            Action observeLong = () =>
+            {
+                tap.Observe(longBlock, Channels);
+            };
+
+            for (int iteration = 0; iteration < 32; ++iteration)
+            {
+                tap.AuditionGain = 1f;
+                observeLong();
+                tap.AuditionGain = 0f;
+                Array.Fill(shortBlock, 1f);
+                Array.Fill(longBlock, 1f);
+                Parallel.Invoke(observeShort, observeLong);
+
+                Array.Fill(longBlock, 1f);
+                observeLong();
+                Assert.That(longBlock[0], Is.Zero);
+                _ = tap.TryReadTruePeak(out _, out _);
+            }
+        }
 
         [TestCase(1)]
         [TestCase(2)]

@@ -3,12 +3,35 @@ namespace WallstopStudios.DxAudio
     using System;
     using System.Threading;
 
-    /// <summary>Captures listener samples and front-channel peaks for the editor.</summary>
+    /// <summary>Applies editor audition gain and captures the resulting listener samples.</summary>
     internal sealed class StereoPeakTap
     {
         private const long UnreadEmpty = long.MinValue;
+        private const float RampSeconds = 0.005f;
+
+        internal float AuditionGain
+        {
+            set
+            {
+                long state = Volatile.Read(ref _audition);
+                while (true)
+                {
+                    long observed = Interlocked.CompareExchange(ref _audition, Pack(Left(state), value), state);
+                    if (observed == state)
+                    {
+                        return;
+                    }
+
+                    state = observed;
+                }
+            }
+        }
+
         private readonly ListenerMeterTap _listener;
         private long _pending = UnreadEmpty;
+
+        // Publish the claimed gain and editor target together so a callback cannot spend the same ramp twice.
+        private long _audition = Pack(1f, 1f);
 
         internal StereoPeakTap(int sampleRate)
         {
@@ -30,6 +53,12 @@ namespace WallstopStudios.DxAudio
             return BitConverter.Int32BitsToSingle(unchecked((int)pair));
         }
 
+        private static float RampGain(float start, float target, float step, int frames)
+        {
+            float gain = start + step * frames;
+            return step < 0f ? Math.Max(gain, target) : Math.Min(gain, target);
+        }
+
         internal void SetSampleRate(int sampleRate)
         {
             _listener.SetSampleRate(sampleRate);
@@ -42,6 +71,7 @@ namespace WallstopStudios.DxAudio
                 return;
             }
 
+            ApplyAudition(samples, channels);
             _listener.Enqueue(samples, channels);
 
             float left = 0f;
@@ -104,6 +134,72 @@ namespace WallstopStudios.DxAudio
             left = Left(pair);
             right = Right(pair);
             return true;
+        }
+
+        private void ApplyAudition(float[] samples, int channels)
+        {
+            long state = Volatile.Read(ref _audition);
+            float start = Left(state);
+            float target = Right(state);
+            if (target == 1f && start == 1f)
+            {
+                return;
+            }
+
+            int frames = samples.Length / channels;
+            int end = frames * channels;
+            int index = 0;
+            if (start != target)
+            {
+                float step = ClaimRamp(frames, state, ref start, ref target);
+                for (int frame = 1; frame <= frames && step != 0f; ++frame)
+                {
+                    float gain = RampGain(start, target, step, frame);
+                    if (gain == target)
+                    {
+                        break;
+                    }
+
+                    int nextFrame = index + channels;
+                    for (; index < nextFrame; ++index)
+                    {
+                        samples[index] *= gain;
+                    }
+                }
+            }
+
+            if (target == 0f)
+            {
+                Array.Clear(samples, index, end - index);
+            }
+            else if (target != 1f)
+            {
+                for (; index < end; ++index)
+                {
+                    samples[index] *= target;
+                }
+            }
+        }
+
+        private float ClaimRamp(int frames, long state, ref float start, ref float target)
+        {
+            float step = 1f / Math.Max(1f, _listener.SampleRate * RampSeconds);
+            while (start != target)
+            {
+                float signedStep = start < target ? step : -step;
+                float end = RampGain(start, target, signedStep, frames);
+                long observed = Interlocked.CompareExchange(ref _audition, Pack(end, target), state);
+                if (observed == state)
+                {
+                    return signedStep;
+                }
+
+                state = observed;
+                start = Left(state);
+                target = Right(state);
+            }
+
+            return 0f;
         }
     }
 }
