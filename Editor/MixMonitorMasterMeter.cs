@@ -11,8 +11,8 @@ namespace WallstopStudios.DxAudio.Editor
 
         internal float FaderDecibels { get; private set; }
         internal bool Muted { get; private set; }
-        internal Channel Left => _left;
-        internal Channel Right => _right;
+        internal MixMonitorPeakChannel Left => _left;
+        internal MixMonitorPeakChannel Right => _right;
         internal double? ShortTermLufs => HasSignal ? _loudness.ShortTerm : null;
         internal double? IntegratedLufs => _loudness.Integrated;
         internal float? TruePeak { get; private set; }
@@ -23,9 +23,9 @@ namespace WallstopStudios.DxAudio.Editor
         private readonly MasterLoudness _loudness = new();
         private AudioMixBus _bus;
         private StereoPeakTap _tap;
-        private Channel _left;
-        private Channel _right;
-        private Channel _truePeak;
+        private MixMonitorPeakChannel _left;
+        private MixMonitorPeakChannel _right;
+        private MixMonitorPeakChannel _truePeak;
         private double _lastSignalTime;
 
         internal static bool CanMonitor(AudioMixBus bus)
@@ -124,29 +124,6 @@ namespace WallstopStudios.DxAudio.Editor
             _loudness.Reset();
             TruePeak = null;
             TruePeakOverrun = false;
-        }
-
-        internal struct Channel
-        {
-            private const double HoldSeconds = 1d;
-
-            internal float Level { get; private set; }
-            internal float Held { get; private set; }
-
-            private double _holdUntil;
-
-            internal void Sample(float? peak, bool hasSignal, double now)
-            {
-                Level = peak ?? (hasSignal ? Level : 0f);
-                if (_holdUntil <= now || (peak.HasValue && Held <= Level))
-                {
-                    Held = Level;
-                    if (peak.HasValue)
-                    {
-                        _holdUntil = now + HoldSeconds;
-                    }
-                }
-            }
         }
     }
 }

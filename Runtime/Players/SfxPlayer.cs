@@ -411,6 +411,11 @@ namespace WallstopStudios.DxAudio
         }
 
 #if UNITY_EDITOR
+        internal AudioSource GetMonitorSource(int index)
+        {
+            return _voices[index];
+        }
+
         internal void SetAuditionGain(float gain)
         {
             if (_auditionGain == gain)
