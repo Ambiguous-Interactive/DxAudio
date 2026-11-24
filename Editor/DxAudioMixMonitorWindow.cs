@@ -36,6 +36,11 @@ namespace WallstopStudios.DxAudio.Editor
         [SerializeField]
         private MusicPlayer _music;
 
+        [SerializeField]
+        private AudioMixBus _masterBus;
+
+        private readonly MixMonitorMasterMeter _masterMeter = new();
+
         private readonly Vector3[] _line = new Vector3[HistoryCapacity];
         private readonly float[] _cutEdges = new float[HistoryCapacity];
         private readonly MixMonitorWaveforms _waveforms = new();
@@ -66,6 +71,11 @@ namespace WallstopStudios.DxAudio.Editor
             GameObject selected = Selection.activeGameObject;
             if (selected != null)
             {
+                if (window._masterBus == null)
+                {
+                    window._masterBus = selected.GetComponent<AudioMixBus>();
+                }
+
                 window.SelectPlayers(
                     window._player == null ? selected.GetComponent<SfxPlayer>() : window._player,
                     window._music == null ? selected.GetComponent<MusicPlayer>() : window._music
@@ -280,10 +290,12 @@ namespace WallstopStudios.DxAudio.Editor
         {
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
             EditorApplication.projectChanged -= _waveforms.Clear;
+            _masterMeter.Clear();
         }
 
         private void OnPlayModeChanged(PlayModeStateChange state)
         {
+            _masterMeter.Clear();
             if (state == PlayModeStateChange.EnteredPlayMode || state == PlayModeStateChange.ExitingPlayMode)
             {
                 Capture.Reset();
@@ -298,13 +310,23 @@ namespace WallstopStudios.DxAudio.Editor
 
         private void Update()
         {
-            if (!EditorApplication.isPlaying || Capture.Paused || EditorApplication.timeSinceStartup < _nextSample)
+            double now = EditorApplication.timeSinceStartup;
+            if (!EditorApplication.isPlaying || now < _nextSample)
             {
                 return;
             }
 
-            _nextSample = EditorApplication.timeSinceStartup + SampleIntervalSeconds;
-            SamplePlayer();
+            _nextSample = now + SampleIntervalSeconds;
+            _masterMeter.Sample(_masterBus, now);
+            if (!Capture.Paused)
+            {
+                SamplePlayer();
+            }
+            else if (_masterBus == null)
+            {
+                return;
+            }
+
             _content?.MarkDirtyRepaint();
         }
 
@@ -327,10 +349,9 @@ namespace WallstopStudios.DxAudio.Editor
                 return;
             }
 
-            if (_player == null && _music == null && !Capture.Paused)
+            if (_player == null && _music == null && _masterBus == null && !Capture.Paused)
             {
                 EditorGUILayout.HelpBox("Select an SFX or Music Player from the scene.", MessageType.Info);
-                return;
             }
 
             using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
@@ -368,6 +389,64 @@ namespace WallstopStudios.DxAudio.Editor
                         DrawDrop(reason);
                     }
                 }
+
+                DrawMaster();
+            }
+        }
+
+        private void DrawMaster()
+        {
+            EditorGUILayout.LabelField("Master", EditorStyles.boldLabel);
+            AudioMixBus bus = (AudioMixBus)EditorGUILayout.ObjectField("Listener Bus", _masterBus, typeof(AudioMixBus), allowSceneObjects: true);
+            if (bus != _masterBus && (bus == null || !EditorUtility.IsPersistent(bus)))
+            {
+                _masterMeter.Clear();
+                _masterBus = bus;
+                GUIUtility.ExitGUI();
+            }
+
+            if (_masterBus == null)
+            {
+                EditorGUILayout.LabelField("Select the AudioMixBus on the active AudioListener.", EditorStyles.miniLabel);
+                return;
+            }
+
+            if (!MixMonitorMasterMeter.CanMonitor(_masterBus))
+            {
+                EditorGUILayout.LabelField("Use an active listener bus on an object without an AudioSource.", EditorStyles.miniLabel);
+                return;
+            }
+
+            if (!_masterMeter.IsAttached)
+            {
+                EditorGUILayout.LabelField("Waiting to connect to the listener bus.", EditorStyles.miniLabel);
+                return;
+            }
+
+            EditorGUILayout.LabelField(_masterMeter.HasSignal ? "Live sample peaks (dBFS)" : "Waiting for listener audio", EditorStyles.miniLabel);
+            DrawMasterChannel("L", _masterMeter.Left);
+            DrawMasterChannel("R", _masterMeter.Right);
+        }
+
+        private void DrawMasterChannel(string label, MixMonitorMasterMeter.Channel channel)
+        {
+            float decibels = AudioMath.LinearToDecibels(channel.Level);
+            float fraction = Mathf.InverseLerp(AudioMath.SilentDecibels, 0f, decibels);
+            float hold = Mathf.InverseLerp(AudioMath.SilentDecibels, 0f, AudioMath.LinearToDecibels(channel.Held));
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Label(label, GUILayout.Width(18f));
+                Rect rect = GUILayoutUtility.GetRect(40f, 10f, GUILayout.ExpandWidth(true));
+                rect.y += 4f;
+                EditorGUI.DrawRect(rect, _trackColor);
+                EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width * fraction, rect.height), 1f < channel.Level ? _cutColor : _playingColor);
+                if (0f < hold)
+                {
+                    Color heldColor = 1f < channel.Held ? _cutColor : _cursorColor;
+                    EditorGUI.DrawRect(new Rect(rect.x + (rect.width - 1f) * hold, rect.y, 1f, rect.height), heldColor);
+                }
+
+                GUILayout.Label(channel.Level == 0f ? "-" : decibels.ToString("0.0"), EditorStyles.miniLabel, GUILayout.Width(45f));
             }
         }
 

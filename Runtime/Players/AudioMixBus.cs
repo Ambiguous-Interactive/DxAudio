@@ -91,6 +91,10 @@ namespace WallstopStudios.DxAudio
         private int _liveChannels;
         private int _skippedBlocks;
 
+#if UNITY_EDITOR
+        private volatile StereoPeakTap _peakTap;
+#endif
+
         /// <summary>Prepares <paramref name="asset" />'s chain now, so the first block that meets it allocates nothing.</summary>
         public void Warm(DspChainAsset asset)
         {
@@ -130,23 +134,24 @@ namespace WallstopStudios.DxAudio
 
             DspChainSlot slot = _running;
             DspChain chain = slot != null ? slot.For(channels) : null;
-            if (chain == null)
+            if (chain != null)
             {
-                if (slot != null)
+                _liveChannels = channels;
+                if (slot.ClearBeforeNextBlock())
                 {
-                    ++_skippedBlocks;
+                    slot.Reset();
                 }
 
-                return;
+                chain.Process(buffer, 0, buffer.Length, channels);
             }
-
-            _liveChannels = channels;
-            if (slot.ClearBeforeNextBlock())
+            else if (slot != null)
             {
-                slot.Reset();
+                ++_skippedBlocks;
             }
 
-            chain.Process(buffer, 0, buffer.Length, channels);
+#if UNITY_EDITOR
+            _peakTap?.Observe(buffer, channels);
+#endif
         }
 
         /// <summary>Reads the serialized chain and prepares it. This is what <see cref="Awake" /> runs.</summary>
@@ -172,6 +177,31 @@ namespace WallstopStudios.DxAudio
             _slots.Clear();
             Select(_chain);
         }
+
+#if UNITY_EDITOR
+        // The editor owns attachment and reads. The audio thread can finish a block on a detached tap.
+        internal bool TryAttachPeakTap(out StereoPeakTap tap)
+        {
+            if (_peakTap != null)
+            {
+                tap = null;
+                return false;
+            }
+
+            StereoPeakTap attached = new();
+            _peakTap = attached;
+            tap = attached;
+            return true;
+        }
+
+        internal void DetachPeakTap(StereoPeakTap tap)
+        {
+            if (_peakTap == tap)
+            {
+                _peakTap = null;
+            }
+        }
+#endif
 
         private void OnAudioFilterRead(float[] data, int channels)
         {

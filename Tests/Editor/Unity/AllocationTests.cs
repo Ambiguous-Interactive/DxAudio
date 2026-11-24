@@ -205,6 +205,38 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(samplingAllocations, Is.Zero, $"Sampling allocated {samplingAllocations} times over {MeasuredCalls:N0} reads.");
         }
 
+        [TestCase(2)]
+        [TestCase(8)]
+        public void AListenerPeakTapDoesNotAllocate(int channels)
+        {
+            using MadeObjects made = new();
+            GameObject listener = made.Track(new GameObject("listener"));
+            _ = listener.AddComponent<AudioListener>();
+            AudioMixBus bus = listener.AddComponent<AudioMixBus>();
+            MixMonitorMasterMeter meter = new();
+            meter.Sample(bus, 0d);
+            float[] block = new float[512 * channels];
+            block[0] = 0.5f;
+            block[1] = -0.25f;
+            void ProcessBlock()
+            {
+                bus.ProcessBuffer(block, channels);
+            }
+
+            for (int index = 0; index < WarmupCalls; ++index)
+            {
+                ProcessBlock();
+            }
+
+            meter.Sample(bus, 0.05d);
+            long allocations = AllocationEvents(ProcessBlock, MeasuredCalls);
+            meter.Sample(bus, 0.1d);
+            Assert.That(meter.HasSignal, Is.True);
+            Assert.That(meter.Left.Level, Is.EqualTo(0.5f));
+            Assert.That(meter.Right.Level, Is.EqualTo(0.25f));
+            Assert.That(allocations, Is.Zero);
+        }
+
         [TestCase("Distortion")]
         [TestCase("Delay")]
         [TestCase("Noise Gate")]
