@@ -54,6 +54,8 @@ Move the **Sample** slider to inspect the same voice at another point in the ret
 Click **Silence** to hide a reason's count and move it into the silenced total. Throttled drops start silenced.
 The **Music** section shows each deck's fade and the applied duck gain on the same ruler as the SFX timeline.
 Pause and move the **Sample** slider to read the deck's track and fade and the duck gain at a point in the capture.
+Each player strip lists its configured **Bus Inserts** in signal order. Hover over the list to read it in full.
+The list stays live when you pause the timeline.
 To meter the live master, select the Audio Mix Bus on the active Audio Listener. The L/R bars show sample peaks in dBFS.
 **True peak** shows the highest estimated peak across all listener channels in dBTP, including peaks between samples.
 Each meter holds its peak for one second and stays live when you pause the timeline.
