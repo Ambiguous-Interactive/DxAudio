@@ -31,11 +31,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             MethodInfo poll = windowType.GetMethod("SamplePlayerMeters", flags);
             MixMonitorPlayerMeter meter = (MixMonitorPlayerMeter)windowType.GetField("_musicMeter", flags).GetValue(window);
             float[] peaks = new float[2];
+            AudioLayout layout = new();
+            layout.Refresh();
             music.Play(track);
 
             try
             {
-                yield return RenderAndSample(window, poll, meter, peaks, allowUnavailable: true);
+                yield return RenderAndSample(window, poll, meter, peaks, layout.Channels);
                 float dryLow = peaks[0];
                 float dryHigh = peaks[1];
                 Assert.That(dryLow, Is.GreaterThan(0.05f), "Expected the monitor to sample the left tone.");
@@ -43,21 +45,67 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 Assert.That(meter.Left.Level, Is.GreaterThan(meter.Right.Level * 1.5f), "Expected distinct left and right peaks.");
 
                 MusicDuckLease lease = music.Duck(gain);
-                yield return RenderAndSample(window, poll, meter, peaks);
-                Assert.That(peaks[0] / dryLow, Is.EqualTo(0.5f).Within(0.1f), "Gain duck at the low tone.");
-                Assert.That(peaks[1] / dryHigh, Is.EqualTo(0.5f).Within(0.1f), "Gain duck at the high tone.");
+                yield return RenderAndSample(window, poll, meter, peaks, layout.Channels);
+                float gainLow = peaks[0] / dryLow;
+                float gainHigh = peaks[1] / dryHigh;
                 music.Release(lease);
 
                 lease = music.Duck(filter);
-                yield return RenderAndSample(window, poll, meter, peaks);
-                Assert.That(peaks[0] / dryLow, Is.GreaterThan(0.6f), "Low tone after low-pass filter.");
-                Assert.That(peaks[1] / dryHigh, Is.LessThan(0.2f), "High tone after low-pass filter.");
+                yield return RenderAndSample(window, poll, meter, peaks, layout.Channels);
+                float filteredLow = peaks[0] / dryLow;
+                float filteredHigh = peaks[1] / dryHigh;
+                bool gainMatches = Math.Abs(gainLow - 0.5f) <= 0.1f && Math.Abs(gainHigh - 0.5f) <= 0.1f;
+                bool filterMatches = 0.6f < filteredLow && filteredHigh < 0.2f;
+                Assert.That(gainMatches && filterMatches, Is.True, $"Dry-relative ratios. Gain {gainLow}, {gainHigh}. Low-pass {filteredLow}, {filteredHigh}.");
                 Assert.That(window.Timeline.Count, Is.EqualTo(frozenTimelineCount));
                 music.Release(lease);
             }
             finally
             {
                 music.Stop();
+            }
+        }
+
+        private static IEnumerator CheckSfxPan(MadeObjects made)
+        {
+            SfxPlayer sfx = made.Track(new GameObject("Meter SFX")).AddComponent<SfxPlayer>();
+            const int sampleCount = MixMonitorPlayerMeter.SampleCount;
+            AudioClip clip = made.Track(AudioClip.Create("Mono meter tone", sampleCount, 1, AudioSettings.outputSampleRate, stream: false));
+            float[] pcm = new float[sampleCount];
+            for (int index = 0; index < sampleCount; ++index)
+            {
+                pcm[index] = 0.5f * (float)Math.Sin(2d * Math.PI * LowBin * index / sampleCount);
+            }
+            Assert.That(clip.SetData(pcm, 0), Is.True);
+
+            SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(clip) }, loop: true));
+            sfx.Library = made.Track(SfxLibrary.Create(new[] { cue }, voiceCount: 1, loopingVoiceLimit: 1));
+            DxAudioMixMonitorWindow window = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
+            window.SelectPlayers(sfx, null);
+            AudioLayout layout = new();
+            layout.Refresh();
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            Type windowType = typeof(DxAudioMixMonitorWindow);
+            MethodInfo poll = windowType.GetMethod("SamplePlayerMeters", flags);
+            MixMonitorPlayerMeter meter = (MixMonitorPlayerMeter)windowType.GetField("_sfxMeter", flags).GetValue(window);
+            Assert.That(sfx.TryPlayLooping(cue, out SfxLoopHandle loop), Is.True);
+            AudioSource source = sfx.GetMonitorSource(0);
+            float[] unusedSpectrum = new float[2];
+
+            try
+            {
+                source.panStereo = -1f;
+                yield return RenderAndSample(window, poll, meter, unusedSpectrum, layout.Channels);
+                Assert.That(meter.Left.Level, Is.GreaterThan(0.1f), "Hard-left mono signal.");
+                Assert.That(meter.Right.Level, Is.Zero, "Hard-left mono must not register on the right.");
+                source.panStereo = 1f;
+                yield return RenderAndSample(window, poll, meter, unusedSpectrum, layout.Channels);
+                Assert.That(meter.Left.Level, Is.Zero, "Hard-right mono must not register on the left.");
+                Assert.That(meter.Right.Level, Is.GreaterThan(0.1f), "Hard-right mono signal.");
+            }
+            finally
+            {
+                sfx.StopLoop(loop);
             }
         }
 
@@ -77,7 +125,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             return clip;
         }
 
-        private static IEnumerator RenderAndSample(DxAudioMixMonitorWindow window, MethodInfo poll, MixMonitorPlayerMeter meter, float[] peaks, bool allowUnavailable = false)
+        private static IEnumerator RenderAndSample(DxAudioMixMonitorWindow window, MethodInfo poll, MixMonitorPlayerMeter meter, float[] peaks, int channels)
         {
             peaks[0] = 0f;
             peaks[1] = 0f;
@@ -86,13 +134,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             {
                 yield return null;
                 int count = AudioRenderer.GetSampleCountForCaptureFrame();
-                if (count <= 0)
+                using NativeArray<float> output = new(count * channels, Allocator.Temp);
+                bool rendered = AudioRenderer.Render(output);
+                if (0 < count)
                 {
-                    continue;
+                    Assert.That(rendered, Is.True);
                 }
-
-                using NativeArray<float> output = new(count, Allocator.Temp);
-                Assert.That(AudioRenderer.Render(output), Is.True);
                 poll.Invoke(window, new object[] { Time.realtimeSinceStartupAsDouble });
                 if (frame < 30)
                 {
@@ -103,19 +150,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 {
                     renderedSignal = renderedSignal || 0.01f < Math.Abs(sample);
                 }
-                peaks[0] = Math.Max(peaks[0], meter.Spectrum[LowBin]);
-                peaks[1] = Math.Max(peaks[1], meter.Spectrum[HighBin]);
+                if (0 < meter.Spectrum.Length)
+                {
+                    peaks[0] = Math.Max(peaks[0], meter.Spectrum[LowBin]);
+                    peaks[1] = Math.Max(peaks[1], meter.Spectrum[HighBin]);
+                }
             }
 
-            if (allowUnavailable && !renderedSignal)
-            {
-                Assert.Ignore("Unity entered Play Mode but offline capture produced no audible samples.");
-            }
             Assert.That(renderedSignal, Is.True, "Offline render must contain the fixture signal.");
         }
 
         [UnityTest]
-        public IEnumerator MusicSpectrumRespondsToGainAndFilterDucks()
+        public IEnumerator MusicSpectrumRespondsToDucksAndSfxMeterFollowsPan()
         {
             if (!Application.isBatchMode)
             {
@@ -137,6 +183,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 try
                 {
                     yield return CheckDuckResponse(made);
+                    yield return CheckSfxPan(made);
                 }
                 finally
                 {

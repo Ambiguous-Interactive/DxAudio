@@ -48,6 +48,9 @@ namespace WallstopStudios.DxAudio.Editor
 
         private readonly MixMonitorMasterMeter _masterMeter = new();
         private readonly float[] _meterSamples = new float[MixMonitorPlayerMeter.SampleCount];
+        private readonly float[] _musicRightSamples = new float[MixMonitorPlayerMeter.SampleCount];
+        private readonly MusicMeterTap[] _musicTaps = new MusicMeterTap[MusicPlayer.VoiceCount];
+        private readonly AudioSource[] _musicTapSources = new AudioSource[MusicPlayer.VoiceCount];
         private readonly MixMonitorPlayerMeter _sfxMeter = new();
         private readonly MixMonitorPlayerMeter _musicMeter = new(spectrum: true);
         private (float decibels, bool muted, bool solo) _sfxAudition;
@@ -225,6 +228,7 @@ namespace WallstopStudios.DxAudio.Editor
             }
             if (music != _music)
             {
+                ClearMusicTaps();
                 _musicMeter.Clear();
             }
 
@@ -407,6 +411,7 @@ namespace WallstopStudios.DxAudio.Editor
             EditorApplication.projectChanged -= _waveforms.Clear;
             ClearPlayerAudition();
             _masterMeter.Clear();
+            ClearMusicTaps();
         }
 
         private void OnPlayModeChanged(PlayModeStateChange state)
@@ -414,6 +419,7 @@ namespace WallstopStudios.DxAudio.Editor
             ClearPlayerAudition();
             _masterMeter.Clear();
             _sfxMeter.Clear();
+            ClearMusicTaps();
             _musicMeter.Clear();
             if (state == PlayModeStateChange.EnteredPlayMode || state == PlayModeStateChange.ExitingPlayMode)
             {
@@ -458,14 +464,58 @@ namespace WallstopStudios.DxAudio.Editor
             }
             _sfxMeter.FinishSample(now);
 
-            if (_music != null)
+            double dspTime = AudioSettings.dspTime;
+            for (int index = 0; index < MusicPlayer.VoiceCount; ++index)
             {
-                for (int index = 0; index < MusicPlayer.VoiceCount; ++index)
-                {
-                    SampleSource(_music.GetMonitorSource(index), _musicMeter);
-                }
+                AudioSource source = _music == null ? null : _music.GetMonitorSource(index);
+                SampleMusicSource(index, source, dspTime);
             }
             _musicMeter.FinishSample(now);
+        }
+
+        private void SampleMusicSource(int index, AudioSource source, double dspTime)
+        {
+            if (_musicTapSources[index] != source)
+            {
+                ReleaseMusicTap(index);
+            }
+            if (!VoiceClip.IsSounding(source) || source.mute || source.isVirtual || source.volume <= 0f)
+            {
+                return;
+            }
+
+            MusicMeterTap tap = _musicTaps[index];
+            if (tap == null)
+            {
+                // The voice already has both native duck filters. Unity inserts this tap after them.
+                tap = MusicMeterTap.Attach(source, MixMonitorPlayerMeter.SampleCount);
+                _musicTaps[index] = tap;
+                _musicTapSources[index] = source;
+            }
+            if (tap.TryRead(_meterSamples, _musicRightSamples, dspTime))
+            {
+                _musicMeter.AddChannel(_meterSamples, right: false);
+                _musicMeter.AddChannel(_musicRightSamples, right: true);
+            }
+        }
+
+        private void ClearMusicTaps()
+        {
+            for (int index = 0; index < MusicPlayer.VoiceCount; ++index)
+            {
+                ReleaseMusicTap(index);
+            }
+        }
+
+        private void ReleaseMusicTap(int index)
+        {
+            MusicMeterTap tap = _musicTaps[index];
+            if (tap != null)
+            {
+                tap.Detach();
+            }
+            _musicTaps[index] = null;
+            _musicTapSources[index] = null;
         }
 
         private void SampleSource(AudioSource source, MixMonitorPlayerMeter meter)
@@ -477,12 +527,18 @@ namespace WallstopStudios.DxAudio.Editor
 
             Array.Clear(_meterSamples, 0, _meterSamples.Length);
             source.GetOutputData(_meterSamples, 0);
-            meter.AddChannel(_meterSamples, right: false);
-            if (1 < source.clip.channels)
+            if (source.clip.channels == 1)
             {
-                Array.Clear(_meterSamples, 0, _meterSamples.Length);
-                source.GetOutputData(_meterSamples, 1);
+                // The source window is mono. Map it to the same constant-power stereo pan.
+                float rightPower = (1f + source.panStereo) * 0.5f;
+                meter.AddChannel(_meterSamples, right: false, Mathf.Sqrt(1f - rightPower));
+                meter.AddChannel(_meterSamples, right: true, Mathf.Sqrt(rightPower));
+                return;
             }
+
+            meter.AddChannel(_meterSamples, right: false);
+            Array.Clear(_meterSamples, 0, _meterSamples.Length);
+            source.GetOutputData(_meterSamples, 1);
             meter.AddChannel(_meterSamples, right: true);
         }
 
