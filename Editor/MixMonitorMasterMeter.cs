@@ -52,7 +52,12 @@ namespace WallstopStudios.DxAudio.Editor
                 _bus = bus;
             }
 
-            bool received = _tap.TryRead(out float left, out float right);
+            ReadCapturedAudio(_tap, now);
+        }
+
+        internal void ReadCapturedAudio(StereoPeakTap tap, double now)
+        {
+            bool received = tap.TryRead(out float left, out float right);
             if (received)
             {
                 _lastSignalTime = now;
@@ -68,7 +73,7 @@ namespace WallstopStudios.DxAudio.Editor
             _left.Sample(received ? left : null, HasSignal, now);
             _right.Sample(received ? right : null, HasSignal, now);
 
-            bool receivedTruePeak = _tap.TryReadTruePeak(out float peak, out bool overrun, _loudness);
+            bool receivedTruePeak = tap.TryReadTruePeak(out float peak, out bool overrun, _loudness);
             if (overrun)
             {
                 TruePeakOverrun = true;

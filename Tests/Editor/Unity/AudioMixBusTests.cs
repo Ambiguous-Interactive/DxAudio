@@ -165,13 +165,16 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void TheMasterClearsPostChainLoudnessAfterAStopOrDetach()
+        public void TheMasterReadsPostChainLoudnessAndClearsItAfterAStop()
         {
             using MadeObjects made = new();
             AudioMixBus bus = Bus(made, Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -12f, lookaheadSeconds: 0f))));
-            AudioListener listener = bus.gameObject.AddComponent<AudioListener>();
+            // Keep the native audio callback out of the synthetic capture.
+            bus.gameObject.SetActive(false);
+            _ = bus.gameObject.AddComponent<AudioListener>();
+            Assert.That(bus.TryAttachPeakTap(out StereoPeakTap tap), Is.True);
             MixMonitorMasterMeter meter = new();
-            meter.Sample(bus, 0d);
+            meter.ReadCapturedAudio(tap, 0d);
             Assert.That(meter.IntegratedLufs.HasValue, Is.False);
 
             MasterLoudness reference = new();
@@ -190,33 +193,32 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
                 bus.ProcessBuffer(block, channels);
                 reference.Observe(block, 0, count, channels, rate);
-                meter.Sample(bus, (index + 1) * 0.02d);
+                meter.ReadCapturedAudio(tap, (index + 1) * 0.02d);
             }
 
             Assert.That(reference.ShortTerm, Is.LessThan(-12d));
             Assert.That(meter.ShortTermLufs, Is.EqualTo(reference.ShortTerm).Within(0.01));
             Assert.That(meter.IntegratedLufs, Is.EqualTo(reference.Integrated).Within(0.01));
 
-            meter.Sample(bus, 3.5d);
+            meter.ReadCapturedAudio(tap, 3.5d);
             Assert.That(meter.ShortTermLufs.HasValue, Is.False);
             Assert.That(meter.IntegratedLufs.HasValue, Is.False);
 
             bus.ProcessBuffer(block, channels);
-            meter.Sample(bus, 3.52d);
+            meter.ReadCapturedAudio(tap, 3.52d);
             Assert.That(meter.HasSignal, Is.True);
             Assert.That(meter.IntegratedLufs.HasValue, Is.False);
 
             for (int index = 1; index < 25; ++index)
             {
                 bus.ProcessBuffer(block, channels);
-                meter.Sample(bus, 3.52d + index * 0.02d);
+                meter.ReadCapturedAudio(tap, 3.52d + index * 0.02d);
             }
             Assert.That(meter.IntegratedLufs.HasValue, Is.True);
             Assert.That(meter.ShortTermLufs.HasValue, Is.False);
 
-            listener.enabled = false;
-            meter.Sample(bus, 4.05d);
-            Assert.That(meter.IsAttached, Is.False);
+            bus.DetachPeakTap(tap);
+            meter.Clear();
             Assert.That(meter.IntegratedLufs.HasValue, Is.False);
         }
 
