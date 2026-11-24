@@ -234,6 +234,9 @@ namespace WallstopStudios.DxAudio
         private bool[] _held = Array.Empty<bool>();
         private bool[] _voicePaused = Array.Empty<bool>();
         private int[] _leases = Array.Empty<int>();
+#if UNITY_EDITOR
+        private (int observed, int stolen)[] _observedPlays = Array.Empty<(int, int)>();
+#endif
         private int _heldCount;
         private int _nextLease;
         private int _roundRobin;
@@ -406,7 +409,8 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        internal bool TryObserveVoiceState(int voice, out SfxVoiceState state, out AudioClip clip, out float clipSeconds, out int playbackId)
+#if UNITY_EDITOR
+        internal bool TryObserveVoiceState(int voice, out SfxVoiceState state, out AudioClip clip, out float clipSeconds, out int playbackId, out int stolenPlaybackId)
         {
             bool found = ReadVoiceState(voice, repairLostSound: false, out state, out _);
             if (found && state.isUsable && !state.IsFree)
@@ -415,9 +419,12 @@ namespace WallstopStudios.DxAudio
                 AudioClip current = source.clip;
                 if (current != null)
                 {
+                    int currentPlaybackId = _leases[voice];
+                    _observedPlays[voice].observed = currentPlaybackId;
                     clip = current;
                     clipSeconds = (float)source.timeSamples / current.frequency;
-                    playbackId = _leases[voice];
+                    playbackId = currentPlaybackId;
+                    stolenPlaybackId = _observedPlays[voice].stolen;
                     return true;
                 }
             }
@@ -425,8 +432,10 @@ namespace WallstopStudios.DxAudio
             clip = null;
             clipSeconds = 0f;
             playbackId = 0;
+            stolenPlaybackId = found ? _observedPlays[voice].stolen : 0;
             return found;
         }
+#endif
 
         private bool ReadVoiceState(int voice, bool repairLostSound, out SfxVoiceState state, out int lease)
         {
@@ -530,7 +539,7 @@ namespace WallstopStudios.DxAudio
             }
 
             ReadStates();
-            if (!SfxVoiceArbiter.TryChoose(_states, cue.Priority, _roundRobin, out int index, out _))
+            if (!SfxVoiceArbiter.TryChoose(_states, cue.Priority, _roundRobin, out int index, out bool interrupts))
             {
                 handle = default;
                 return Drop(cue, SfxDropReason.NoVoice);
@@ -566,6 +575,13 @@ namespace WallstopStudios.DxAudio
             }
             _priorities[index] = cue.Priority;
             _startedAt[index] = now;
+#if UNITY_EDITOR
+            // Keep the sampled victim even if more unobserved plays steal this slot before the next sample.
+            if (interrupts && _observedPlays[index].observed == _leases[index])
+            {
+                _observedPlays[index].stolen = _leases[index];
+            }
+#endif
             _leases[index] = ++_nextLease;
             SfxLoopHandle started = default;
             if (looping)
@@ -712,6 +728,9 @@ namespace WallstopStudios.DxAudio
             _held = new bool[count];
             _voicePaused = new bool[count];
             _leases = new int[count];
+#if UNITY_EDITOR
+            _observedPlays = new (int, int)[count];
+#endif
             _heldCount = 0;
             _roundRobin = 0;
             if (0 < count)
