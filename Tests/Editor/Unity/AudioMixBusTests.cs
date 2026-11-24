@@ -1,8 +1,11 @@
 namespace WallstopStudios.DxAudio.Tests.Editor
 {
+    using System;
+    using System.Diagnostics;
     using NUnit.Framework;
     using UnityEditor;
     using UnityEngine;
+    using WallstopStudios.DxAudio.Editor;
 
     /// <summary>
     /// Keeps the mix bus honest: it sees the sum, holds a ceiling over it, and adds only its chain's delay.
@@ -104,6 +107,167 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(Peak(mix), Is.LessThanOrEqualTo(0.51f), "the mix bus holds the ceiling of the sum");
             Assert.That(bus.SkippedBlocks, Is.Zero);
+        }
+
+        [Test]
+        public void TheMasterMeterReadsTheSignalAfterTheBusChain()
+        {
+            using MadeObjects made = new();
+            AudioMixBus bus = Bus(made, Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -6f, lookaheadSeconds: 0f))));
+            _ = bus.gameObject.AddComponent<AudioListener>();
+            MixMonitorMasterMeter meter = new();
+            meter.Sample(bus, 0d);
+            Assert.That(meter.IsAttached, Is.True);
+            Assert.That(meter.HasSignal, Is.False);
+
+            float[] block = FullScale(bus.ChannelCount * 64);
+            bus.ProcessBuffer(block, bus.ChannelCount);
+            meter.Sample(bus, 0.05d);
+
+            Assert.That(meter.HasSignal, Is.True);
+            Assert.That(meter.Left.Level, Is.EqualTo(block[0]));
+            Assert.That(meter.Right.Level, Is.EqualTo(block[0]));
+            Assert.That(meter.Left.Level, Is.EqualTo(AudioMath.DecibelsToLinear(-6f)).Within(0.001f));
+        }
+
+        [Test]
+        public void TheMasterMeterHoldsEachPeakUntilItsOwnDeadline()
+        {
+            using MadeObjects made = new();
+            AudioMixBus bus = Bus(made, null);
+            _ = bus.gameObject.AddComponent<AudioListener>();
+            MixMonitorMasterMeter meter = new();
+            meter.Sample(bus, 0d);
+
+            bus.ProcessBuffer(new[] { 0.8f, 0.2f }, 2);
+            meter.Sample(bus, 0.05d);
+            bus.ProcessBuffer(new[] { 0.2f, 0.6f }, 2);
+            meter.Sample(bus, 0.1d);
+            meter.Sample(bus, 0.15d);
+
+            Assert.That(meter.HasSignal, Is.True);
+            Assert.That(meter.Left.Level, Is.EqualTo(0.2f));
+            Assert.That(meter.Left.Held, Is.EqualTo(0.8f));
+            Assert.That(meter.Right.Held, Is.EqualTo(0.6f));
+
+            meter.Sample(bus, 0.4d);
+            Assert.That(meter.HasSignal, Is.False);
+            Assert.That(meter.Left.Level, Is.Zero);
+            Assert.That(meter.Left.Held, Is.EqualTo(0.8f));
+
+            meter.Sample(bus, 1.05d);
+            Assert.That(meter.Left.Held, Is.Zero);
+            Assert.That(meter.Right.Held, Is.EqualTo(0.6f));
+            meter.Sample(bus, 1.1d);
+            Assert.That(meter.Right.Held, Is.Zero);
+        }
+
+        [Test]
+        public void TheMasterHoldExpiresWhileTheLatestBlockIsStillCurrent()
+        {
+            using MadeObjects made = new();
+            AudioMixBus bus = Bus(made, null);
+            _ = bus.gameObject.AddComponent<AudioListener>();
+            MixMonitorMasterMeter meter = new();
+            meter.Sample(bus, 0d);
+            bus.ProcessBuffer(new[] { 0.8f, 0.4f }, 2);
+            meter.Sample(bus, 0d);
+            bus.ProcessBuffer(new[] { 0.2f, 0.1f }, 2);
+            meter.Sample(bus, 0.875d);
+            meter.Sample(bus, 1.0625d);
+
+            Assert.That(meter.HasSignal, Is.True);
+            Assert.That(meter.Left.Level, Is.EqualTo(0.2f));
+            Assert.That(meter.Left.Held, Is.EqualTo(0.2f));
+        }
+
+        [Test]
+        public void TheMasterMeterReleasesItsTapAndDiscardsOldPeaks()
+        {
+            using MadeObjects made = new();
+            AudioMixBus bus = Bus(made, null);
+            MixMonitorMasterMeter first = new();
+            MixMonitorMasterMeter second = new();
+            first.Sample(bus, 0d);
+            Assert.That(first.IsAttached, Is.False);
+
+            AudioListener listener = bus.gameObject.AddComponent<AudioListener>();
+            first.Sample(bus, 0d);
+            bus.ProcessBuffer(new[] { 0.7f, 0.8f }, 2);
+            first.Sample(bus, 0.05d);
+            second.Sample(bus, 0.05d);
+            Assert.That(first.HasSignal, Is.True);
+            Assert.That(second.IsAttached, Is.False);
+
+            first.Sample(null, 0.1d);
+            second.Sample(bus, 0.1d);
+            Assert.That(first.Left.Held, Is.Zero);
+            Assert.That(second.IsAttached, Is.True);
+            Assert.That(second.HasSignal, Is.False);
+
+            listener.enabled = false;
+            second.Sample(bus, 0.15d);
+            Assert.That(second.IsAttached, Is.False);
+            listener.enabled = true;
+            Assert.That(bus.TryAttachPeakTap(out StereoPeakTap tap), Is.True);
+            bus.DetachPeakTap(tap);
+            _ = bus.gameObject.AddComponent<AudioSource>();
+            first.Sample(bus, 0.2d);
+            Assert.That(first.IsAttached, Is.False);
+        }
+
+        [TestCase(2)]
+        [TestCase(8)]
+        public void AListenerPeakTapUsesLessThanOnePercentOfABlockDeadline(int channels)
+        {
+            const int Frames = 512;
+            const int SampleRate = 48_000;
+            const int Batches = 21;
+            const int BlocksPerBatch = 1_024;
+            using MadeObjects made = new();
+            AudioMixBus bus = Bus(made, null);
+            _ = bus.gameObject.AddComponent<AudioListener>();
+            MixMonitorMasterMeter meter = new();
+            float[] block = new float[Frames * channels];
+            for (int frame = 0; frame < Frames; ++frame)
+            {
+                block[frame * channels] = ((float)frame / Frames) - 0.5f;
+                block[frame * channels + 1] = 0.25f - ((float)frame / Frames);
+            }
+
+            long Measure(bool enabled)
+            {
+                meter.Clear();
+                if (enabled)
+                {
+                    meter.Sample(bus, 0d);
+                }
+
+                long start = Stopwatch.GetTimestamp();
+                for (int index = 0; index < BlocksPerBatch; ++index)
+                {
+                    bus.ProcessBuffer(block, channels);
+                }
+
+                return Stopwatch.GetTimestamp() - start;
+            }
+
+            _ = Measure(false);
+            _ = Measure(true);
+            long[] addedTicks = new long[Batches];
+            for (int batch = 0; batch < Batches; ++batch)
+            {
+                addedTicks[batch] = batch % 2 == 0 ? -Measure(false) + Measure(true) : Measure(true) - Measure(false);
+            }
+
+            Array.Sort(addedTicks);
+            double ticksToMicrosecondsPerBlock = 1_000_000d / Stopwatch.Frequency / BlocksPerBatch;
+            double median = addedTicks[Batches / 2] * ticksToMicrosecondsPerBlock;
+            double p95 = addedTicks[(95 * Batches + 99) / 100 - 1] * ticksToMicrosecondsPerBlock;
+            double budget = Frames * 10_000d / SampleRate;
+            string report = $"Listener peak tap, {channels} channels: added p50 {median:F2} us, p95 {p95:F2} us, budget {budget:F2} us.";
+            TestContext.Out.WriteLine(report);
+            Assert.That(median, Is.LessThan(budget), report);
         }
 
         [Test]
