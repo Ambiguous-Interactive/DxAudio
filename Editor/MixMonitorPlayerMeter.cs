@@ -60,7 +60,7 @@ namespace WallstopStudios.DxAudio.Editor
             for (int index = 0; index < SampleCount; ++index)
             {
                 float sample = samples[index];
-                if (AudioMath.IsFinite(sample))
+                if (-float.MaxValue <= sample && sample <= float.MaxValue)
                 {
                     mix[index] += sample;
                 }

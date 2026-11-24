@@ -25,6 +25,22 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(meter.Spectrum.Length, Is.Zero);
         }
 
+        [TestCase(float.NaN)]
+        [TestCase(float.PositiveInfinity)]
+        [TestCase(float.NegativeInfinity)]
+        public void ANonFiniteSampleDoesNotEraseTheOtherVoices(float invalid)
+        {
+            MixMonitorPlayerMeter meter = new();
+            float[] samples = new float[MixMonitorPlayerMeter.SampleCount];
+            samples[23] = 0.5f;
+            meter.AddChannel(samples, right: false);
+            samples[23] = invalid;
+            meter.AddChannel(samples, right: false);
+            meter.FinishSample(0d);
+
+            Assert.That(meter.Left.Level, Is.EqualTo(0.5f));
+        }
+
         [Test]
         public void AQuietWindowClearsTheLevelAndKeepsThePeakForOneSecond()
         {
