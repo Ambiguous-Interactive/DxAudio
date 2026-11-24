@@ -163,6 +163,25 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void TheMasterHoldExpiresWhileTheLatestBlockIsStillCurrent()
+        {
+            using MadeObjects made = new();
+            AudioMixBus bus = Bus(made, null);
+            _ = bus.gameObject.AddComponent<AudioListener>();
+            MixMonitorMasterMeter meter = new();
+            meter.Sample(bus, 0d);
+            bus.ProcessBuffer(new[] { 0.8f, 0.4f }, 2);
+            meter.Sample(bus, 0d);
+            bus.ProcessBuffer(new[] { 0.2f, 0.1f }, 2);
+            meter.Sample(bus, 0.875d);
+            meter.Sample(bus, 1.0625d);
+
+            Assert.That(meter.HasSignal, Is.True);
+            Assert.That(meter.Left.Level, Is.EqualTo(0.2f));
+            Assert.That(meter.Left.Held, Is.EqualTo(0.2f));
+        }
+
+        [Test]
         public void TheMasterMeterReleasesItsTapAndDiscardsOldPeaks()
         {
             using MadeObjects made = new();

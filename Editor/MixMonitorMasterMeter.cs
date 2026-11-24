@@ -46,19 +46,15 @@ namespace WallstopStudios.DxAudio.Editor
                 _bus = bus;
             }
 
-            if (_tap.TryRead(out float left, out float right))
+            bool received = _tap.TryRead(out float left, out float right);
+            if (received)
             {
                 _lastSignalTime = now;
-                HasSignal = true;
-                _left.Sample(left, now);
-                _right.Sample(right, now);
             }
-            else if (_lastSignalTime + SignalTimeoutSeconds <= now)
-            {
-                HasSignal = false;
-                _left.Sample(0f, now);
-                _right.Sample(0f, now);
-            }
+
+            HasSignal = received || (HasSignal && now < _lastSignalTime + SignalTimeoutSeconds);
+            _left.Sample(received ? left : null, HasSignal, now);
+            _right.Sample(received ? right : null, HasSignal, now);
         }
 
         internal void Clear()
@@ -84,13 +80,16 @@ namespace WallstopStudios.DxAudio.Editor
 
             private double _holdUntil;
 
-            internal void Sample(float peak, double now)
+            internal void Sample(float? peak, bool hasSignal, double now)
             {
-                Level = peak;
-                if (Held <= peak || _holdUntil <= now)
+                Level = peak ?? (hasSignal ? Level : 0f);
+                if (_holdUntil <= now || (peak.HasValue && Held <= Level))
                 {
-                    Held = peak;
-                    _holdUntil = now + HoldSeconds;
+                    Held = Level;
+                    if (peak.HasValue)
+                    {
+                        _holdUntil = now + HoldSeconds;
+                    }
                 }
             }
         }
