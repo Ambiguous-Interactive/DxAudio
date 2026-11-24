@@ -177,7 +177,12 @@ namespace WallstopStudios.DxAudio
             _slots.Clear();
             Select(_chain);
 #if UNITY_EDITOR
-            _peakTap?.RequestTruePeakReset();
+            StereoPeakTap tap = _peakTap;
+            if (tap != null)
+            {
+                _layout.Refresh();
+                tap.SetSampleRate(_layout.SampleRate);
+            }
 #endif
         }
 
@@ -191,7 +196,8 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
-            StereoPeakTap attached = new();
+            _layout.Refresh();
+            StereoPeakTap attached = new(_layout.SampleRate);
             _peakTap = attached;
             tap = attached;
             return true;

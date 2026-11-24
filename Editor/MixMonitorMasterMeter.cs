@@ -9,11 +9,14 @@ namespace WallstopStudios.DxAudio.Editor
 
         internal Channel Left => _left;
         internal Channel Right => _right;
+        internal double? ShortTermLufs => HasSignal ? _loudness.ShortTerm : null;
+        internal double? IntegratedLufs => _loudness.Integrated;
         internal float? TruePeak { get; private set; }
         internal bool TruePeakOverrun { get; private set; }
         internal bool IsAttached => _tap != null;
         internal bool HasSignal { get; private set; }
 
+        private readonly MasterLoudness _loudness = new();
         private AudioMixBus _bus;
         private StereoPeakTap _tap;
         private Channel _left;
@@ -59,7 +62,7 @@ namespace WallstopStudios.DxAudio.Editor
             _left.Sample(received ? left : null, HasSignal, now);
             _right.Sample(received ? right : null, HasSignal, now);
 
-            bool receivedTruePeak = _tap.TryReadTruePeak(out float peak, out bool overrun);
+            bool receivedTruePeak = _tap.TryReadTruePeak(out float peak, out bool overrun, _loudness);
             if (overrun)
             {
                 TruePeakOverrun = true;
@@ -89,6 +92,7 @@ namespace WallstopStudios.DxAudio.Editor
             _left = default;
             _right = default;
             _truePeak = default;
+            _loudness.Reset();
             TruePeak = null;
             TruePeakOverrun = false;
         }

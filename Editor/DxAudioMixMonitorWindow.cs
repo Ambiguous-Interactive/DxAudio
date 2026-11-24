@@ -121,6 +121,16 @@ namespace WallstopStudios.DxAudio.Editor
             }
         }
 
+        private static string FormatLoudness(double? lufs)
+        {
+            if (!lufs.HasValue)
+            {
+                return "-";
+            }
+
+            return double.IsNegativeInfinity(lufs.Value) ? "-\u221e" : lufs.Value.ToString("0.0");
+        }
+
         public void CreateGUI()
         {
             DxAudioEditorTheme.Apply(rootVisualElement);
@@ -434,6 +444,8 @@ namespace WallstopStudios.DxAudio.Editor
                 reading = (20f * Mathf.Log10(truePeak.Value)).ToString("0.0");
             }
             EditorGUILayout.LabelField("True peak (dBTP)", reading);
+            EditorGUILayout.LabelField("Short-term (LUFS)", FormatLoudness(_masterMeter.ShortTermLufs));
+            EditorGUILayout.LabelField("Integrated (LUFS)", FormatLoudness(_masterMeter.IntegratedLufs));
         }
 
         private void DrawMasterChannel(string label, MixMonitorMasterMeter.Channel channel)

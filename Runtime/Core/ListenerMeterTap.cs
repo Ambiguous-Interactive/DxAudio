@@ -3,15 +3,16 @@ namespace WallstopStudios.DxAudio
     using System;
     using System.Threading;
 
-    /// <summary>Moves listener blocks from the audio callback to the editor's true-peak filter.</summary>
-    internal sealed class TruePeakTap
+    /// <summary>Moves listener blocks from the audio callback to the editor meters.</summary>
+    internal sealed class ListenerMeterTap
     {
         // Over 300 ms at 48 kHz and eight channels, with a normal read every 50 ms.
         private const int Capacity = 1 << 17;
         private const int Mask = Capacity - 1;
-        private const int HeaderSize = 2;
+        private const int HeaderSize = 3;
         private readonly float[] _queue = new float[Capacity];
         private readonly TruePeakFilter _filter = new();
+        private int _sampleRate;
         private int _writing;
         private int _written;
         private int _read;
@@ -19,9 +20,15 @@ namespace WallstopStudios.DxAudio
         private int _overrun;
         private bool _gap;
 
-        internal void RequestReset()
+        internal ListenerMeterTap(int sampleRate)
         {
-            Volatile.Write(ref _reset, 1);
+            _sampleRate = sampleRate;
+        }
+
+        internal void SetSampleRate(int sampleRate)
+        {
+            // A negative rate carries the device reset with the new rate.
+            Volatile.Write(ref _sampleRate, -sampleRate);
         }
 
         internal void Enqueue(float[] samples, int channels)
@@ -29,7 +36,7 @@ namespace WallstopStudios.DxAudio
             // ProcessBuffer can also be driven explicitly while Unity is delivering audio.
             if (Interlocked.CompareExchange(ref _writing, 1, 0) != 0)
             {
-                RequestReset();
+                Volatile.Write(ref _reset, 1);
                 Volatile.Write(ref _overrun, 1);
                 return;
             }
@@ -44,7 +51,7 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        internal bool TryRead(out float peak, out bool overrun)
+        internal bool TryRead(out float peak, out bool overrun, MasterLoudness loudness)
         {
             int end = Volatile.Read(ref _written);
             int read = _read;
@@ -63,17 +70,20 @@ namespace WallstopStudios.DxAudio
                 if (channels < 0)
                 {
                     _filter.Reset();
+                    loudness?.Reset();
                     channels = -channels;
                 }
 
                 int count = (int)_queue[start + 1];
                 maximum = Math.Max(maximum, _filter.Observe(_queue, start + HeaderSize, count, channels));
+                loudness?.Observe(_queue, start + HeaderSize, count, channels, (int)_queue[start + 2]);
                 read = unchecked(read + HeaderSize + count);
                 Volatile.Write(ref _read, read);
             }
 
             if (Interlocked.Exchange(ref _overrun, 0) == 1)
             {
+                loudness?.Reset();
                 peak = 0f;
                 overrun = true;
                 return false;
@@ -89,6 +99,7 @@ namespace WallstopStudios.DxAudio
             if (TruePeakFilter.MaxChannels < channels)
             {
                 _gap = true;
+                Volatile.Write(ref _overrun, 1);
                 return;
             }
 
@@ -113,10 +124,17 @@ namespace WallstopStudios.DxAudio
                 start = 0;
             }
 
-            bool reset = Interlocked.Exchange(ref _reset, 0) == 1 || _gap;
+            int sampleRate = Volatile.Read(ref _sampleRate);
+            bool reset = Interlocked.Exchange(ref _reset, 0) == 1 || _gap || sampleRate < 0;
+            if (sampleRate < 0)
+            {
+                Interlocked.CompareExchange(ref _sampleRate, -sampleRate, sampleRate);
+                sampleRate = -sampleRate;
+            }
             _gap = false;
             _queue[start] = reset ? -channels : channels;
             _queue[start + 1] = count;
+            _queue[start + 2] = sampleRate;
             Array.Copy(samples, 0, _queue, start + HeaderSize, count);
             Volatile.Write(ref _written, unchecked(written + padding + HeaderSize + count));
         }

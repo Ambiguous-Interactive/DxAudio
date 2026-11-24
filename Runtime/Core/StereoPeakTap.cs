@@ -3,12 +3,17 @@ namespace WallstopStudios.DxAudio
     using System;
     using System.Threading;
 
-    /// <summary>Transfers the largest front-channel sample peaks since the last editor read.</summary>
+    /// <summary>Captures listener samples and front-channel peaks for the editor.</summary>
     internal sealed class StereoPeakTap
     {
         private const long UnreadEmpty = long.MinValue;
-        private readonly TruePeakTap _truePeak = new();
+        private readonly ListenerMeterTap _listener;
         private long _pending = UnreadEmpty;
+
+        internal StereoPeakTap(int sampleRate)
+        {
+            _listener = new ListenerMeterTap(sampleRate);
+        }
 
         private static long Pack(float left, float right)
         {
@@ -25,9 +30,9 @@ namespace WallstopStudios.DxAudio
             return BitConverter.Int32BitsToSingle(unchecked((int)pair));
         }
 
-        internal void RequestTruePeakReset()
+        internal void SetSampleRate(int sampleRate)
         {
-            _truePeak.RequestReset();
+            _listener.SetSampleRate(sampleRate);
         }
 
         internal void Observe(float[] samples, int channels)
@@ -37,7 +42,7 @@ namespace WallstopStudios.DxAudio
                 return;
             }
 
-            _truePeak.Enqueue(samples, channels);
+            _listener.Enqueue(samples, channels);
 
             float left = 0f;
             float right = 0f;
@@ -80,9 +85,10 @@ namespace WallstopStudios.DxAudio
             }
         }
 
-        internal bool TryReadTruePeak(out float peak, out bool overrun)
+        // The editor reads both meters in one drain of the listener samples.
+        internal bool TryReadTruePeak(out float peak, out bool overrun, MasterLoudness loudness = null)
         {
-            return _truePeak.TryRead(out peak, out overrun);
+            return _listener.TryRead(out peak, out overrun, loudness);
         }
 
         internal bool TryRead(out float left, out float right)

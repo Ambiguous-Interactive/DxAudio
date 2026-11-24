@@ -165,6 +165,49 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void TheMasterDisplaysPostChainLoudnessAndClearsItOnDetach()
+        {
+            using MadeObjects made = new();
+            AudioMixBus bus = Bus(made, Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -12f, lookaheadSeconds: 0f))));
+            AudioListener listener = bus.gameObject.AddComponent<AudioListener>();
+            MixMonitorMasterMeter meter = new();
+            meter.Sample(bus, 0d);
+            Assert.That(meter.IntegratedLufs.HasValue, Is.False);
+
+            MasterLoudness reference = new();
+            int channels = bus.ChannelCount;
+            int rate = bus.PreparedSampleRate;
+            int frames = (int)Math.Round(rate / 10d, MidpointRounding.AwayFromZero) / 5;
+            int count = frames * channels;
+            float[] block = new float[count];
+            for (int index = 0; index < 155; ++index)
+            {
+                Array.Clear(block, 0, count);
+                for (int frame = 0; frame < frames; ++frame)
+                {
+                    block[frame * channels] = (float)(0.8d * Math.Sin(2d * Math.PI * 1_000d * (frames * index + frame) / rate));
+                }
+
+                bus.ProcessBuffer(block, channels);
+                reference.Observe(block, 0, count, channels, rate);
+                meter.Sample(bus, (index + 1) * 0.02d);
+            }
+
+            Assert.That(reference.ShortTerm, Is.LessThan(-12d));
+            Assert.That(meter.ShortTermLufs, Is.EqualTo(reference.ShortTerm).Within(0.01));
+            Assert.That(meter.IntegratedLufs, Is.EqualTo(reference.Integrated).Within(0.01));
+
+            meter.Sample(bus, 3.5d);
+            Assert.That(meter.ShortTermLufs.HasValue, Is.False);
+            Assert.That(meter.IntegratedLufs, Is.EqualTo(reference.Integrated).Within(0.01));
+
+            listener.enabled = false;
+            meter.Sample(bus, 3.55d);
+            Assert.That(meter.IsAttached, Is.False);
+            Assert.That(meter.IntegratedLufs.HasValue, Is.False);
+        }
+
+        [Test]
         public void ATruePeakRemainsVisibleForOneSecondWithoutCallbacks()
         {
             using MadeObjects made = new();
@@ -290,7 +333,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 }
             }
 
-            long Measure(bool enabled)
+            (long Callback, long Drain) Measure(bool enabled, MasterLoudness loudness = null)
             {
                 StereoPeakTap tap = null;
                 if (enabled)
@@ -298,7 +341,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                     Assert.That(bus.TryAttachPeakTap(out tap), Is.True);
                 }
 
-                long ticks = 0;
+                long callback = 0;
+                long drain = 0;
                 for (int group = 0; group < BlocksPerBatch / BlocksPerRead; ++group)
                 {
                     long start = Stopwatch.GetTimestamp();
@@ -307,34 +351,60 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                         bus.ProcessBuffer(block, channels);
                     }
 
-                    ticks += Stopwatch.GetTimestamp() - start;
+                    callback += Stopwatch.GetTimestamp() - start;
                     if (tap != null)
                     {
-                        Assert.That(tap.TryReadTruePeak(out _, out bool overrun), Is.True, "the callback must enqueue every measured block");
-                        Assert.That(overrun, Is.False);
+                        start = Stopwatch.GetTimestamp();
+                        bool received = tap.TryReadTruePeak(out _, out bool overrun, loudness);
                         tap.TryRead(out _, out _);
+                        if (loudness != null)
+                        {
+                            _ = loudness.ShortTerm;
+                            _ = loudness.Integrated;
+                        }
+                        drain += Stopwatch.GetTimestamp() - start;
+                        Assert.That(received, Is.True, "the callback must enqueue every measured block");
+                        Assert.That(overrun, Is.False);
                     }
                 }
 
                 bus.DetachPeakTap(tap);
-                return ticks;
+                return (callback, drain);
             }
 
             _ = Measure(false);
             _ = Measure(true);
+            _ = Measure(true, new MasterLoudness());
             long[] addedTicks = new long[Batches];
+            long[] addedDrain = new long[Batches];
             for (int batch = 0; batch < Batches; ++batch)
             {
-                addedTicks[batch] = batch % 2 == 0 ? -Measure(false) + Measure(true) : Measure(true) - Measure(false);
+                bool baselineFirst = batch % 2 == 0;
+                (long Callback, long Drain) passThrough = baselineFirst ? Measure(false) : default;
+                (long Callback, long Drain) peaks = baselineFirst ? Measure(true) : default;
+                (long Callback, long Drain) full = Measure(true, new MasterLoudness());
+                if (!baselineFirst)
+                {
+                    peaks = Measure(true);
+                    passThrough = Measure(false);
+                }
+
+                addedTicks[batch] = full.Callback - passThrough.Callback;
+                addedDrain[batch] = full.Drain - peaks.Drain;
             }
 
             Array.Sort(addedTicks);
+            Array.Sort(addedDrain);
             double ticksToMicrosecondsPerBlock = 1_000_000d / Stopwatch.Frequency / BlocksPerBatch;
             double median = addedTicks[Batches / 2] * ticksToMicrosecondsPerBlock;
-            double p95 = addedTicks[(95 * Batches + 99) / 100 - 1] * ticksToMicrosecondsPerBlock;
+            int p95Index = (95 * Batches + 99) / 100 - 1;
+            double p95 = addedTicks[p95Index] * ticksToMicrosecondsPerBlock;
+            double drainMedian = addedDrain[Batches / 2] * ticksToMicrosecondsPerBlock * BlocksPerRead;
+            double drainP95 = addedDrain[p95Index] * ticksToMicrosecondsPerBlock * BlocksPerRead;
             double budget = Frames * 10_000d / SampleRate;
-            string report = $"Listener peak tap, {channels} channels: added p50 {median:F2} us, p95 {p95:F2} us, budget {budget:F2} us.";
+            string report = $"Listener meter tap, {channels} channels: added p50 {median:F2} us, p95 {p95:F2} us, budget {budget:F2} us.";
             TestContext.Out.WriteLine(report);
+            TestContext.Out.WriteLine($"Added loudness drain per {BlocksPerRead} blocks: p50 {drainMedian:F2} us, p95 {drainP95:F2} us.");
             Assert.That(median, Is.LessThan(budget), report);
         }
 
