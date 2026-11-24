@@ -1,6 +1,7 @@
 namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System;
+    using System.Threading.Tasks;
     using NUnit.Framework;
 
     public sealed class StereoPeakTapTests
@@ -39,6 +40,38 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             reference.Observe(second, channels);
             Assert.That(reference.TryReadTruePeak(out float expectedPeak, out _), Is.True);
             Assert.That(truePeak, Is.EqualTo(expectedPeak));
+        }
+
+        [Test]
+        public void AuditionMuteStaysSilentAfterOverlappingBlocks()
+        {
+            StereoPeakTap tap = new(SampleRate);
+            const int Channels = 8;
+            float[] shortBlock = new float[60 * Channels];
+            float[] longBlock = new float[512 * Channels];
+            Action observeShort = () =>
+            {
+                tap.Observe(shortBlock, Channels);
+            };
+            Action observeLong = () =>
+            {
+                tap.Observe(longBlock, Channels);
+            };
+
+            for (int iteration = 0; iteration < 32; ++iteration)
+            {
+                tap.AuditionGain = 1f;
+                observeLong();
+                tap.AuditionGain = 0f;
+                Array.Fill(shortBlock, 1f);
+                Array.Fill(longBlock, 1f);
+                Parallel.Invoke(observeShort, observeLong);
+
+                Array.Fill(longBlock, 1f);
+                observeLong();
+                Assert.That(longBlock[0], Is.Zero);
+                _ = tap.TryReadTruePeak(out _, out _);
+            }
         }
 
         [TestCase(1)]

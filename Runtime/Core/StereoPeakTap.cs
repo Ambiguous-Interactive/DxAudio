@@ -11,15 +11,27 @@ namespace WallstopStudios.DxAudio
 
         internal float AuditionGain
         {
-            set => _auditionGain = value;
+            set
+            {
+                long state = Volatile.Read(ref _audition);
+                while (true)
+                {
+                    long observed = Interlocked.CompareExchange(ref _audition, Pack(Left(state), value), state);
+                    if (observed == state)
+                    {
+                        return;
+                    }
+
+                    state = observed;
+                }
+            }
         }
 
         private readonly ListenerMeterTap _listener;
         private long _pending = UnreadEmpty;
 
-        // The editor publishes the target. The listener callback owns the ramp.
-        private volatile float _auditionGain = 1f;
-        private float _appliedGain = 1f;
+        // Publish the claimed gain and editor target together so a callback cannot spend the same ramp twice.
+        private long _audition = Pack(1f, 1f);
 
         internal StereoPeakTap(int sampleRate)
         {
@@ -39,6 +51,12 @@ namespace WallstopStudios.DxAudio
         private static float Right(long pair)
         {
             return BitConverter.Int32BitsToSingle(unchecked((int)pair));
+        }
+
+        private static float RampGain(float start, float target, float step, int frames)
+        {
+            float gain = start + step * frames;
+            return step < 0f ? Math.Max(gain, target) : Math.Min(gain, target);
         }
 
         internal void SetSampleRate(int sampleRate)
@@ -120,30 +138,34 @@ namespace WallstopStudios.DxAudio
 
         private void ApplyAudition(float[] samples, int channels)
         {
-            float target = _auditionGain;
-            float gain = _appliedGain;
-            if (target == 1f && gain == 1f)
+            long state = Volatile.Read(ref _audition);
+            float start = Left(state);
+            float target = Right(state);
+            if (target == 1f && start == 1f)
             {
                 return;
             }
 
-            int length = samples.Length;
-            int end = length - length % channels;
+            int frames = samples.Length / channels;
+            int end = frames * channels;
             int index = 0;
-            if (gain != target)
+            if (start != target)
             {
-                float step = 1f / Math.Max(1f, _listener.SampleRate * RampSeconds);
-                while (index < end && gain != target)
+                float step = ClaimRamp(frames, state, ref start, ref target);
+                for (int frame = 1; frame <= frames && step != 0f; ++frame)
                 {
-                    gain = gain < target ? Math.Min(gain + step, target) : Math.Max(gain - step, target);
+                    float gain = RampGain(start, target, step, frame);
+                    if (gain == target)
+                    {
+                        break;
+                    }
+
                     int nextFrame = index + channels;
                     for (; index < nextFrame; ++index)
                     {
                         samples[index] *= gain;
                     }
                 }
-
-                _appliedGain = gain;
             }
 
             if (target == 0f)
@@ -157,6 +179,27 @@ namespace WallstopStudios.DxAudio
                     samples[index] *= target;
                 }
             }
+        }
+
+        private float ClaimRamp(int frames, long state, ref float start, ref float target)
+        {
+            float step = 1f / Math.Max(1f, _listener.SampleRate * RampSeconds);
+            while (start != target)
+            {
+                float signedStep = start < target ? step : -step;
+                float end = RampGain(start, target, signedStep, frames);
+                long observed = Interlocked.CompareExchange(ref _audition, Pack(end, target), state);
+                if (observed == state)
+                {
+                    return signedStep;
+                }
+
+                state = observed;
+                start = Left(state);
+                target = Right(state);
+            }
+
+            return 0f;
         }
     }
 }
