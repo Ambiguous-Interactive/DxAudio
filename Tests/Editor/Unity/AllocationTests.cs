@@ -231,7 +231,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                         peak = Math.Max(peak, value);
                     }
 
-                    lostAudio |= overrun;
+                    lostAudio = lostAudio || overrun;
                 }
             }
 
