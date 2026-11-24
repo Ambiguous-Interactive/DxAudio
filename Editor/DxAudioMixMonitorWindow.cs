@@ -36,6 +36,7 @@ namespace WallstopStudios.DxAudio.Editor
         private MusicPlayer _music;
 
         private readonly Vector3[] _line = new Vector3[HistoryCapacity];
+        private readonly MixMonitorWaveforms _waveforms = new();
         private readonly IMusicDuckReason[] _duckReasons = new IMusicDuckReason[DuckHoldCapacity];
         private readonly object[] _duckHolders = new object[DuckHoldCapacity];
         private readonly long[] _duckIds = new long[DuckHoldCapacity];
@@ -92,6 +93,21 @@ namespace WallstopStudios.DxAudio.Editor
             return string.IsNullOrEmpty(name) ? "Unnamed duck" : name;
         }
 
+        private static void DrawWaveform(in Rect rect, float[] peaks, float start, float end, Color color)
+        {
+            int columns = Mathf.Clamp(Mathf.CeilToInt(rect.width), 1, peaks.Length);
+            float width = rect.width / columns;
+            float center = rect.center.y;
+            float amplitude = rect.height * 0.5f - 1f;
+            for (int column = 0; column < columns; ++column)
+            {
+                float from = Mathf.Lerp(start, end, (float)column / columns);
+                float to = Mathf.Lerp(start, end, (float)(column + 1) / columns);
+                float height = Mathf.Max(0.5f, MixMonitorWaveforms.Peak(peaks, from, to) * amplitude);
+                EditorGUI.DrawRect(new Rect(rect.x + column * width, center - height, width, 2f * height), color);
+            }
+        }
+
         public void CreateGUI()
         {
             DxAudioEditorTheme.Apply(rootVisualElement);
@@ -121,6 +137,7 @@ namespace WallstopStudios.DxAudio.Editor
             _player = sfx;
             _music = music;
             _selectedVoice = -1;
+            _waveforms.Clear();
             Timeline.Reset(sfx == null ? 0 : sfx.VoiceCount);
             _scroll = Vector2.zero;
             SamplePlayer();
@@ -149,11 +166,12 @@ namespace WallstopStudios.DxAudio.Editor
             SfxDropCounts counts = _player == null ? SfxDropCounts.None : _player.DropCounts;
             Capture.Sample(counts);
             Timeline.Sample(EditorApplication.timeSinceStartup, counts, _music == null ? (float?)null : _music.Attenuation.volumeScale);
+            bool canReadWaveform = true;
             for (int voice = 0; voice < Timeline.VoiceCount; ++voice)
             {
-                if (_player.TryObserveVoiceState(voice, out SfxVoiceState state, out AudioClip clip, out float clipSeconds))
+                if (_player.TryObserveVoiceState(voice, out SfxVoiceState state, out AudioClip clip, out float clipSeconds, out int playbackId))
                 {
-                    Timeline.SetVoice(voice, state, clip, clipSeconds);
+                    Timeline.SetVoice(voice, state, clip, clipSeconds, _waveforms.Observe(clip, ref canReadWaveform), playbackId);
                 }
             }
 
@@ -251,11 +269,13 @@ namespace WallstopStudios.DxAudio.Editor
         {
             minSize = new Vector2(380f, 280f);
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
+            EditorApplication.projectChanged += _waveforms.Clear;
         }
 
         private void OnDisable()
         {
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
+            EditorApplication.projectChanged -= _waveforms.Clear;
         }
 
         private void OnPlayModeChanged(PlayModeStateChange state)
@@ -264,6 +284,7 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 Capture.Reset();
                 Timeline.Reset(0);
+                _waveforms.Clear();
                 _selectedVoice = -1;
                 _nextSample = 0d;
             }
@@ -357,6 +378,20 @@ namespace WallstopStudios.DxAudio.Editor
 
             string detail = $"{clip.name}  |  {seconds:F3} s  |  {Timeline.Voice(_cursor, _selectedVoice).priority} priority";
             EditorGUILayout.LabelField(new GUIContent($"Voice {_selectedVoice + 1} clip"), new GUIContent(detail, detail));
+            float[] peaks = Timeline.VoicePeaks(_cursor, _selectedVoice);
+            if (peaks == null)
+            {
+                return;
+            }
+
+            Rect preview = EditorGUILayout.GetControlRect(false, 40f);
+            if (_themeReady && Event.current.type == EventType.Repaint)
+            {
+                EditorGUI.DrawRect(preview, _trackColor);
+                DrawWaveform(in preview, peaks, 0f, 1f, _playingColor);
+                float x = Mathf.Lerp(preview.x, preview.xMax - 1f, seconds / clip.length);
+                EditorGUI.DrawRect(new Rect(x, preview.y, 1f, preview.height), _cursorColor);
+            }
         }
 
         private void DrawTimeline()
@@ -609,6 +644,21 @@ namespace WallstopStudios.DxAudio.Editor
                         : state.isHeld ? _heldColor
                         : _playingColor;
                     EditorGUI.DrawRect(cell, color);
+                    float[] peaks = Timeline.VoicePeaks(frame, voice);
+                    if (peaks != null)
+                    {
+                        (AudioClip clip, float seconds) = Timeline.Clip(frame, voice);
+                        if (clip != null)
+                        {
+                            float duration = clip.length;
+                            float untilSeconds = Timeline.VoiceClipEnd(frame, voice, duration, MaxSampleGapSeconds);
+                            if (seconds < untilSeconds)
+                            {
+                                DrawWaveform(in cell, peaks, seconds / duration, untilSeconds / duration, _trackColor);
+                            }
+                        }
+                    }
+
                     if (voice == _selectedVoice && frame == _cursor)
                     {
                         EditorGUI.DrawRect(new Rect(cell.x, cell.yMax - 2f, cell.width, 2f), _cursorColor);

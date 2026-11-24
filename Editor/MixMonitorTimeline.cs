@@ -1,11 +1,13 @@
 namespace WallstopStudios.DxAudio.Editor
 {
     using System;
+    using System.Collections.Generic;
 
     internal sealed class MixMonitorTimeline<TClip, TTrack>
         where TTrack : class
     {
         internal const double HistorySeconds = 10d;
+        private const double MaximumAudioClipPitch = 3d;
 
         internal int Count { get; private set; }
         internal int VoiceCount { get; private set; }
@@ -17,7 +19,7 @@ namespace WallstopStudios.DxAudio.Editor
         private readonly (IMusicDuckReason reason, long id)[] _duckHolds;
         private readonly int[] _omittedDuckHolds;
         private readonly bool[] _assignedDuckInputs;
-        private (SfxVoiceState state, TClip clip, float clipSeconds)[] _voices = Array.Empty<(SfxVoiceState, TClip, float)>();
+        private (SfxVoiceState state, TClip clip, float clipSeconds, float[] peaks, int playbackId)[] _voices = Array.Empty<(SfxVoiceState, TClip, float, float[], int)>();
         private SfxDropCounts _previous;
         private int _oldest;
         private int _latest;
@@ -38,7 +40,7 @@ namespace WallstopStudios.DxAudio.Editor
         {
             if (voiceCount != VoiceCount)
             {
-                _voices = new (SfxVoiceState, TClip, float)[_frames.Length * voiceCount];
+                _voices = new (SfxVoiceState, TClip, float, float[], int)[_frames.Length * voiceCount];
                 VoiceCount = voiceCount;
             }
             else if (0 < Count)
@@ -92,9 +94,9 @@ namespace WallstopStudios.DxAudio.Editor
             _interrupted = false;
         }
 
-        internal void SetVoice(int voice, in SfxVoiceState state, TClip clip = default, float clipSeconds = 0f)
+        internal void SetVoice(int voice, in SfxVoiceState state, TClip clip = default, float clipSeconds = 0f, float[] peaks = null, int playbackId = 0)
         {
-            _voices[_latest * VoiceCount + voice] = (state, clip, clipSeconds);
+            _voices[_latest * VoiceCount + voice] = (state, clip, clipSeconds, peaks, playbackId);
         }
 
         internal void SetDeck(int deck, TTrack track, float fade)
@@ -201,8 +203,46 @@ namespace WallstopStudios.DxAudio.Editor
 
         internal (TClip clip, float seconds) Clip(int frame, int voice)
         {
-            ref readonly (SfxVoiceState state, TClip clip, float clipSeconds) sample = ref _voices[Slot(frame) * VoiceCount + voice];
-            return (sample.clip, sample.clipSeconds);
+            int offset = Slot(frame) * VoiceCount + voice;
+            return (_voices[offset].clip, _voices[offset].clipSeconds);
+        }
+
+        internal float[] VoicePeaks(int frame, int voice)
+        {
+            return _voices[Slot(frame) * VoiceCount + voice].peaks;
+        }
+
+        internal float VoiceClipEnd(int frame, int voice, float duration, double maxGapSeconds)
+        {
+            int offset = Slot(frame) * VoiceCount + voice;
+            float seconds = _voices[offset].clipSeconds;
+            if (Count <= frame + 1 || !CanJoin(frame + 1, maxGapSeconds))
+            {
+                return seconds;
+            }
+
+            int next = Slot(frame + 1) * VoiceCount + voice;
+            ref readonly SfxVoiceState first = ref _voices[offset].state;
+            ref readonly SfxVoiceState second = ref _voices[next].state;
+            if (
+                !first.isPlaying
+                || !second.isPlaying
+                || _voices[offset].playbackId != _voices[next].playbackId
+                || !EqualityComparer<TClip>.Default.Equals(_voices[offset].clip, _voices[next].clip)
+            )
+            {
+                return seconds;
+            }
+
+            float nextSeconds = _voices[next].clipSeconds;
+            if (nextSeconds < seconds && first.isHeld && second.isHeld)
+            {
+                nextSeconds += duration;
+            }
+
+            // Allow the full capture gap for audio buffer timing, even if the editor ticks sooner.
+            double maxAdvance = MaximumAudioClipPitch * maxGapSeconds;
+            return seconds <= nextSeconds && nextSeconds - seconds <= maxAdvance ? nextSeconds : seconds;
         }
 
         private int Slot(int frame)

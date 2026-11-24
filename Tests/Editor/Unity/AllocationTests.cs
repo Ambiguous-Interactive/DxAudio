@@ -184,6 +184,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
 
             Assert.That(monitor.Timeline.Clip(monitor.Timeline.Count - 1, 0).clip != null, Is.True);
+            Assert.That(monitor.Timeline.VoicePeaks(monitor.Timeline.Count - 1, 0) != null, Is.True);
             Assert.That(monitor.Timeline.Deck(monitor.Timeline.Count - 1, 0).track, Is.SameAs(track));
             Assert.That(monitor.Timeline.DuckHold(monitor.Timeline.Count - 1, monitor.Timeline.DuckCapacity - 1).reason, Is.SameAs(duck));
             long samplingAllocations = AllocationEvents(monitor.SamplePlayer, MeasuredCalls);
