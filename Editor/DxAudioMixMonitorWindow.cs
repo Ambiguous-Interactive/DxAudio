@@ -232,6 +232,29 @@ namespace WallstopStudios.DxAudio.Editor
             }
         }
 
+        internal GUIContent PlayerInsertLabel(bool forSfx)
+        {
+            DspChainAsset chain = forSfx ? (_player == null ? null : _player.BusChain) : (_music == null ? null : _music.BusChain);
+            List<string> names = null;
+            if (chain != null)
+            {
+                IReadOnlyList<DspEffectAsset> effects = chain.Effects;
+                for (int index = 0; index < effects.Count; ++index)
+                {
+                    DspEffectAsset effect = effects[index];
+                    if (effect != null)
+                    {
+                        names ??= new List<string>();
+                        string name = effect.name;
+                        names.Add(string.IsNullOrWhiteSpace(name) ? ObjectNames.NicifyVariableName(effect.GetType().Name) : name);
+                    }
+                }
+            }
+
+            string label = names == null ? "None" : string.Join(" > ", names);
+            return new GUIContent(label, label);
+        }
+
         internal void SamplePlayer()
         {
             if (Capture.Paused)
@@ -401,11 +424,6 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 SamplePlayer();
             }
-            else if (_masterBus == null)
-            {
-                return;
-            }
-
             _content?.MarkDirtyRepaint();
         }
 
@@ -471,21 +489,22 @@ namespace WallstopStudios.DxAudio.Editor
 
                 if (_player != null)
                 {
-                    DrawPlayerAudition("SFX", forSfx: true, _sfxAudition);
+                    DrawPlayerStrip("SFX", forSfx: true, _sfxAudition);
                 }
 
                 if (_music != null)
                 {
-                    DrawPlayerAudition("Music", forSfx: false, _musicAudition);
+                    DrawPlayerStrip("Music", forSfx: false, _musicAudition);
                 }
 
                 DrawMaster();
             }
         }
 
-        private void DrawPlayerAudition(string title, bool forSfx, (float decibels, bool muted, bool solo) audition)
+        private void DrawPlayerStrip(string title, bool forSfx, (float decibels, bool muted, bool solo) audition)
         {
             EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(new GUIContent("Bus Inserts"), PlayerInsertLabel(forSfx));
             EditorGUI.BeginChangeCheck();
             float decibels = EditorGUILayout.Slider("Audition Fader (dB)", audition.decibels, MixMonitorMasterMeter.MinimumFaderDecibels, 0f);
             bool muted = EditorGUILayout.Toggle("Audition Mute", audition.muted);
