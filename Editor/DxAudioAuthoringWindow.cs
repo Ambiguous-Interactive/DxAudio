@@ -452,7 +452,7 @@ namespace WallstopStudios.DxAudio.Editor
                 return;
             }
 
-            _audition.RefreshGraphBypass();
+            _audition.RefreshGraphAudition();
             _canvas.Refresh();
             _findings.Clear();
             List<DxAudioValidation.Finding> findings = new();
@@ -672,6 +672,7 @@ namespace WallstopStudios.DxAudio.Editor
                 }
             );
 
+            _details.Add(_audition.CreateGraphNodeSoloToggle(node));
             if (node.Chain != null)
             {
                 _details.Add(_audition.CreateGraphNodeBypassToggle(node));

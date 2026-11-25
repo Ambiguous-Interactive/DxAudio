@@ -4,6 +4,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     using NUnit.Framework;
     using UnityEditor;
     using UnityEngine;
+    using UnityEngine.UIElements;
     using WallstopStudios.DxAudio.Editor;
 
     /// <summary>Keeps a graph asset honest: it builds what its nodes and edges say, and it keeps them in a file.</summary>
@@ -96,14 +97,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
 
             Assert.That(panel.CreateGraphNodeBypassToggle(left).value, Is.False);
-            Assert.That(panel.TryCreateAuditionGraph(asset, out DspGraph wet), Is.True);
+            Assert.That(panel.TryCreateAuditionGraph(asset, out DspGraph wet, out _, out _), Is.True);
             Publish(wet, 1);
             CheckOutput(2f, 1);
             Assert.That(MeasureAllocations(Render), Is.Zero);
 
             panel.SetGraphNodeBypassed(left.Name, true);
             Assert.That(panel.CreateGraphNodeBypassToggle(left).value, Is.True);
-            Assert.That(panel.TryCreateAuditionGraph(asset, out DspGraph bypassed), Is.True);
+            Assert.That(panel.TryCreateAuditionGraph(asset, out DspGraph bypassed, out _, out _), Is.True);
             Publish(bypassed, 2);
             CheckOutput(1.25f, 2);
             Assert.That(MeasureAllocations(Render), Is.Zero);
@@ -113,7 +114,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             CheckOutput(2f, 3);
 
             panel.SetGraphNodeBypassed(left.Name, false);
-            Assert.That(panel.TryCreateAuditionGraph(asset, out DspGraph restored), Is.True);
+            Assert.That(panel.TryCreateAuditionGraph(asset, out DspGraph restored, out _, out _), Is.True);
             Publish(restored, 4);
             CheckOutput(2f, 4);
 
@@ -134,7 +135,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             DspAuditionPanel panel = new(null, null);
             panel.SetTarget(asset);
             DspGraphEdits edits = new(asset);
-            edits.Changed += panel.RefreshGraphBypass;
+            edits.Changed += panel.RefreshGraphAudition;
             panel.SetGraphNodeBypassed("branch", true);
 
             Assert.That(edits.TryDelete(new[] { 0 }, Array.Empty<int>(), out string firstError), Is.True, firstError);
@@ -143,6 +144,88 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(edits.TryDelete(new[] { 0 }, Array.Empty<int>(), out string branchError), Is.True, branchError);
             Assert.That(edits.TryAdd("branch", chain, Vector2.zero, out string addError), Is.True, addError);
             Assert.That(panel.CreateGraphNodeBypassToggle(asset.Nodes[0]).value, Is.False);
+        }
+
+        [Test]
+        public void SoloRevisesOnlyWetAuditionAndClearsWithTheTarget()
+        {
+            const int Frames = 32;
+            using MadeObjects made = new();
+            DspChainAsset chain = made.Track(DspChainAsset.Create(new[] { made.Track(DspBitCrusherAsset.Create(bits: 1)) }));
+            DspGraphNode left = new("left", chain);
+            DspGraphNode right = new("right", null);
+            DspGraphAsset asset = made.Track(
+                DspGraphAsset.Create(
+                    new[] { new DspGraphNode("in", null), left, right, new DspGraphNode("out", null) },
+                    new[] { new DspGraphEdge("in", "left"), new DspGraphEdge("in", "right"), new DspGraphEdge("left", "out"), new DspGraphEdge("right", "out") },
+                    "in",
+                    "out"
+                )
+            );
+            string serialized = EditorJsonUtility.ToJson(asset);
+            int dirtyCount = EditorUtility.GetDirtyCount(asset);
+            DspAuditionPanel panel = new(null, null);
+            panel.SetTarget(asset);
+            Button soloStatus = panel.Q<Button>("graph-solo-status");
+            DspAuditionProcessor processor = new(1_000, Frames, 1);
+            float[] block = new float[Frames];
+
+            void Render()
+            {
+                Array.Fill(block, 0.25f);
+                processor.Process(block, 1);
+            }
+
+            void CheckAudition(float expected, int revision)
+            {
+                Assert.That(panel.TryCreateAuditionGraph(asset, out DspGraph graph, out int input, out int output), Is.True);
+                Assert.That(graph.TryPrepare(1_000, Frames, 1, input, output), Is.True);
+                processor.Publish(new DspAuditionProcessor.Revision(revision, new[] { new DspAuditionProcessor.Path(Frames, 1, null, graph) }));
+                Render();
+                Render();
+                Assert.That(processor.ActiveRevision, Is.EqualTo(revision));
+                Assert.That(block, Is.All.EqualTo(expected));
+            }
+
+            Assert.That(soloStatus.style.display.value, Is.EqualTo(DisplayStyle.None));
+            CheckAudition(1.25f, 1);
+            panel.SetGraphNodeSolo(left.Name, true);
+            Assert.That(panel.CreateGraphNodeSoloToggle(left).value, Is.True);
+            Assert.That(soloStatus.style.display.value, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(soloStatus.text, Is.EqualTo("Solo: left"));
+            CheckAudition(1f, 2);
+            for (int index = 0; index < 16; ++index)
+            {
+                Render();
+            }
+            Assert.That(AllocationTests.AllocationEvents(Render, 128), Is.Zero);
+
+            panel.SetGraphNodeBypassed(left.Name, true);
+            CheckAudition(0.25f, 3);
+            panel.SetGraphNodeBypassed(left.Name, false);
+            panel.SetGraphNodeSolo(right.Name, true);
+            Assert.That(panel.CreateGraphNodeSoloToggle(left).value, Is.False);
+            Assert.That(soloStatus.text, Is.EqualTo("Solo: right"));
+            CheckAudition(0.25f, 4);
+
+            Assert.That(asset.TryCreateGraph(out DspGraph authored), Is.True);
+            Assert.That(authored.NodeCount, Is.EqualTo(4));
+            Assert.That(authored.EdgeCount, Is.EqualTo(4));
+            panel.SetTarget(null);
+            panel.SetTarget(asset);
+            Assert.That(panel.CreateGraphNodeSoloToggle(right).value, Is.False);
+            Assert.That(soloStatus.style.display.value, Is.EqualTo(DisplayStyle.None));
+            CheckAudition(1.25f, 5);
+            Assert.That(EditorJsonUtility.ToJson(asset), Is.EqualTo(serialized));
+            Assert.That(EditorUtility.GetDirtyCount(asset), Is.EqualTo(dirtyCount));
+
+            DspGraphEdits edits = new(asset);
+            edits.Changed += panel.RefreshGraphAudition;
+            panel.SetGraphNodeSolo(right.Name, true);
+            Assert.That(edits.TryDelete(new[] { 2 }, Array.Empty<int>(), out string deleteError), Is.True, deleteError);
+            Assert.That(edits.TryAdd("right", null, Vector2.zero, out string addError), Is.True, addError);
+            Assert.That(panel.CreateGraphNodeSoloToggle(asset.Nodes[3]).value, Is.False);
+            Assert.That(soloStatus.style.display.value, Is.EqualTo(DisplayStyle.None));
         }
 
         [Test]

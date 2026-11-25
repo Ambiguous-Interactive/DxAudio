@@ -338,6 +338,64 @@ namespace WallstopStudios.DxAudio
             }
         }
 
+        /// <summary>Keeps only input-to-output paths through one node in a fresh audition graph.</summary>
+        internal bool TrySolo(int inputNode, int outputNode, int soloNode, out int soloInput, out int soloOutput)
+        {
+            if (
+                IsPrepared
+                || inputNode < 0
+                || outputNode < 0
+                || soloNode < 0
+                || NodeCount <= inputNode
+                || NodeCount <= outputNode
+                || NodeCount <= soloNode
+                || !OrderNodes()
+                || !AllOnThePath(inputNode, outputNode)
+            )
+            {
+                soloInput = -1;
+                soloOutput = -1;
+                return false;
+            }
+
+            Span<bool> leadsToSolo = stackalloc bool[MaximumNodes];
+            Span<bool> followsSolo = stackalloc bool[MaximumNodes];
+            Span<int> remap = stackalloc int[MaximumNodes];
+            int keptNodes = 0;
+            for (int node = 0; node < NodeCount; ++node)
+            {
+                leadsToSolo[node] = Reaches(node, soloNode);
+                followsSolo[node] = Reaches(soloNode, node);
+                if (leadsToSolo[node] || followsSolo[node])
+                {
+                    remap[node] = keptNodes;
+                    _chains[keptNodes] = _chains[node];
+                    ++keptNodes;
+                }
+            }
+
+            int keptEdges = 0;
+            for (int edge = 0; edge < EdgeCount; ++edge)
+            {
+                int from = _edgeFrom[edge];
+                int to = _edgeTo[edge];
+                // A shortcut from before Solo to after it can join two kept nodes and still miss Solo.
+                if (leadsToSolo[to] || followsSolo[from])
+                {
+                    _edgeFrom[keptEdges] = remap[from];
+                    _edgeTo[keptEdges] = remap[to];
+                    ++keptEdges;
+                }
+            }
+
+            Array.Clear(_chains, keptNodes, NodeCount - keptNodes);
+            NodeCount = keptNodes;
+            EdgeCount = keptEdges;
+            soloInput = remap[inputNode];
+            soloOutput = remap[outputNode];
+            return true;
+        }
+
         /// <summary>Carries one node's block along one edge, delayed, and sums it into the destination.</summary>
         private void Carry(int edge, float[] source, int count, int channels, float[] destination)
         {
