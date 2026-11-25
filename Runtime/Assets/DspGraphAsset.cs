@@ -224,7 +224,7 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>Adds one problem per edge the graph refuses after its ends are known to exist.</summary>
-        internal bool TryCreateGraph(ISet<DspGraphNode> bypassedNodes, out DspGraph graph)
+        internal bool TryCreateGraph(ISet<string> bypassedNodes, out DspGraph graph)
         {
             if (_nodes.Count == 0)
             {
@@ -250,7 +250,7 @@ namespace WallstopStudios.DxAudio
                     return false;
                 }
 
-                DspChain chain = bypassedNodes?.Contains(node) == true ? new DspChain() : node.CreateChain();
+                DspChain chain = bypassedNodes?.Contains(node.Name) == true ? new DspChain() : node.CreateChain();
                 if (!built.TryAddNode(chain, out int placed) || placed != index)
                 {
                     graph = null;
