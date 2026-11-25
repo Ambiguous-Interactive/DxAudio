@@ -20,6 +20,7 @@ All notable changes to this package are documented here. The format follows
 - Add separate audition faders, mute, and solo for selected SFX and Music players in Mix Monitor ([#133](https://github.com/Ambiguous-Interactive/DxAudio/issues/133)).
 - Show the SFX and Music bus inserts in signal order in Mix Monitor ([#133](https://github.com/Ambiguous-Interactive/DxAudio/issues/133)).
 - Show stereo peaks with peak hold for SFX and Music and a Music spectrum in Mix Monitor ([#133](https://github.com/Ambiguous-Interactive/DxAudio/issues/133)).
+- Add timeline follow, paused history loops, time and voice counts, and JSON export to Mix Monitor ([#133](https://github.com/Ambiguous-Interactive/DxAudio/issues/133)).
 - Add DxAudio Problems with named validation rules, project severities, and shared or personal silences ([#135](https://github.com/Ambiguous-Interactive/DxAudio/issues/135)).
 - Add a Stereo Width effect for DSP chains and graphs to narrow or widen stereo signals ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add a room Reverb effect for DSP chains and graphs with adjustable decay and wet level ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).

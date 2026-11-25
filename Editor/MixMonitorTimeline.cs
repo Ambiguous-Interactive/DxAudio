@@ -30,6 +30,7 @@ namespace WallstopStudios.DxAudio.Editor
         private SfxDropCounts _previous;
         private int _oldest;
         private int _latest;
+        private double _captureStart;
         private bool _interrupted = true;
 
         internal MixMonitorTimeline(int capacity, int deckCount = 0, int duckCapacity = 0)
@@ -73,8 +74,15 @@ namespace WallstopStudios.DxAudio.Editor
             _interrupted = true;
         }
 
-        internal void Sample(double time, in SfxDropCounts counts, float? duckGain = null)
+        internal int Sample(double time, in SfxDropCounts counts, float? duckGain = null)
         {
+            // Check before eviction so a gap cannot move the capture origin.
+            if (Count == 0)
+            {
+                _captureStart = time;
+            }
+
+            int evicted = 0;
             while (0 < Count && (Count == _frames.Length || _frames[_oldest].time < time - HistorySeconds))
             {
                 Array.Clear(_voices, _oldest * VoiceCount, VoiceCount);
@@ -83,6 +91,7 @@ namespace WallstopStudios.DxAudio.Editor
                 _omittedDuckHolds[_oldest] = 0;
                 _oldest = (_oldest + 1) % _frames.Length;
                 --Count;
+                ++evicted;
             }
 
             _latest = Slot(Count);
@@ -99,6 +108,7 @@ namespace WallstopStudios.DxAudio.Editor
             _frames[_latest] = new Frame(time, drops, _interrupted, duckGain);
             _previous = counts;
             _interrupted = false;
+            return evicted;
         }
 
         internal void SetVoice(int voice, in SfxVoiceState state, TClip clip = default, float clipSeconds = 0f, float[] peaks = null, int playbackId = 0, int stolenPlaybackId = 0)
@@ -188,6 +198,31 @@ namespace WallstopStudios.DxAudio.Editor
             return _frames[Slot(frame)].time;
         }
 
+        internal double ElapsedSeconds(int frame)
+        {
+            return Time(frame) - _captureStart;
+        }
+
+        internal int FrameAt(double time)
+        {
+            int low = 0;
+            int high = Count - 1;
+            while (low < high)
+            {
+                int middle = low + (high - low + 1) / 2;
+                if (Time(middle) <= time)
+                {
+                    low = middle;
+                }
+                else
+                {
+                    high = middle - 1;
+                }
+            }
+
+            return low;
+        }
+
         internal bool StartsSegment(int frame)
         {
             return _frames[Slot(frame)].startsSegment;
@@ -206,6 +241,21 @@ namespace WallstopStudios.DxAudio.Editor
         internal ref readonly SfxVoiceState Voice(int frame, int voice)
         {
             return ref _voices[Slot(frame) * VoiceCount + voice].state;
+        }
+
+        internal int OccupiedVoiceCount(int frame)
+        {
+            int occupied = 0;
+            for (int voice = 0; voice < VoiceCount; ++voice)
+            {
+                ref readonly SfxVoiceState state = ref Voice(frame, voice);
+                if (state.isUsable && !state.IsFree)
+                {
+                    ++occupied;
+                }
+            }
+
+            return occupied;
         }
 
         internal (TClip clip, float seconds) Clip(int frame, int voice)
