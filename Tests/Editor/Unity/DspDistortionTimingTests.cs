@@ -16,7 +16,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         // Rotating this order balances each position and immediate predecessor within a pass.
         private static readonly int[] PassOrder = { 0, 1, 3, 2 };
-        private static readonly string[] Names = { "empty", "linear shaper", "fixed controls", "production" };
+        private static readonly string[] Names = { "empty", "fixed controls", "exact", "candidate" };
 
         private static double Median(long[] sorted)
         {
@@ -30,8 +30,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             DspRenderWorkload[] workloads =
             {
                 new(Voices, "Distortion", bursts: false, enabled: false),
-                new(Voices, "Distortion", bursts: false, enabled: true, createEffect: () => new FixedControlDistortion(linear: true)),
-                new(Voices, "Distortion", bursts: false, enabled: true, createEffect: () => new FixedControlDistortion(linear: false)),
+                new(Voices, "Distortion", bursts: false, enabled: true, createEffect: () => new FixedControlDistortion()),
+                new(Voices, "Distortion", bursts: false, enabled: true, createEffect: () => new ExactDistortion { Drive = Drive, ToneHz = ToneHz }),
                 new(Voices, "Distortion", bursts: false, enabled: true),
             };
 
@@ -51,18 +51,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 MeasurePass(pass, 0);
             }
 
-            ReadOnlySpan<float> production = workloads[3].Output;
-            ReadOnlySpan<float> fixedControls = workloads[2].Output;
-            ReadOnlySpan<float> linearShaper = workloads[1].Output;
-            bool differsFromLinear = false;
-            int sampleCount = production.Length;
+            ReadOnlySpan<float> candidate = workloads[3].Output;
+            ReadOnlySpan<float> exact = workloads[2].Output;
+            ReadOnlySpan<float> fixedControls = workloads[1].Output;
+            float maxError = 0f;
+            int sampleCount = candidate.Length;
             for (int sample = 0; sample < sampleCount; ++sample)
             {
-                Assert.That(fixedControls[sample], Is.EqualTo(production[sample]).Within(1e-6f), "The prepared controls must already be settled.");
-                differsFromLinear = differsFromLinear || 0.1f < Math.Abs(production[sample] - linearShaper[sample]);
+                Assert.That(fixedControls[sample], Is.EqualTo(exact[sample]).Within(1e-6f), "The prepared controls must already be settled.");
+                maxError = Math.Max(maxError, Math.Abs(candidate[sample] - exact[sample]));
             }
 
-            Assert.That(differsFromLinear, Is.True, "The workload must exercise nonlinear shaping.");
+            Assert.That(maxError, Is.LessThanOrEqualTo(2e-6f));
             Assert.That(Passes % Variants, Is.Zero, "Every workload must run equally often in each position.");
             for (int pass = 0; pass < Passes; ++pass)
             {
@@ -75,6 +75,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             );
 
             double tickMicroseconds = 1_000_000d / Stopwatch.Frequency;
+            double[] p95ByVariant = new double[Variants];
             for (int variant = 0; variant < Variants; ++variant)
             {
                 long[] ticks = new long[Passes];
@@ -90,6 +91,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 Array.Sort(differences);
                 double median = Median(ticks) * tickMicroseconds;
                 double p95 = ticks[(95 * Passes + 99) / 100 - 1] * tickMicroseconds;
+                p95ByVariant[variant] = p95;
                 double pairedMedian = Median(differences) * tickMicroseconds;
                 TestContext.Out.WriteLine(
                     FormattableString.Invariant(
@@ -97,6 +99,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                     )
                 );
             }
+
+            double budget = DspRenderWorkload.Frames * 20_000d / DspRenderWorkload.Rate;
+            double exactAdded = p95ByVariant[2] - p95ByVariant[0];
+            double candidateAdded = p95ByVariant[3] - p95ByVariant[0];
+            TestContext.Out.WriteLine(
+                FormattableString.Invariant(
+                    $"DxAudio Distortion timing: exact added p95 {exactAdded:F2} us, candidate {candidateAdded:F2} us, budget {budget:F2} us, maximum sample error {maxError:G6}."
+                )
+            );
 
             TestContext.Out.WriteLine("DxAudio Distortion samples: pass followed by variant/ticks/cycles in execution order. A dash indicates unavailable cycles.");
             StringBuilder row = new();
@@ -125,21 +136,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
         /*
          * Match the production stereo history and tone coefficient with the controls held at their prepared values.
-         * The linear control removes tanh while keeping drive, the filter, the writes, and the same chain dispatch.
          */
         private sealed class FixedControlDistortion : DspEffect
         {
             public override string DisplayName => "Distortion timing control";
 
-            private readonly bool _linear;
             private float _left;
             private float _right;
             private float _tone;
-
-            internal FixedControlDistortion(bool linear)
-            {
-                _linear = linear;
-            }
 
             public override void Process(float[] buffer, int offset, int count, int channels)
             {
@@ -147,33 +151,16 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 float right = _right;
                 float tone = _tone;
                 int end = offset + count;
-                if (_linear)
+                for (int index = offset; index < end; index += 2)
                 {
-                    for (int index = offset; index < end; index += 2)
-                    {
-                        ref float leftSample = ref buffer[index];
-                        ref float rightSample = ref buffer[index + 1];
-                        float shapedLeft = Drive * leftSample;
-                        float shapedRight = Drive * rightSample;
-                        left += (shapedLeft - left) * tone;
-                        right += (shapedRight - right) * tone;
-                        leftSample = left;
-                        rightSample = right;
-                    }
-                }
-                else
-                {
-                    for (int index = offset; index < end; index += 2)
-                    {
-                        ref float leftSample = ref buffer[index];
-                        ref float rightSample = ref buffer[index + 1];
-                        float shapedLeft = (float)Math.Tanh(Drive * leftSample);
-                        float shapedRight = (float)Math.Tanh(Drive * rightSample);
-                        left += (shapedLeft - left) * tone;
-                        right += (shapedRight - right) * tone;
-                        leftSample = left;
-                        rightSample = right;
-                    }
+                    ref float leftSample = ref buffer[index];
+                    ref float rightSample = ref buffer[index + 1];
+                    float shapedLeft = (float)Math.Tanh(Drive * leftSample);
+                    float shapedRight = (float)Math.Tanh(Drive * rightSample);
+                    left += (shapedLeft - left) * tone;
+                    right += (shapedRight - right) * tone;
+                    leftSample = left;
+                    rightSample = right;
                 }
 
                 _left = left;

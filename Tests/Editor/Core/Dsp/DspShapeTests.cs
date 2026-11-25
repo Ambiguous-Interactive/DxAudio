@@ -256,10 +256,114 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 Assert.That(interleaved[7], Is.EqualTo(-3f));
                 for (int frame = 0; frame < 3; ++frame)
                 {
-                    Assert.That(BitConverter.SingleToInt32Bits(interleaved[(2 * frame) + 1]), Is.EqualTo(BitConverter.SingleToInt32Bits(leftSamples[frame])));
-                    Assert.That(BitConverter.SingleToInt32Bits(interleaved[(2 * frame) + 2]), Is.EqualTo(BitConverter.SingleToInt32Bits(rightSamples[frame])));
+                    Assert.That(interleaved[(2 * frame) + 1], Is.EqualTo(leftSamples[frame]).Within(2e-6f));
+                    Assert.That(interleaved[(2 * frame) + 2], Is.EqualTo(rightSamples[frame]).Within(2e-6f));
                 }
             }
+        }
+
+        [TestCase(8_000, 1)]
+        [TestCase(48_000, 2)]
+        [TestCase(96_000, 6)]
+        public void DistortionStaysWithinTheExactShapeAcrossBlocksAndControlChanges(int rate, int channels)
+        {
+            const int Frames = 4_096;
+            const int Block = 128;
+            DspDistortion candidate = new();
+            ExactDistortion exact = new();
+            Assert.That(candidate.TryPrepare(rate, Block, channels), Is.True);
+            Assert.That(exact.TryPrepare(rate, Block, channels), Is.True);
+
+            int sampleCount = Frames * channels;
+            float[] output = new float[sampleCount];
+            for (int index = 0; index < sampleCount; ++index)
+            {
+                // Sweep both signs through the approximation, native shaper, and saturation.
+                output[index] = 0.005f * ((index * 31 % 3_997) - 1_998);
+            }
+
+            float[] reference = (float[])output.Clone();
+            float maximumError = 0f;
+            for (int frame = 0; frame < Frames; frame += Block)
+            {
+                if (frame == Frames / 4)
+                {
+                    candidate.Drive = exact.Drive = 5f;
+                    candidate.ToneHz = exact.ToneHz = 2_000f;
+                }
+
+                if (frame == Frames / 2)
+                {
+                    candidate.Reset();
+                    exact.Reset();
+                }
+
+                int offset = frame * channels;
+                int count = Block * channels;
+                candidate.Process(output, offset, count, channels);
+                exact.Process(reference, offset, count, channels);
+                for (int index = offset; index < offset + count; ++index)
+                {
+                    maximumError = Math.Max(maximumError, Math.Abs(output[index] - reference[index]));
+                }
+            }
+
+            Assert.That(maximumError, Is.LessThanOrEqualTo(2e-6f));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void DistortionInterpolatesTheStereoPrefixAndKeepsItsSlice(bool includesOutlier)
+        {
+            const int Channels = 2;
+            const int Offset = 1;
+            const int PrefixCount = 8;
+            const int Count = 18;
+            DspDistortion candidate = new() { Drive = 2f, ToneHz = 3_000f };
+            ExactDistortion exact = new() { Drive = 2f, ToneHz = 3_000f };
+            Assert.That(candidate.TryPrepare(SampleRate, Count / Channels, Channels), Is.True);
+            Assert.That(exact.TryPrepare(SampleRate, Count / Channels, Channels), Is.True);
+
+            float[] output = new float[Count + 2];
+            const float PositiveSample = 0.73125f;
+            Array.Fill(output, PositiveSample);
+            output[Offset + 1] = -0.43125f;
+            if (includesOutlier)
+            {
+                output[Offset + PrefixCount] = 5f;
+            }
+
+            float[] reference = (float[])output.Clone();
+            candidate.Process(output, Offset, Count, Channels);
+            exact.Process(reference, Offset, Count, Channels);
+            Assert.That(output, Is.EqualTo(reference).Within(2e-6f));
+            Assert.That(output[0], Is.EqualTo(PositiveSample));
+            Assert.That(output[Count + 1], Is.EqualTo(PositiveSample));
+        }
+
+        [Test]
+        public void DistortionKeepsTheRoundedRampValueWhenStepsStopChanging()
+        {
+            const int Channels = 2;
+            const int Block = 128;
+            DspDistortion candidate = new() { Drive = 99f, ToneHz = 3_000f };
+            ExactDistortion exact = new() { Drive = 99f, ToneHz = 3_000f };
+            Assert.That(candidate.TryPrepare(SampleRate, Block, Channels), Is.True);
+            Assert.That(exact.TryPrepare(SampleRate, Block, Channels), Is.True);
+            candidate.Drive = exact.Drive = 100f;
+
+            const int Samples = Block * Channels;
+            float[] output = new float[Samples];
+            float[] reference = new float[Samples];
+            for (int block = 0; block < 128; ++block)
+            {
+                Array.Fill(output, 0.01f);
+                Array.Fill(reference, 0.01f);
+                candidate.Process(output, 0, Samples, Channels);
+                exact.Process(reference, 0, Samples, Channels);
+            }
+
+            Assert.That(output[Samples - 1], Is.EqualTo(reference[Samples - 1]).Within(2e-6f));
         }
 
         [Test]

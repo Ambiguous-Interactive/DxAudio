@@ -20,6 +20,13 @@ namespace WallstopStudios.DxAudio
 
         private const float SmoothingSeconds = 0.01f;
 
+        // The signed table covers [-2.5, 2.5] in steps of 1/512.
+        private const int StepsPerUnit = 512;
+        private const int ShapeOrigin = 1_280;
+        private const int ShapeEnd = 2 * ShapeOrigin;
+
+        private static readonly ShaperSegment[] ShapeTable;
+
         public override string DisplayName => "Distortion";
 
         /// <summary>Pre-gain into the wave shaper; one is the shape's own curve, higher is more bend.</summary>
@@ -72,6 +79,19 @@ namespace WallstopStudios.DxAudio
             _toneState = Array.Empty<float>();
         }
 
+        static DspDistortion()
+        {
+            // Build this table before an effect can reach the audio thread.
+            ShapeTable = new ShaperSegment[ShapeEnd + 1];
+            double current = Math.Tanh((double)-ShapeOrigin / StepsPerUnit);
+            for (int index = 0; index <= ShapeEnd; ++index)
+            {
+                double next = Math.Tanh((double)(index + 1 - ShapeOrigin) / StepsPerUnit);
+                ShapeTable[index] = new ShaperSegment((float)current, (float)(next - current));
+                current = next;
+            }
+        }
+
         private static float MaxToneHz(int sampleRate)
         {
             return 0.45f * sampleRate;
@@ -92,6 +112,32 @@ namespace WallstopStudios.DxAudio
             return AudioMath.OnePoleCoefficient(1f / (2f * (float)Math.PI * toneHz), sampleRate);
         }
 
+        private static int ShapeStereoPrefix(float[] buffer, int offset, int end, float drive)
+        {
+            ShaperSegment[] table = ShapeTable;
+            float scale = drive * StepsPerUnit;
+            int index = offset;
+            for (; index < end; index += 2)
+            {
+                int rightIndex = index + 1;
+                float leftPosition = (scale * buffer[index]) + ShapeOrigin;
+                float rightPosition = (scale * buffer[rightIndex]) + ShapeOrigin;
+                if (!(0f <= leftPosition && leftPosition <= ShapeEnd && 0f <= rightPosition && rightPosition <= ShapeEnd))
+                {
+                    break;
+                }
+
+                int leftSegment = (int)leftPosition;
+                int rightSegment = (int)rightPosition;
+                ref readonly ShaperSegment left = ref table[leftSegment];
+                ref readonly ShaperSegment right = ref table[rightSegment];
+                buffer[index] = left.Value + ((leftPosition - leftSegment) * left.Delta);
+                buffer[rightIndex] = right.Value + ((rightPosition - rightSegment) * right.Delta);
+            }
+
+            return index;
+        }
+
         public override void Process(float[] buffer, int offset, int count, int channels)
         {
             if (buffer == null || channels <= 0 || channels != _channels || offset < 0 || count <= 0 || count % channels != 0 || buffer.Length - count < offset)
@@ -101,7 +147,31 @@ namespace WallstopStudios.DxAudio
 
             if (channels == 2)
             {
-                ProcessStereo(buffer, offset, offset + count);
+                float drive = _activeDrive;
+                float tone = _activeToneCoefficient;
+                float smoothing = _smoothingCoefficient;
+                // A float ramp can stop changing before it reaches the target.
+                float nextDrive = drive + ((_drive - drive) * smoothing);
+                float nextTone = tone + ((_toneCoefficient - tone) * smoothing);
+                if (drive == nextDrive && tone == nextTone)
+                {
+                    int end = offset + count;
+                    int firstUnshaped = ShapeStereoPrefix(buffer, offset, end, drive);
+                    if (offset < firstUnshaped)
+                    {
+                        FilterStereoPrefix(buffer, offset, firstUnshaped, tone);
+                    }
+
+                    if (firstUnshaped < end)
+                    {
+                        ProcessSettledStereo(buffer, firstUnshaped, end, drive, tone);
+                    }
+                }
+                else
+                {
+                    ProcessStereo(buffer, offset, offset + count);
+                }
+
                 return;
             }
 
@@ -145,6 +215,45 @@ namespace WallstopStudios.DxAudio
             Reset();
         }
 
+        private void FilterStereoPrefix(float[] buffer, int offset, int end, float toneCoefficient)
+        {
+            float[] toneState = _toneState;
+            float left = toneState[0];
+            float right = toneState[1];
+            for (int index = offset; index < end; index += 2)
+            {
+                int rightIndex = index + 1;
+                left += (buffer[index] - left) * toneCoefficient;
+                right += (buffer[rightIndex] - right) * toneCoefficient;
+                buffer[index] = left;
+                buffer[rightIndex] = right;
+            }
+
+            toneState[0] = left;
+            toneState[1] = right;
+        }
+
+        private void ProcessSettledStereo(float[] buffer, int offset, int end, float drive, float toneCoefficient)
+        {
+            float[] toneState = _toneState;
+            float left = toneState[0];
+            float right = toneState[1];
+
+            for (int index = offset; index < end; index += 2)
+            {
+                int rightIndex = index + 1;
+                float shapedLeft = (float)Math.Tanh(drive * buffer[index]);
+                float shapedRight = (float)Math.Tanh(drive * buffer[rightIndex]);
+                left += (shapedLeft - left) * toneCoefficient;
+                right += (shapedRight - right) * toneCoefficient;
+                buffer[index] = left;
+                buffer[rightIndex] = right;
+            }
+
+            toneState[0] = left;
+            toneState[1] = right;
+        }
+
         // Keep the stereo tone history and ramp values local across the block.
         private void ProcessStereo(float[] buffer, int offset, int end)
         {
@@ -173,6 +282,18 @@ namespace WallstopStudios.DxAudio
             toneState[1] = right;
             _activeDrive = activeDrive;
             _activeToneCoefficient = activeTone;
+        }
+
+        private readonly struct ShaperSegment
+        {
+            internal readonly float Value;
+            internal readonly float Delta;
+
+            internal ShaperSegment(float value, float delta)
+            {
+                Value = value;
+                Delta = delta;
+            }
         }
     }
 }
