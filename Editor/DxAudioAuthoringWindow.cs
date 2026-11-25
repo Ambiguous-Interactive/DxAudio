@@ -452,6 +452,7 @@ namespace WallstopStudios.DxAudio.Editor
                 return;
             }
 
+            _audition.RefreshGraphBypass();
             _canvas.Refresh();
             _findings.Clear();
             List<DxAudioValidation.Finding> findings = new();
@@ -673,6 +674,7 @@ namespace WallstopStudios.DxAudio.Editor
 
             if (node.Chain != null)
             {
+                _details.Add(_audition.CreateGraphNodeBypassToggle(node));
                 _details.Add(new Button(() => SetTarget(node.Chain)) { text = "Open Chain" });
                 Foldout effects = new() { text = "Chain Effects", value = false };
                 effects.Add(new DspChainRack(node.Chain, showTitle: false));

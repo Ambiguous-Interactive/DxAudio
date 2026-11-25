@@ -13,7 +13,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         private const int MeasuredCalls = 100_000;
         private const int WarmupCalls = 1_024;
 
-        private static long AllocationEvents(Action run, int count)
+        internal static long AllocationEvents(Action run, int count)
         {
             // The process heap also includes allocations from other editor threads.
             using ProfilerRecorder recorder = new(
