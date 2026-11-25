@@ -21,6 +21,14 @@ namespace WallstopStudios.DxAudio
 
         private const float SmoothingSeconds = 0.01f;
 
+        // Quadratic fit in x² for tanh(x) / x. The shaper error stays below 6e-7 on [-2.5, 2.5].
+        private const float ShaperRangeSquared = 6.25f;
+        private const float NumeratorConstant = 0.99999803f;
+        private const float NumeratorLinear = 0.10855813f;
+        private const float NumeratorQuadratic = 0.00091172634f;
+        private const float DenominatorLinear = 0.44188027f;
+        private const float DenominatorQuadratic = 0.01488993f;
+
         public override string DisplayName => "Distortion";
 
         /// <summary>Pre-gain into the wave shaper; one is the shape's own curve, higher is more bend.</summary>
@@ -97,14 +105,18 @@ namespace WallstopStudios.DxAudio
         private static float Shape(float sample)
         {
             float square = sample * sample;
-            if (square <= 6.25f)
+            if (square <= ShaperRangeSquared)
             {
-                // Fit tanh(x) / x with quadratic polynomials in x². The shaper error stays below 6e-7 on [-2.5, 2.5].
-                float numerator = (0.00091172634f * square + 0.10855813f) * square + 0.99999803f;
-                float denominator = (0.01488993f * square + 0.44188027f) * square + 1f;
+                float numerator = (NumeratorQuadratic * square + NumeratorLinear) * square + NumeratorConstant;
+                float denominator = (DenominatorQuadratic * square + DenominatorLinear) * square + 1f;
                 return sample * numerator / denominator;
             }
 
+            return ShapeOutsideFit(sample, square);
+        }
+
+        private static float ShapeOutsideFit(float sample, float square)
+        {
             // Outside [-8, 8], tanh is within 2.3e-7 of full scale.
             if (64f <= square)
             {
@@ -180,23 +192,37 @@ namespace WallstopStudios.DxAudio
         private void ProcessSettledStereo(float[] buffer, int offset, int end, float drive, float toneCoefficient)
         {
             float[] toneState = _toneState;
-            float left = toneState[0];
-            float right = toneState[1];
+            float current = toneState[0];
+            float other = toneState[1];
 
-            for (int index = offset; index < end; index += 2)
+            for (int index = offset; index < end; ++index)
             {
-                ref float leftSample = ref buffer[index];
-                ref float rightSample = ref buffer[index + 1];
-                float shapedLeft = Shape(drive * leftSample);
-                float shapedRight = Shape(drive * rightSample);
-                left += (shapedLeft - left) * toneCoefficient;
-                right += (shapedRight - right) * toneCoefficient;
-                leftSample = left;
-                rightSample = right;
+                ref float sample = ref buffer[index];
+                float driven = drive * sample;
+                float square = driven * driven;
+                float shaped;
+                // Keep the common fit in this loop so it does not depend on Mono inlining.
+                if (square <= ShaperRangeSquared)
+                {
+                    float numerator = (NumeratorQuadratic * square + NumeratorLinear) * square + NumeratorConstant;
+                    float denominator = (DenominatorQuadratic * square + DenominatorLinear) * square + 1f;
+                    shaped = driven * numerator / denominator;
+                }
+                else
+                {
+                    shaped = ShapeOutsideFit(driven, square);
+                }
+
+                float filtered = current + ((shaped - current) * toneCoefficient);
+                sample = filtered;
+                // The next interleaved sample uses the other channel's history.
+                current = other;
+                other = filtered;
             }
 
-            toneState[0] = left;
-            toneState[1] = right;
+            // An even sample count restores left-first history order.
+            toneState[0] = current;
+            toneState[1] = other;
         }
 
         // Keep the stereo tone history and ramp values local across the block.
