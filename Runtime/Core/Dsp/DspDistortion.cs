@@ -135,11 +135,15 @@ namespace WallstopStudios.DxAudio
 
             if (channels == 2)
             {
-                float drive = _drive;
-                float toneCoefficient = _toneCoefficient;
-                if (_activeDrive == drive && _activeToneCoefficient == toneCoefficient)
+                float drive = _activeDrive;
+                float tone = _activeToneCoefficient;
+                float smoothing = _smoothingCoefficient;
+                // A float ramp can stop changing before it reaches the target.
+                float nextDrive = drive + ((_drive - drive) * smoothing);
+                float nextTone = tone + ((_toneCoefficient - tone) * smoothing);
+                if (drive == nextDrive && tone == nextTone)
                 {
-                    ProcessSettledStereo(buffer, offset, offset + count, drive, toneCoefficient);
+                    ProcessSettledStereo(buffer, offset, offset + count, drive, tone);
                 }
                 else
                 {

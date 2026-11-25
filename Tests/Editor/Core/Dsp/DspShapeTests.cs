@@ -312,6 +312,31 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void DistortionKeepsTheRoundedRampValueWhenStepsStopChanging()
+        {
+            const int Channels = 2;
+            const int Block = 128;
+            DspDistortion candidate = new() { Drive = 99f, ToneHz = 3_000f };
+            ExactDistortion exact = new() { Drive = 99f, ToneHz = 3_000f };
+            Assert.That(candidate.TryPrepare(SampleRate, Block, Channels), Is.True);
+            Assert.That(exact.TryPrepare(SampleRate, Block, Channels), Is.True);
+            candidate.Drive = exact.Drive = 100f;
+
+            const int Samples = Block * Channels;
+            float[] output = new float[Samples];
+            float[] reference = new float[Samples];
+            for (int block = 0; block < 128; ++block)
+            {
+                Array.Fill(output, 0.01f);
+                Array.Fill(reference, 0.01f);
+                candidate.Process(output, 0, Samples, Channels);
+                exact.Process(reference, 0, Samples, Channels);
+            }
+
+            Assert.That(output[Samples - 1], Is.EqualTo(reference[Samples - 1]).Within(2e-6f));
+        }
+
+        [Test]
         public void TheBitCrusherHoldsAcrossABlockBoundary()
         {
             float[] source = Ramp(-0.9f, 0.9f, 4_096);
