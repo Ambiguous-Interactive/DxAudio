@@ -107,6 +107,49 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(block[0], Is.EqualTo(16f).Within(1e-5f), "one branch feeds two, and both of those sum");
         }
 
+        [Test]
+        public void SoloKeepsAllPathsThroughTheSelectedNodeAndDropsShortcuts()
+        {
+            DspGraph graph = new();
+            int output = AddNode(graph, new DspChain());
+            int side = AddNode(graph, ChainOf(new DelayEffect(20)));
+            int upstream = AddNode(graph, ChainOf(new DelayEffect(1) { Gain = 2f }));
+            int solo = AddNode(graph, ChainOf(new DelayEffect(2) { Gain = 3f }));
+            int input = AddNode(graph, new DspChain());
+            int downstream = AddNode(graph, ChainOf(new DelayEffect(4) { Gain = 5f }));
+            Assert.That(graph.TryAddEdge(input, upstream), Is.True);
+            Assert.That(graph.TryAddEdge(input, solo), Is.True);
+            Assert.That(graph.TryAddEdge(upstream, solo), Is.True);
+            Assert.That(graph.TryAddEdge(solo, downstream), Is.True);
+            Assert.That(graph.TryAddEdge(solo, output), Is.True);
+            Assert.That(graph.TryAddEdge(downstream, output), Is.True);
+            Assert.That(graph.TryAddEdge(upstream, downstream), Is.True, "the shortcut joins two nodes on the solo path");
+            Assert.That(graph.TryAddEdge(input, side), Is.True);
+            Assert.That(graph.TryAddEdge(side, output), Is.True);
+
+            Assert.That(graph.TrySolo(input, output, solo, out int soloInput, out int soloOutput), Is.True);
+            Assert.That(graph.TryPrepare(SampleRate, 64, 1, soloInput, soloOutput), Is.True);
+            float[] block = Impulse(64, 1, 0, 1f);
+            graph.Process(block, 0, block.Length, 1);
+
+            Assert.That(graph.LatencySamples, Is.EqualTo(7));
+            Assert.That(block[7], Is.EqualTo(54f), "both inputs reach Solo and both outputs leave it");
+            Assert.That(NonZeroCount(block), Is.EqualTo(1));
+            Assert.That(graph.NodeCount, Is.EqualTo(5));
+            Assert.That(graph.EdgeCount, Is.EqualTo(6));
+        }
+
+        [Test]
+        public void SoloRefusesAnAuthoredGraphWithANodeOffThePath()
+        {
+            DspGraph graph = FanIn(new DspChain(), new DspChain());
+            AddNode(graph, new DspChain());
+
+            Assert.That(graph.TrySolo(0, 3, 1, out _, out _), Is.False);
+            Assert.That(graph.NodeCount, Is.EqualTo(5));
+            Assert.That(graph.EdgeCount, Is.EqualTo(4));
+        }
+
         [TestCase(3, 7, 7, TestName = "The later branch sets the delay")]
         [TestCase(300, 100, 300, TestName = "The order nodes were added in does not set the delay")]
         public void TheLongestBranchSetsTheReportedLatency(int firstDelay, int secondDelay, int expected)

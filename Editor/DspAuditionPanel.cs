@@ -42,6 +42,7 @@ namespace WallstopStudios.DxAudio.Editor
         private readonly Toggle _dry = new("Dry") { tooltip = "Bypass the cue chain and graph. Playback variation stays active." };
         private readonly HashSet<string> _bypassedGraphNodes = new(StringComparer.Ordinal);
         private readonly Label _graphBypassStatus = new() { pickingMode = PickingMode.Ignore };
+        private readonly Button _graphSoloStatus;
         private readonly Slider _volume = new("Monitor", 0f, 1f) { value = 0.25f };
         private readonly Label _status = new();
         private readonly ProgressBar _meter = new() { highValue = 1f, title = PeakCaption };
@@ -51,6 +52,8 @@ namespace WallstopStudios.DxAudio.Editor
         private readonly Action<Object> _openAsset;
         private readonly Action _showSettings;
         private Object _asset;
+        private string _soloedGraphNode;
+        private Toggle _graphSoloToggle;
         private SfxPlayback _lastTake;
         private AudioClip _lastClip;
         private AudioClip _shownClip;
@@ -90,6 +93,12 @@ namespace WallstopStudios.DxAudio.Editor
             };
             _play = new Button(Play) { text = "Play" };
             _stop = new Button(StopAudition) { text = "Stop" };
+            _graphSoloStatus = new Button(() => SetGraphNodeSolo(_soloedGraphNode, false))
+            {
+                name = "graph-solo-status",
+                tooltip = "Clear Solo and hear all paths in wet audition.",
+            };
+            _graphSoloStatus.style.display = DisplayStyle.None;
             _series = new Button(PlaySeries) { text = "Play Series", tooltip = "Play eight sequential draws, with a short gap between takes." };
             _replay = new Button(Replay) { text = "Replay Last", tooltip = "Play the last Cue or Series draw again." };
             _capture = new Button(CaptureBaseline) { text = "Capture A", tooltip = "Save the cue's current playback settings for comparison." };
@@ -103,6 +112,7 @@ namespace WallstopStudios.DxAudio.Editor
             transport.Add(_stop);
             transport.Add(_loop);
             transport.Add(_dry);
+            transport.Add(_graphSoloStatus);
             Add(_clip);
             Add(transport);
             _graphBypassStatus.style.whiteSpace = WhiteSpace.Normal;
@@ -257,6 +267,14 @@ namespace WallstopStudios.DxAudio.Editor
             return 0 <= index && graph.Nodes[index].Chain != null;
         }
 
+        private static bool CanSoloGraphNode(DspGraphAsset graph, string nodeName)
+        {
+            return graph != null
+                && 0 <= graph.IndexOfNode(nodeName)
+                && !string.Equals(nodeName, graph.InputNode, StringComparison.Ordinal)
+                && !string.Equals(nodeName, graph.OutputNode, StringComparison.Ordinal);
+        }
+
         internal void SetTarget(Object asset)
         {
             if (_asset == asset)
@@ -267,7 +285,9 @@ namespace WallstopStudios.DxAudio.Editor
             Stop();
             _asset = asset is DspChainAsset or DspGraphAsset or SfxCue ? asset : null;
             _bypassedGraphNodes.Clear();
-            RefreshGraphBypass();
+            _graphSoloToggle = null;
+            SetGraphNodeSolo(_soloedGraphNode, false);
+            RefreshGraphAudition();
             _compareResolver.ClearShuffleBags();
             _lastTake = default;
             _lastClip = null;
@@ -311,17 +331,54 @@ namespace WallstopStudios.DxAudio.Editor
             return bypass;
         }
 
+        internal Toggle CreateGraphNodeSoloToggle(DspGraphNode node)
+        {
+            string nodeName = node.Name;
+            Toggle toggle = new("Solo")
+            {
+                value = string.Equals(_soloedGraphNode, nodeName, StringComparison.Ordinal),
+                tooltip = "Hear only paths through this node in wet audition.",
+            };
+            toggle.SetEnabled(CanSoloGraphNode(_asset as DspGraphAsset, nodeName));
+            toggle.RegisterValueChangedCallback(change => SetGraphNodeSolo(nodeName, change.newValue));
+            _graphSoloToggle = toggle;
+            return toggle;
+        }
+
+        internal void SetGraphNodeSolo(string nodeName, bool solo)
+        {
+            bool matchesCurrent = string.Equals(nodeName, _soloedGraphNode, StringComparison.Ordinal);
+            if (solo ? matchesCurrent || !CanSoloGraphNode(_asset as DspGraphAsset, nodeName) : !matchesCurrent || nodeName == null)
+            {
+                return;
+            }
+
+            _soloedGraphNode = solo ? nodeName : null;
+            _graphSoloStatus.text = solo ? "Solo: " + nodeName : string.Empty;
+            _graphSoloStatus.style.display = solo ? DisplayStyle.Flex : DisplayStyle.None;
+            if (!solo)
+            {
+                _graphSoloToggle?.SetValueWithoutNotify(false);
+            }
+            _recheck = true;
+        }
+
         internal void SetGraphNodeBypassed(string nodeName, bool bypassed)
         {
             if (_asset is DspGraphAsset graph && CanBypassGraphNode(graph, nodeName) && (bypassed ? _bypassedGraphNodes.Add(nodeName) : _bypassedGraphNodes.Remove(nodeName)))
             {
                 _recheck = true;
-                RefreshGraphBypass();
+                RefreshGraphAudition();
             }
         }
 
-        internal void RefreshGraphBypass()
+        internal void RefreshGraphAudition()
         {
+            if (_soloedGraphNode != null && !CanSoloGraphNode(_asset as DspGraphAsset, _soloedGraphNode))
+            {
+                SetGraphNodeSolo(_soloedGraphNode, false);
+            }
+
             if (_asset is DspGraphAsset graph && 0 < _bypassedGraphNodes.Count)
             {
                 bool pruned = 0 < _bypassedGraphNodes.RemoveWhere(nodeName => !CanBypassGraphNode(graph, nodeName));
@@ -339,9 +396,26 @@ namespace WallstopStudios.DxAudio.Editor
             _graphBypassStatus.style.display = 0 < _bypassedGraphNodes.Count ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
-        internal bool TryCreateAuditionGraph(DspGraphAsset graph, out DspGraph built)
+        internal bool TryCreateAuditionGraph(DspGraphAsset graph, out DspGraph built, out int input, out int output)
         {
-            return graph.TryCreateGraph(graph == _asset ? _bypassedGraphNodes : null, out built);
+            bool directAudition = graph == _asset;
+            int start = graph.IndexOfNode(graph.InputNode);
+            int end = graph.IndexOfNode(graph.OutputNode);
+            if (
+                !graph.TryCreateGraph(directAudition ? _bypassedGraphNodes : null, out DspGraph candidate)
+                || (directAudition && _soloedGraphNode != null && !candidate.TrySolo(start, end, graph.IndexOfNode(_soloedGraphNode), out start, out end))
+            )
+            {
+                built = null;
+                input = -1;
+                output = -1;
+                return false;
+            }
+
+            built = candidate;
+            input = start;
+            output = end;
+            return true;
         }
 
         internal void Stop()
@@ -766,14 +840,8 @@ namespace WallstopStudios.DxAudio.Editor
                 if (graphAsset != null)
                 {
                     if (
-                        !TryCreateAuditionGraph(graphAsset, out graph)
-                        || !graph.TryPrepare(
-                            _layout.SampleRate,
-                            _layout.BlockSize,
-                            channels,
-                            graphAsset.IndexOfNode(graphAsset.InputNode),
-                            graphAsset.IndexOfNode(graphAsset.OutputNode)
-                        )
+                        !TryCreateAuditionGraph(graphAsset, out graph, out int input, out int output)
+                        || !graph.TryPrepare(_layout.SampleRate, _layout.BlockSize, channels, input, output)
                     )
                     {
                         continue;
