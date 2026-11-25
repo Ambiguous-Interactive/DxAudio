@@ -311,8 +311,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(maximumError, Is.LessThanOrEqualTo(2e-6f));
         }
 
-        [Test]
-        public void DistortionFiltersTheStereoPrefixBeforeTheExactRemainder()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void DistortionInterpolatesTheStereoPrefixAndKeepsItsSlice(bool includesOutlier)
         {
             const int Channels = 2;
             const int Offset = 1;
@@ -324,15 +325,20 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(exact.TryPrepare(SampleRate, Count / Channels, Channels), Is.True);
 
             float[] output = new float[Count + 2];
-            Array.Fill(output, 0.75f);
-            output[Offset + 1] = -0.5f;
-            output[Offset + PrefixCount] = 5f;
+            const float PositiveSample = 0.73125f;
+            Array.Fill(output, PositiveSample);
+            output[Offset + 1] = -0.43125f;
+            if (includesOutlier)
+            {
+                output[Offset + PrefixCount] = 5f;
+            }
+
             float[] reference = (float[])output.Clone();
             candidate.Process(output, Offset, Count, Channels);
             exact.Process(reference, Offset, Count, Channels);
             Assert.That(output, Is.EqualTo(reference).Within(2e-6f));
-            Assert.That(output[0], Is.EqualTo(0.75f));
-            Assert.That(output[Count + 1], Is.EqualTo(0.75f));
+            Assert.That(output[0], Is.EqualTo(PositiveSample));
+            Assert.That(output[Count + 1], Is.EqualTo(PositiveSample));
         }
 
         [Test]
