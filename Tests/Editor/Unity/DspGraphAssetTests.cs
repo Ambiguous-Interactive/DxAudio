@@ -101,7 +101,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             CheckOutput(2f, 1);
             Assert.That(MeasureAllocations(Render), Is.Zero);
 
-            panel.SetGraphNodeBypassed(left, true);
+            panel.SetGraphNodeBypassed(left.Name, true);
             Assert.That(panel.CreateGraphNodeBypassToggle(left).value, Is.True);
             Assert.That(panel.TryCreateAuditionGraph(asset, out DspGraph bypassed), Is.True);
             Publish(bypassed, 2);
@@ -112,17 +112,37 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Publish(authored, 3);
             CheckOutput(2f, 3);
 
-            panel.SetGraphNodeBypassed(left, false);
+            panel.SetGraphNodeBypassed(left.Name, false);
             Assert.That(panel.TryCreateAuditionGraph(asset, out DspGraph restored), Is.True);
             Publish(restored, 4);
             CheckOutput(2f, 4);
 
-            panel.SetGraphNodeBypassed(left, true);
+            panel.SetGraphNodeBypassed(left.Name, true);
             panel.SetTarget(null);
             panel.SetTarget(asset);
             Assert.That(panel.CreateGraphNodeBypassToggle(left).value, Is.False);
             Assert.That(EditorJsonUtility.ToJson(asset), Is.EqualTo(serialized));
             Assert.That(EditorUtility.GetDirtyCount(asset), Is.EqualTo(dirtyCount));
+        }
+
+        [Test]
+        public void BypassFollowsTheNamedNodeUntilItIsDeleted()
+        {
+            using MadeObjects made = new();
+            DspChainAsset chain = made.Track(DspChainAsset.Create(Array.Empty<DspEffectAsset>()));
+            DspGraphAsset asset = made.Track(DspGraphAsset.Create(new[] { new DspGraphNode("first", chain), new DspGraphNode("branch", chain) }, null, "first", "branch"));
+            DspAuditionPanel panel = new(null, null);
+            panel.SetTarget(asset);
+            DspGraphEdits edits = new(asset);
+            edits.Changed += panel.RefreshGraphBypass;
+            panel.SetGraphNodeBypassed("branch", true);
+
+            Assert.That(edits.TryDelete(new[] { 0 }, Array.Empty<int>(), out string firstError), Is.True, firstError);
+            Assert.That(panel.CreateGraphNodeBypassToggle(asset.Nodes[0]).value, Is.True);
+
+            Assert.That(edits.TryDelete(new[] { 0 }, Array.Empty<int>(), out string branchError), Is.True, branchError);
+            Assert.That(edits.TryAdd("branch", chain, Vector2.zero, out string addError), Is.True, addError);
+            Assert.That(panel.CreateGraphNodeBypassToggle(asset.Nodes[0]).value, Is.False);
         }
 
         [Test]
