@@ -253,7 +253,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             elapsed.Stop();
 
             monitor.SamplePlayer();
-            Debug.Log($"Mix Monitor Play probe over {MeasuredCalls} single-voice plays. Off {unmeasuredMilliseconds:F3} ms. On {elapsed.Elapsed.TotalMilliseconds:F3} ms.");
+            TestContext.Out.WriteLine(
+                $"Mix Monitor Play probe over {MeasuredCalls} single-voice plays on {SystemInfo.processorType}. "
+                    + $"Off {unmeasuredMilliseconds:F3} ms. On {elapsed.Elapsed.TotalMilliseconds:F3} ms."
+            );
             Assert.That(started, Is.EqualTo(MeasuredCalls));
             Assert.That(unmeasured, Is.Zero);
             Assert.That(measured, Is.Zero);
@@ -355,9 +358,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             elapsed.Stop();
             monitor.SamplePlayer();
             double dspMilliseconds = monitor.DspMilliseconds;
-            Debug.Log(
-                $"Mix Monitor DSP probe over {WarmupCalls} stereo blocks of 512 frames. Master {master}. Off {unmeasuredMilliseconds:F3} ms. "
-                    + $"On {elapsed.Elapsed.TotalMilliseconds:F3} ms. DSP {dspMilliseconds:F3} ms."
+            TestContext.Out.WriteLine(
+                $"Mix Monitor DSP probe over {WarmupCalls} stereo blocks of 512 frames on {SystemInfo.processorType}. Master {master}. "
+                    + $"Off {unmeasuredMilliseconds:F3} ms. On {elapsed.Elapsed.TotalMilliseconds:F3} ms. DSP {dspMilliseconds:F3} ms."
             );
             Assert.That(unmeasured, Is.Zero);
             Assert.That(allocations, Is.Zero);
