@@ -12,7 +12,7 @@ namespace WallstopStudios.DxAudio
         private static volatile MixMonitorPerformanceCapture _active;
 
         internal long PlayCalls { get; private set; }
-        internal long PlayBytes { get; private set; }
+        internal long PlayAllocationEvents { get; private set; }
 
         private readonly SfxPlayer _player;
         private readonly bool _canMeasurePlay;
@@ -90,7 +90,7 @@ namespace WallstopStudios.DxAudio
             _recorder.Stop();
             if (0 < _recorder.Count)
             {
-                PlayBytes += _recorder.GetSample(0).Value;
+                PlayAllocationEvents += _recorder.GetSample(0).Count;
             }
 
             ++PlayCalls;

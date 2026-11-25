@@ -40,7 +40,7 @@ namespace WallstopStudios.DxAudio.Editor
         internal bool Follow { get; private set; } = true;
         internal bool IsHistoryLooping => _loopOrigin.HasValue;
         internal int Cursor { get; private set; } = -1;
-        internal long? PlayAllocationBytes { get; private set; }
+        internal long? PlayAllocationEvents { get; private set; }
         internal double DspMilliseconds { get; private set; }
 
         private bool HasSfx => _player != null || 0 < Timeline.VoiceCount || 0 < Capture.Counts.Total;
@@ -304,7 +304,7 @@ namespace WallstopStudios.DxAudio.Editor
 
             if (_performanceCapture != null)
             {
-                PlayAllocationBytes = _performanceCapture.PlayCalls == 0 ? null : _performanceCapture.PlayBytes;
+                PlayAllocationEvents = _performanceCapture.PlayCalls == 0 ? null : _performanceCapture.PlayAllocationEvents;
                 DspMilliseconds = _performanceCapture.ReadDspMilliseconds();
             }
 
@@ -385,7 +385,7 @@ namespace WallstopStudios.DxAudio.Editor
             _performanceCapture?.Detach();
             _performanceCapture = enabled ? MixMonitorPerformanceCapture.Attach(_player) : null;
             _measurePerformance = _performanceCapture != null;
-            PlayAllocationBytes = null;
+            PlayAllocationEvents = null;
             DspMilliseconds = 0d;
         }
 
@@ -766,9 +766,15 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    string bytes = PlayAllocationBytes.HasValue ? $"{PlayAllocationBytes.Value:N0} B" : "-";
+                    string allocations = PlayAllocationEvents switch
+                    {
+                        null => "-",
+                        0 => "0 B",
+                        1 => "1 event",
+                        long count => $"{count:N0} events",
+                    };
                     GUILayout.Label(
-                        new GUIContent($"Play() allocations {bytes}", "Managed bytes in the selected SFX player's one-shot Play calls since measurement began."),
+                        new GUIContent($"Play() allocations {allocations}", "Managed allocation events in the selected SFX player's one-shot Play calls."),
                         EditorStyles.miniLabel
                     );
                     GUILayout.Label(

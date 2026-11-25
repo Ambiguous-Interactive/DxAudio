@@ -242,7 +242,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             double unmeasuredMilliseconds = elapsed.Elapsed.TotalMilliseconds;
             Assert.That(started, Is.EqualTo(MeasuredCalls));
             monitor.SetPerformanceCapture(true);
-            Assert.That(monitor.PlayAllocationBytes.HasValue, Is.False);
+            Assert.That(monitor.PlayAllocationEvents.HasValue, Is.False);
             for (int index = 0; index < WarmupCalls; ++index)
             {
                 PlayAndStop();
@@ -255,12 +255,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             monitor.SamplePlayer();
             TestContext.Out.WriteLine(
                 $"Mix Monitor Play probe over {MeasuredCalls} single-voice plays on {SystemInfo.processorType}. "
-                    + $"Off {unmeasuredMilliseconds:F3} ms. On {elapsed.Elapsed.TotalMilliseconds:F3} ms."
+                    + $"Off {unmeasuredMilliseconds:F3} ms, {unmeasured} allocation events. On {elapsed.Elapsed.TotalMilliseconds:F3} ms, {measured} allocation events."
             );
             Assert.That(started, Is.EqualTo(MeasuredCalls));
             Assert.That(unmeasured, Is.Zero);
             Assert.That(measured, Is.Zero);
-            Assert.That(monitor.PlayAllocationBytes, Is.Zero);
+            Assert.That(monitor.PlayAllocationEvents, Is.Zero);
 
             const int PayloadBytes = 4_096;
             Action<SfxCue, SfxDropReason> allocate = static (_, _) => GC.KeepAlive(new byte[PayloadBytes]);
@@ -269,32 +269,31 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(other.Play("missing"), Is.False);
             GC.KeepAlive(new byte[PayloadBytes]);
             monitor.SamplePlayer();
-            Assert.That(monitor.PlayAllocationBytes, Is.Zero);
+            Assert.That(monitor.PlayAllocationEvents, Is.Zero);
 
             player.CueDropped += allocate;
             Assert.That(player.Play("missing"), Is.False);
             monitor.SamplePlayer();
-            long bytes = monitor.PlayAllocationBytes.Value;
-            Assert.That(bytes, Is.InRange(PayloadBytes, PayloadBytes + 128L));
+            Assert.That(monitor.PlayAllocationEvents, Is.EqualTo(1L));
             Assert.That(player.Play((SfxCue)null, Vector3.zero), Is.False);
             monitor.SamplePlayer();
-            Assert.That(monitor.PlayAllocationBytes, Is.EqualTo(2L * bytes));
+            Assert.That(monitor.PlayAllocationEvents, Is.EqualTo(2L));
 
             player.CueDropped -= allocate;
             PlayAndStop();
             monitor.SamplePlayer();
-            Assert.That(monitor.PlayAllocationBytes, Is.EqualTo(2L * bytes));
+            Assert.That(monitor.PlayAllocationEvents, Is.EqualTo(2L));
 
             monitor.ToggleCapture();
             player.CueDropped += allocate;
             Assert.That(player.Play("missing"), Is.False);
             monitor.SamplePlayer();
-            Assert.That(monitor.PlayAllocationBytes, Is.EqualTo(2L * bytes));
+            Assert.That(monitor.PlayAllocationEvents, Is.EqualTo(2L));
             monitor.ToggleCapture();
-            Assert.That(monitor.PlayAllocationBytes.HasValue, Is.False);
+            Assert.That(monitor.PlayAllocationEvents.HasValue, Is.False);
             PlayAndStop();
             monitor.SamplePlayer();
-            Assert.That(monitor.PlayAllocationBytes, Is.Zero);
+            Assert.That(monitor.PlayAllocationEvents, Is.Zero);
 
             made.DestroyNow(monitor);
             DxAudioMixMonitorWindow next = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
@@ -302,7 +301,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             next.SetPerformanceCapture(true);
             PlayAndStop();
             next.SamplePlayer();
-            Assert.That(next.PlayAllocationBytes, Is.Zero);
+            Assert.That(next.PlayAllocationEvents, Is.Zero);
         }
 
         [TestCase(false)]
