@@ -185,7 +185,7 @@ function Write-UnityNUnitTimings {
             }
         )
         if (0 -lt $timingLines.Count) {
-            if ($measurement.LogOnly) {
+            if ($measurement['LogOnly']) {
                 foreach ($line in $timingLines) { Write-Host $line }
             } else {
                 $lines.Add("Unity EditMode $($measurement.Label)")
