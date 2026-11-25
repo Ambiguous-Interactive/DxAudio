@@ -170,6 +170,8 @@ function Write-UnityNUnitTimings {
     }
     foreach ($measurement in @(
         @{ Label = 'DSP render timings:'; Test = 'DspHostTests.RecordDspRenderWallTime('; Prefix = 'DxAudio DSP render: ' },
+        @{ Label = 'Distortion stage timings:'; Test = 'DspDistortionTimingTests.RecordDistortionStageCosts'; Prefix = 'DxAudio Distortion timing: ' },
+        @{ Test = 'DspDistortionTimingTests.RecordDistortionStageCosts'; Prefix = 'DxAudio Distortion samples: '; LogOnly = $true },
         @{ Label = 'Mix Monitor timings'; Test = 'AllocationTests.MixMonitor'; Prefix = 'Mix Monitor ' }
     )) {
         $testPrefix = "WallstopStudios.DxAudio.Tests.Editor.$($measurement.Test)"
@@ -183,8 +185,12 @@ function Write-UnityNUnitTimings {
             }
         )
         if (0 -lt $timingLines.Count) {
-            $lines.Add("Unity EditMode $($measurement.Label)")
-            $lines.AddRange([string[]]$timingLines)
+            if ($measurement.LogOnly) {
+                foreach ($line in $timingLines) { Write-Host $line }
+            } else {
+                $lines.Add("Unity EditMode $($measurement.Label)")
+                $lines.AddRange([string[]]$timingLines)
+            }
         }
     }
     foreach ($line in $lines) { Write-Host $line }

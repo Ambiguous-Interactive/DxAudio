@@ -15,6 +15,23 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     /// </remarks>
     public sealed class DspHostTests
     {
+        internal static (long Ticks, ulong? Cycles) MeasureDspRenderPass(DspRenderWorkload workload, int voices)
+        {
+            // Thread cycles include the input copies outside the DSP stopwatch windows.
+            bool haveStart = TryReadThreadCycles(out ulong cycleStart);
+            long ticks = 0;
+            for (int voice = 0; voice < voices; ++voice)
+            {
+                workload.CopyInput();
+                long start = Stopwatch.GetTimestamp();
+                workload.Process(voice);
+                ticks += Stopwatch.GetTimestamp() - start;
+            }
+
+            bool haveEnd = TryReadThreadCycles(out ulong cycleEnd);
+            return (ticks, haveStart && haveEnd && cycleStart <= cycleEnd ? cycleEnd - cycleStart : null);
+        }
+
         private static bool TryReadThreadCycles(out ulong cycles)
         {
 #if UNITY_EDITOR_WIN
@@ -405,20 +422,6 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             const int Passes = DspRenderWorkload.Passes;
             DspRenderWorkload baseline = new(voices, effect, bursts, enabled: false);
             DspRenderWorkload candidate = new(voices, effect, bursts, enabled: true);
-            long Render(DspRenderWorkload workload)
-            {
-                long ticks = 0;
-                for (int voice = 0; voice < voices; ++voice)
-                {
-                    workload.CopyInput();
-                    long start = Stopwatch.GetTimestamp();
-                    workload.Process(voice);
-                    ticks += Stopwatch.GetTimestamp() - start;
-                }
-
-                return ticks;
-            }
-
             long[] baselineTicks = new long[Passes];
             long[] candidateTicks = new long[Passes];
             ulong[] baselineCycles = new ulong[Passes];
@@ -426,12 +429,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             bool haveCycles = true;
             void Measure(DspRenderWorkload workload, long[] elapsed, ulong[] cycles, int pass)
             {
-                // Bracket the pass, including copies between voices, outside the existing DSP stopwatch windows.
-                bool haveStart = TryReadThreadCycles(out ulong start);
-                elapsed[pass] = Render(workload);
-                bool haveEnd = TryReadThreadCycles(out ulong end);
-                haveCycles = haveCycles && haveStart && haveEnd && start <= end;
-                cycles[pass] = haveCycles ? end - start : 0;
+                (long ticks, ulong? measuredCycles) = MeasureDspRenderPass(workload, voices);
+                elapsed[pass] = ticks;
+                haveCycles = haveCycles && measuredCycles.HasValue;
+                cycles[pass] = measuredCycles.GetValueOrDefault();
             }
 
             for (int pass = 0; pass < DspRenderWorkload.WarmupPasses; ++pass)
