@@ -866,7 +866,7 @@ namespace WallstopStudios.DxAudio.Editor
                 {
                     if (graphAsset == _asset)
                     {
-                        meters = new DspGraphMeterTap(_layout.SampleRate);
+                        meters = new DspGraphMeterTap(_layout.SampleRate, new DspGraphSpectrumTap(_layout.SampleRate, MixMonitorPlayerMeter.SampleCount));
                     }
 
                     if (

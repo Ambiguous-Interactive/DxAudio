@@ -325,12 +325,24 @@ namespace WallstopStudios.DxAudio
                 Array.Clear(nodeBuffer, 0, count);
             }
 
+            DspGraphSpectrumTap spectrum = meters?.Spectrum;
+            int spectrumNode = spectrum?.BeginBlock(meters, count / channels) ?? -1;
             Array.Copy(buffer, offset, buffers[_input], 0, count);
             for (int index = 0; index < NodeCount; ++index)
             {
                 int node = _order[index];
                 float[] produced = buffers[node];
-                _chains[node].Process(produced, 0, count, channels);
+                if (node == spectrumNode)
+                {
+                    spectrum.CaptureInput(produced, channels);
+                    _chains[node].Process(produced, 0, count, channels);
+                    spectrum.CaptureOutput(produced, channels);
+                }
+                else
+                {
+                    _chains[node].Process(produced, 0, count, channels);
+                }
+
                 for (int edge = 0; edge < EdgeCount; ++edge)
                 {
                     if (_edgeFrom[edge] == node)

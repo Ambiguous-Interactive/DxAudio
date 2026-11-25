@@ -537,7 +537,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void GraphAuditionMetersDoNotAllocateAtFullCapacity()
+        public void GraphAuditionMetersAndSpectrumDoNotAllocateAtFullCapacity()
         {
             const int Rate = 48_000;
             const int Frames = 1_024;
@@ -559,16 +559,26 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
 
             Assert.That(graph.TryPrepare(Rate, Frames, Channels, 0, DspGraph.MaximumNodes - 1), Is.True);
-            DspGraphMeterTap meters = new(Rate);
+            DspGraphSpectrumTap spectrum = new(Rate, Frames);
+            spectrum.Select(DspGraph.MaximumNodes / 2);
+            DspGraphMeterTap meters = new(Rate, spectrum);
             DspAuditionProcessor processor = new(Rate, Frames, Channels);
             DspAuditionProcessor.Path path = new(Frames, Channels, null, graph, graphMeters: meters);
             processor.Publish(new DspAuditionProcessor.Revision(1, new[] { null, path }));
             float[] pcm = new float[Frames * Channels];
 
+            float[] input = new float[pcm.Length];
+            float[] output = new float[pcm.Length];
+            int captured = 0;
+
             void Render()
             {
                 Array.Fill(pcm, 0.001f);
                 processor.Process(pcm, Channels);
+                if (spectrum.TryRead(input, output))
+                {
+                    ++captured;
+                }
             }
 
             for (int pass = 0; pass < 32; ++pass)
@@ -578,6 +588,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             Assert.That(AllocationEvents(Render, 256), Is.Zero);
             Assert.That(processor.ProcessedBlocks, Is.EqualTo(288));
+            Assert.That(captured, Is.EqualTo(288));
+            Assert.That(output[Frames], Is.Positive);
             Assert.That(meters.ReadNode(DspGraph.MaximumNodes - 1).Right, Is.Positive);
             Assert.That(meters.ReadEdge(DspGraph.MaximumEdges - 1).Left, Is.Positive);
         }
