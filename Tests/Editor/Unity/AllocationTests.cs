@@ -536,6 +536,52 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(allocations, Is.Zero);
         }
 
+        [Test]
+        public void GraphAuditionMetersDoNotAllocateAtFullCapacity()
+        {
+            const int Rate = 48_000;
+            const int Frames = 1_024;
+            const int Channels = 2;
+            DspGraph graph = new();
+            for (int node = 0; node < DspGraph.MaximumNodes; ++node)
+            {
+                DspChain chain = new();
+                chain.Add(new DspLimiter { LookaheadSeconds = 0.001f });
+                Assert.That(graph.TryAddNode(chain, out _), Is.True);
+            }
+
+            for (int step = 1; graph.EdgeCount < DspGraph.MaximumEdges; ++step)
+            {
+                for (int from = 0; from + step < DspGraph.MaximumNodes && graph.EdgeCount < DspGraph.MaximumEdges; ++from)
+                {
+                    Assert.That(graph.TryAddEdge(from, from + step), Is.True);
+                }
+            }
+
+            Assert.That(graph.TryPrepare(Rate, Frames, Channels, 0, DspGraph.MaximumNodes - 1), Is.True);
+            DspGraphMeterTap meters = new(Rate);
+            DspAuditionProcessor processor = new(Rate, Frames, Channels);
+            DspAuditionProcessor.Path path = new(Frames, Channels, null, graph, graphMeters: meters);
+            processor.Publish(new DspAuditionProcessor.Revision(1, new[] { null, path }));
+            float[] pcm = new float[Frames * Channels];
+
+            void Render()
+            {
+                Array.Fill(pcm, 0.001f);
+                processor.Process(pcm, Channels);
+            }
+
+            for (int pass = 0; pass < 32; ++pass)
+            {
+                Render();
+            }
+
+            Assert.That(AllocationEvents(Render, 256), Is.Zero);
+            Assert.That(processor.ProcessedBlocks, Is.EqualTo(288));
+            Assert.That(meters.ReadNode(DspGraph.MaximumNodes - 1).Right, Is.Positive);
+            Assert.That(meters.ReadEdge(DspGraph.MaximumEdges - 1).Left, Is.Positive);
+        }
+
         [TestCase("Distortion", TestName = "Playing a cue with distortion in a graph does not allocate")]
         [TestCase("Chorus", TestName = "Playing a cue with chorus in a graph does not allocate")]
         [TestCase("Tremolo", TestName = "Playing a cue with tremolo in a graph does not allocate")]

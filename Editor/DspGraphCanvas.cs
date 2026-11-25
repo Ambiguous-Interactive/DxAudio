@@ -19,10 +19,12 @@ namespace WallstopStudios.DxAudio.Editor
         private static readonly CustomStyleProperty<float> MarqueeOpacity = new("--dxa-marquee-opacity");
         private readonly DspGraphAsset _asset;
         private readonly DspGraphEdits _edits;
+        private readonly DspAuditionPanel _audition;
         private readonly Action<int> _selectNode;
         private readonly Action<int> _selectEdge;
         private readonly Action<string> _report;
         private readonly HashSet<int> _selection = new();
+        private readonly VisualElement _levelLabels = new() { pickingMode = PickingMode.Ignore };
         private readonly VisualElement _cards = new() { pickingMode = PickingMode.Ignore };
         private readonly Label _empty = new("Right-click or choose Add Node to start a signal path.") { pickingMode = PickingMode.Ignore };
         private readonly Label _connectionFeedback = new() { pickingMode = PickingMode.Ignore };
@@ -34,6 +36,9 @@ namespace WallstopStudios.DxAudio.Editor
         private readonly string _viewKey;
         private Vector2[] _positions = Array.Empty<Vector2>();
         private (int from, int to)[] _links = Array.Empty<(int, int)>();
+        private DspGraphNodeMeter[] _nodeMeters = Array.Empty<DspGraphNodeMeter>();
+        private (Label Label, string From, int Decibels, string Status)[] _edgeMeters = Array.Empty<(Label, string, int, string)>();
+        private bool _showMeters;
         private Vector2 _pan = new(38f, 48f);
         private float _zoom = 1f;
         private int _edge = -1;
@@ -49,10 +54,11 @@ namespace WallstopStudios.DxAudio.Editor
         private Vector2 _initialPan;
         private VisualElement _picker;
 
-        internal DspGraphCanvas(DspGraphAsset asset, DspGraphEdits edits, Action<int> selectNode, Action<int> selectEdge, Action<string> report)
+        internal DspGraphCanvas(DspGraphAsset asset, DspGraphEdits edits, DspAuditionPanel audition, Action<int> selectNode, Action<int> selectEdge, Action<string> report)
         {
             _asset = asset;
             _edits = edits;
+            _audition = audition;
             _selectNode = selectNode;
             _selectEdge = selectEdge;
             _report = report;
@@ -74,6 +80,7 @@ namespace WallstopStudios.DxAudio.Editor
                 RegisterCallback<GeometryChangedEvent>(FrameOnOpen);
             }
 
+            Add(_levelLabels);
             Add(_cards);
             _empty.AddToClassList("dxaudio-graph-empty");
             _empty.AddToClassList("dxaudio-graph-text");
@@ -90,6 +97,7 @@ namespace WallstopStudios.DxAudio.Editor
             RegisterCallback<WheelEvent>(Zoom);
             RegisterCallback<KeyDownEvent>(KeyDown);
             Refresh();
+            schedule.Execute(UpdateMeters).Every(50);
         }
 
         private static Rect Box(Vector2 a, Vector2 b)
@@ -169,6 +177,10 @@ namespace WallstopStudios.DxAudio.Editor
             }
 
             _links = new (int, int)[_asset.EdgeCount];
+            _edgeMeters = new (Label, string, int, string)[_links.Length];
+            _levelLabels.Clear();
+            _levelLabels.style.display = DisplayStyle.None;
+            _showMeters = false;
             int[] incoming = new int[_asset.NodeCount];
             for (int index = 0; index < _links.Length; ++index)
             {
@@ -179,10 +191,15 @@ namespace WallstopStudios.DxAudio.Editor
                 if (0 <= from && 0 <= to)
                 {
                     ++incoming[to];
+                    Label label = new() { name = "DxAudioGraphEdgeMeter", pickingMode = PickingMode.Ignore };
+                    label.AddToClassList("dxaudio-graph-edge-meter");
+                    _edgeMeters[index] = (label, edge.From, int.MinValue, null);
+                    _levelLabels.Add(label);
                 }
             }
 
             _positions = AutomaticPositions();
+            _nodeMeters = new DspGraphNodeMeter[_positions.Length];
             _cards.Clear();
             _empty.style.display = _asset.NodeCount == 0 ? DisplayStyle.Flex : DisplayStyle.None;
             int input = _edits.Resolve(_asset.InputNode);
@@ -211,10 +228,57 @@ namespace WallstopStudios.DxAudio.Editor
                     ports += $"Sum {incoming[index]} inputs";
                 }
 
-                _cards.Add(MakeCard(title, subtitle, ports));
+                VisualElement card = MakeCard(title, subtitle, ports);
+                DspGraphNodeMeter meter = new();
+                _nodeMeters[index] = meter;
+                card.Add(meter);
+                _cards.Add(card);
             }
 
             UpdateCards();
+        }
+
+        internal void DisplayMeters(DspGraphMeterTap tap)
+        {
+            if (_showMeters != (tap != null))
+            {
+                _showMeters = tap != null;
+                DisplayStyle display = _showMeters ? DisplayStyle.Flex : DisplayStyle.None;
+                _levelLabels.style.display = display;
+                foreach (DspGraphNodeMeter meter in _nodeMeters)
+                {
+                    meter.style.display = display;
+                }
+            }
+
+            if (tap == null)
+            {
+                return;
+            }
+
+            for (int node = 0, count = _nodeMeters.Length; node < count; ++node)
+            {
+                _nodeMeters[node].Update(tap.ReadNode(node));
+            }
+
+            for (int edge = 0, count = _edgeMeters.Length; edge < count; ++edge)
+            {
+                ref (Label Label, string From, int Decibels, string Status) view = ref _edgeMeters[edge];
+                if (view.Label == null)
+                {
+                    continue;
+                }
+
+                (bool active, float left, float right) = tap.ReadEdge(edge);
+                string status = !active ? DspGraphNodeMeter.MutedBySolo : (_audition.IsGraphNodeBypassed(view.From) ? "Bypassed" : string.Empty);
+                int decibels = DspGraphNodeMeter.PeakDb(Mathf.Max(left, right));
+                if (!string.Equals(view.Status, status, StringComparison.Ordinal) || (status.Length == 0 && view.Decibels != decibels))
+                {
+                    view.Status = status;
+                    view.Decibels = decibels;
+                    view.Label.text = status.Length == 0 ? DspGraphNodeMeter.FormatDb(decibels) : status;
+                }
+            }
         }
 
         internal void MarkProblem(int node, DxAudioValidation.Severity severity)
@@ -225,9 +289,9 @@ namespace WallstopStudios.DxAudio.Editor
                 return;
             }
 
-            if (card.childCount == 4)
+            if (card.childCount == 5)
             {
-                card.RemoveAt(3);
+                card.RemoveAt(4);
             }
 
             Image badge = DxAudioInspectorUi.ProblemList.Badge(severity);
@@ -426,7 +490,26 @@ namespace WallstopStudios.DxAudio.Editor
                 card[2].style.display = _zoom < 0.75f ? DisplayStyle.None : DisplayStyle.Flex;
             }
 
+            for (int index = 0, count = _edgeMeters.Length; index < count; ++index)
+            {
+                Label label = _edgeMeters[index].Label;
+                if (label == null)
+                {
+                    continue;
+                }
+
+                (int from, int to) = _links[index];
+                Vector2 point = Curve(Port(from, output: true), Port(to, output: false), 0.5f);
+                label.style.left = point.x;
+                label.style.top = point.y;
+            }
+
             MarkDirtyRepaint();
+        }
+
+        private void UpdateMeters()
+        {
+            DisplayMeters(_zoom < 0.58f ? null : _audition.GetGraphMeters(_asset));
         }
 
         private Rect CardRect(int index)

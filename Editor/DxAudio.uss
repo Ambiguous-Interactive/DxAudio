@@ -170,3 +170,49 @@
 .dxaudio-eq-saved {
     color: var(--dxa-theme-saved);
 }
+
+.dxaudio-graph-node-meter {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.dxaudio-graph-meter-track {
+    height: 3px;
+    margin-bottom: 1px;
+    background-color: var(--dxa-theme-canvas);
+    overflow: hidden;
+}
+
+.dxaudio-graph-meter-fill {
+    height: 100%;
+    background-color: var(--dxa-theme-accent);
+}
+
+.dxaudio-graph-meter-hold {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background-color: var(--dxa-theme-text);
+}
+
+.dxaudio-graph-meter-caption,
+.dxaudio-graph-edge-meter {
+    margin: 0;
+    color: var(--dxa-theme-text);
+    font-size: 9px;
+    white-space: nowrap;
+}
+
+.dxaudio-graph-meter-clipped .dxaudio-graph-meter-caption {
+    color: var(--dxa-theme-rejected);
+    -unity-font-style: bold;
+}
+
+.dxaudio-graph-edge-meter {
+    position: absolute;
+    translate: -50% -110%;
+    padding: 1px 3px;
+    border-radius: 3px;
+    background-color: var(--dxa-theme-surface);
+}

@@ -74,7 +74,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             using MadeObjects made = new();
             DspGraphAsset graph = made.Track(DspGraphAsset.Create(new[] { new DspGraphNode("Input", null) }, null, "Input", "Input"));
             DspChainAsset chain = made.Track(DspChainAsset.Create(null));
-            DspGraphCanvas canvas = new(graph, new DspGraphEdits(graph), null, null, null);
+            DspGraphCanvas canvas = new(graph, new DspGraphEdits(graph), new DspAuditionPanel(null, null), null, null, null);
             DspEqCurveAuthoring equalizer = new(chain);
 
             Assert.That(canvas.styleSheets.count, Is.EqualTo(1));

@@ -415,7 +415,7 @@ namespace WallstopStudios.DxAudio.Editor
             split.style.minHeight = 0;
             _work.Add(split);
 
-            _canvas = new DspGraphCanvas(_graph, _edits, SelectNode, SelectEdge, Report);
+            _canvas = new DspGraphCanvas(_graph, _edits, _audition, SelectNode, SelectEdge, Report);
             _canvas.style.minWidth = 160;
             split.Add(_canvas);
             _details = new ScrollView();

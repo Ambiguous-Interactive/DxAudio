@@ -283,6 +283,32 @@ namespace WallstopStudios.DxAudio
         /// </remarks>
         public void Process(float[] buffer, int offset, int count, int channels)
         {
+            Process(buffer, offset, count, channels, null);
+        }
+
+        /// <summary>Clears every node buffer and delay line and resets every chain, so a reused graph starts silent.</summary>
+        public void Reset()
+        {
+            if (!IsPrepared)
+            {
+                return;
+            }
+
+            for (int node = 0; node < _buffers.Length; ++node)
+            {
+                Array.Clear(_buffers[node], 0, _buffers[node].Length);
+                _chains[node].Reset();
+            }
+
+            for (int edge = 0; edge < _edgeLines.Length; ++edge)
+            {
+                Array.Clear(_edgeLines[edge], 0, _edgeLines[edge].Length);
+                _edgePosition[edge] = 0;
+            }
+        }
+
+        internal void Process(float[] buffer, int offset, int count, int channels, DspGraphMeterTap meters)
+        {
             if (!IsPrepared || buffer == null || channels != _channels || offset < 0 || count <= 0 || count % channels != 0 || buffer.Length - count < offset)
             {
                 return;
@@ -314,32 +340,16 @@ namespace WallstopStudios.DxAudio
                 }
             }
 
+            if (meters != null)
+            {
+                ObserveMeters(meters, count, channels);
+            }
+
             Array.Copy(buffers[_output], 0, buffer, offset, count);
         }
 
-        /// <summary>Clears every node buffer and delay line and resets every chain, so a reused graph starts silent.</summary>
-        public void Reset()
-        {
-            if (!IsPrepared)
-            {
-                return;
-            }
-
-            for (int node = 0; node < _buffers.Length; ++node)
-            {
-                Array.Clear(_buffers[node], 0, _buffers[node].Length);
-                _chains[node].Reset();
-            }
-
-            for (int edge = 0; edge < _edgeLines.Length; ++edge)
-            {
-                Array.Clear(_edgeLines[edge], 0, _edgeLines[edge].Length);
-                _edgePosition[edge] = 0;
-            }
-        }
-
         /// <summary>Keeps only input-to-output paths through one node in a fresh audition graph.</summary>
-        internal bool TrySolo(int inputNode, int outputNode, int soloNode, out int soloInput, out int soloOutput)
+        internal bool TrySolo(int inputNode, int outputNode, int soloNode, out int soloInput, out int soloOutput, DspGraphMeterTap meters = null)
         {
             if (
                 IsPrepared
@@ -366,7 +376,9 @@ namespace WallstopStudios.DxAudio
             {
                 leadsToSolo[node] = Reaches(node, soloNode);
                 followsSolo[node] = Reaches(soloNode, node);
-                if (leadsToSolo[node] || followsSolo[node])
+                bool keep = leadsToSolo[node] || followsSolo[node];
+                meters?.MapNode(node, keep ? keptNodes : -1);
+                if (keep)
                 {
                     remap[node] = keptNodes;
                     _chains[keptNodes] = _chains[node];
@@ -380,7 +392,9 @@ namespace WallstopStudios.DxAudio
                 int from = _edgeFrom[edge];
                 int to = _edgeTo[edge];
                 // A shortcut from before Solo to after it can join two kept nodes and still miss Solo.
-                if (leadsToSolo[to] || followsSolo[from])
+                bool keep = leadsToSolo[to] || followsSolo[from];
+                meters?.MapEdge(edge, keep ? keptEdges : -1);
+                if (keep)
                 {
                     _edgeFrom[keptEdges] = remap[from];
                     _edgeTo[keptEdges] = remap[to];
@@ -394,6 +408,30 @@ namespace WallstopStudios.DxAudio
             soloInput = remap[inputNode];
             soloOutput = remap[outputNode];
             return true;
+        }
+
+        private void ObserveMeters(DspGraphMeterTap meters, int count, int channels)
+        {
+            meters.Advance(count / channels);
+            for (int node = 0; node < NodeCount; ++node)
+            {
+                meters.ObserveNode(node, _buffers[node], count, channels);
+            }
+
+            for (int edge = 0; edge < EdgeCount; ++edge)
+            {
+                int delay = _edgeDelayFrames[edge];
+                if (delay == 0)
+                {
+                    meters.ObserveEdge(edge, _edgeFrom[edge]);
+                    continue;
+                }
+
+                // Read the same block Carry just read. The cursor now points past the written block.
+                float[] line = _edgeLines[edge];
+                int start = _edgePosition[edge] - count - delay * channels;
+                meters.ObserveDelayedEdge(edge, line, start < 0 ? start + line.Length : start, count, channels);
+            }
         }
 
         /// <summary>Carries one node's block along one edge, delayed, and sums it into the destination.</summary>

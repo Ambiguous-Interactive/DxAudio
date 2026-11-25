@@ -67,6 +67,7 @@ namespace WallstopStudios.DxAudio.Editor
         private SceneView _enabledSceneAudio;
         private AudioClip _tone;
         private DspAuditionProcessor _processor;
+        private DspAuditionProcessor.Revision _meterRevision;
         private int _observedHash;
         private bool _recheck;
         private int _lastRevision;
@@ -372,8 +373,28 @@ namespace WallstopStudios.DxAudio.Editor
             }
         }
 
+        internal DspGraphMeterTap GetGraphMeters(DspGraphAsset graph)
+        {
+            if (graph != _asset || _processor == null || _meterRevision == null || _dry.value || _recheck || _meterRevision.Number != _processor.ActiveRevision)
+            {
+                return null;
+            }
+
+            return _meterRevision.For(_processor.Channels)?.GraphMeters;
+        }
+
+        internal bool IsGraphNodeBypassed(string name)
+        {
+            return _bypassedGraphNodes.Contains(name);
+        }
+
         internal void RefreshGraphAudition()
         {
+            if (_meterRevision != null && ContentHash() != _observedHash)
+            {
+                _meterRevision = null;
+            }
+
             if (_soloedGraphNode != null && !CanSoloGraphNode(_asset as DspGraphAsset, _soloedGraphNode))
             {
                 SetGraphNodeSolo(_soloedGraphNode, false);
@@ -396,14 +417,14 @@ namespace WallstopStudios.DxAudio.Editor
             _graphBypassStatus.style.display = 0 < _bypassedGraphNodes.Count ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
-        internal bool TryCreateAuditionGraph(DspGraphAsset graph, out DspGraph built, out int input, out int output)
+        internal bool TryCreateAuditionGraph(DspGraphAsset graph, out DspGraph built, out int input, out int output, DspGraphMeterTap meters = null)
         {
             bool directAudition = graph == _asset;
             int start = graph.IndexOfNode(graph.InputNode);
             int end = graph.IndexOfNode(graph.OutputNode);
             if (
                 !graph.TryCreateGraph(directAudition ? _bypassedGraphNodes : null, out DspGraph candidate)
-                || (directAudition && _soloedGraphNode != null && !candidate.TrySolo(start, end, graph.IndexOfNode(_soloedGraphNode), out start, out end))
+                || (directAudition && _soloedGraphNode != null && !candidate.TrySolo(start, end, graph.IndexOfNode(_soloedGraphNode), out start, out end, meters))
             )
             {
                 built = null;
@@ -461,6 +482,7 @@ namespace WallstopStudios.DxAudio.Editor
             _filter = null;
             _tone = null;
             _processor = null;
+            _meterRevision = null;
             _take.style.unityFontStyleAndWeight = FontStyle.Normal;
             ShowPeak(0f);
             _status.text = string.Empty;
@@ -719,6 +741,7 @@ namespace WallstopStudios.DxAudio.Editor
             _processor.SetDry(_dry.value);
             _processor.SetMonitor(_volume.value);
             _processor.Publish(revision);
+            _meterRevision = _asset is DspGraphAsset ? revision : null;
             _filter.SetProcessor(_processor.Process);
             _draftProblem = null;
             _playing = this;
@@ -798,6 +821,7 @@ namespace WallstopStudios.DxAudio.Editor
                 _observedHash = hash;
                 bool prepared = TryPrepare(out DspAuditionProcessor.Revision revision, out _draftProblem);
                 _processor.Publish(prepared ? revision : null);
+                _meterRevision = prepared && _asset is DspGraphAsset ? revision : null;
             }
 
             int active = _processor.ActiveRevision;
@@ -837,10 +861,16 @@ namespace WallstopStudios.DxAudio.Editor
             {
                 DspGraph graph = null;
                 DspChain chain = null;
+                DspGraphMeterTap meters = null;
                 if (graphAsset != null)
                 {
+                    if (graphAsset == _asset)
+                    {
+                        meters = new DspGraphMeterTap(_layout.SampleRate);
+                    }
+
                     if (
-                        !TryCreateAuditionGraph(graphAsset, out graph, out int input, out int output)
+                        !TryCreateAuditionGraph(graphAsset, out graph, out int input, out int output, meters)
                         || !graph.TryPrepare(_layout.SampleRate, _layout.BlockSize, channels, input, output)
                     )
                     {
@@ -873,7 +903,7 @@ namespace WallstopStudios.DxAudio.Editor
                     }
                 }
 
-                paths[channels - 1] = new DspAuditionProcessor.Path(_layout.BlockSize, channels, chain, graph, lowPass);
+                paths[channels - 1] = new DspAuditionProcessor.Path(_layout.BlockSize, channels, chain, graph, lowPass, meters);
                 prepared = true;
             }
 

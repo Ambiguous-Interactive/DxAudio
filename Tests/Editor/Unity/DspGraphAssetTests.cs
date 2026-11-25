@@ -1,6 +1,7 @@
 namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System;
+    using System.Collections.Generic;
     using NUnit.Framework;
     using UnityEditor;
     using UnityEngine;
@@ -146,6 +147,17 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(panel.CreateGraphNodeBypassToggle(asset.Nodes[0]).value, Is.False);
         }
 
+        [TestCase(-80, false, "-80 dBFS")]
+        [TestCase(-13, false, "-13 dBFS")]
+        [TestCase(0, true, "0 dBFS  CLIP")]
+        [TestCase(771, true, "771 dBFS  CLIP")]
+        public void GraphMetersReusePeakTextAsLevelsChange(int decibels, bool clipped, string expected)
+        {
+            string caption = DspGraphNodeMeter.FormatDb(decibels, clipped);
+            Assert.That(caption, Is.EqualTo(expected));
+            Assert.That(DspGraphNodeMeter.FormatDb(decibels, clipped), Is.SameAs(caption));
+        }
+
         [Test]
         public void SoloRevisesOnlyWetAuditionAndClearsWithTheTarget()
         {
@@ -167,6 +179,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             DspAuditionPanel panel = new(null, null);
             panel.SetTarget(asset);
             Button soloStatus = panel.Q<Button>("graph-solo-status");
+            DspGraphEdits edits = new(asset);
+            DspGraphCanvas canvas = new(asset, edits, panel, null, null, null);
             DspAuditionProcessor processor = new(1_000, Frames, 1);
             float[] block = new float[Frames];
 
@@ -178,13 +192,16 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             void CheckAudition(float expected, int revision)
             {
-                Assert.That(panel.TryCreateAuditionGraph(asset, out DspGraph graph, out int input, out int output), Is.True);
+                DspGraphMeterTap meters = new(1_000);
+                Assert.That(panel.TryCreateAuditionGraph(asset, out DspGraph graph, out int input, out int output, meters), Is.True);
                 Assert.That(graph.TryPrepare(1_000, Frames, 1, input, output), Is.True);
-                processor.Publish(new DspAuditionProcessor.Revision(revision, new[] { new DspAuditionProcessor.Path(Frames, 1, null, graph) }));
+                DspAuditionProcessor.Path path = new(Frames, 1, null, graph, graphMeters: meters);
+                processor.Publish(new DspAuditionProcessor.Revision(revision, new[] { path }));
                 Render();
                 Render();
                 Assert.That(processor.ActiveRevision, Is.EqualTo(revision));
                 Assert.That(block, Is.All.EqualTo(expected));
+                canvas.DisplayMeters(meters);
             }
 
             Assert.That(soloStatus.style.display.value, Is.EqualTo(DisplayStyle.None));
@@ -194,6 +211,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(soloStatus.style.display.value, Is.EqualTo(DisplayStyle.Flex));
             Assert.That(soloStatus.text, Is.EqualTo("Solo: left"));
             CheckAudition(1f, 2);
+            List<Label> edges = canvas.Query<Label>("DxAudioGraphEdgeMeter").ToList();
+            Assert.That(edges[1].text, Is.EqualTo("Muted by Solo"));
+            Assert.That(edges[2].text, Is.EqualTo("0 dBFS"));
+            Assert.That(canvas.Query<DspGraphNodeMeter>().ToList()[1].Q<Label>().text, Is.EqualTo("0 dBFS  CLIP"));
             for (int index = 0; index < 16; ++index)
             {
                 Render();
@@ -202,6 +223,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
             panel.SetGraphNodeBypassed(left.Name, true);
             CheckAudition(0.25f, 3);
+            Assert.That(edges[2].text, Is.EqualTo("Bypassed"));
             panel.SetGraphNodeBypassed(left.Name, false);
             panel.SetGraphNodeSolo(right.Name, true);
             Assert.That(panel.CreateGraphNodeSoloToggle(left).value, Is.False);
@@ -219,7 +241,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(EditorJsonUtility.ToJson(asset), Is.EqualTo(serialized));
             Assert.That(EditorUtility.GetDirtyCount(asset), Is.EqualTo(dirtyCount));
 
-            DspGraphEdits edits = new(asset);
+            canvas.DisplayMeters(null);
+            Assert.That(canvas.Q<DspGraphNodeMeter>().style.display.value, Is.EqualTo(DisplayStyle.None));
             edits.Changed += panel.RefreshGraphAudition;
             panel.SetGraphNodeSolo(right.Name, true);
             Assert.That(edits.TryDelete(new[] { 2 }, Array.Empty<int>(), out string deleteError), Is.True, deleteError);

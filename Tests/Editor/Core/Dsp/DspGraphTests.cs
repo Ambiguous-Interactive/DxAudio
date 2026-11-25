@@ -140,6 +140,55 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void GraphMetersShowStereoNodeOutputAndTheSignalAnAlignedEdgeCarries()
+        {
+            DspGraph graph = FanIn(ChainOf(new DelayEffect(0) { Gain = 2f }), ChainOf(new DelayEffect(5) { Gain = 0.5f }));
+            DspGraphMeterTap meters = new(8);
+            Assert.That(graph.TryPrepare(8, 4, 2, 0, 3), Is.True);
+            graph.Process(new[] { -0.75f, 0.25f, 0f, 0f, 0f, 0f, 0f, 0f }, 0, 8, 2, meters);
+            Assert.That(meters.ReadNode(1).Left, Is.EqualTo(1.5f));
+            Assert.That(meters.ReadNode(1).Right, Is.EqualTo(0.5f));
+            Assert.That(meters.ReadNode(1).Clipped, Is.True);
+            Assert.That(meters.ReadEdge(2).Left, Is.Zero, "the short branch has yet to arrive");
+
+            float[] silence = new float[8];
+            graph.Process(silence, 0, silence.Length, 2, meters);
+            Assert.That(meters.ReadEdge(2).Left, Is.EqualTo(1.5f));
+            Assert.That(meters.ReadEdge(2).Right, Is.EqualTo(0.5f));
+            Assert.That(meters.ReadEdge(3).Left, Is.EqualTo(0.375f));
+            Assert.That(meters.ReadNode(3).Left, Is.EqualTo(1.875f));
+            Assert.That(silence[2], Is.EqualTo(-1.875f), "metering preserves the audible sum");
+            Assert.That(meters.ReadNode(1).Left, Is.Zero);
+            Assert.That(meters.ReadNode(1).HeldLeft, Is.EqualTo(1.5f));
+
+            Array.Clear(silence, 0, silence.Length);
+            for (int block = 0; block < 3; ++block)
+            {
+                graph.Process(silence, 0, silence.Length, 2, meters);
+            }
+            Assert.That(meters.ReadNode(1).HeldLeft, Is.Zero, "the peak expires after two seconds of audio");
+            Assert.That(meters.ReadNode(1).Clipped, Is.False);
+        }
+
+        [Test]
+        public void SoloMetersRetainAuthoredIndicesAfterCompaction()
+        {
+            DspGraph graph = FanIn(new DspChain(), ChainOf(new DelayEffect(0) { Gain = 0.25f }));
+            DspGraphMeterTap meters = new(SampleRate);
+            Assert.That(graph.TrySolo(0, 3, 2, out int input, out int output, meters), Is.True);
+            Assert.That(graph.TryPrepare(SampleRate, 4, 1, input, output), Is.True);
+
+            graph.Process(new[] { 0f, 0.5f, 0f, 0f }, 0, 4, 1, meters);
+            Assert.That(meters.ReadNode(1).Active, Is.False);
+            Assert.That(meters.ReadNode(2).Active, Is.True);
+            Assert.That(meters.ReadNode(2).Right, Is.EqualTo(0.125f), "mono feeds both display channels");
+            Assert.That(meters.ReadEdge(0).Active, Is.False);
+            Assert.That(meters.ReadEdge(1).Left, Is.EqualTo(0.5f));
+            Assert.That(meters.ReadEdge(2).Active, Is.False);
+            Assert.That(meters.ReadEdge(3).Left, Is.EqualTo(0.125f));
+        }
+
+        [Test]
         public void SoloRefusesAnAuthoredGraphWithANodeOffThePath()
         {
             DspGraph graph = FanIn(new DspChain(), new DspChain());
