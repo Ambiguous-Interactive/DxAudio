@@ -72,7 +72,7 @@ if ($args -contains '-runTests') {
     }
     $failed = if ($env:CONTROL -eq 'contradictory-result') { 1 } else { 0 }
     $passed = if ($env:DXMESSAGING_VERSION) { 4 } else { 3 }
-    if ($env:CONTROL -eq 'render-timing') { $passed += 2 }
+    if ($env:CONTROL -eq 'render-timing') { $passed += 3 }
     $xml = '<test-run result="Passed" passed="' + $passed + '" total="' + $passed + '" failed="' + $failed + '" skipped="0" inconclusive="0">'
     $fixtureTime = if ($env:CONTROL -eq 'slow-fixture') { '120.100' } else { '4.100' }
     $xml += '<test-suite type="TestFixture" fullname="AnalyzerFixtures" duration="' + $fixtureTime + '">'
@@ -104,6 +104,9 @@ if ($args -contains '-runTests') {
         $xml += '<output>DxAudio DSP render: Noise Gate, added p95 534.00 us, wall-time reference 426.67 us (over).</output></test-case>'
         $xml += '<test-case fullname="WallstopStudios.DxAudio.Tests.Editor.AllocationTests.MixMonitorMeasuresOnlyTheSelectedPlayersPlayCalls" result="Passed" duration="0.300">'
         $xml += '<output>Mix Monitor Play probe over 100000 single-voice plays. Off 230.000 ms. On 299.000 ms.</output></test-case>'
+        $xml += '<test-case fullname="WallstopStudios.DxAudio.Tests.Editor.DspDistortionTimingTests.RecordDistortionStageCosts" result="Passed" duration="0.400">'
+        $xml += '<output>DxAudio Distortion timing: fixed controls, p50 340.00 us.' + "`n"
+        $xml += 'DxAudio Distortion samples: 0,0/15/45,1/25/75,3/350/1050,2/340/1020</output></test-case>'
     }
     $xml += '</test-run>'
     if ($env:CONTROL -eq 'external-entity') { $xml = '<!DOCTYPE test-run [<!ENTITY control SYSTEM "file:///missing.xml">]>' + $xml }
@@ -290,12 +293,16 @@ class UnityRunnerTests(unittest.TestCase):
         summary = self.root / "summary.md"
         status, log = self.run_validation(control="render-timing", summary=summary)
         self.assertEqual(status, 0, log)
+        summary_text = summary.read_text(encoding="utf-8")
         for measurement in (
             "DxAudio DSP render: Noise Gate, added p95 534.00 us, wall-time reference 426.67 us (over).",
             "Mix Monitor Play probe over 100000 single-voice plays. Off 230.000 ms. On 299.000 ms.",
+            "DxAudio Distortion timing: fixed controls, p50 340.00 us.",
         ):
             self.assertIn(measurement, log)
-            self.assertIn(measurement, summary.read_text(encoding="utf-8"))
+            self.assertIn(measurement, summary_text)
+        self.assertIn("DxAudio Distortion samples: 0,0/15/45,1/25/75,3/350/1050,2/340/1020", log)
+        self.assertNotIn("DxAudio Distortion samples:", summary_text)
 
     def test_timeout_kills_the_editor_and_descendant(self):
         child = self.root / "late-child.ps1"

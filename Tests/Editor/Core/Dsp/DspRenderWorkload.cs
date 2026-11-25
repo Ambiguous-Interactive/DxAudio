@@ -34,11 +34,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             (8, "Stereo Width", false),
         };
 
+        internal ReadOnlySpan<float> Output => _block;
+
         private readonly float[] _input = new float[Frames * Channels];
         private readonly float[] _block = new float[Frames * Channels];
         private readonly DspChain[] _chains;
 
-        internal DspRenderWorkload(int voices, string effect, bool bursts, bool enabled)
+        internal DspRenderWorkload(int voices, string effect, bool bursts, bool enabled, Func<DspEffect> createEffect = null)
         {
             _chains = new DspChain[voices];
             for (int voice = 0; voice < voices; ++voice)
@@ -46,7 +48,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 DspChain chain = new();
                 if (enabled)
                 {
-                    chain.Add(CreateEffect(effect));
+                    chain.Add(createEffect == null ? CreateEffect(effect) : createEffect());
                 }
 
                 if (!chain.TryPrepare(Rate, Frames, Channels))
