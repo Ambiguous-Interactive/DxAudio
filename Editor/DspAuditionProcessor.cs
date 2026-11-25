@@ -214,6 +214,7 @@ namespace WallstopStudios.DxAudio.Editor
         internal sealed class Path
         {
             internal int LatencyFrames { get; }
+            internal DspGraphMeterTap GraphMeters { get; }
             private readonly DspChain _chain;
             private readonly DspGraph _graph;
             private readonly DspFilter _lowPass;
@@ -222,10 +223,11 @@ namespace WallstopStudios.DxAudio.Editor
             private readonly float[] _delay;
             private int _delayCursor;
 
-            internal Path(int blockFrames, int channels, DspChain chain, DspGraph graph, DspFilter lowPass = null)
+            internal Path(int blockFrames, int channels, DspChain chain, DspGraph graph, DspFilter lowPass = null, DspGraphMeterTap graphMeters = null)
             {
                 _chain = chain;
                 _graph = graph;
+                GraphMeters = graphMeters;
                 _lowPass = lowPass;
                 LatencyFrames = (graph?.LatencySamples ?? 0) + (chain?.LatencySamples ?? 0);
                 _wet = new float[blockFrames * channels];
@@ -264,7 +266,7 @@ namespace WallstopStudios.DxAudio.Editor
                 }
 
                 _chain?.Process(_wet, 0, count, channels);
-                _graph?.Process(_wet, 0, count, channels);
+                _graph?.Process(_wet, 0, count, channels, GraphMeters);
             }
 
             internal float Sample(int index, float dryMix)
