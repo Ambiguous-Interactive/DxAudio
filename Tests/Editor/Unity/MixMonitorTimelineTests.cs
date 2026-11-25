@@ -20,8 +20,12 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(timeline.ElapsedSeconds(0), Is.EqualTo(1d));
             Assert.That(timeline.ElapsedSeconds(2), Is.EqualTo(3d));
 
+            Assert.That(timeline.Sample(24d, SfxDropCounts.None), Is.EqualTo(3));
+            Assert.That(timeline.Count, Is.EqualTo(1));
+            Assert.That(timeline.ElapsedSeconds(0), Is.EqualTo(14d));
+
             timeline.Reset(0);
-            timeline.Sample(15d, SfxDropCounts.None);
+            timeline.Sample(25d, SfxDropCounts.None);
             Assert.That(timeline.ElapsedSeconds(0), Is.Zero);
         }
 

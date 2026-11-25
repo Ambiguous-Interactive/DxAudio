@@ -76,6 +76,7 @@ namespace WallstopStudios.DxAudio.Editor
 
         internal int Sample(double time, in SfxDropCounts counts, float? duckGain = null)
         {
+            // Check before eviction so a gap cannot move the capture origin.
             if (Count == 0)
             {
                 _captureStart = time;

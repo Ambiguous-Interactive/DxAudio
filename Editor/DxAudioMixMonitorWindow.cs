@@ -280,7 +280,12 @@ namespace WallstopStudios.DxAudio.Editor
             return new GUIContent(label, label);
         }
 
-        internal void SamplePlayer(double? time = null)
+        internal void SamplePlayer()
+        {
+            SamplePlayer(EditorApplication.timeSinceStartup);
+        }
+
+        internal void SamplePlayer(double time)
         {
             if (Capture.Paused)
             {
@@ -302,7 +307,7 @@ namespace WallstopStudios.DxAudio.Editor
 
             SfxDropCounts counts = _player == null ? SfxDropCounts.None : _player.DropCounts;
             Capture.Sample(counts);
-            int evicted = Timeline.Sample(time ?? EditorApplication.timeSinceStartup, counts, _music == null ? (float?)null : _music.Attenuation.volumeScale);
+            int evicted = Timeline.Sample(time, counts, _music == null ? (float?)null : _music.Attenuation.volumeScale);
             Cursor = Follow ? Timeline.Count - 1 : Math.Max(0, Cursor - evicted);
             bool canReadWaveform = true;
             for (int voice = 0; voice < Timeline.VoiceCount; ++voice)
@@ -332,7 +337,12 @@ namespace WallstopStudios.DxAudio.Editor
             }
         }
 
-        internal void ToggleCapture(double? time = null)
+        internal void ToggleCapture()
+        {
+            ToggleCapture(EditorApplication.timeSinceStartup);
+        }
+
+        internal void ToggleCapture(double time)
         {
             Capture.Paused = !Capture.Paused;
             if (Capture.Paused)
