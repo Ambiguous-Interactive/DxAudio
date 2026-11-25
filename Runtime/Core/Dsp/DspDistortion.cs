@@ -1,6 +1,7 @@
 namespace WallstopStudios.DxAudio
 {
     using System;
+    using System.Runtime.CompilerServices;
 
     /// <summary>Drives a signal into a wave shaper and then a tone control, the way a distortion pedal does.</summary>
     /// <remarks>
@@ -16,14 +17,9 @@ namespace WallstopStudios.DxAudio
         /// <summary>A cutoff at the top of hearing, which passes the shaper's top through.</summary>
         public const float OpenToneHz = 20_000f;
 
-        // Linear interpolation at this spacing bounds the ideal tanh error below 4e-7.
-        private const int SamplesPerUnit = 512;
-        private const int TableEnd = 10 * SamplesPerUnit;
-
         private const float MinimumToneHz = 20f;
 
         private const float SmoothingSeconds = 0.01f;
-        private static readonly float[] Table;
 
         public override string DisplayName => "Distortion";
 
@@ -77,33 +73,20 @@ namespace WallstopStudios.DxAudio
             _toneState = Array.Empty<float>();
         }
 
-        static DspDistortion()
-        {
-            Table = BuildTable();
-        }
-
-        private static float[] BuildTable()
-        {
-            float[] table = new float[TableEnd + 1];
-            for (int index = 0; index <= TableEnd; ++index)
-            {
-                table[index] = (float)Math.Tanh((double)index / SamplesPerUnit);
-            }
-            return table;
-        }
-
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static float Shape(float sample)
         {
-            float position = Math.Abs(sample) * SamplesPerUnit;
-            if (position < TableEnd)
+            float square = sample * sample;
+            if (square < 64f)
             {
-                int index = (int)position;
-                float first = Table[index];
-                float shaped = first + (position - index) * (Table[index + 1] - first);
-                return sample < 0f ? -shaped : shaped;
+                // Truncate the tanh continued fraction x / (1 + x² / (3 + …)) at the denominator 23.
+                float numerator = ((((78f * square + 75_075f) * square + 18_378_360f) * square + 1_571_349_780f) * square + 45_831_035_250f) * square + 316_234_143_225f;
+                float denominator =
+                    (((((square + 3_003f) * square + 1_351_350f) * square + 192_972_780f) * square + 9_820_936_125f) * square + 151_242_416_325f) * square + 316_234_143_225f;
+                return sample * numerator / denominator;
             }
 
-            // tanh(10) already rounds to full scale at float precision.
+            // Beyond eight, tanh is already within 2.3e-7 of full scale.
             return float.IsNaN(sample) ? sample : (sample < 0f ? -1f : 1f);
         }
 
