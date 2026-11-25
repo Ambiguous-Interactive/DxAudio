@@ -1,6 +1,7 @@
 namespace WallstopStudios.DxAudio
 {
     using System;
+    using System.Numerics;
 
     /// <summary>Drives a signal into a wave shaper and then a tone control, the way a distortion pedal does.</summary>
     /// <remarks>
@@ -19,6 +20,14 @@ namespace WallstopStudios.DxAudio
         private const float MinimumToneHz = 20f;
 
         private const float SmoothingSeconds = 0.01f;
+
+        // Quadratic fit in x² for tanh(x) / x. The shaper error stays below 6e-7 on [-2.5, 2.5].
+        private static readonly Vector<float> ShaperLimit = new(6.25f);
+        private static readonly Vector<float> NumeratorConstant = new(0.99999803f);
+        private static readonly Vector<float> NumeratorLinear = new(0.10855813f);
+        private static readonly Vector<float> NumeratorQuadratic = new(0.00091172634f);
+        private static readonly Vector<float> DenominatorLinear = new(0.44188027f);
+        private static readonly Vector<float> DenominatorQuadratic = new(0.01488993f);
 
         public override string DisplayName => "Distortion";
 
@@ -92,6 +101,32 @@ namespace WallstopStudios.DxAudio
             return AudioMath.OnePoleCoefficient(1f / (2f * (float)Math.PI * toneHz), sampleRate);
         }
 
+        private static int ShapeStereoPrefix(float[] buffer, int offset, int end, float drive)
+        {
+            int width = Vector<float>.Count;
+            int lastStart = end - width;
+            Vector<float> gain = new(drive);
+            Vector<float> one = Vector<float>.One;
+            int index = offset;
+            for (; index <= lastStart; index += width)
+            {
+                Vector<float> driven = new Vector<float>(buffer, index) * gain;
+                Vector<float> square = driven * driven;
+                if (!Vector.Min(square, ShaperLimit).Equals(square))
+                {
+                    // Use exact shaping for the rest of a block with an out-of-range sample.
+                    break;
+                }
+
+                Vector<float> numerator = (NumeratorQuadratic * square + NumeratorLinear) * square + NumeratorConstant;
+                Vector<float> denominator = (DenominatorQuadratic * square + DenominatorLinear) * square + one;
+                Vector<float> shaped = driven * numerator / denominator;
+                shaped.CopyTo(buffer, index);
+            }
+
+            return index;
+        }
+
         public override void Process(float[] buffer, int offset, int count, int channels)
         {
             if (buffer == null || channels <= 0 || channels != _channels || offset < 0 || count <= 0 || count % channels != 0 || buffer.Length - count < offset)
@@ -109,7 +144,21 @@ namespace WallstopStudios.DxAudio
                 float nextTone = tone + ((_toneCoefficient - tone) * smoothing);
                 if (drive == nextDrive && tone == nextTone)
                 {
-                    ProcessSettledStereo(buffer, offset, offset + count, drive, tone);
+                    int end = offset + count;
+                    int firstUnshaped = offset;
+                    if (Vector.IsHardwareAccelerated && Vector<float>.Count <= count)
+                    {
+                        firstUnshaped = ShapeStereoPrefix(buffer, offset, end, drive);
+                        if (offset < firstUnshaped)
+                        {
+                            FilterStereoPrefix(buffer, offset, firstUnshaped, tone);
+                        }
+                    }
+
+                    if (firstUnshaped < end)
+                    {
+                        ProcessSettledStereo(buffer, firstUnshaped, end, drive, tone);
+                    }
                 }
                 else
                 {
@@ -157,6 +206,24 @@ namespace WallstopStudios.DxAudio
             _toneCoefficient = Coefficient(CappedToneHz(_toneHz, sampleRate), sampleRate);
             _smoothingCoefficient = AudioMath.OnePoleCoefficient(SmoothingSeconds, sampleRate);
             Reset();
+        }
+
+        private void FilterStereoPrefix(float[] buffer, int offset, int end, float toneCoefficient)
+        {
+            float[] toneState = _toneState;
+            float left = toneState[0];
+            float right = toneState[1];
+            for (int index = offset; index < end; index += 2)
+            {
+                int rightIndex = index + 1;
+                left += (buffer[index] - left) * toneCoefficient;
+                right += (buffer[rightIndex] - right) * toneCoefficient;
+                buffer[index] = left;
+                buffer[rightIndex] = right;
+            }
+
+            toneState[0] = left;
+            toneState[1] = right;
         }
 
         private void ProcessSettledStereo(float[] buffer, int offset, int end, float drive, float toneCoefficient)

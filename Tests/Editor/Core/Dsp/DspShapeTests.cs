@@ -1,6 +1,7 @@
 namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System;
+    using System.Numerics;
     using NUnit.Framework;
 
     public sealed class DspShapeTests
@@ -256,8 +257,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 Assert.That(interleaved[7], Is.EqualTo(-3f));
                 for (int frame = 0; frame < 3; ++frame)
                 {
-                    Assert.That(BitConverter.SingleToInt32Bits(interleaved[(2 * frame) + 1]), Is.EqualTo(BitConverter.SingleToInt32Bits(leftSamples[frame])));
-                    Assert.That(BitConverter.SingleToInt32Bits(interleaved[(2 * frame) + 2]), Is.EqualTo(BitConverter.SingleToInt32Bits(rightSamples[frame])));
+                    Assert.That(interleaved[(2 * frame) + 1], Is.EqualTo(leftSamples[frame]).Within(2e-6f));
+                    Assert.That(interleaved[(2 * frame) + 2], Is.EqualTo(rightSamples[frame]).Within(2e-6f));
                 }
             }
         }
@@ -309,6 +310,30 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
 
             Assert.That(maximumError, Is.LessThanOrEqualTo(2e-6f));
+        }
+
+        [Test]
+        public void DistortionFiltersTheStereoPrefixBeforeTheExactRemainder()
+        {
+            const int Channels = 2;
+            const int Offset = 1;
+            int vectorWidth = Vector<float>.Count;
+            int count = (2 * vectorWidth) + Channels;
+            DspDistortion candidate = new() { Drive = 2f, ToneHz = 3_000f };
+            ExactDistortion exact = new() { Drive = 2f, ToneHz = 3_000f };
+            Assert.That(candidate.TryPrepare(SampleRate, count / Channels, Channels), Is.True);
+            Assert.That(exact.TryPrepare(SampleRate, count / Channels, Channels), Is.True);
+
+            float[] output = new float[count + 2];
+            Array.Fill(output, 0.75f);
+            output[Offset + 1] = -0.5f;
+            output[Offset + vectorWidth] = 5f;
+            float[] reference = (float[])output.Clone();
+            candidate.Process(output, Offset, count, Channels);
+            exact.Process(reference, Offset, count, Channels);
+            Assert.That(output, Is.EqualTo(reference).Within(2e-6f));
+            Assert.That(output[0], Is.EqualTo(0.75f));
+            Assert.That(output[count + 1], Is.EqualTo(0.75f));
         }
 
         [Test]

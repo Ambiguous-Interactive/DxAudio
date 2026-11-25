@@ -2,6 +2,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System;
     using System.Diagnostics;
+    using System.Numerics;
     using System.Text;
     using NUnit.Framework;
     using UnityEngine;
@@ -73,6 +74,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 $"DxAudio Distortion timing: {Voices} stereo voices, {DspRenderWorkload.Rate} Hz, {DspRenderWorkload.Frames} frames, "
                     + $"{DspRenderWorkload.WarmupPasses} warmups, {Passes} passes on {SystemInfo.processorType}. Stopwatch frequency {Stopwatch.Frequency} Hz."
             );
+            TestContext.Out.WriteLine($"DxAudio Distortion timing: hardware vectors {Vector.IsHardwareAccelerated}, {Vector<float>.Count} floats per vector.");
 
             double tickMicroseconds = 1_000_000d / Stopwatch.Frequency;
             double[] p95ByVariant = new double[Variants];
