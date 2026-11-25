@@ -15,6 +15,7 @@ namespace WallstopStudios.DxAudio.Editor
         private const int WireSegments = 20;
         private static readonly CustomStyleProperty<Color> AccentColor = new("--dxa-theme-accent");
         private static readonly CustomStyleProperty<Color> WireColor = new("--dxa-theme-wire");
+        private static readonly CustomStyleProperty<Color> TextColor = new("--dxa-theme-text");
         private static readonly CustomStyleProperty<Color> RejectedColor = new("--dxa-theme-rejected");
         private static readonly CustomStyleProperty<float> MarqueeOpacity = new("--dxa-marquee-opacity");
         private readonly DspGraphAsset _asset;
@@ -23,6 +24,7 @@ namespace WallstopStudios.DxAudio.Editor
         private readonly Action<int> _selectNode;
         private readonly Action<int> _selectEdge;
         private readonly Action<string> _report;
+        private readonly DspGraphMinimap _minimap;
         private readonly HashSet<int> _selection = new();
         private readonly VisualElement _levelLabels = new() { pickingMode = PickingMode.Ignore };
         private readonly VisualElement _cards = new() { pickingMode = PickingMode.Ignore };
@@ -41,6 +43,8 @@ namespace WallstopStudios.DxAudio.Editor
         private bool _showMeters;
         private Vector2 _pan = new(38f, 48f);
         private float _zoom = 1f;
+        private int _input = -1;
+        private int _output = -1;
         private int _edge = -1;
         private int _pointerId = -1;
         private int _source = -1;
@@ -89,6 +93,9 @@ namespace WallstopStudios.DxAudio.Editor
             _connectionFeedback.AddToClassList("dxaudio-graph-text");
             _connectionFeedback.style.display = DisplayStyle.None;
             Add(_connectionFeedback);
+            _minimap = new DspGraphMinimap(GraphCardRect, CenterGraph);
+            Add(_minimap);
+            RegisterCallback<GeometryChangedEvent>(_ => RefreshMinimap());
             generateVisualContent += Draw;
             RegisterCallback<PointerDownEvent>(PointerDown);
             RegisterCallback<PointerMoveEvent>(PointerMove);
@@ -98,6 +105,11 @@ namespace WallstopStudios.DxAudio.Editor
             RegisterCallback<KeyDownEvent>(KeyDown);
             Refresh();
             schedule.Execute(UpdateMeters).Every(50);
+        }
+
+        internal static void WriteRect(MeshWriteData mesh, Rect rect, Color color, ushort first)
+        {
+            Quad(mesh, rect.min, new Vector2(rect.xMax, rect.yMin), rect.max, new Vector2(rect.xMin, rect.yMax), color, first);
         }
 
         private static Rect Box(Vector2 a, Vector2 b)
@@ -129,7 +141,7 @@ namespace WallstopStudios.DxAudio.Editor
         private static void DrawRect(MeshGenerationContext context, Rect rect, Color color)
         {
             MeshWriteData mesh = context.Allocate(4, 6);
-            Quad(mesh, rect.min, new Vector2(rect.xMax, rect.yMin), rect.max, new Vector2(rect.xMin, rect.yMax), color, 0);
+            WriteRect(mesh, rect, color, 0);
         }
 
         private static void Quad(MeshWriteData mesh, Vector2 a, Vector2 b, Vector2 c, Vector2 d, Color color, ushort index)
@@ -202,8 +214,8 @@ namespace WallstopStudios.DxAudio.Editor
             _nodeMeters = new DspGraphNodeMeter[_positions.Length];
             _cards.Clear();
             _empty.style.display = _asset.NodeCount == 0 ? DisplayStyle.Flex : DisplayStyle.None;
-            int input = _edits.Resolve(_asset.InputNode);
-            int output = _edits.Resolve(_asset.OutputNode);
+            _input = _edits.Resolve(_asset.InputNode);
+            _output = _edits.Resolve(_asset.OutputNode);
             for (int index = 0; index < _asset.NodeCount; ++index)
             {
                 DspGraphNode node = _asset.Nodes[index];
@@ -222,7 +234,7 @@ namespace WallstopStudios.DxAudio.Editor
                 string title = string.IsNullOrWhiteSpace(node?.Name) ? $"Unnamed node {index + 1}" : node.Name;
                 DspChainAsset chain = node?.Chain;
                 string subtitle = chain != null ? chain.name : "Junction";
-                string ports = (index == input ? "Input     " : "") + (index == output ? "Output     " : "");
+                string ports = (index == _input ? "Input     " : "") + (index == _output ? "Output     " : "");
                 if (1 < incoming[index])
                 {
                     ports += $"Sum {incoming[index]} inputs";
@@ -504,7 +516,26 @@ namespace WallstopStudios.DxAudio.Editor
                 label.style.top = point.y;
             }
 
+            RefreshMinimap();
             MarkDirtyRepaint();
+        }
+
+        private void RefreshMinimap()
+        {
+            Rect rect = contentRect;
+            _minimap.Refresh(_positions.Length, new Rect((rect.position - _pan) / _zoom, rect.size / _zoom), _input, _output);
+        }
+
+        private void CenterGraph(Vector2 point)
+        {
+            if (_pointerId == -1)
+            {
+                ClosePicker();
+                Focus();
+                _pan = contentRect.center - point * _zoom;
+                SaveView();
+                UpdateCards();
+            }
         }
 
         private void UpdateMeters()
@@ -514,8 +545,17 @@ namespace WallstopStudios.DxAudio.Editor
 
         private Rect CardRect(int index)
         {
-            Vector2 delta = _draggingNodes && _selection.Contains(index) ? _pointer - _down : Vector2.zero;
-            return new Rect(_positions[index] * _zoom + _pan + delta, new Vector2(NodeWidth, NodeHeight) * _zoom);
+            return new Rect(_positions[index] * _zoom + _pan + DragDelta(index), new Vector2(NodeWidth, NodeHeight) * _zoom);
+        }
+
+        private Rect GraphCardRect(int index)
+        {
+            return new Rect(_positions[index] + DragDelta(index) / _zoom, new Vector2(NodeWidth, NodeHeight));
+        }
+
+        private Vector2 DragDelta(int index)
+        {
+            return _draggingNodes && _selection.Contains(index) ? _pointer - _down : Vector2.zero;
         }
 
         private Vector2 Port(int index, bool output)
@@ -1070,6 +1110,11 @@ namespace WallstopStudios.DxAudio.Editor
                 style.TryGetValue(AccentColor, out _accent) && style.TryGetValue(WireColor, out _wire) && style.TryGetValue(RejectedColor, out _rejected) && hasOpacity;
             _marquee = _accent;
             _marquee.a = opacity;
+            if (_colorsResolved)
+            {
+                _minimap.SetColors(_accent, _wire, style.TryGetValue(TextColor, out Color outline) ? outline : _accent);
+            }
+
             MarkDirtyRepaint();
         }
 

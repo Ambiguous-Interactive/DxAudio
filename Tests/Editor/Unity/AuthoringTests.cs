@@ -1,6 +1,7 @@
 namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System.Collections.Generic;
+    using System.Reflection;
     using NUnit.Framework;
     using UnityEditor;
     using UnityEditor.UIElements;
@@ -563,6 +564,87 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 }
             );
             AssertRules(graphFindings, Rule.MissingChainEffect);
+            Assert.That(graphFindings[0].Label, Does.Contain("DXA201").And.Contain("Node 'Input'").And.Contain("slot 1"));
+            Assert.That(graphFindings[0].Asset == chain, Is.True, "graph context retains the shared chain silence identity");
+        }
+
+        [Test]
+        public void TheGraphProblemsStripKeepsSilencedFindingsVisibleAcrossRefresh()
+        {
+            const Rule RuleToHide = Rule.MissingChainEffect;
+            bool personal = DxAudioProblemSettings.IsPersonalSilence(RuleToHide);
+            DxAudioProblemSettings settings = DxAudioProblemSettings.instance;
+            Severity severity = settings.SeverityFor(RuleToHide);
+            try
+            {
+                DxAudioProblemSettings.SetPersonalSilence(RuleToHide, true, notify: false);
+                settings.SetSeverity(RuleToHide, Severity.Error);
+                Finding[] findings = { new Finding(RuleToHide, null, "Missing slot.") };
+                DxAudioInspectorUi.ProblemList strip = new(findings, actionLabel: "Show in Graph");
+                Assert.That(strip.Q<HelpBox>() == null, Is.True);
+                Button show = strip.Q<Button>();
+                Assert.That(show.text, Is.EqualTo("Show"));
+                MethodInfo invoke = typeof(Clickable).GetMethod("Invoke", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(invoke != null, Is.True);
+                invoke.Invoke(show.clickable, new object[] { null });
+
+                bool selected = false;
+                strip.SetFindings(findings, _ => () => selected = true);
+                Assert.That(strip.Q<HelpBox>().text, Does.Contain("DXA201"));
+                Button locate = strip.Q<Button>();
+                Assert.That(locate.text, Is.EqualTo("Show in Graph"));
+                invoke.Invoke(locate.clickable, new object[] { null });
+                Assert.That(selected, Is.True);
+            }
+            finally
+            {
+                settings.SetSeverity(RuleToHide, severity);
+                DxAudioProblemSettings.SetPersonalSilence(RuleToHide, personal, notify: false);
+            }
+        }
+
+        [Test]
+        public void TheMinimapFitsDistantNodesAndMapsClicksBackToTheGraph()
+        {
+            Rect graph = new(-600f, -220f, 1_200f, 400f);
+            Rect map = new(6f, 22f, 148f, 68f);
+            Assert.That(DspGraphMinimap.TryFit(graph, map, out Vector2 origin, out float scale), Is.True);
+            Vector2 graphPoint = new(240f, -180f);
+            Vector2 mapPoint = origin + graphPoint * scale;
+
+            Assert.That(map.Contains(mapPoint), Is.True);
+            Vector2 recovered = (mapPoint - origin) / scale;
+            Assert.That(recovered.x, Is.EqualTo(graphPoint.x).Within(0.001f));
+            Assert.That(recovered.y, Is.EqualTo(graphPoint.y).Within(0.001f));
+            Assert.That((origin + graph.center * scale).x, Is.EqualTo(map.center.x).Within(0.001f));
+            Assert.That((origin + graph.center * scale).y, Is.EqualTo(map.center.y).Within(0.001f));
+            Assert.That(DspGraphMinimap.TryFit(graph, Rect.zero, out _, out _), Is.False);
+        }
+
+        [Test]
+        public void GraphBudgetCountsEndpointsAndClearsStaleMemoryOnInvalidDrafts()
+        {
+            using MadeObjects made = new();
+            DspGraphAsset graph = made.Track(
+                DspGraphAsset.Create(
+                    new[] { new DspGraphNode("Source", null), new DspGraphNode("Output", null) },
+                    new[] { new DspGraphEdge("Source", "Output") },
+                    "Source",
+                    "Output"
+                )
+            );
+            DspGraph prepared = DxAudioValidation.CollectGraph(graph, (_, _, _) => { });
+            DspGraphBudgetBar budget = new();
+            budget.Refresh(graph, prepared);
+            Label memory = budget.Q<Label>("DxAudioGraphMemoryBudget");
+
+            Assert.That(budget.Q<Label>("DxAudioGraphNodeBudget").text, Is.EqualTo("Nodes 2/16"));
+            Assert.That(budget.Q<Label>("DxAudioGraphEdgeBudget").text, Is.EqualTo("Edges 1/32"));
+            Assert.That(memory.text, Does.Contain("16"));
+            Assert.That(memory.tooltip, Does.Contain("48 kHz"));
+
+            budget.Refresh(graph, null);
+            Assert.That(memory.text, Is.EqualTo("Graph buffers unavailable"));
         }
 
         [Test]

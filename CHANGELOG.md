@@ -22,6 +22,7 @@ All notable changes to this package are documented here. The format follows
 - Show stereo peaks with peak hold for SFX and Music and a Music spectrum in Mix Monitor ([#133](https://github.com/Ambiguous-Interactive/DxAudio/issues/133)).
 - Add timeline follow, paused history loops, time and voice counts, and JSON export to Mix Monitor ([#133](https://github.com/Ambiguous-Interactive/DxAudio/issues/133)).
 - Measure managed Play() allocations and DxAudio DSP processing time in Mix Monitor ([#133](https://github.com/Ambiguous-Interactive/DxAudio/issues/133)).
+- Navigate Signal Graph with a minimap and check its node, edge, buffer, and validation status ([#132](https://github.com/Ambiguous-Interactive/DxAudio/issues/132)).
 - Compare a selected Signal Graph node’s input and output spectrum during wet audition ([#132](https://github.com/Ambiguous-Interactive/DxAudio/issues/132)).
 - Show stereo node peaks, clip lights, and live edge levels during Signal Graph audition ([#132](https://github.com/Ambiguous-Interactive/DxAudio/issues/132)).
 - Solo a node in Signal Graph audition to hear only the paths through it ([#132](https://github.com/Ambiguous-Interactive/DxAudio/issues/132)).
