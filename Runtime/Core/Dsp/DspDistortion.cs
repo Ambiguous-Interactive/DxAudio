@@ -77,17 +77,21 @@ namespace WallstopStudios.DxAudio
         private static float Shape(float sample)
         {
             float square = sample * sample;
-            if (square < 64f)
+            if (square <= 4f)
             {
-                // Truncate the tanh continued fraction x / (1 + x² / (3 + …)) at the denominator 23.
-                float numerator = ((((78f * square + 75_075f) * square + 18_378_360f) * square + 1_571_349_780f) * square + 45_831_035_250f) * square + 316_234_143_225f;
-                float denominator =
-                    (((((square + 3_003f) * square + 1_351_350f) * square + 192_972_780f) * square + 9_820_936_125f) * square + 151_242_416_325f) * square + 316_234_143_225f;
+                // Truncate the tanh continued fraction at the denominator 11. The truncation error is below 6e-7 on this interval.
+                float numerator = (21f * square + 1_260f) * square + 10_395f;
+                float denominator = ((square + 210f) * square + 4_725f) * square + 10_395f;
                 return sample * numerator / denominator;
             }
 
-            // Beyond eight, tanh is already within 2.3e-7 of full scale.
-            return float.IsNaN(sample) ? sample : (sample < 0f ? -1f : 1f);
+            if (64f <= square)
+            {
+                // At eight and beyond, tanh is within 2.3e-7 of full scale.
+                return sample < 0f ? -1f : 1f;
+            }
+
+            return (float)Math.Tanh(sample);
         }
 
         private static float MaxToneHz(int sampleRate)
