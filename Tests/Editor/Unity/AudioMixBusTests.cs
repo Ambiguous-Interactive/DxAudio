@@ -36,6 +36,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             return bus;
         }
 
+        private static StereoPeakTap AttachSyntheticTap(AudioMixBus bus)
+        {
+            // A synthetic test must be the only producer of captured samples.
+            bus.gameObject.SetActive(false);
+            Assert.That(bus.TryAttachPeakTap(out StereoPeakTap tap), Is.True);
+            return tap;
+        }
+
         private static float[] Sum(float[] left, float[] right)
         {
             float[] sum = new float[left.Length];
@@ -114,15 +122,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             using MadeObjects made = new();
             AudioMixBus bus = Bus(made, Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -6f, lookaheadSeconds: 0f))));
-            _ = bus.gameObject.AddComponent<AudioListener>();
+            StereoPeakTap tap = AttachSyntheticTap(bus);
             MixMonitorMasterMeter meter = new();
-            meter.Sample(bus, 0d);
-            Assert.That(meter.IsAttached, Is.True);
+            meter.ReadCapturedAudio(tap, 0d);
             Assert.That(meter.HasSignal, Is.False);
 
             float[] block = FullScale(bus.ChannelCount * 64);
             bus.ProcessBuffer(block, bus.ChannelCount);
-            meter.Sample(bus, 0.05d);
+            meter.ReadCapturedAudio(tap, 0.05d);
 
             Assert.That(meter.HasSignal, Is.True);
             Assert.That(meter.Left.Level, Is.EqualTo(block[0]));
@@ -135,9 +142,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             using MadeObjects made = new();
             AudioMixBus bus = Bus(made, Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -6f, lookaheadSeconds: 0f))));
-            _ = bus.gameObject.AddComponent<AudioListener>();
+            StereoPeakTap tap = AttachSyntheticTap(bus);
             MixMonitorMasterMeter meter = new();
-            meter.Sample(bus, 0d);
+            meter.ReadCapturedAudio(tap, 0d);
             Assert.That(meter.TruePeak.HasValue, Is.False);
 
             int channels = bus.ChannelCount;
@@ -148,17 +155,17 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
 
             bus.ProcessBuffer(block, channels);
-            meter.Sample(bus, 0.05d);
+            meter.ReadCapturedAudio(tap, 0.05d);
             float expected = AudioMath.DecibelsToLinear(-6f) * Mathf.Sqrt(2f);
             Assert.That(meter.TruePeak, Is.EqualTo(expected).Within(0.03f));
             Assert.That(meter.Left.Level, Is.EqualTo(AudioMath.DecibelsToLinear(-6f)).Within(0.001f));
 
             Array.Clear(block, 0, block.Length);
             bus.ProcessBuffer(block, channels);
-            meter.Sample(bus, 0.1d);
+            meter.ReadCapturedAudio(tap, 0.1d);
             Assert.That(meter.TruePeak, Is.EqualTo(expected).Within(0.03f));
             bus.ProcessBuffer(block, channels);
-            meter.Sample(bus, 1.1d);
+            meter.ReadCapturedAudio(tap, 1.1d);
             Assert.That(meter.TruePeak, Is.Zero);
             meter.Clear();
             Assert.That(meter.TruePeak.HasValue, Is.False);
@@ -169,10 +176,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             using MadeObjects made = new();
             AudioMixBus bus = Bus(made, Chain(made, made.Track(DspLimiterAsset.Create(ceilingDecibels: -12f, lookaheadSeconds: 0f))));
-            // Keep the native audio callback out of the synthetic capture.
-            bus.gameObject.SetActive(false);
-            _ = bus.gameObject.AddComponent<AudioListener>();
-            Assert.That(bus.TryAttachPeakTap(out StereoPeakTap tap), Is.True);
+            StereoPeakTap tap = AttachSyntheticTap(bus);
             MixMonitorMasterMeter meter = new();
             meter.ReadCapturedAudio(tap, 0d);
             Assert.That(meter.IntegratedLufs.HasValue, Is.False);
@@ -271,17 +275,17 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             using MadeObjects made = new();
             AudioMixBus bus = Bus(made, null);
-            _ = bus.gameObject.AddComponent<AudioListener>();
+            StereoPeakTap tap = AttachSyntheticTap(bus);
             MixMonitorMasterMeter meter = new();
-            meter.Sample(bus, 0d);
+            meter.ReadCapturedAudio(tap, 0d);
             bus.ProcessBuffer(new[] { 0.8f, 0.2f }, 2);
-            meter.Sample(bus, 0d);
+            meter.ReadCapturedAudio(tap, 0d);
 
-            meter.Sample(bus, 0.3d);
+            meter.ReadCapturedAudio(tap, 0.3d);
             Assert.That(meter.HasSignal, Is.False);
             Assert.That(meter.TruePeak, Is.EqualTo(0.8f));
 
-            meter.Sample(bus, 1d);
+            meter.ReadCapturedAudio(tap, 1d);
             Assert.That(meter.TruePeak.HasValue, Is.False);
         }
 
@@ -290,30 +294,30 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             using MadeObjects made = new();
             AudioMixBus bus = Bus(made, null);
-            _ = bus.gameObject.AddComponent<AudioListener>();
+            StereoPeakTap tap = AttachSyntheticTap(bus);
             MixMonitorMasterMeter meter = new();
-            meter.Sample(bus, 0d);
+            meter.ReadCapturedAudio(tap, 0d);
 
             bus.ProcessBuffer(new[] { 0.8f, 0.2f }, 2);
-            meter.Sample(bus, 0.05d);
+            meter.ReadCapturedAudio(tap, 0.05d);
             bus.ProcessBuffer(new[] { 0.2f, 0.6f }, 2);
-            meter.Sample(bus, 0.1d);
-            meter.Sample(bus, 0.15d);
+            meter.ReadCapturedAudio(tap, 0.1d);
+            meter.ReadCapturedAudio(tap, 0.15d);
 
             Assert.That(meter.HasSignal, Is.True);
             Assert.That(meter.Left.Level, Is.EqualTo(0.2f));
             Assert.That(meter.Left.Held, Is.EqualTo(0.8f));
             Assert.That(meter.Right.Held, Is.EqualTo(0.6f));
 
-            meter.Sample(bus, 0.4d);
+            meter.ReadCapturedAudio(tap, 0.4d);
             Assert.That(meter.HasSignal, Is.False);
             Assert.That(meter.Left.Level, Is.Zero);
             Assert.That(meter.Left.Held, Is.EqualTo(0.8f));
 
-            meter.Sample(bus, 1.05d);
+            meter.ReadCapturedAudio(tap, 1.05d);
             Assert.That(meter.Left.Held, Is.Zero);
             Assert.That(meter.Right.Held, Is.EqualTo(0.6f));
-            meter.Sample(bus, 1.1d);
+            meter.ReadCapturedAudio(tap, 1.1d);
             Assert.That(meter.Right.Held, Is.Zero);
         }
 
@@ -322,14 +326,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             using MadeObjects made = new();
             AudioMixBus bus = Bus(made, null);
-            _ = bus.gameObject.AddComponent<AudioListener>();
+            StereoPeakTap tap = AttachSyntheticTap(bus);
             MixMonitorMasterMeter meter = new();
-            meter.Sample(bus, 0d);
+            meter.ReadCapturedAudio(tap, 0d);
             bus.ProcessBuffer(new[] { 0.8f, 0.4f }, 2);
-            meter.Sample(bus, 0d);
+            meter.ReadCapturedAudio(tap, 0d);
             bus.ProcessBuffer(new[] { 0.2f, 0.1f }, 2);
-            meter.Sample(bus, 0.875d);
-            meter.Sample(bus, 1.0625d);
+            meter.ReadCapturedAudio(tap, 0.875d);
+            meter.ReadCapturedAudio(tap, 1.0625d);
 
             Assert.That(meter.HasSignal, Is.True);
             Assert.That(meter.Left.Level, Is.EqualTo(0.2f));
