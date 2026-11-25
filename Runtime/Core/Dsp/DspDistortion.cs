@@ -16,9 +16,14 @@ namespace WallstopStudios.DxAudio
         /// <summary>A cutoff at the top of hearing, which passes the shaper's top through.</summary>
         public const float OpenToneHz = 20_000f;
 
+        // Linear interpolation at this spacing bounds the ideal tanh error below 4e-7.
+        private const int SamplesPerUnit = 512;
+        private const int TableEnd = 10 * SamplesPerUnit;
+
         private const float MinimumToneHz = 20f;
 
         private const float SmoothingSeconds = 0.01f;
+        private static readonly float[] Table;
 
         public override string DisplayName => "Distortion";
 
@@ -72,6 +77,36 @@ namespace WallstopStudios.DxAudio
             _toneState = Array.Empty<float>();
         }
 
+        static DspDistortion()
+        {
+            Table = BuildTable();
+        }
+
+        private static float[] BuildTable()
+        {
+            float[] table = new float[TableEnd + 1];
+            for (int index = 0; index <= TableEnd; ++index)
+            {
+                table[index] = (float)Math.Tanh((double)index / SamplesPerUnit);
+            }
+            return table;
+        }
+
+        private static float Shape(float sample)
+        {
+            float position = Math.Abs(sample) * SamplesPerUnit;
+            if (position < TableEnd)
+            {
+                int index = (int)position;
+                float first = Table[index];
+                float shaped = first + (position - index) * (Table[index + 1] - first);
+                return sample < 0f ? -shaped : shaped;
+            }
+
+            // tanh(10) already rounds to full scale at float precision.
+            return float.IsNaN(sample) ? sample : (sample < 0f ? -1f : 1f);
+        }
+
         private static float MaxToneHz(int sampleRate)
         {
             return 0.45f * sampleRate;
@@ -117,7 +152,7 @@ namespace WallstopStudios.DxAudio
                 {
                     ref float sample = ref buffer[frameStart + channel];
                     ref float tone = ref _toneState[channel];
-                    float shaped = (float)Math.Tanh(_activeDrive * sample);
+                    float shaped = Shape(_activeDrive * sample);
                     float filtered = tone + ((shaped - tone) * _activeToneCoefficient);
                     tone = filtered;
                     sample = filtered;
@@ -161,8 +196,8 @@ namespace WallstopStudios.DxAudio
                 activeTone += (_toneCoefficient - activeTone) * smoothing;
                 ref float leftSample = ref buffer[index];
                 ref float rightSample = ref buffer[index + 1];
-                float shapedLeft = (float)Math.Tanh(activeDrive * leftSample);
-                float shapedRight = (float)Math.Tanh(activeDrive * rightSample);
+                float shapedLeft = Shape(activeDrive * leftSample);
+                float shapedRight = Shape(activeDrive * rightSample);
                 left += (shapedLeft - left) * activeTone;
                 right += (shapedRight - right) * activeTone;
                 leftSample = left;

@@ -405,6 +405,9 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             const int Passes = DspRenderWorkload.Passes;
             DspRenderWorkload baseline = new(voices, effect, bursts, enabled: false);
             DspRenderWorkload candidate = new(voices, effect, bursts, enabled: true);
+            DspRenderWorkload exact = string.Equals(effect, "Distortion", StringComparison.Ordinal)
+                ? new DspRenderWorkload(voices, effect, bursts, enabled: true, factory: static () => new DspDistortionReference { Drive = 20f, ToneHz = 3_000f })
+                : null;
             long Render(DspRenderWorkload workload)
             {
                 long ticks = 0;
@@ -423,6 +426,8 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             long[] candidateTicks = new long[Passes];
             ulong[] baselineCycles = new ulong[Passes];
             ulong[] candidateCycles = new ulong[Passes];
+            long[] exactTicks = exact == null ? Array.Empty<long>() : new long[Passes];
+            ulong[] exactCycles = exact == null ? Array.Empty<ulong>() : new ulong[Passes];
             bool haveCycles = true;
             void Measure(DspRenderWorkload workload, long[] elapsed, ulong[] cycles, int pass)
             {
@@ -438,6 +443,10 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             {
                 Measure(baseline, baselineTicks, baselineCycles, 0);
                 Measure(candidate, candidateTicks, candidateCycles, 0);
+                if (exact != null)
+                {
+                    Measure(exact, exactTicks, exactCycles, 0);
+                }
             }
 
             for (int pass = 0; pass < Passes; ++pass)
@@ -446,9 +455,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 {
                     Measure(baseline, baselineTicks, baselineCycles, pass);
                     Measure(candidate, candidateTicks, candidateCycles, pass);
+                    if (exact != null)
+                    {
+                        Measure(exact, exactTicks, exactCycles, pass);
+                    }
                 }
                 else
                 {
+                    if (exact != null)
+                    {
+                        Measure(exact, exactTicks, exactCycles, pass);
+                    }
+
                     Measure(candidate, candidateTicks, candidateCycles, pass);
                     Measure(baseline, baselineTicks, baselineCycles, pass);
                 }
@@ -477,10 +495,18 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             string threadCycles = haveCycles
                 ? $" Pass thread cycles at elapsed ranks, baseline {CyclesAtElapsedRanks(baselineCycles)}, candidate {CyclesAtElapsedRanks(candidateCycles)}."
                 : " Pass thread cycles unavailable.";
+            string exactComparison = string.Empty;
+            if (exact != null)
+            {
+                Array.Sort(exactTicks, exactCycles);
+                double exactAddedP95 = (exactTicks[p95] - baselineTicks[p95]) * tickMicroseconds;
+                exactComparison = $" Paired exact shaper {Distribution(exactTicks)} us (added p95 {exactAddedP95:F2} us).";
+            }
+
             TestContext.Out.WriteLine(
                 $"DxAudio DSP render: {effect} (bursts {bursts}), {voices} stereo voices at {DspRenderWorkload.Rate} Hz, {DspRenderWorkload.Frames} frames, {Passes} passes on {SystemInfo.processorType}: "
                     + $"p50/p95/p99/max in us, baseline {Distribution(baselineTicks)}, candidate {Distribution(candidateTicks)}, "
-                    + $"added p95 {addedP95:F2} us, wall-time reference {budget:F2} us ({(budget < addedP95 ? "over" : "within")}).{threadCycles}"
+                    + $"added p95 {addedP95:F2} us, wall-time reference {budget:F2} us ({(budget < addedP95 ? "over" : "within")}).{threadCycles}{exactComparison}"
             );
         }
 

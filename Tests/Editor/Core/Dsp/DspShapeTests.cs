@@ -221,6 +221,50 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(second, Is.EqualTo(first), "a 20 kHz tone is capped to the rate whichever way it was set");
         }
 
+        [TestCase(16_000, 1)]
+        [TestCase(48_000, 2)]
+        [TestCase(96_000, 6)]
+        public void DistortionStaysWithinTheExactShapersSampleErrorBound(int sampleRate, int channels)
+        {
+            const int Frames = 256;
+            DspDistortion candidate = new() { Drive = 20f, ToneHz = 3_000f };
+            DspDistortionReference exact = new() { Drive = candidate.Drive, ToneHz = candidate.ToneHz };
+            Assert.That(candidate.TryPrepare(sampleRate, Frames, channels), Is.True);
+            Assert.That(exact.TryPrepare(sampleRate, Frames, channels), Is.True);
+            float[] input = new float[Frames * channels];
+            float[] expected = new float[input.Length];
+            float peakError = 0f;
+            for (int block = 0; block < 16; ++block)
+            {
+                if (block == 4)
+                {
+                    candidate.Drive = exact.Drive = 0.4f;
+                    candidate.ToneHz = exact.ToneHz = 800f;
+                }
+                if (block == 8)
+                {
+                    candidate.Drive = exact.Drive = 100f;
+                    candidate.Reset();
+                    exact.Reset();
+                }
+
+                for (int index = 0, length = input.Length; index < length; ++index)
+                {
+                    input[index] = (float)Math.Sin((index + block * length) * 0.019d);
+                }
+
+                Array.Copy(input, expected, input.Length);
+                candidate.Process(input, 0, input.Length, channels);
+                exact.Process(expected, 0, expected.Length, channels);
+                for (int index = 0, length = input.Length; index < length; ++index)
+                {
+                    peakError = Math.Max(peakError, Math.Abs(input[index] - expected[index]));
+                }
+            }
+
+            Assert.That(peakError, Is.LessThanOrEqualTo(0.000002f));
+        }
+
         [Test]
         public void StereoDistortionMatchesTwoMonoChannelsAcrossCallbacks()
         {
