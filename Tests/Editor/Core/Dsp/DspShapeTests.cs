@@ -262,6 +262,55 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
         }
 
+        [TestCase(8_000, 1)]
+        [TestCase(48_000, 2)]
+        [TestCase(96_000, 6)]
+        public void DistortionStaysWithinTheExactShapeAcrossBlocksAndControlChanges(int rate, int channels)
+        {
+            const int Frames = 4_096;
+            const int Block = 128;
+            DspDistortion candidate = new();
+            ExactDistortion exact = new();
+            Assert.That(candidate.TryPrepare(rate, Block, channels), Is.True);
+            Assert.That(exact.TryPrepare(rate, Block, channels), Is.True);
+
+            int sampleCount = Frames * channels;
+            float[] output = new float[sampleCount];
+            for (int index = 0; index < sampleCount; ++index)
+            {
+                // Sweep both signs through the approximation, native shaper, and saturation.
+                output[index] = 0.005f * ((index * 31 % 3_997) - 1_998);
+            }
+
+            float[] reference = (float[])output.Clone();
+            float maximumError = 0f;
+            for (int frame = 0; frame < Frames; frame += Block)
+            {
+                if (frame == Frames / 4)
+                {
+                    candidate.Drive = exact.Drive = 5f;
+                    candidate.ToneHz = exact.ToneHz = 2_000f;
+                }
+
+                if (frame == Frames / 2)
+                {
+                    candidate.Reset();
+                    exact.Reset();
+                }
+
+                int offset = frame * channels;
+                int count = Block * channels;
+                candidate.Process(output, offset, count, channels);
+                exact.Process(reference, offset, count, channels);
+                for (int index = offset; index < offset + count; ++index)
+                {
+                    maximumError = Math.Max(maximumError, Math.Abs(output[index] - reference[index]));
+                }
+            }
+
+            Assert.That(maximumError, Is.LessThanOrEqualTo(2e-6f));
+        }
+
         [Test]
         public void TheBitCrusherHoldsAcrossABlockBoundary()
         {

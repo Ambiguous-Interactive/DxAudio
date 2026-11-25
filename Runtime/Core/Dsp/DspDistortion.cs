@@ -1,6 +1,7 @@
 namespace WallstopStudios.DxAudio
 {
     using System;
+    using System.Runtime.CompilerServices;
 
     /// <summary>Drives a signal into a wave shaper and then a tone control, the way a distortion pedal does.</summary>
     /// <remarks>
@@ -92,6 +93,27 @@ namespace WallstopStudios.DxAudio
             return AudioMath.OnePoleCoefficient(1f / (2f * (float)Math.PI * toneHz), sampleRate);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float Shape(float sample)
+        {
+            float square = sample * sample;
+            if (square <= 6.25f)
+            {
+                // Fit tanh(x) / x with quadratic polynomials in x². The shaper error stays below 6e-7 on [-2.5, 2.5].
+                float numerator = (0.00091172634f * square + 0.10855813f) * square + 0.99999803f;
+                float denominator = (0.01488993f * square + 0.44188027f) * square + 1f;
+                return sample * numerator / denominator;
+            }
+
+            // Outside [-8, 8], tanh is within 2.3e-7 of full scale.
+            if (64f <= square)
+            {
+                return sample < 0f ? -1f : 1f;
+            }
+
+            return (float)Math.Tanh(sample);
+        }
+
         public override void Process(float[] buffer, int offset, int count, int channels)
         {
             if (buffer == null || channels <= 0 || channels != _channels || offset < 0 || count <= 0 || count % channels != 0 || buffer.Length - count < offset)
@@ -101,7 +123,17 @@ namespace WallstopStudios.DxAudio
 
             if (channels == 2)
             {
-                ProcessStereo(buffer, offset, offset + count);
+                float drive = _drive;
+                float toneCoefficient = _toneCoefficient;
+                if (_activeDrive == drive && _activeToneCoefficient == toneCoefficient)
+                {
+                    ProcessSettledStereo(buffer, offset, offset + count, drive, toneCoefficient);
+                }
+                else
+                {
+                    ProcessStereo(buffer, offset, offset + count);
+                }
+
                 return;
             }
 
@@ -117,7 +149,7 @@ namespace WallstopStudios.DxAudio
                 {
                     ref float sample = ref buffer[frameStart + channel];
                     ref float tone = ref _toneState[channel];
-                    float shaped = (float)Math.Tanh(_activeDrive * sample);
+                    float shaped = Shape(_activeDrive * sample);
                     float filtered = tone + ((shaped - tone) * _activeToneCoefficient);
                     tone = filtered;
                     sample = filtered;
@@ -145,6 +177,28 @@ namespace WallstopStudios.DxAudio
             Reset();
         }
 
+        private void ProcessSettledStereo(float[] buffer, int offset, int end, float drive, float toneCoefficient)
+        {
+            float[] toneState = _toneState;
+            float left = toneState[0];
+            float right = toneState[1];
+
+            for (int index = offset; index < end; index += 2)
+            {
+                ref float leftSample = ref buffer[index];
+                ref float rightSample = ref buffer[index + 1];
+                float shapedLeft = Shape(drive * leftSample);
+                float shapedRight = Shape(drive * rightSample);
+                left += (shapedLeft - left) * toneCoefficient;
+                right += (shapedRight - right) * toneCoefficient;
+                leftSample = left;
+                rightSample = right;
+            }
+
+            toneState[0] = left;
+            toneState[1] = right;
+        }
+
         // Keep the stereo tone history and ramp values local across the block.
         private void ProcessStereo(float[] buffer, int offset, int end)
         {
@@ -161,8 +215,8 @@ namespace WallstopStudios.DxAudio
                 activeTone += (_toneCoefficient - activeTone) * smoothing;
                 ref float leftSample = ref buffer[index];
                 ref float rightSample = ref buffer[index + 1];
-                float shapedLeft = (float)Math.Tanh(activeDrive * leftSample);
-                float shapedRight = (float)Math.Tanh(activeDrive * rightSample);
+                float shapedLeft = Shape(activeDrive * leftSample);
+                float shapedRight = Shape(activeDrive * rightSample);
                 left += (shapedLeft - left) * activeTone;
                 right += (shapedRight - right) * activeTone;
                 leftSample = left;
