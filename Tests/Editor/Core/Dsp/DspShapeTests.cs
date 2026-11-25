@@ -1,7 +1,6 @@
 namespace WallstopStudios.DxAudio.Tests.Editor
 {
     using System;
-    using System.Numerics;
     using NUnit.Framework;
 
     public sealed class DspShapeTests
@@ -317,23 +316,23 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         {
             const int Channels = 2;
             const int Offset = 1;
-            int vectorWidth = Vector<float>.Count;
-            int count = (2 * vectorWidth) + Channels;
+            const int PrefixCount = 8;
+            const int Count = 18;
             DspDistortion candidate = new() { Drive = 2f, ToneHz = 3_000f };
             ExactDistortion exact = new() { Drive = 2f, ToneHz = 3_000f };
-            Assert.That(candidate.TryPrepare(SampleRate, count / Channels, Channels), Is.True);
-            Assert.That(exact.TryPrepare(SampleRate, count / Channels, Channels), Is.True);
+            Assert.That(candidate.TryPrepare(SampleRate, Count / Channels, Channels), Is.True);
+            Assert.That(exact.TryPrepare(SampleRate, Count / Channels, Channels), Is.True);
 
-            float[] output = new float[count + 2];
+            float[] output = new float[Count + 2];
             Array.Fill(output, 0.75f);
             output[Offset + 1] = -0.5f;
-            output[Offset + vectorWidth] = 5f;
+            output[Offset + PrefixCount] = 5f;
             float[] reference = (float[])output.Clone();
-            candidate.Process(output, Offset, count, Channels);
-            exact.Process(reference, Offset, count, Channels);
+            candidate.Process(output, Offset, Count, Channels);
+            exact.Process(reference, Offset, Count, Channels);
             Assert.That(output, Is.EqualTo(reference).Within(2e-6f));
             Assert.That(output[0], Is.EqualTo(0.75f));
-            Assert.That(output[count + 1], Is.EqualTo(0.75f));
+            Assert.That(output[Count + 1], Is.EqualTo(0.75f));
         }
 
         [Test]

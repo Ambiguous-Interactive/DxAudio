@@ -1,7 +1,6 @@
 namespace WallstopStudios.DxAudio
 {
     using System;
-    using System.Numerics;
 
     /// <summary>Drives a signal into a wave shaper and then a tone control, the way a distortion pedal does.</summary>
     /// <remarks>
@@ -21,13 +20,12 @@ namespace WallstopStudios.DxAudio
 
         private const float SmoothingSeconds = 0.01f;
 
-        // Quadratic fit in x² for tanh(x) / x. The shaper error stays below 6e-7 on [-2.5, 2.5].
-        private static readonly Vector<float> ShaperLimit = new(6.25f);
-        private static readonly Vector<float> NumeratorConstant = new(0.99999803f);
-        private static readonly Vector<float> NumeratorLinear = new(0.10855813f);
-        private static readonly Vector<float> NumeratorQuadratic = new(0.00091172634f);
-        private static readonly Vector<float> DenominatorLinear = new(0.44188027f);
-        private static readonly Vector<float> DenominatorQuadratic = new(0.01488993f);
+        // The signed table covers [-2.5, 2.5] in steps of 1/512.
+        private const int StepsPerUnit = 512;
+        private const int ShapeOrigin = 1_280;
+        private const int ShapeEnd = 2 * ShapeOrigin;
+
+        private static readonly ShaperSegment[] ShapeTable;
 
         public override string DisplayName => "Distortion";
 
@@ -81,6 +79,19 @@ namespace WallstopStudios.DxAudio
             _toneState = Array.Empty<float>();
         }
 
+        static DspDistortion()
+        {
+            // Build this table before an effect can reach the audio thread.
+            ShapeTable = new ShaperSegment[ShapeEnd + 1];
+            double current = Math.Tanh((double)-ShapeOrigin / StepsPerUnit);
+            for (int index = 0; index <= ShapeEnd; ++index)
+            {
+                double next = Math.Tanh((double)(index + 1 - ShapeOrigin) / StepsPerUnit);
+                ShapeTable[index] = new ShaperSegment((float)current, (float)(next - current));
+                current = next;
+            }
+        }
+
         private static float MaxToneHz(int sampleRate)
         {
             return 0.45f * sampleRate;
@@ -103,25 +114,25 @@ namespace WallstopStudios.DxAudio
 
         private static int ShapeStereoPrefix(float[] buffer, int offset, int end, float drive)
         {
-            int width = Vector<float>.Count;
-            int lastStart = end - width;
-            Vector<float> gain = new(drive);
-            Vector<float> one = Vector<float>.One;
+            ShaperSegment[] table = ShapeTable;
+            float scale = drive * StepsPerUnit;
             int index = offset;
-            for (; index <= lastStart; index += width)
+            for (; index < end; index += 2)
             {
-                Vector<float> driven = new Vector<float>(buffer, index) * gain;
-                Vector<float> square = driven * driven;
-                if (!Vector.Min(square, ShaperLimit).Equals(square))
+                int rightIndex = index + 1;
+                float leftPosition = (scale * buffer[index]) + ShapeOrigin;
+                float rightPosition = (scale * buffer[rightIndex]) + ShapeOrigin;
+                if (!(0f <= leftPosition && leftPosition <= ShapeEnd && 0f <= rightPosition && rightPosition <= ShapeEnd))
                 {
-                    // Use exact shaping for the rest of a block with an out-of-range sample.
                     break;
                 }
 
-                Vector<float> numerator = (NumeratorQuadratic * square + NumeratorLinear) * square + NumeratorConstant;
-                Vector<float> denominator = (DenominatorQuadratic * square + DenominatorLinear) * square + one;
-                Vector<float> shaped = driven * numerator / denominator;
-                shaped.CopyTo(buffer, index);
+                int leftSegment = (int)leftPosition;
+                int rightSegment = (int)rightPosition;
+                ref readonly ShaperSegment left = ref table[leftSegment];
+                ref readonly ShaperSegment right = ref table[rightSegment];
+                buffer[index] = left.Value + ((leftPosition - leftSegment) * left.Delta);
+                buffer[rightIndex] = right.Value + ((rightPosition - rightSegment) * right.Delta);
             }
 
             return index;
@@ -145,14 +156,10 @@ namespace WallstopStudios.DxAudio
                 if (drive == nextDrive && tone == nextTone)
                 {
                     int end = offset + count;
-                    int firstUnshaped = offset;
-                    if (Vector.IsHardwareAccelerated && Vector<float>.Count <= count)
+                    int firstUnshaped = ShapeStereoPrefix(buffer, offset, end, drive);
+                    if (offset < firstUnshaped)
                     {
-                        firstUnshaped = ShapeStereoPrefix(buffer, offset, end, drive);
-                        if (offset < firstUnshaped)
-                        {
-                            FilterStereoPrefix(buffer, offset, firstUnshaped, tone);
-                        }
+                        FilterStereoPrefix(buffer, offset, firstUnshaped, tone);
                     }
 
                     if (firstUnshaped < end)
@@ -275,6 +282,18 @@ namespace WallstopStudios.DxAudio
             toneState[1] = right;
             _activeDrive = activeDrive;
             _activeToneCoefficient = activeTone;
+        }
+
+        private readonly struct ShaperSegment
+        {
+            internal readonly float Value;
+            internal readonly float Delta;
+
+            internal ShaperSegment(float value, float delta)
+            {
+                Value = value;
+                Delta = delta;
+            }
         }
     }
 }
