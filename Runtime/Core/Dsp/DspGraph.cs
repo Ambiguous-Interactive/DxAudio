@@ -358,9 +358,9 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
-            Span<bool> leadsToSolo = stackalloc bool[NodeCount];
-            Span<bool> followsSolo = stackalloc bool[NodeCount];
-            Span<int> remap = stackalloc int[NodeCount];
+            Span<bool> leadsToSolo = stackalloc bool[MaximumNodes];
+            Span<bool> followsSolo = stackalloc bool[MaximumNodes];
+            Span<int> remap = stackalloc int[MaximumNodes];
             int keptNodes = 0;
             for (int node = 0; node < NodeCount; ++node)
             {
