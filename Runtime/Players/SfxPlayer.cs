@@ -270,12 +270,18 @@ namespace WallstopStudios.DxAudio
         /// <summary>Plays the cue the library lists under <paramref name="key"/>, flat.</summary>
         public bool Play(string key)
         {
+#if UNITY_EDITOR
+            using MixMonitorPerformanceCapture.PlayScope measurement = MixMonitorPerformanceCapture.MeasurePlay(this);
+#endif
             return TryResolve(key, out SfxCue cue) && Play(cue);
         }
 
         /// <summary>Plays the cue the library lists under <paramref name="key"/>, at <paramref name="position"/>.</summary>
         public bool Play(string key, Vector3 position)
         {
+#if UNITY_EDITOR
+            using MixMonitorPerformanceCapture.PlayScope measurement = MixMonitorPerformanceCapture.MeasurePlay(this);
+#endif
             return TryResolve(key, out SfxCue cue) && Play(cue, position);
         }
 
@@ -283,12 +289,18 @@ namespace WallstopStudios.DxAudio
         /// <returns>Whether it started. <see cref="CueDropped"/> says why not.</returns>
         public bool Play(SfxCue cue)
         {
+#if UNITY_EDITOR
+            using MixMonitorPerformanceCapture.PlayScope measurement = MixMonitorPerformanceCapture.MeasurePlay(this);
+#endif
             return TryStart(cue, looping: false, position: null, out _);
         }
 
         /// <summary>Plays a one-shot cue at <paramref name="position"/>. A cue with no spatial blend still plays flat.</summary>
         public bool Play(SfxCue cue, Vector3 position)
         {
+#if UNITY_EDITOR
+            using MixMonitorPerformanceCapture.PlayScope measurement = MixMonitorPerformanceCapture.MeasurePlay(this);
+#endif
             return TryStart(cue, looping: false, position, out _);
         }
 

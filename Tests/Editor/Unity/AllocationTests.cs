@@ -5,6 +5,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     using Unity.Profiling;
     using UnityEngine;
     using WallstopStudios.DxAudio.Editor;
+    using Stopwatch = System.Diagnostics.Stopwatch;
 
     /// <summary>Checks managed allocations during warmed play and render calls.</summary>
     public sealed class AllocationTests
@@ -204,6 +205,176 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(monitor.Capture.Counts.notPlayable - before, Is.EqualTo(MeasuredCalls));
             Assert.That(allocations, Is.Zero, $"Play and steal allocated {allocations} times over {MeasuredCalls:N0} cue pairs.");
             Assert.That(samplingAllocations, Is.Zero, $"Sampling allocated {samplingAllocations} times over {MeasuredCalls:N0} reads.");
+        }
+
+        [Test]
+        public void MixMonitorMeasuresOnlyTheSelectedPlayersPlayCalls()
+        {
+            using MadeObjects made = new();
+            SfxCue cue = Cue(made, "hit");
+            SfxPlayer player = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
+            SfxPlayer other = SfxPlayer(made, SfxLibrary.Create(new[] { cue }, voiceCount: 1));
+            DxAudioMixMonitorWindow monitor = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
+            monitor.SelectPlayers(player, null);
+            AudioSource source = player.GetMonitorSource(0);
+            Assert.That(source != null, Is.True);
+            int started = 0;
+            void PlayAndStop()
+            {
+                if (player.Play("hit"))
+                {
+                    ++started;
+                }
+                source.Stop();
+            }
+
+            _ = player.Play("missing");
+            _ = player.Play((SfxCue)null, Vector3.zero);
+            for (int index = 0; index < WarmupCalls; ++index)
+            {
+                PlayAndStop();
+            }
+
+            Action play = PlayAndStop;
+            started = 0;
+            Stopwatch elapsed = Stopwatch.StartNew();
+            long unmeasured = AllocationEvents(play, MeasuredCalls);
+            double unmeasuredMilliseconds = elapsed.Elapsed.TotalMilliseconds;
+            Assert.That(started, Is.EqualTo(MeasuredCalls));
+            monitor.SetPerformanceCapture(true);
+            Assert.That(monitor.PlayAllocationBytes.HasValue, Is.False);
+            for (int index = 0; index < WarmupCalls; ++index)
+            {
+                PlayAndStop();
+            }
+            started = 0;
+            elapsed.Restart();
+            long measured = AllocationEvents(play, MeasuredCalls);
+            elapsed.Stop();
+
+            monitor.SamplePlayer();
+            Debug.Log($"Mix Monitor Play probe over {MeasuredCalls} single-voice plays. Off {unmeasuredMilliseconds:F3} ms. On {elapsed.Elapsed.TotalMilliseconds:F3} ms.");
+            Assert.That(started, Is.EqualTo(MeasuredCalls));
+            Assert.That(unmeasured, Is.Zero);
+            Assert.That(measured, Is.Zero);
+            Assert.That(monitor.PlayAllocationBytes, Is.Zero);
+
+            const int PayloadBytes = 4_096;
+            Action<SfxCue, SfxDropReason> allocate = static (_, _) => GC.KeepAlive(new byte[PayloadBytes]);
+            allocate(null, default);
+            other.CueDropped += allocate;
+            Assert.That(other.Play("missing"), Is.False);
+            GC.KeepAlive(new byte[PayloadBytes]);
+            monitor.SamplePlayer();
+            Assert.That(monitor.PlayAllocationBytes, Is.Zero);
+
+            player.CueDropped += allocate;
+            Assert.That(player.Play("missing"), Is.False);
+            monitor.SamplePlayer();
+            long bytes = monitor.PlayAllocationBytes.Value;
+            Assert.That(bytes, Is.InRange(PayloadBytes, PayloadBytes + 128L));
+            Assert.That(player.Play((SfxCue)null, Vector3.zero), Is.False);
+            monitor.SamplePlayer();
+            Assert.That(monitor.PlayAllocationBytes, Is.EqualTo(2L * bytes));
+
+            player.CueDropped -= allocate;
+            PlayAndStop();
+            monitor.SamplePlayer();
+            Assert.That(monitor.PlayAllocationBytes, Is.EqualTo(2L * bytes));
+
+            monitor.ToggleCapture();
+            player.CueDropped += allocate;
+            Assert.That(player.Play("missing"), Is.False);
+            monitor.SamplePlayer();
+            Assert.That(monitor.PlayAllocationBytes, Is.EqualTo(2L * bytes));
+            monitor.ToggleCapture();
+            Assert.That(monitor.PlayAllocationBytes.HasValue, Is.False);
+            PlayAndStop();
+            monitor.SamplePlayer();
+            Assert.That(monitor.PlayAllocationBytes, Is.Zero);
+
+            made.DestroyNow(monitor);
+            DxAudioMixMonitorWindow next = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
+            next.SelectPlayers(player, null);
+            next.SetPerformanceCapture(true);
+            PlayAndStop();
+            next.SamplePlayer();
+            Assert.That(next.PlayAllocationBytes, Is.Zero);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void MixMonitorTimesManagedDspInTheCurrentSampleInterval(bool master)
+        {
+            using MadeObjects made = new();
+            GameObject owner = made.Track(new GameObject("DSP timing probe"));
+            owner.SetActive(false);
+            DspChainAsset chain = made.Track(DspChainAsset.Create(new[] { made.Track(DspDistortionAsset.Create()) }));
+            Action<float[], int> process;
+            if (master)
+            {
+                AudioMixBus bus = owner.AddComponent<AudioMixBus>();
+                bus.Chain = chain;
+                process = bus.ProcessBuffer;
+            }
+            else
+            {
+                AudioFilterHost host = owner.AddComponent<AudioFilterHost>();
+                host.BusChain = chain;
+                process = host.ProcessBuffer;
+            }
+
+            DxAudioMixMonitorWindow monitor = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
+            const int Channels = 2;
+            float[] block = new float[512 * Channels];
+            void ProcessSignal()
+            {
+                Array.Fill(block, 1f);
+                process(block, Channels);
+            }
+
+            Action run = ProcessSignal;
+            run();
+            Assert.That(block[0], Is.GreaterThan(0f).And.LessThan(1f));
+            for (int index = 0; index < WarmupCalls; ++index)
+            {
+                run();
+            }
+
+            Stopwatch elapsed = Stopwatch.StartNew();
+            long unmeasured = AllocationEvents(run, WarmupCalls);
+            double unmeasuredMilliseconds = elapsed.Elapsed.TotalMilliseconds;
+            monitor.SetPerformanceCapture(true);
+            for (int index = 0; index < WarmupCalls; ++index)
+            {
+                run();
+            }
+            monitor.SamplePlayer();
+            elapsed.Restart();
+            long allocations = AllocationEvents(run, WarmupCalls);
+            elapsed.Stop();
+            monitor.SamplePlayer();
+            double dspMilliseconds = monitor.DspMilliseconds;
+            Debug.Log(
+                $"Mix Monitor DSP probe over {WarmupCalls} stereo blocks of 512 frames. Master {master}. Off {unmeasuredMilliseconds:F3} ms. "
+                    + $"On {elapsed.Elapsed.TotalMilliseconds:F3} ms. DSP {dspMilliseconds:F3} ms."
+            );
+            Assert.That(unmeasured, Is.Zero);
+            Assert.That(allocations, Is.Zero);
+            Assert.That(dspMilliseconds, Is.GreaterThan(0d).And.LessThanOrEqualTo(elapsed.Elapsed.TotalMilliseconds));
+
+            monitor.SamplePlayer();
+            Assert.That(monitor.DspMilliseconds, Is.Zero);
+            run();
+            monitor.SamplePlayer();
+            double frozenMilliseconds = monitor.DspMilliseconds;
+            monitor.ToggleCapture();
+            run();
+            monitor.SamplePlayer();
+            Assert.That(monitor.DspMilliseconds, Is.EqualTo(frozenMilliseconds));
+            monitor.ToggleCapture();
+            monitor.SamplePlayer();
+            Assert.That(monitor.DspMilliseconds, Is.Zero);
         }
 
         [TestCase(2, 1f)]
