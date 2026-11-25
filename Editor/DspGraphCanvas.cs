@@ -270,7 +270,7 @@ namespace WallstopStudios.DxAudio.Editor
                 }
 
                 (bool active, float left, float right) = tap.ReadEdge(edge);
-                string status = !active ? "Muted by Solo" : (_audition.IsGraphNodeBypassed(view.From) ? "Bypassed" : string.Empty);
+                string status = !active ? DspGraphNodeMeter.MutedBySolo : (_audition.IsGraphNodeBypassed(view.From) ? "Bypassed" : string.Empty);
                 int decibels = DspGraphNodeMeter.PeakDb(Mathf.Max(left, right));
                 if (!string.Equals(view.Status, status, StringComparison.Ordinal) || (status.Length == 0 && view.Decibels != decibels))
                 {

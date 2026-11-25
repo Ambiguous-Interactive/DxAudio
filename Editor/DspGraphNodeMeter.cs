@@ -5,7 +5,13 @@ namespace WallstopStudios.DxAudio.Editor
 
     internal sealed class DspGraphNodeMeter : VisualElement
     {
+        internal const string MutedBySolo = "Muted by Solo";
         private const float Floor = -60f;
+        private const int MinimumDb = (int)AudioMath.SilentDecibels;
+
+        // 20 log10(float.MaxValue) rounds to 771.
+        private const int MaximumFiniteDb = 771;
+        private static readonly (string Normal, string Clipped)[] DbLabels = BuildLabels();
         private readonly VisualElement _left = new();
         private readonly VisualElement _right = new();
         private readonly VisualElement _heldLeft = new();
@@ -30,18 +36,40 @@ namespace WallstopStudios.DxAudio.Editor
 
         internal static int PeakDb(float peak)
         {
-            // A blown-out signal still needs a finite readout and a visible clip indicator.
             if (float.IsPositiveInfinity(peak))
             {
-                return 999;
+                return int.MaxValue;
             }
 
             return 0f < peak ? Mathf.RoundToInt(AudioMath.LinearToDecibels(peak)) : int.MinValue;
         }
 
-        internal static string FormatDb(int decibels)
+        internal static string FormatDb(int decibels, bool clipped = false)
         {
-            return decibels == int.MinValue ? "−∞ dBFS" : $"{decibels} dBFS";
+            if (decibels < MinimumDb)
+            {
+                return clipped ? "−∞ dBFS  CLIP" : "−∞ dBFS";
+            }
+
+            if (MaximumFiniteDb < decibels)
+            {
+                return clipped ? "∞ dBFS  CLIP" : "∞ dBFS";
+            }
+
+            (string normal, string clip) = DbLabels[decibels - MinimumDb];
+            return clipped ? clip : normal;
+        }
+
+        private static (string, string)[] BuildLabels()
+        {
+            (string, string)[] labels = new (string, string)[MaximumFiniteDb - MinimumDb + 1];
+            for (int decibels = MinimumDb; decibels <= MaximumFiniteDb; ++decibels)
+            {
+                string label = $"{decibels} dBFS";
+                labels[decibels - MinimumDb] = (label, label + "  CLIP");
+            }
+
+            return labels;
         }
 
         private static VisualElement Track(VisualElement bar, VisualElement hold)
@@ -64,14 +92,14 @@ namespace WallstopStudios.DxAudio.Editor
 
         internal void Update((bool Active, float Left, float Right, float HeldLeft, float HeldRight, bool Clipped) reading)
         {
-            string state = reading.Active ? string.Empty : "Muted by Solo";
+            string state = reading.Active ? string.Empty : MutedBySolo;
             int decibels = PeakDb(Mathf.Max(reading.Left, reading.Right));
             if (!string.Equals(_displayed, state, System.StringComparison.Ordinal) || _decibels != decibels || _clipped != reading.Clipped)
             {
                 _displayed = state;
                 _decibels = decibels;
                 _clipped = reading.Clipped;
-                _caption.text = reading.Active ? FormatDb(decibels) + (_clipped ? "  CLIP" : string.Empty) : state;
+                _caption.text = reading.Active ? FormatDb(decibels, _clipped) : state;
                 EnableInClassList("dxaudio-graph-meter-clipped", _clipped);
             }
 

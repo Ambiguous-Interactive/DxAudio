@@ -147,6 +147,17 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(panel.CreateGraphNodeBypassToggle(asset.Nodes[0]).value, Is.False);
         }
 
+        [TestCase(-80, false, "-80 dBFS")]
+        [TestCase(-13, false, "-13 dBFS")]
+        [TestCase(0, true, "0 dBFS  CLIP")]
+        [TestCase(771, true, "771 dBFS  CLIP")]
+        public void GraphMetersReusePeakTextAsLevelsChange(int decibels, bool clipped, string expected)
+        {
+            string caption = DspGraphNodeMeter.FormatDb(decibels, clipped);
+            Assert.That(caption, Is.EqualTo(expected));
+            Assert.That(DspGraphNodeMeter.FormatDb(decibels, clipped), Is.SameAs(caption));
+        }
+
         [Test]
         public void SoloRevisesOnlyWetAuditionAndClearsWithTheTarget()
         {
