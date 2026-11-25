@@ -40,7 +40,7 @@ namespace WallstopStudios.DxAudio.Editor
         };
         private readonly Toggle _loop = new("Loop") { value = true };
         private readonly Toggle _dry = new("Dry") { tooltip = "Bypass the cue chain and graph. Playback variation stays active." };
-        private readonly HashSet<DspGraphNode> _bypassedGraphNodes = new();
+        private readonly HashSet<string> _bypassedGraphNodes = new(StringComparer.Ordinal);
         private readonly Label _graphBypassStatus = new() { pickingMode = PickingMode.Ignore };
         private readonly Slider _volume = new("Monitor", 0f, 1f) { value = 0.25f };
         private readonly Label _status = new();
@@ -251,10 +251,10 @@ namespace WallstopStudios.DxAudio.Editor
             return tone;
         }
 
-        private static bool IsGraphNode(DspGraphAsset graph, DspGraphNode node)
+        private static bool CanBypassGraphNode(DspGraphAsset graph, string nodeName)
         {
-            int index = graph.IndexOfNode(node.Name);
-            return node.Chain != null && 0 <= index && ReferenceEquals(graph.Nodes[index], node);
+            int index = graph.IndexOfNode(nodeName);
+            return 0 <= index && graph.Nodes[index].Chain != null;
         }
 
         internal void SetTarget(Object asset)
@@ -304,15 +304,16 @@ namespace WallstopStudios.DxAudio.Editor
 
         internal Toggle CreateGraphNodeBypassToggle(DspGraphNode node)
         {
-            Toggle bypass = new("Bypass") { value = _bypassedGraphNodes.Contains(node), tooltip = "Pass this node's input through during wet graph audition." };
-            bypass.SetEnabled(_asset is DspGraphAsset graph && IsGraphNode(graph, node));
-            bypass.RegisterValueChangedCallback(change => SetGraphNodeBypassed(node, change.newValue));
+            string nodeName = node.Name;
+            Toggle bypass = new("Bypass") { value = _bypassedGraphNodes.Contains(nodeName), tooltip = "Pass this node's input through during wet graph audition." };
+            bypass.SetEnabled(_asset is DspGraphAsset graph && CanBypassGraphNode(graph, nodeName));
+            bypass.RegisterValueChangedCallback(change => SetGraphNodeBypassed(nodeName, change.newValue));
             return bypass;
         }
 
-        internal void SetGraphNodeBypassed(DspGraphNode node, bool bypassed)
+        internal void SetGraphNodeBypassed(string nodeName, bool bypassed)
         {
-            if (_asset is DspGraphAsset graph && IsGraphNode(graph, node) && (bypassed ? _bypassedGraphNodes.Add(node) : _bypassedGraphNodes.Remove(node)))
+            if (_asset is DspGraphAsset graph && CanBypassGraphNode(graph, nodeName) && (bypassed ? _bypassedGraphNodes.Add(nodeName) : _bypassedGraphNodes.Remove(nodeName)))
             {
                 _recheck = true;
                 RefreshGraphBypass();
@@ -323,11 +324,12 @@ namespace WallstopStudios.DxAudio.Editor
         {
             if (_asset is DspGraphAsset graph && 0 < _bypassedGraphNodes.Count)
             {
-                _recheck |= 0 < _bypassedGraphNodes.RemoveWhere(node => !IsGraphNode(graph, node));
+                bool pruned = 0 < _bypassedGraphNodes.RemoveWhere(nodeName => !CanBypassGraphNode(graph, nodeName));
+                _recheck = _recheck || pruned;
                 List<string> names = new(_bypassedGraphNodes.Count);
                 foreach (DspGraphNode node in graph.Nodes)
                 {
-                    if (_bypassedGraphNodes.Contains(node))
+                    if (_bypassedGraphNodes.Contains(node?.Name))
                     {
                         names.Add(node.Name);
                     }
