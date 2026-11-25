@@ -168,18 +168,24 @@ function Write-UnityNUnitTimings {
             $lines.Add("  | $($timing.Seconds.ToString('F3', $culture))s  $name")
         }
     }
-    $renderTimings = @(
-        foreach ($output in $root.SelectNodes('.//test-case[starts-with(@fullname, "WallstopStudios.DxAudio.Tests.Editor.DspHostTests.RecordDspRenderWallTime(")]/output')) {
-            foreach ($line in ((ConvertTo-SafeUnityReport -Text $output.InnerText) -split '\r?\n')) {
-                if ($line.StartsWith('DxAudio DSP render: ', [StringComparison]::Ordinal)) {
-                    "  | $line"
+    foreach ($measurement in @(
+        @{ Label = 'DSP render timings:'; Test = 'DspHostTests.RecordDspRenderWallTime('; Prefix = 'DxAudio DSP render: ' },
+        @{ Label = 'Mix Monitor timings'; Test = 'AllocationTests.MixMonitor'; Prefix = 'Mix Monitor ' }
+    )) {
+        $testPrefix = "WallstopStudios.DxAudio.Tests.Editor.$($measurement.Test)"
+        $timingLines = @(
+            foreach ($output in $root.SelectNodes(".//test-case[starts-with(@fullname, '$testPrefix')]/output")) {
+                foreach ($line in ((ConvertTo-SafeUnityReport -Text $output.InnerText) -split '\r?\n')) {
+                    if ($line.StartsWith($measurement.Prefix, [StringComparison]::Ordinal)) {
+                        "  | $line"
+                    }
                 }
             }
+        )
+        if (0 -lt $timingLines.Count) {
+            $lines.Add("Unity EditMode $($measurement.Label)")
+            $lines.AddRange([string[]]$timingLines)
         }
-    )
-    if (0 -lt $renderTimings.Count) {
-        $lines.Add('Unity EditMode DSP render timings:')
-        $lines.AddRange([string[]]$renderTimings)
     }
     foreach ($line in $lines) { Write-Host $line }
     foreach ($warning in $warnings) {

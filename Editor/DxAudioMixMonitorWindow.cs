@@ -31,6 +31,7 @@ namespace WallstopStudios.DxAudio.Editor
         );
         private static readonly GUIContent FollowLabel = new("Follow", "Move the cursor to each new capture sample.");
         private static readonly GUIContent LoopLabel = new("Loop", "Replay the retained timeline while capture is paused.");
+        private static readonly GUIContent PerformanceLabel = new("Measure", "Measure Play allocations and managed DxAudio DSP time during live capture.");
         private static DxAudioMixMonitorWindow _auditionOwner;
 
         internal MixMonitorDropCapture Capture { get; } = new();
@@ -39,6 +40,8 @@ namespace WallstopStudios.DxAudio.Editor
         internal bool Follow { get; private set; } = true;
         internal bool IsHistoryLooping => _loopOrigin.HasValue;
         internal int Cursor { get; private set; } = -1;
+        internal long? PlayAllocationEvents { get; private set; }
+        internal double DspMilliseconds { get; private set; }
 
         private bool HasSfx => _player != null || 0 < Timeline.VoiceCount || 0 < Capture.Counts.Total;
         private bool CanLoopHistory => Capture.Paused && 1 < Timeline.Count && Timeline.Time(0) < Timeline.Time(Timeline.Count - 1);
@@ -68,6 +71,8 @@ namespace WallstopStudios.DxAudio.Editor
         private readonly IMusicDuckReason[] _duckReasons = new IMusicDuckReason[DuckHoldCapacity];
         private readonly object[] _duckHolders = new object[DuckHoldCapacity];
         private readonly long[] _duckIds = new long[DuckHoldCapacity];
+        private MixMonitorPerformanceCapture _performanceCapture;
+        private bool _measurePerformance;
         private double _nextSample;
         private double? _loopOrigin;
         private int _selectedVoice = -1;
@@ -238,7 +243,12 @@ namespace WallstopStudios.DxAudio.Editor
                 _musicMeter.Clear();
             }
 
+            bool restartMeasurement = sfx != _player && _measurePerformance;
             _player = sfx;
+            if (restartMeasurement)
+            {
+                SetPerformanceCapture(true);
+            }
             _music = music;
             _waveforms.Clear();
             ResetHistory(sfx == null ? 0 : sfx.VoiceCount);
@@ -290,6 +300,12 @@ namespace WallstopStudios.DxAudio.Editor
             if (Capture.Paused)
             {
                 return;
+            }
+
+            if (_performanceCapture != null)
+            {
+                PlayAllocationEvents = _performanceCapture.PlayCalls == 0 ? null : _performanceCapture.PlayAllocationEvents;
+                DspMilliseconds = _performanceCapture.ReadDspMilliseconds();
             }
 
             if (_player == null && _music == null)
@@ -348,13 +364,29 @@ namespace WallstopStudios.DxAudio.Editor
             if (Capture.Paused)
             {
                 Timeline.Interrupt();
+                _performanceCapture?.Detach();
+                _performanceCapture = null;
             }
             else
             {
+                if (_measurePerformance)
+                {
+                    SetPerformanceCapture(true);
+                }
+
                 _loopOrigin = null;
                 _selectedVoice = -1;
                 SamplePlayer(time);
             }
+        }
+
+        internal void SetPerformanceCapture(bool enabled)
+        {
+            _performanceCapture?.Detach();
+            _performanceCapture = enabled ? MixMonitorPerformanceCapture.Attach(_player) : null;
+            _measurePerformance = _performanceCapture != null;
+            PlayAllocationEvents = null;
+            DspMilliseconds = 0d;
         }
 
         internal void SetFollow(bool follow)
@@ -485,6 +517,7 @@ namespace WallstopStudios.DxAudio.Editor
         {
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
             EditorApplication.projectChanged -= _waveforms.Clear;
+            SetPerformanceCapture(false);
             ClearPlayerAudition();
             _masterMeter.Clear();
             ClearMusicTaps();
@@ -499,6 +532,7 @@ namespace WallstopStudios.DxAudio.Editor
             _musicMeter.Clear();
             if (state == PlayModeStateChange.EnteredPlayMode || state == PlayModeStateChange.ExitingPlayMode)
             {
+                SetPerformanceCapture(false);
                 Capture.Reset();
                 ResetHistory(0);
                 _waveforms.Clear();
@@ -689,6 +723,11 @@ namespace WallstopStudios.DxAudio.Editor
                 using (new EditorGUI.DisabledScope(Capture.Paused))
                 {
                     SetFollow(GUILayout.Toggle(Follow, FollowLabel, EditorStyles.toolbarButton, GUILayout.Width(55f)));
+                    bool measure = GUILayout.Toggle(_measurePerformance, PerformanceLabel, EditorStyles.toolbarButton, GUILayout.Width(64f));
+                    if (measure != _measurePerformance)
+                    {
+                        SetPerformanceCapture(measure);
+                    }
                 }
                 using (new EditorGUI.DisabledScope(!CanLoopHistory))
                 {
@@ -721,6 +760,27 @@ namespace WallstopStudios.DxAudio.Editor
                         GUILayout.Label($"Voices: {Timeline.OccupiedVoiceCount(Cursor)}/{Timeline.VoiceCount}", EditorStyles.miniLabel);
                     }
                     GUILayout.Label($"Drops: {Capture.VisibleCount}  |  Silenced: {Capture.SilencedCount}", EditorStyles.miniLabel);
+                }
+            }
+            if (_measurePerformance)
+            {
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    string allocations = PlayAllocationEvents switch
+                    {
+                        null => "-",
+                        0 => "0 B",
+                        1 => "1 event",
+                        long count => $"{count:N0} events",
+                    };
+                    GUILayout.Label(
+                        new GUIContent($"Play() allocations {allocations}", "Managed allocation events in the selected SFX player's one-shot Play calls."),
+                        EditorStyles.miniLabel
+                    );
+                    GUILayout.Label(
+                        new GUIContent($"DSP time {DspMilliseconds:F3} ms", "Time spent in DxAudio voice and master filters since the previous sample."),
+                        EditorStyles.miniLabel
+                    );
                 }
             }
         }

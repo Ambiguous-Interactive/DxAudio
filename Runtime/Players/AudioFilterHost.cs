@@ -236,6 +236,9 @@ namespace WallstopStudios.DxAudio
                 return;
             }
 
+#if UNITY_EDITOR
+            using MixMonitorPerformanceCapture.DspScope measurement = MixMonitorPerformanceCapture.MeasureDsp();
+#endif
             _cueLowPass?.Process(buffer, channels);
 
             Instance runningInstance = _running;

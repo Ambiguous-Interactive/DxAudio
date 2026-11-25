@@ -136,6 +136,9 @@ namespace WallstopStudios.DxAudio
             DspChain chain = slot != null ? slot.For(channels) : null;
             if (chain != null)
             {
+#if UNITY_EDITOR
+                using MixMonitorPerformanceCapture.DspScope measurement = MixMonitorPerformanceCapture.MeasureDsp();
+#endif
                 _liveChannels = channels;
                 if (slot.ClearBeforeNextBlock())
                 {
