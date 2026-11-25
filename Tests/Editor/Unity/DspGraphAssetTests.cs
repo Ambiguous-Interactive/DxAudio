@@ -1,8 +1,10 @@
 namespace WallstopStudios.DxAudio.Tests.Editor
 {
+    using System;
     using NUnit.Framework;
     using UnityEditor;
     using UnityEngine;
+    using WallstopStudios.DxAudio.Editor;
 
     /// <summary>Keeps a graph asset honest: it builds what its nodes and edges say, and it keeps them in a file.</summary>
     /// <remarks>
@@ -40,6 +42,87 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 Is.True,
                 "two nodes may name one chain asset, because each node builds its own chain"
             );
+        }
+
+        [Test]
+        public void BypassingANodeKeepsItsBranchAndTheAuthoredGraph()
+        {
+            const int Frames = 32;
+            using MadeObjects made = new();
+            DspChainAsset chain = made.Track(DspChainAsset.Create(new[] { made.Track(DspBitCrusherAsset.Create(bits: 1)) }));
+            DspGraphNode left = new("left", chain);
+            DspGraphAsset asset = made.Track(
+                DspGraphAsset.Create(
+                    new[] { new DspGraphNode("in", null), left, new DspGraphNode("right", chain), new DspGraphNode("out", null) },
+                    new[] { new DspGraphEdge("in", "left"), new DspGraphEdge("in", "right"), new DspGraphEdge("left", "out"), new DspGraphEdge("right", "out") },
+                    "in",
+                    "out"
+                )
+            );
+            string serialized = EditorJsonUtility.ToJson(asset);
+            int dirtyCount = EditorUtility.GetDirtyCount(asset);
+            DspAuditionPanel panel = new(null, null);
+            panel.SetTarget(asset);
+            DspAuditionProcessor processor = new(1_000, Frames, 1);
+            float[] block = new float[Frames];
+
+            void Publish(DspGraph graph, int number)
+            {
+                Assert.That(graph.TryPrepare(1_000, Frames, 1, 0, 3), Is.True);
+                processor.Publish(new DspAuditionProcessor.Revision(number, new[] { new DspAuditionProcessor.Path(Frames, 1, null, graph) }));
+            }
+
+            void Render()
+            {
+                Array.Fill(block, 0.25f);
+                processor.Process(block, 1);
+            }
+
+            void CheckOutput(float expected, int activeRevision)
+            {
+                Render();
+                Render();
+                Assert.That(processor.ActiveRevision, Is.EqualTo(activeRevision));
+                Assert.That(block, Is.All.EqualTo(expected));
+            }
+
+            long MeasureAllocations(Action render)
+            {
+                for (int iteration = 0; iteration < 16; ++iteration)
+                {
+                    render();
+                }
+                return AllocationTests.AllocationEvents(render, 128);
+            }
+
+            Assert.That(panel.CreateGraphNodeBypassToggle(left).value, Is.False);
+            Assert.That(panel.TryCreateAuditionGraph(asset, out DspGraph wet), Is.True);
+            Publish(wet, 1);
+            CheckOutput(2f, 1);
+            Assert.That(MeasureAllocations(Render), Is.Zero);
+
+            panel.SetGraphNodeBypassed(left, true);
+            Assert.That(panel.CreateGraphNodeBypassToggle(left).value, Is.True);
+            Assert.That(panel.TryCreateAuditionGraph(asset, out DspGraph bypassed), Is.True);
+            Publish(bypassed, 2);
+            CheckOutput(1.25f, 2);
+            Assert.That(MeasureAllocations(Render), Is.Zero);
+
+            Assert.That(asset.TryCreateGraph(out DspGraph authored), Is.True);
+            Publish(authored, 3);
+            CheckOutput(2f, 3);
+
+            panel.SetGraphNodeBypassed(left, false);
+            Assert.That(panel.TryCreateAuditionGraph(asset, out DspGraph restored), Is.True);
+            Publish(restored, 4);
+            CheckOutput(2f, 4);
+
+            panel.SetGraphNodeBypassed(left, true);
+            panel.SetTarget(null);
+            panel.SetTarget(asset);
+            Assert.That(panel.CreateGraphNodeBypassToggle(left).value, Is.False);
+            Assert.That(EditorJsonUtility.ToJson(asset), Is.EqualTo(serialized));
+            Assert.That(EditorUtility.GetDirtyCount(asset), Is.EqualTo(dirtyCount));
         }
 
         [Test]
