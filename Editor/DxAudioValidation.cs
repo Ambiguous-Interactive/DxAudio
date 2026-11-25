@@ -177,7 +177,8 @@ namespace WallstopStudios.DxAudio.Editor
             DspGraph prepared = graph.CollectProblems((node, edge, message) => report(node, edge, new Finding(Rule.InvalidGraph, graph, message)));
             for (int index = 0; index < graph.NodeCount; ++index)
             {
-                DspChainAsset chain = graph.Nodes[index]?.Chain;
+                DspGraphNode node = graph.Nodes[index];
+                DspChainAsset chain = node?.Chain;
                 if (chain == null)
                 {
                     continue;
@@ -185,7 +186,8 @@ namespace WallstopStudios.DxAudio.Editor
 
                 foreach (Finding finding in Find(chain))
                 {
-                    report(index, -1, finding);
+                    string message = string.IsNullOrWhiteSpace(node.Name) ? finding.Message : $"Node '{node.Name}' · {finding.Message}";
+                    report(index, -1, new Finding(finding.Rule, finding.Asset, message, finding.Slot));
                 }
             }
 

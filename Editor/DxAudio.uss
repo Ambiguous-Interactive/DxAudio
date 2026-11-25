@@ -241,3 +241,54 @@
 .dxaudio-spectrum-output {
     background-color: var(--dxa-theme-accent);
 }
+
+.dxaudio-graph-minimap {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: 160px;
+    height: 96px;
+    max-width: 70%;
+    max-height: 50%;
+    background-color: var(--dxa-theme-surface);
+    border-width: 1px;
+    border-color: var(--dxa-theme-wire);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.dxaudio-graph-minimap-title {
+    margin-left: 6px;
+    margin-top: 3px;
+    font-size: 10px;
+    color: var(--dxa-theme-text);
+}
+
+.dxaudio-graph-budgets {
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 4px;
+}
+
+.dxaudio-graph-budget {
+    margin-right: 5px;
+    padding: 2px 5px;
+    border-width: 1px;
+    border-color: var(--dxa-theme-wire);
+    border-radius: 3px;
+    background-color: var(--dxa-theme-surface);
+    color: var(--dxa-theme-text);
+}
+
+.dxaudio-graph-budget-exceeded {
+    color: var(--dxa-theme-rejected);
+    -unity-font-style: bold;
+}
+
+.dxaudio-graph-problems {
+    flex-shrink: 0;
+    border-top-width: 1px;
+    border-color: var(--dxa-theme-wire);
+    background-color: var(--dxa-theme-surface);
+    padding: 3px 6px;
+}

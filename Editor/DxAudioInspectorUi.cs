@@ -283,16 +283,18 @@ namespace WallstopStudios.DxAudio.Editor
 
         internal sealed class ProblemList : VisualElement
         {
-            private readonly IReadOnlyList<Finding> _findings;
             private readonly string _clear;
-            private readonly Func<int, Action> _fix;
+            private readonly string _actionLabel;
+            private IReadOnlyList<Finding> _findings;
+            private Func<int, Action> _fix;
             private bool _showSilenced;
 
-            internal ProblemList(IReadOnlyList<Finding> findings, string clear = null, Func<int, Action> fix = null)
+            internal ProblemList(IReadOnlyList<Finding> findings, string clear = null, Func<int, Action> fix = null, string actionLabel = "Fix")
             {
                 _findings = findings;
                 _clear = clear;
                 _fix = fix;
+                _actionLabel = actionLabel;
                 RegisterCallback<AttachToPanelEvent>(_ =>
                 {
                     DxAudioProblemSettings.Changed += Draw;
@@ -317,6 +319,13 @@ namespace WallstopStudios.DxAudio.Editor
                 badge.style.width = 14f;
                 badge.style.height = 14f;
                 return badge;
+            }
+
+            internal void SetFindings(IReadOnlyList<Finding> findings, Func<int, Action> fix)
+            {
+                _findings = findings;
+                _fix = fix;
+                Draw();
             }
 
             private void Draw()
@@ -386,7 +395,7 @@ namespace WallstopStudios.DxAudio.Editor
                 Add(new HelpBox(finding.Label + silenced, icon));
                 if (fix != null)
                 {
-                    Button button = new(fix) { text = "Fix", tooltip = "Go to the source of this problem." };
+                    Button button = new(fix) { text = _actionLabel, tooltip = "Go to the source of this problem." };
                     button.style.alignSelf = Align.FlexStart;
                     Add(button);
                 }

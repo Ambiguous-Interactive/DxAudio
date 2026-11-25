@@ -33,7 +33,8 @@ namespace WallstopStudios.DxAudio.Editor
         private ListView _list;
         private VisualElement _work;
         private ScrollView _details;
-        private VisualElement _findings;
+        private DspGraphBudgetBar _budgets;
+        private DxAudioInspectorUi.ProblemList _graphProblems;
         private Label _status;
         private Label _problemCount;
         private DspAuditionPanel _audition;
@@ -164,8 +165,6 @@ namespace WallstopStudios.DxAudio.Editor
             _work.style.flexGrow = 1;
             _work.style.minHeight = 0;
             content.Add(_work);
-            _findings = new VisualElement();
-            content.Add(_findings);
             _status = new Label();
             _status.style.whiteSpace = WhiteSpace.Normal;
             content.Add(_status);
@@ -363,7 +362,8 @@ namespace WallstopStudios.DxAudio.Editor
             _edits = null;
             _work.Unbind();
             _work.Clear();
-            _findings.Clear();
+            _budgets = null;
+            _graphProblems = null;
             Report(string.Empty);
             _audition.SetTarget(_target);
             if (_graph == null)
@@ -412,14 +412,31 @@ namespace WallstopStudios.DxAudio.Editor
         {
             _edits = new DspGraphEdits(_graph);
             _edits.Changed += RefreshGraph;
+            _budgets = new DspGraphBudgetBar();
+            _work.Add(_budgets);
             TwoPaneSplitView split = new(1, 260, TwoPaneSplitViewOrientation.Horizontal);
             split.style.flexGrow = 1;
             split.style.minHeight = 0;
             _work.Add(split);
 
+            VisualElement graphArea = new();
+            graphArea.style.minWidth = 160;
+            graphArea.style.minHeight = 0;
             _canvas = new DspGraphCanvas(_graph, _edits, _audition, SelectNode, SelectEdge, Report);
-            _canvas.style.minWidth = 160;
-            split.Add(_canvas);
+            graphArea.Add(_canvas);
+
+            VisualElement strip = new() { name = "DxAudioGraphProblems" };
+            strip.AddToClassList("dxaudio-graph-problems");
+            Label title = new("Problems");
+            title.AddToClassList("dxaudio-graph-title");
+            strip.Add(title);
+            ScrollView problems = new();
+            problems.style.maxHeight = 116f;
+            _graphProblems = new DxAudioInspectorUi.ProblemList(Array.Empty<Finding>(), "No active problems.", actionLabel: "Show in Graph");
+            problems.Add(_graphProblems);
+            strip.Add(problems);
+            graphArea.Add(strip);
+            split.Add(graphArea);
             _details = new ScrollView();
             _details.style.minWidth = 200;
             _details.contentContainer.style.paddingLeft = 8;
@@ -456,7 +473,6 @@ namespace WallstopStudios.DxAudio.Editor
 
             _audition.RefreshGraphAudition();
             _canvas.Refresh();
-            _findings.Clear();
             List<DxAudioValidation.Finding> findings = new();
             List<Action> fixes = new();
             DxAudioProblemSettings settings = DxAudioProblemSettings.instance;
@@ -474,14 +490,8 @@ namespace WallstopStudios.DxAudio.Editor
             );
             _browserProblems[_graph] = findings;
             RefreshProblemBadges();
-            if (0 < findings.Count)
-            {
-                ScrollView problems = new();
-                problems.style.maxHeight = 148;
-                problems.Add(new DxAudioInspectorUi.ProblemList(findings, fix: index => fixes[index]));
-                _findings.Add(problems);
-            }
-
+            _budgets.Refresh(_graph, _prepared);
+            _graphProblems.SetFindings(findings, index => fixes[index]);
             BuildGraphDetails();
         }
 
@@ -568,8 +578,8 @@ namespace WallstopStudios.DxAudio.Editor
             _details.Add(connections);
             if (_prepared != null)
             {
-                _details.Add(new Label($"{_prepared.LatencySamples} samples · {_prepared.PreparedBytes:N0} bytes"));
-                Label reference = new("Reference layout · 48 kHz · stereo · 1,024 frames");
+                _details.Add(new Label($"{_prepared.LatencySamples} samples of latency"));
+                Label reference = new($"Reference layout · {DspGraphAsset.ReferenceSampleRate / 1000} kHz · stereo · {DspGraphAsset.ReferenceBlockFrames:N0} frames");
                 reference.style.whiteSpace = WhiteSpace.Normal;
                 _details.Add(reference);
                 if (_prepared.TryGetNodeLatency(_selectedNode, out int nodeLatency))
