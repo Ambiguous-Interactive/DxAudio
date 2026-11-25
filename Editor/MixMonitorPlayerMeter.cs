@@ -54,12 +54,13 @@ namespace WallstopStudios.DxAudio.Editor
             return peak;
         }
 
-        internal void AddChannel(float[] samples, bool right)
+        internal void AddChannel(float[] samples, bool right, int offset = 0, int stride = 1)
         {
             float[] mix = right ? _rightMix : _leftMix;
             for (int index = 0; index < SampleCount; ++index)
             {
-                float sample = samples[index];
+                float sample = samples[offset];
+                offset += stride;
                 if (-float.MaxValue <= sample && sample <= float.MaxValue)
                 {
                     mix[index] += sample;

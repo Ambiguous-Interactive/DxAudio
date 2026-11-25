@@ -40,6 +40,7 @@ namespace WallstopStudios.DxAudio.Editor
         private DspGraphAsset _graph;
         private DspGraphEdits _edits;
         private DspGraphCanvas _canvas;
+        private DspGraphSpectrumView _spectrum;
         private DspGraph _prepared;
         private int _selectedNode = -1;
         private int _selectedEdge = -1;
@@ -357,6 +358,7 @@ namespace WallstopStudios.DxAudio.Editor
             _selectedNode = -1;
             _selectedEdge = -1;
             _canvas = null;
+            _spectrum = null;
             _graph = _target as DspGraphAsset;
             _edits = null;
             _work.Unbind();
@@ -536,6 +538,9 @@ namespace WallstopStudios.DxAudio.Editor
             if (0 <= _selectedNode && _selectedNode < _graph.NodeCount)
             {
                 BuildNodeDetails(_selectedNode, uniqueNames);
+                _spectrum ??= new DspGraphSpectrumView(_graph, _audition);
+                _details.Add(_spectrum);
+                _spectrum.Select(_selectedNode);
             }
 
             if (0 <= _selectedEdge && _selectedEdge < _graph.EdgeCount)

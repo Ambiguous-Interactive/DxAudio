@@ -171,6 +171,58 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void SpectrumPairsTheSelectedNodesInputAndOutputAcrossBlocks()
+        {
+            DspGraph graph = FanIn(ChainOf(new DelayEffect(0) { Gain = 2f }), ChainOf(new DelayEffect(0) { Gain = 0.5f }));
+            DspGraphSpectrumTap spectrum = new(SampleRate, 4);
+            DspGraphMeterTap meters = new(SampleRate, spectrum);
+            Assert.That(graph.TryPrepare(SampleRate, 4, 2, 0, 3), Is.True);
+            float[] first = { 0.125f, -0.25f, 0.25f, 0.125f };
+            float[] second = { 0.25f, 0.125f, 0.125f, -0.25f };
+            float[] input = new float[8];
+            float[] output = new float[8];
+
+            spectrum.Select(1);
+            graph.Process(first, 0, first.Length, 2, meters);
+            Assert.That(spectrum.TryRead(input, output), Is.False);
+            graph.Process(second, 0, second.Length, 2, meters);
+            Assert.That(spectrum.TryRead(input, output), Is.True);
+            Assert.That(input, Is.EqualTo(new[] { 0.125f, -0.25f, 0.25f, 0.125f, 0.25f, 0.125f, 0.125f, -0.25f }));
+            Assert.That(output, Is.EqualTo(new[] { 0.25f, -0.5f, 0.5f, 0.25f, 0.5f, 0.25f, 0.25f, -0.5f }));
+            Assert.That(first, Is.EqualTo(new[] { 0.3125f, -0.625f, 0.625f, 0.3125f }), "the audible sum is unchanged");
+        }
+
+        [Test]
+        public void SpectrumDiscardsACompletedWindowWhenSelectionChanges()
+        {
+            DspGraph graph = FanIn(new DspChain(), ChainOf(new DelayEffect(0) { Gain = 0.25f }));
+            DspGraphSpectrumTap spectrum = new(SampleRate, 2);
+            DspGraphMeterTap meters = new(SampleRate, spectrum);
+            Assert.That(graph.TrySolo(0, 3, 2, out int start, out int end, meters), Is.True);
+            Assert.That(graph.TryPrepare(SampleRate, 2, 1, start, end), Is.True);
+            float[] input = new float[4];
+            float[] output = new float[4];
+
+            spectrum.Select(2);
+            graph.Process(new[] { 0.5f, 0.25f }, 0, 2, 1, meters);
+            spectrum.Select(1);
+            Assert.That(spectrum.TryRead(input, output), Is.False, "discard the old selection");
+            graph.Process(new[] { 0.5f, 0.25f }, 0, 2, 1, meters);
+            Assert.That(spectrum.TryRead(input, output), Is.False, "the pruned node has no audition signal");
+
+            spectrum.Select(2);
+            graph.Process(new[] { 0.5f, 0.25f }, 0, 2, 1, meters);
+            Assert.That(spectrum.TryRead(input, output), Is.True);
+            Assert.That(input, Is.EqualTo(new[] { 0.5f, 0.5f, 0.25f, 0.25f }));
+            Assert.That(output, Is.EqualTo(new[] { 0.125f, 0.125f, 0.0625f, 0.0625f }));
+
+            graph.Process(new[] { 0.5f, 0.25f }, 0, 2, 1, meters);
+            spectrum.Select(1);
+            spectrum.Select(2);
+            Assert.That(spectrum.TryRead(input, output), Is.False, "reselecting a node discards its old window");
+        }
+
+        [Test]
         public void SoloMetersRetainAuthoredIndicesAfterCompaction()
         {
             DspGraph graph = FanIn(new DspChain(), ChainOf(new DelayEffect(0) { Gain = 0.25f }));

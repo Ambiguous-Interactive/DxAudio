@@ -6,6 +6,8 @@ namespace WallstopStudios.DxAudio
     /// <summary>Publishes graph audition peaks from one audio thread to the editor without copying PCM.</summary>
     internal sealed class DspGraphMeterTap
     {
+        internal DspGraphSpectrumTap Spectrum { get; }
+
         private readonly int[] _nodes = new int[DspGraph.MaximumNodes];
         private readonly int[] _edges = new int[DspGraph.MaximumEdges];
         private readonly PeakHold[] _nodePeaks = new PeakHold[DspGraph.MaximumNodes];
@@ -13,8 +15,9 @@ namespace WallstopStudios.DxAudio
         private readonly long _holdFrames;
         private long _frame;
 
-        internal DspGraphMeterTap(int sampleRate)
+        internal DspGraphMeterTap(int sampleRate, DspGraphSpectrumTap spectrum = null)
         {
+            Spectrum = spectrum;
             _holdFrames = 2L * sampleRate;
             for (int node = 0; node < DspGraph.MaximumNodes; ++node)
             {
@@ -66,9 +69,14 @@ namespace WallstopStudios.DxAudio
             _edges[authored] = prepared;
         }
 
+        internal int PreparedNode(int authored)
+        {
+            return _nodes[authored];
+        }
+
         internal (bool Active, float Left, float Right, float HeldLeft, float HeldRight, bool Clipped) ReadNode(int authored)
         {
-            int node = _nodes[authored];
+            int node = PreparedNode(authored);
             return node < 0 ? default : _nodePeaks[node].Read();
         }
 

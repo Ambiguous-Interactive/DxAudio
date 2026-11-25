@@ -62,6 +62,28 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void InterleavedSpectrumPreservesTheEnergyOfBothChannels()
+        {
+            const int Bin = 48;
+            const int Frames = MixMonitorPlayerMeter.SampleCount;
+            float[] interleaved = new float[2 * Frames];
+            for (int frame = 0; frame < Frames; ++frame)
+            {
+                float sample = 0.25f * (float)Math.Sin(2d * Math.PI * Bin * frame / Frames);
+                interleaved[2 * frame] = sample;
+                interleaved[2 * frame + 1] = -sample;
+            }
+
+            MixMonitorPlayerMeter meter = new(spectrum: true);
+            meter.AddChannel(interleaved, right: false, offset: 0, stride: 2);
+            meter.AddChannel(interleaved, right: true, offset: 1, stride: 2);
+            meter.FinishSample(0d);
+
+            Assert.That(meter.Spectrum[Bin], Is.EqualTo(0.25f).Within(0.00001f));
+            Assert.That(meter.Spectrum[Bin / 2], Is.LessThan(0.00001f));
+        }
+
+        [Test]
         public void TheMusicSpectrumKeepsOppositeStereoSignalsAndClearsWithSilence()
         {
             const int toneBin = 48;

@@ -132,3 +132,28 @@
     border-radius: 3px;
     background-color: var(--dxa-theme-surface);
 }
+
+.dxaudio-graph-spectrum {
+    height: 78px;
+    flex-direction: row;
+    background-color: var(--dxa-theme-canvas);
+    margin-top: 4px;
+}
+
+.dxaudio-spectrum-column {
+    flex-direction: row;
+    flex-grow: 1;
+    flex-basis: 0;
+    align-items: flex-end;
+}
+
+.dxaudio-spectrum-input,
+.dxaudio-spectrum-output {
+    width: 50%;
+    height: 0;
+    background-color: var(--dxa-theme-wire);
+}
+
+.dxaudio-spectrum-output {
+    background-color: var(--dxa-theme-accent);
+}
