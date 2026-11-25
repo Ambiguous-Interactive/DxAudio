@@ -5,6 +5,26 @@ namespace WallstopStudios.DxAudio.Tests.Editor
 
     public sealed class MixMonitorTimelineTests
     {
+        [Test]
+        public void TimeLookupClampsToRetainedSamplesWithoutMovingTheCaptureOrigin()
+        {
+            MixMonitorTimeline<int, string> timeline = new(3);
+            timeline.Sample(10d, SfxDropCounts.None);
+            timeline.Sample(11d, SfxDropCounts.None);
+            timeline.Sample(12d, SfxDropCounts.None);
+            Assert.That(timeline.Sample(13d, SfxDropCounts.None), Is.EqualTo(1));
+
+            Assert.That(timeline.FrameAt(10d), Is.Zero);
+            Assert.That(timeline.FrameAt(12.5d), Is.EqualTo(1));
+            Assert.That(timeline.FrameAt(14d), Is.EqualTo(2));
+            Assert.That(timeline.ElapsedSeconds(0), Is.EqualTo(1d));
+            Assert.That(timeline.ElapsedSeconds(2), Is.EqualTo(3d));
+
+            timeline.Reset(0);
+            timeline.Sample(15d, SfxDropCounts.None);
+            Assert.That(timeline.ElapsedSeconds(0), Is.Zero);
+        }
+
         [TestCase(false, false, false, 0.8f, 0.9f, 0.9f, TestName = "Waveform follows the observed playhead")]
         [TestCase(false, false, false, 0.2f, 0.35f, 0.35f, TestName = "Waveform covers fast playback")]
         [TestCase(false, false, false, 0.2f, 0.8f, 0.2f, TestName = "Waveform does not span a large forward seek")]

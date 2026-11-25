@@ -5,6 +5,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
     using System.Reflection;
     using NUnit.Framework;
     using Unity.Collections;
+    using UnityEditor;
     using UnityEngine;
     using UnityEngine.TestTools;
     using WallstopStudios.DxAudio.Editor;
@@ -158,6 +159,120 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             }
 
             Assert.That(renderedSignal, Is.True, "Offline render must contain the fixture signal.");
+        }
+
+        [UnityTest]
+        public IEnumerator TransportLoopsCapturedFramesAndCopiesTheirDataInPlayMode()
+        {
+            yield return new EnterPlayMode();
+
+            using MadeObjects made = new();
+            made.Track(new GameObject("Transport listener")).AddComponent<AudioListener>();
+            SfxPlayer sfx = made.Track(new GameObject("Transport SFX")).AddComponent<SfxPlayer>();
+            AudioClip clip = made.Track(AudioClip.Create("Loop \"fixture\"", 1024, 1, 48000, stream: false));
+            SfxCue cue = made.Track(SfxCue.Create(new[] { new SfxVariant(clip) }, loop: true));
+            sfx.Library = made.Track(SfxLibrary.Create(new[] { cue }, voiceCount: 1, loopingVoiceLimit: 1));
+            DxAudioMixMonitorWindow window = made.Track(ScriptableObject.CreateInstance<DxAudioMixMonitorWindow>());
+            window.SelectPlayers(sfx, null);
+            double start = window.Timeline.Time(0);
+            Assert.That(window.Follow, Is.True);
+            Assert.That(window.Cursor, Is.Zero);
+            Assert.That(window.Timeline.OccupiedVoiceCount(window.Cursor), Is.Zero);
+            Assert.That(sfx.TryPlayLooping(cue, out SfxLoopHandle loop), Is.True);
+
+            try
+            {
+                window.SamplePlayer(start + 1d);
+                Assert.That(window.Cursor, Is.EqualTo(1));
+                window.SetFollow(false);
+                Assert.That(sfx.Play(cue), Is.False);
+                window.SamplePlayer(start + 2d);
+                Assert.That(window.Cursor, Is.EqualTo(1));
+                Assert.That(window.Timeline.ElapsedSeconds(window.Cursor), Is.EqualTo(1d).Within(0.0001d));
+                Assert.That(window.Timeline.OccupiedVoiceCount(window.Cursor), Is.EqualTo(1));
+
+                window.ToggleCapture();
+                window.SetHistoryLoop(true, start + 3d);
+                window.AdvanceHistoryLoop(start + 4.01d);
+                Assert.That(window.Cursor, Is.EqualTo(2));
+                window.AdvanceHistoryLoop(start + 4.1d);
+                Assert.That(window.Cursor, Is.Zero);
+                window.SamplePlayer(start + 5d);
+                Assert.That(window.Timeline.Count, Is.EqualTo(3));
+                Assert.That(sfx.TryObserveVoiceState(0, out SfxVoiceState state, out _, out _, out _, out _), Is.True);
+                Assert.That(state.isHeld, Is.True);
+
+                window.Scrub(1);
+                Assert.That(window.IsHistoryLooping, Is.False);
+                string clipboard = EditorGUIUtility.systemCopyBuffer;
+                try
+                {
+                    window.CopyCapture();
+                    MixMonitorCaptureExport export = JsonUtility.FromJson<MixMonitorCaptureExport>(EditorGUIUtility.systemCopyBuffer);
+                    Assert.That(export.version, Is.EqualTo(1));
+                    Assert.That(export.cursor, Is.EqualTo(1));
+                    Assert.That(export.voiceSlots, Is.EqualTo(1));
+                    Assert.That(export.frames, Has.Length.EqualTo(3));
+                    Assert.That(export.frames[0].startsSegment, Is.True);
+                    Assert.That(export.frames[0].voices, Is.Empty);
+                    Assert.That(export.frames[1].seconds, Is.EqualTo(1d).Within(0.0001d));
+                    Assert.That(export.frames[1].voices[0].clip, Is.EqualTo(clip.name));
+                    Assert.That(export.frames[1].voices[0].held, Is.True);
+                    Assert.That(export.frames[2].drops[0].reason, Is.EqualTo("WrongPlayMethod"));
+                    Assert.That(export.dropTotals[0].count, Is.EqualTo(1));
+                    Assert.That(export.silencedReasons, Does.Contain("Throttled"));
+                }
+                finally
+                {
+                    EditorGUIUtility.systemCopyBuffer = clipboard;
+                }
+
+                window.SetHistoryLoop(true, start + 5d);
+                window.ToggleCapture(start + 6d);
+                Assert.That(window.IsHistoryLooping, Is.False);
+                Assert.That(window.Timeline.StartsSegment(3), Is.True);
+                window.SamplePlayer(start + 10.5d);
+                Assert.That(window.Cursor, Is.Zero);
+                Assert.That(window.Timeline.ElapsedSeconds(window.Cursor), Is.EqualTo(1d).Within(0.0001d));
+                window.SamplePlayer(start + 11.5d);
+                Assert.That(window.Cursor, Is.Zero);
+                Assert.That(window.Timeline.ElapsedSeconds(window.Cursor), Is.EqualTo(2d).Within(0.0001d));
+                window.SetFollow(true);
+                Assert.That(window.Cursor, Is.EqualTo(window.Timeline.Count - 1));
+            }
+            finally
+            {
+                sfx.StopLoop(loop);
+            }
+        }
+
+        [Test]
+        public void CaptureJsonPreservesMusicFadesAndDuckHolds()
+        {
+            using MadeObjects made = new();
+            MusicTrack track = made.Track(ScriptableObject.CreateInstance<MusicTrack>());
+            track.name = "Cave";
+            MusicDuckReasonTable<string> reasons = new(_ => MusicDuckHolders.Many);
+            IMusicDuckReason reason = reasons.Of("Dialogue");
+            MixMonitorTimeline<AudioClip, MusicTrack> timeline = new(2, deckCount: 2, duckCapacity: 1);
+            timeline.Sample(10d, SfxDropCounts.None, duckGain: 0.4f);
+            timeline.SetDeck(1, track, 0.75f);
+            timeline.SetDuckHolds(new[] { reason }, new[] { 19L }, 2);
+            timeline.Sample(11d, SfxDropCounts.None);
+
+            string json = JsonUtility.ToJson(new MixMonitorCaptureExport(timeline, new MixMonitorDropCapture(), 1));
+            MixMonitorCaptureExport export = JsonUtility.FromJson<MixMonitorCaptureExport>(json);
+            Assert.That(export.frames[0].decks[0].slot, Is.EqualTo(2));
+            Assert.That(export.frames[0].decks[0].track, Is.EqualTo("Cave"));
+            Assert.That(export.frames[0].decks[0].fade, Is.EqualTo(0.75f));
+            Assert.That(export.frames[0].hasDuckGain, Is.True);
+            Assert.That(export.frames[0].duckGain, Is.EqualTo(0.4f));
+            Assert.That(export.frames[0].duckHolds[0].id, Is.EqualTo(19L));
+            Assert.That(export.frames[0].duckHolds[0].reason, Is.EqualTo("Dialogue"));
+            Assert.That(export.frames[0].omittedDuckHolds, Is.EqualTo(1));
+            Assert.That(export.frames[1].decks, Is.Empty);
+            Assert.That(export.frames[1].duckHolds, Is.Empty);
+            Assert.That(export.frames[1].hasDuckGain, Is.False);
         }
 
         [UnityTest]
