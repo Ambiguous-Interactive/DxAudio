@@ -45,12 +45,18 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>
-        /// Starts <paramref name="key"/>'s window from a float clock. Prefer the double overload when the clock
-        /// can run for hours.
+        /// Starts <paramref name="key"/>'s window from a float clock, using float arithmetic. Prefer the double
+        /// overload when the clock can run for hours.
         /// </summary>
         public bool TryBegin(TKey key, float now, float minimumIntervalSeconds)
         {
-            return TryBegin(key, (double)now, (double)minimumIntervalSeconds);
+            if (!IsReady(key, now, minimumIntervalSeconds))
+            {
+                return false;
+            }
+
+            _lastPlayedByKey[key] = now;
+            return true;
         }
 
         /// <summary>Whether <paramref name="key"/> is outside its rate-limit window, without spending it.</summary>
@@ -69,12 +75,17 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>
-        /// Whether <paramref name="key"/> is outside its rate-limit window, read from a float clock. Prefer the
-        /// double overload when the clock can run for hours.
+        /// Whether <paramref name="key"/> is outside its rate-limit window, read from a float clock with float
+        /// arithmetic. Prefer the double overload when the clock can run for hours.
         /// </summary>
         public bool IsReady(TKey key, float now, float minimumIntervalSeconds)
         {
-            return IsReady(key, (double)now, (double)minimumIntervalSeconds);
+            if (key == null)
+            {
+                return false;
+            }
+
+            return minimumIntervalSeconds <= 0f || !_lastPlayedByKey.TryGetValue(key, out double lastPlayed) || minimumIntervalSeconds <= now - (float)lastPlayed;
         }
 
         public void Forget(TKey key)

@@ -68,6 +68,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void TheFloatOverloadKeepsItsFloatBoundary()
+        {
+            SfxThrottle<string> throttle = new();
+            Assert.That(throttle.TryBegin("step", 0.003f, 0.012f), Is.True);
+            Assert.That(throttle.IsReady("step", 0.015f, 0.012f), Is.True, "float subtraction rounds 0.015f - 0.003f up to 0.012f");
+        }
+
+        [Test]
         public void ClearingForgetsEveryKey()
         {
             SfxThrottle<string> throttle = new();
