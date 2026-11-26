@@ -19,6 +19,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $false
 $arguments = @('run')
 
 function Add-ValueArgument([string]$name, [string]$value) {

@@ -10,6 +10,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $false
 $arguments = @('tail')
 $arguments += "--unity-version=$UnityVersion"
 $arguments += "--label=$Label"
