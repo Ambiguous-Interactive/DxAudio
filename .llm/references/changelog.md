@@ -1,7 +1,7 @@
 # Changelog
 
-`CHANGELOG.md` tells a consumer what changed since the last release. It is not a commit log, and it is not a list of
-everything that changed since the last push.
+`CHANGELOG.md` tells a consumer what changed since the last release. It is a release record, not a commit log or a list
+of everything that changed since the last push.
 
 ## Describe the release, not the branch
 
@@ -27,14 +27,21 @@ A release candidate reads `[Unreleased]` to choose the version bump. An unreleas
 
 ## Decide with git and the released behavior
 
-Use the newest release tag, not memory. File and symbol history is a fast first check, not proof: a release can move
-behavior into a new file or symbol, or keep an old file while changing only part of it. The decisive question is
-whether the behavior itself shipped.
+Use the newest release tag that actually shipped, not memory and not a tag alone. A failed or incomplete publication
+can leave a tag behind; confirm that the tag has a published GitHub Release before you use it as the baseline.
 
 ```bash
-git tag --sort=-v:refname | head -1
-git ls-tree -r --name-only <tag> -- Runtime/Core/Dsp
+git tag --sort=-v:refname | head -5
+gh release list --exclude-drafts --limit 5
+```
+
+File and symbol history is a fast first check, not proof: a release can move behavior into a new file or symbol, or
+keep an old file while changing only part of it. The decisive test is whether the behavior itself shipped. Read the
+tagged implementation, tests, or docs, and use history when a symbol moved:
+
+```bash
 git show <tag>:Runtime/Core/Dsp/DspReverb.cs
+git log --oneline -S '<symbol>' <tag> -- <path>
 ```
 
 If the behavior is absent at the tag, the feature is unreleased and its fixes and changes belong in `Added`. If
@@ -61,8 +68,7 @@ Right: the effect ships once, with its final cost in the `Added` entry.
 ```markdown
 ### Added
 
-- Add a Phaser effect for DSP chains and graphs with adjustable sweep rate, depth, and low CPU cost across several
-  voices.
+- Add a Phaser effect for DSP chains and graphs with adjustable sweep rate, depth, and low CPU cost across several voices.
 ```
 
 ## Released sections are immutable
