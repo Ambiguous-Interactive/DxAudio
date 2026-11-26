@@ -7,10 +7,11 @@ namespace WallstopStudios.DxAudio
     /// <remarks>
     /// A 32-bit seqlock publishes the cutoff and its reset generation as three ints. <c>Interlocked</c>
     /// on a <c>long</c> is atomic on a 32-bit player but takes a process-global lock, and the audio
-    /// callback must never wait on one. The writer is the main thread at cue start; the reader retries
-    /// only while those three stores are in flight, then falls back to the latest whole cutoff word and
-    /// the last generation and forces a reset, so a writer preempted on a single-core device cannot stall
-    /// the callback and a same-cutoff restart cannot keep stale filter state. Only a preemption before the
+    /// callback must never wait on one. Full fences on both sides of the data keep the seqlock correct
+    /// on weakly ordered ARM. The writer is the main thread at cue start; the reader retries only while
+    /// those three stores are in flight, then falls back to the latest whole cutoff word and the last
+    /// generation and forces a reset, so a writer preempted on a single-core device cannot stall the
+    /// callback and a same-cutoff restart cannot keep stale filter state. Only a preemption before the
     /// first cutoff store leaves one block dry.
     /// </remarks>
     internal sealed class SfxLowPass
@@ -40,11 +41,13 @@ namespace WallstopStudios.DxAudio
         {
             /*
                 Mark the sequence odd before writing either value, so a reader never accepts a mixed
-                pair. The cutoff and its reset generation publish together, even when the next play
-                reuses the cutoff.
+                pair. Volatile is a half fence; the full barrier keeps the data stores from becoming
+                visible before the odd marker on a weakly ordered ARM. The cutoff and its reset
+                generation publish together, even when the next play reuses the cutoff.
             */
             int sequence = Volatile.Read(ref _sequence);
             Volatile.Write(ref _sequence, sequence + 1);
+            Thread.MemoryBarrier();
             Volatile.Write(ref _cutoffBits, BitConverter.SingleToInt32Bits(cutoffHertz));
             Volatile.Write(ref _generation, unchecked(++_generation));
             Volatile.Write(ref _sequence, sequence + 2);
@@ -65,6 +68,7 @@ namespace WallstopStudios.DxAudio
 
                 cutoffBits = Volatile.Read(ref _cutoffBits);
                 generation = Volatile.Read(ref _generation);
+                Thread.MemoryBarrier();
                 if (sequence == Volatile.Read(ref _sequence))
                 {
                     _readGeneration = generation;
