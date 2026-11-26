@@ -47,6 +47,7 @@ namespace Demo
         private int _count;
         private object _window;
         private readonly long[] _sharedPeaks = new long[2];
+        private volatile long[] _volatilePeaks = new long[2];
 
         internal long ReadShared()
         {
@@ -59,6 +60,7 @@ namespace Demo
             Volatile.Write(ref _count, 1);
             Volatile.Write(ref _window, new object());
             _ = Volatile.Read(ref _sharedPeaks);
+            _ = Volatile.Read(ref _volatilePeaks);
         }
     }
 }
@@ -148,6 +150,39 @@ namespace Demo
         internal string Nested()
         {
             return $"{Format("Volatile.Read(ref _state)")}";
+        }
+    }
+}
+"""
+
+EXPRESSION_FIXTURE = """using System.Threading;
+
+namespace Demo
+{
+    internal sealed class Expressions
+    {
+        private long[] _values;
+        private long[,] _grid;
+        private int _index;
+
+        internal int Pick(int value)
+        {
+            return value;
+        }
+
+        internal long ReadCall()
+        {
+            return Volatile.Read(ref _values[Pick(_index)]);
+        }
+
+        internal long ReadCast()
+        {
+            return Volatile.Read(ref _values[(int)_index]);
+        }
+
+        internal long ReadGrid()
+        {
+            return Volatile.Read(ref _grid[0, 0]);
         }
     }
 }
@@ -315,6 +350,33 @@ def case_reports_supported_replacements_and_array_references() -> None:
         remove_temp_root(root)
 
 
+def case_parses_balanced_ref_expressions_and_multidimensional_arrays() -> None:
+    root = new_temp_root(prefix="atomic-state-")
+    try:
+        write_fixture_file(root, "Runtime/Expressions.cs", EXPRESSION_FIXTURE)
+        output, exit_code = invoke_atomic_state_lint(root)
+        assert_exit_code(1, f"the expression fixture should fail: {output}", exit_code)
+        for line in (18, 23, 28):
+            assert_true(
+                f"Expressions.cs:{line}:" in output,
+                f"must report the 64-bit element access on line {line}: {output}",
+            )
+        assert_true(
+            "Interlocked.Read(ref _values[Pick(_index)])" in output,
+            f"a method call in the reference must stay whole: {output}",
+        )
+        assert_true(
+            "Interlocked.Read(ref _grid[0, 0])" in output,
+            f"a multidimensional element must stay whole: {output}",
+        )
+        assert_true(
+            "Read with Interlocked.Read" not in output,
+            f"the banner must not recommend an uncompilable double replacement: {output}",
+        )
+    finally:
+        remove_temp_root(root)
+
+
 def case_paths_scans_only_runtime_files_and_fails_closed() -> None:
     root = new_temp_root(prefix="atomic-state-")
     try:
@@ -381,6 +443,10 @@ def main() -> int:
     run_case(
         "Reports_SupportedReplacementsAndArrayReferences",
         case_reports_supported_replacements_and_array_references,
+    )
+    run_case(
+        "Parses_BalancedRefExpressionsAndMultidimensionalArrays",
+        case_parses_balanced_ref_expressions_and_multidimensional_arrays,
     )
     run_case(
         "Paths_ScansOnlyRuntimeFilesAndFailsClosed",

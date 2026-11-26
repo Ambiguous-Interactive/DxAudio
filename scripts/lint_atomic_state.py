@@ -16,7 +16,9 @@ This lint scans ``Runtime/`` and rejects ``Volatile.Read``, ``Volatile.Write``,
 ``long``, ``ulong``, ``double``, ``System.Int64``, ``System.UInt64``, or
 ``System.Double``, plus a bare ``volatile`` 64-bit field. A bare array field
 is a 32-bit object reference and is allowed; only its elements are 64-bit.
-Every declarator in a multi-field declaration is read.
+Every declarator in a multi-field declaration is read, and a ``ref`` argument
+is read with balanced brackets so a method call, cast, or multidimensional
+element stays whole.
 
 Comments, character literals and the literal text of every string shape are
 masked before the scan, while interpolation holes stay visible as code: a
@@ -53,13 +55,13 @@ SCAN_ROOTS = (
 FIELD_START = re.compile(
     r"^[ \t]*(?:public|internal|protected|private)(?:[ \t]+(?:internal|protected))?"
     r"[ \t]+(?:(?:static|readonly|volatile|new)[ \t]+)*"
-    r"(?:System\s*\.\s*)?(long|ulong|double|Int64|UInt64|Double)[ \t]*(\[\s*\])?[ \t]+"
+    r"(?:System\s*\.\s*)?(long|ulong|double|Int64|UInt64|Double)[ \t]*((?:\[\s*,?\s*\])*)[ \t]+"
     r"(?=[A-Za-z_]\w*[ \t]*(?:[;=,\[]))",
     re.MULTILINE,
 )
 USAGE = re.compile(
     r"\b(?:Volatile\s*\.\s*(?P<direct>Read|Write)|Thread\s*\.\s*(?P<thread>VolatileRead|VolatileWrite))"
-    r"\s*\(\s*ref\s+(?P<expression>[^,)]+)"
+    r"\s*\(\s*ref\s+"
 )
 IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
 DECLARATOR = re.compile(r"^[ \t]*([A-Za-z_]\w*)")
@@ -229,9 +231,9 @@ def shared_fields(masked: str) -> tuple[dict[str, tuple[str, bool]], int, list[t
     volatile_lines: list[tuple[int, str]] = []
     for match in FIELD_START.finditer(masked):
         field_type = TYPE_ALIASES.get(match.group(1), match.group(1))
-        if "volatile" in match.group(0).split():
+        is_array = match.group(2) != ""
+        if "volatile" in match.group(0).split() and not is_array:
             volatile_lines.append((masked.count("\n", 0, match.start()) + 1, field_type))
-        is_array = match.group(2) is not None
         end = declaration_end(masked, match.end())
         declaration = masked[match.end() : end]
         depth = 0
@@ -309,6 +311,22 @@ def scoped_files(argv: Sequence[str]) -> list[Path] | None:
     return sorted(files, key=str)
 
 
+def _argument_end(masked: str, start: int) -> int:
+    """Return the comma or closing parenthesis that ends a ``ref`` argument."""
+    depth = 0
+    for index in range(start, len(masked)):
+        character = masked[index]
+        if character in "([{":
+            depth += 1
+        elif character in ")]}":
+            if depth == 0:
+                return index
+            depth -= 1
+        elif character == "," and depth == 0:
+            return index
+    return len(masked)
+
+
 def _replacement(types: set[str], expression: str, read: bool) -> str:
     """Name the supported atomic replacement for a matching field's type."""
     if "ulong" in types:
@@ -341,7 +359,8 @@ def check(path: Path) -> tuple[list[str], int]:
         for line, field_type in volatile_lines
     ]
     for match in USAGE.finditer(masked):
-        expression = match.group("expression").strip()
+        start = match.end()
+        expression = masked[start : _argument_end(masked, start)].strip()
         matched = [
             (name, fields[name]) for name in IDENTIFIER.findall(expression) if name in fields
         ]
@@ -394,8 +413,8 @@ def main() -> int:
 
     if failures:
         print(
-            "64-bit Volatile access is not atomic on 32-bit players. Read with Interlocked.Read and "
-            "write with Interlocked.Exchange so the audio thread never observes half an update:",
+            "64-bit Volatile access is not atomic on 32-bit players. Use the replacement named for "
+            "each access below so the audio thread never observes half an update:",
             file=sys.stderr,
         )
         for failure in failures:
