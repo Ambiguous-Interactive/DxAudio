@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -12,135 +13,174 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 VERSION = "2021.3.45f1"
-FAKE_EDITOR = """
-$ErrorActionPreference = 'Stop'
-$project = $args[$args.IndexOf('-projectPath') + 1]
-$log = $args[$args.IndexOf('-logFile') + 1]
-Set-Content -LiteralPath $log -Value 'Unity fake compiler'
-if ($args[$args.IndexOf('-password') + 1] -cne $env:UNITY_PASSWORD -or -not (Test-Path -LiteralPath $project)) {
-    exit 2
-}
-if ($env:CONTROL -eq 'activation-once') {
-    $first = Join-Path $project 'first-attempt'
-    if (-not (Test-Path -LiteralPath $first)) {
-        Set-Content -LiteralPath $first -Value '20111'
-        Add-Content -LiteralPath $log -Value '[Licensing::Client] Error: Code 20111'
-        exit 1
-    }
-}
-if ($env:CONTROL -in 'activation-expired','activation-after-startup','activation-persistent','activation-other-code') {
-    if ($env:CONTROL -eq 'activation-expired') {
-        Add-Content -LiteralPath $log -Value '[Licensing::Client] Error: Code 20113 serial expired'
-    } elseif ($env:CONTROL -eq 'activation-after-startup') {
-        Add-Content -LiteralPath $log -Value 'Application.AssetDatabase Initial Refresh Start','[Licensing::Client] Error: Code 20111'
-    } elseif ($env:CONTROL -eq 'activation-persistent') {
-        Add-Content -LiteralPath $log -Value '[Licensing::Client] Error: Code 20111'
-    } else {
-        Add-Content -LiteralPath $log -Value '[Licensing::Client] Error: Code 201110'
-    }
-    exit 1
-}
-if ($env:CONTROL -eq 'licensing-observations') {
-    Add-Content -LiteralPath $log -Value 'while verifying Licensing Client signature synthetic-private-value',
-        'LicensingClient has failed validation synthetic-private-value',
-        "failed because channel doesn't exist synthetic-private-value"
-}
-if ($env:CONTROL -eq 'stall') {
-    Start-Sleep -Seconds 20
-    exit 0
-}
-if ($env:CONTROL -eq 'completion-no-xml') {
-    Add-Content -LiteralPath $log -Value 'Test run completed. Exiting with code 0 (Ok). Run completed.'
-    Start-Sleep -Seconds 20
-    exit 0
-}
-if ($env:CONTROL -eq 'chatty') {
-    1..7 | ForEach-Object { Add-Content -LiteralPath $log -Value "tick $_"; Start-Sleep -Seconds 1 }
-}
-if ($env:CONTROL -eq 'timeout') {
-    $child = Join-Path $PSScriptRoot 'late-child.ps1'
-    Start-Process -FilePath ([Environment]::ProcessPath) -ArgumentList ('-NoProfile -NonInteractive -File "' + $child + '"')
-    Add-Content -LiteralPath $log -Value 'Started descendant'
-    Start-Sleep -Seconds 20
-    exit 0
-}
-if ($args -contains '-runTests') {
-    if ($args -contains '-quit' -or $args -contains '-executeMethod') { exit 2 }
-    if ($env:CONTROL -ne 'missing-docs-assembly') {
-        $assemblies = New-Item -ItemType Directory -Path (Join-Path $project 'Library/ScriptAssemblies') -Force
-        New-Item -ItemType File -Path (Join-Path $assemblies.FullName 'WallstopStudios.DxAudio.Documentation.Validation.dll') | Out-Null
-    }
-    $failed = if ($env:CONTROL -eq 'contradictory-result') { 1 } else { 0 }
-    $passed = if ($env:DXMESSAGING_VERSION) { 4 } else { 3 }
-    if ($env:CONTROL -eq 'render-timing') { $passed += 3 }
-    $xml = '<test-run result="Passed" passed="' + $passed + '" total="' + $passed + '" failed="' + $failed + '" skipped="0" inconclusive="0">'
-    $fixtureTime = if ($env:CONTROL -eq 'slow-fixture') { '120.100' } else { '4.100' }
-    $xml += '<test-suite type="TestFixture" fullname="AnalyzerFixtures" duration="' + $fixtureTime + '">'
-    $scope = 'WallstopStudios.DxAudio.Tests.Editor.AnalyzerActivation.'
-    if ($env:CONTROL -ne 'missing-activation') {
-        $name = if ($env:CONTROL -eq 'wrong-scope') { 'OtherSuite.' } else { $scope }
-        $duration = if ($env:CONTROL -eq 'invalid-duration') { 'NaN' } else { '2.850' }
-        $xml += '<test-case fullname="' + $name + 'AllExpectedAssembliesUseThePinnedAnalyzers" result="Passed" duration="' + $duration + '"/>'
-    } else {
-        $xml += '<test-case fullname="OtherPassedCase" result="Passed" duration="0.400"/>'
-    }
-    if ($env:CONTROL -ne 'missing-reference-graph') {
-        $xml += '<test-case fullname="' + $scope + 'AssemblyDefinitionsMatchTheCompilerReferenceGraph" result="Passed" duration="0.100"/>'
-    } else {
-        $xml += '<test-case fullname="OtherPassingReferenceCase" result="Passed" duration="0.100"/>'
-    }
-    $xml += '<test-case fullname="' + $scope + 'EditorOnlyAssembliesContainNoConcreteMonoBehaviours" result="Passed" duration="1.150"/></test-suite>'
-    if ($env:DXMESSAGING_VERSION -and $env:CONTROL -ne 'missing-integration') {
-        $suiteCount = if ($env:CONTROL -eq 'mismatched-integration-count') { 2 } else { 1 }
-        $xml += '<test-suite type="Assembly" name="WallstopStudios.DxAudio.Tests.Integration.DxMessaging.dll" passed="' + $suiteCount + '">'
-        $case = '<test-case fullname="IntegrationCase" result="Passed" duration="0.200"/>'
-        if ($env:CONTROL -eq 'empty-integration') { $xml += '</test-suite>' + $case }
-        else { $xml += $case + '</test-suite>' }
-    } elseif ($env:DXMESSAGING_VERSION) {
-        $xml += '<test-case fullname="OtherTestOutsideIntegration" result="Passed" duration="0.200"/>'
-    }
-    if ($env:CONTROL -eq 'render-timing') {
-        $xml += '<test-case fullname="WallstopStudios.DxAudio.Tests.Editor.DspHostTests.RecordDspRenderWallTime(8,&quot;Noise Gate&quot;,False)" result="Passed" duration="0.200">'
-        $xml += '<output>DxAudio DSP render: Noise Gate, added p95 534.00 us, wall-time reference 426.67 us (over).</output></test-case>'
-        $xml += '<test-case fullname="WallstopStudios.DxAudio.Tests.Editor.AllocationTests.MixMonitorMeasuresOnlyTheSelectedPlayersPlayCalls" result="Passed" duration="0.300">'
-        $xml += '<output>Mix Monitor Play probe over 100000 single-voice plays. Off 230.000 ms. On 299.000 ms.</output></test-case>'
-        $xml += '<test-case fullname="WallstopStudios.DxAudio.Tests.Editor.DspDistortionTimingTests.RecordDistortionStageCosts" result="Passed" duration="0.400">'
-        $xml += '<output>DxAudio Distortion timing: fixed controls, p50 340.00 us.' + "`n"
-        $xml += 'DxAudio Distortion samples: 0,0/15/45,1/25/75,3/350/1050,2/340/1020</output></test-case>'
-    }
-    $xml += '</test-run>'
-    if ($env:CONTROL -eq 'external-entity') { $xml = '<!DOCTYPE test-run [<!ENTITY control SYSTEM "file:///missing.xml">]>' + $xml }
-    Set-Content -LiteralPath $args[$args.IndexOf('-testResults') + 1] -Value $xml
-    if ($env:CONTROL -eq 'broken-analyzer') { Add-Content -LiteralPath $log -Value 'warning CS8032: invalid analyzer' }
-    if ($env:CONTROL -in 'completion-hang','completion-failed') {
-        $reported = if ($env:CONTROL -eq 'completion-hang') { 0 } else { 2 }
-        Add-Content -LiteralPath $log -Value "Test run completed. Exiting with code $reported. Run completed."
-        Start-Sleep -Seconds 20
-        exit 0
-    }
-    if ($env:CONTROL -eq 'completion-real-failure') {
-        Add-Content -LiteralPath $log -Value 'Test run completed. Exiting with code 0 (Ok). Run completed.'
-        Start-Sleep -Milliseconds 650
-        exit 9
-    }
-    if ($env:CONTROL -eq 'activation-test-failure') {
-        Add-Content -LiteralPath $log -Value '[Licensing::Client] Error: Code 20111'
-        exit 4
-    }
-} elseif ($env:CONTROL -ne 'missing-receipt') {
-    if ($args -contains '-runTests' -or $args -notcontains '-quit') { exit 2 }
-    if (-not (Test-Path (Join-Path $project 'Packages/dxaudio.tgz'))) { exit 1 }
-    $method = $args[$args.IndexOf('-executeMethod') + 1]
-    $integration = $method.EndsWith('.RunWithIntegration', [StringComparison]::Ordinal)
-    if ($integration -ne [bool]$env:DXMESSAGING_VERSION) { exit 2 }
-    if ($integration -and $env:CONTROL -ne 'wrong-player-receipt') {
-        Add-Content -LiteralPath $log -Value 'DxAudio integration player script validation passed.'
-    } else {
-        Add-Content -LiteralPath $log -Value 'DxAudio archive and player script validation passed.'
-    }
-}
-exit 0
+FAKE_EDITOR = r"""import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+args = sys.argv[1:]
+def value(flag):
+    return args[args.index(flag) + 1]
+
+project = Path(value("-projectPath"))
+log = Path(value("-logFile"))
+log.write_text("Unity fake compiler\n", encoding="utf-8")
+if value("-password") != os.environ.get("UNITY_PASSWORD") or not project.is_dir():
+    raise SystemExit(2)
+control = os.environ.get("CONTROL", "")
+if control == "activation-once":
+    first = project / "first-attempt"
+    if not first.exists():
+        first.write_text("20111", encoding="utf-8")
+        with log.open("a", encoding="utf-8") as stream:
+            stream.write("[Licensing::Client] Error: Code 20111\n")
+        raise SystemExit(1)
+if control in (
+    "activation-expired",
+    "activation-after-startup",
+    "activation-persistent",
+    "activation-other-code",
+):
+    with log.open("a", encoding="utf-8") as stream:
+        if control == "activation-expired":
+            stream.write("[Licensing::Client] Error: Code 20113 serial expired\n")
+        elif control == "activation-after-startup":
+            stream.write("Application.AssetDatabase Initial Refresh Start\n")
+            stream.write("[Licensing::Client] Error: Code 20111\n")
+        elif control == "activation-persistent":
+            stream.write("[Licensing::Client] Error: Code 20111\n")
+        else:
+            stream.write("[Licensing::Client] Error: Code 201110\n")
+    raise SystemExit(1)
+if control == "licensing-observations":
+    with log.open("a", encoding="utf-8") as stream:
+        stream.write("while verifying Licensing Client signature synthetic-private-value\n")
+        stream.write("LicensingClient has failed validation synthetic-private-value\n")
+        stream.write("failed because channel doesn't exist synthetic-private-value\n")
+if control == "stall":
+    time.sleep(20)
+    raise SystemExit(0)
+if control == "completion-no-xml":
+    with log.open("a", encoding="utf-8") as stream:
+        stream.write("Test run completed. Exiting with code 0 (Ok). Run completed.\n")
+    time.sleep(20)
+    raise SystemExit(0)
+if control == "chatty":
+    for tick in range(1, 8):
+        with log.open("a", encoding="utf-8") as stream:
+            stream.write(f"tick {tick}\n")
+        time.sleep(1)
+if control == "timeout":
+    child = Path(__file__).with_name("late-child.py")
+    subprocess.Popen([sys.executable, str(child)])
+    with log.open("a", encoding="utf-8") as stream:
+        stream.write("Started descendant\n")
+    time.sleep(20)
+    raise SystemExit(0)
+if "-runTests" in args:
+    if "-quit" in args or "-executeMethod" in args:
+        raise SystemExit(2)
+    if control != "missing-docs-assembly":
+        assemblies = project / "Library/ScriptAssemblies"
+        assemblies.mkdir(parents=True, exist_ok=True)
+        (assemblies / "WallstopStudios.DxAudio.Documentation.Validation.dll").touch()
+    failed = 1 if control == "contradictory-result" else 0
+    passed = 4 if os.environ.get("DXMESSAGING_VERSION") else 3
+    if control == "render-timing":
+        passed += 3
+    fixture_time = "120.100" if control == "slow-fixture" else "4.100"
+    scope = "WallstopStudios.DxAudio.Tests.Editor.AnalyzerActivation."
+    parts = [
+        f'<test-run result="Passed" passed="{passed}" total="{passed}" failed="{failed}" skipped="0" inconclusive="0">',
+        f'<test-suite type="TestFixture" fullname="AnalyzerFixtures" duration="{fixture_time}">',
+    ]
+    if control != "missing-activation":
+        name = "OtherSuite." if control == "wrong-scope" else scope
+        duration = "NaN" if control == "invalid-duration" else "2.850"
+        parts.append(
+            f'<test-case fullname="{name}AllExpectedAssembliesUseThePinnedAnalyzers" result="Passed" duration="{duration}"/>'
+        )
+    else:
+        parts.append('<test-case fullname="OtherPassedCase" result="Passed" duration="0.400"/>')
+    if control != "missing-reference-graph":
+        parts.append(
+            f'<test-case fullname="{scope}AssemblyDefinitionsMatchTheCompilerReferenceGraph" result="Passed" duration="0.100"/>'
+        )
+    else:
+        parts.append(
+            '<test-case fullname="OtherPassingReferenceCase" result="Passed" duration="0.100"/>'
+        )
+    parts.append(
+        f'<test-case fullname="{scope}EditorOnlyAssembliesContainNoConcreteMonoBehaviours" result="Passed" duration="1.150"/>'
+    )
+    parts.append("</test-suite>")
+    if os.environ.get("DXMESSAGING_VERSION") and control != "missing-integration":
+        suite_count = 2 if control == "mismatched-integration-count" else 1
+        case = '<test-case fullname="IntegrationCase" result="Passed" duration="0.200"/>'
+        if control == "empty-integration":
+            parts.append(
+                f'<test-suite type="Assembly" name="WallstopStudios.DxAudio.Tests.Integration.DxMessaging.dll" passed="{suite_count}"></test-suite>'
+            )
+            parts.append(case)
+        else:
+            parts.append(
+                f'<test-suite type="Assembly" name="WallstopStudios.DxAudio.Tests.Integration.DxMessaging.dll" passed="{suite_count}">{case}</test-suite>'
+            )
+    elif os.environ.get("DXMESSAGING_VERSION"):
+        parts.append('<test-case fullname="OtherTestOutsideIntegration" result="Passed" duration="0.200"/>')
+    if control == "render-timing":
+        parts.append(
+            '<test-case fullname="WallstopStudios.DxAudio.Tests.Editor.DspHostTests.RecordDspRenderWallTime(8,&quot;Noise Gate&quot;,False)" result="Passed" duration="0.200">'
+            "<output>DxAudio DSP render: Noise Gate, added p95 534.00 us, wall-time reference 426.67 us (over).</output></test-case>"
+        )
+        parts.append(
+            '<test-case fullname="WallstopStudios.DxAudio.Tests.Editor.AllocationTests.MixMonitorMeasuresOnlyTheSelectedPlayersPlayCalls" result="Passed" duration="0.300">'
+            "<output>Mix Monitor Play probe over 100000 single-voice plays. Off 230.000 ms. On 299.000 ms.</output></test-case>"
+        )
+        parts.append(
+            '<test-case fullname="WallstopStudios.DxAudio.Tests.Editor.DspDistortionTimingTests.RecordDistortionStageCosts" result="Passed" duration="0.400">'
+            "<output>DxAudio Distortion timing: fixed controls, p50 340.00 us.\n"
+            "DxAudio Distortion samples: 0,0/15/45,1/25/75,3/350/1050,2/340/1020</output></test-case>"
+        )
+    parts.append("</test-run>")
+    xml = "".join(parts)
+    if control == "external-entity":
+        xml = '<!DOCTYPE test-run [<!ENTITY control SYSTEM "file:///missing.xml">]>' + xml
+    Path(value("-testResults")).write_text(xml, encoding="utf-8")
+    if control == "broken-analyzer":
+        with log.open("a", encoding="utf-8") as stream:
+            stream.write("warning CS8032: invalid analyzer\n")
+    if control in ("completion-hang", "completion-failed"):
+        reported = 0 if control == "completion-hang" else 2
+        with log.open("a", encoding="utf-8") as stream:
+            stream.write(f"Test run completed. Exiting with code {reported}. Run completed.\n")
+        time.sleep(20)
+        raise SystemExit(0)
+    if control == "completion-real-failure":
+        with log.open("a", encoding="utf-8") as stream:
+            stream.write("Test run completed. Exiting with code 0 (Ok). Run completed.\n")
+        time.sleep(0.65)
+        raise SystemExit(9)
+    if control == "activation-test-failure":
+        with log.open("a", encoding="utf-8") as stream:
+            stream.write("[Licensing::Client] Error: Code 20111\n")
+        raise SystemExit(4)
+elif control != "missing-receipt":
+    if "-runTests" in args or "-quit" not in args:
+        raise SystemExit(2)
+    if not (project / "Packages/dxaudio.tgz").exists():
+        raise SystemExit(1)
+    method = value("-executeMethod")
+    integration = method.endswith(".RunWithIntegration")
+    with log.open("a", encoding="utf-8") as stream:
+        if integration and control != "wrong-player-receipt":
+            stream.write("DxAudio integration player script validation passed.\n")
+        else:
+            stream.write("DxAudio archive and player script validation passed.\n")
+raise SystemExit(0)
 """
+
 FAKE_FETCH = '''
 import pathlib
 import sys
@@ -170,7 +210,7 @@ class UnityRunnerTests(unittest.TestCase):
         shutil.copy2(ROOT / ".github/scripts/compile_docs_snippets.py", self.fixture / ".github/scripts")
         shutil.copy2(ROOT / "README.md", self.fixture)
         shutil.copytree(ROOT / "Documentation~", self.fixture / "Documentation~")
-        self.editor = self.root / "fake-editor.ps1"
+        self.editor = self.root / "fake-editor.py"
         self.editor.write_text(FAKE_EDITOR, encoding="utf-8")
         self.archive = self.root / "archive.tgz"
         self.archive.touch()
@@ -192,8 +232,20 @@ class UnityRunnerTests(unittest.TestCase):
             "LATE_RECEIPT": str(self.root / "late-receipt"),
             "GITHUB_STEP_SUMMARY": str(summary),
         }
+        flags = {
+            "-ArchiveSmoke": "--archive-smoke",
+            "-IntegrationPlayerSmoke": "--integration-player-smoke",
+            "-EditorTimeoutSeconds": "--editor-timeout-seconds",
+            "-EditorStallSeconds": "--editor-stall-seconds",
+            "-CompletionGraceSeconds": "--completion-grace-seconds",
+            "-ActivationRetryBudgetSeconds": "--activation-retry-budget-seconds",
+            "-Label": "--label",
+            "-DxMessagingVersion": "--dxmessaging-version",
+            "-UnityImportArchive": "--unity-import-archive",
+        }
+        translated = [flags.get(argument, argument) for argument in args]
         output = subprocess.run(
-            ["pwsh", "-NoProfile", "-File", str(ROOT / "scripts" / "unity" / "run-editmode-tests.ps1"), *args],
+            [sys.executable, str(ROOT / "scripts" / "unity" / "unity_validation.py"), "run", *translated],
             env=env,
             capture_output=True,
             text=True,
@@ -305,8 +357,12 @@ class UnityRunnerTests(unittest.TestCase):
         self.assertNotIn("DxAudio Distortion samples:", summary_text)
 
     def test_timeout_kills_the_editor_and_descendant(self):
-        child = self.root / "late-child.ps1"
-        child.write_text("Start-Sleep -Seconds 5; Set-Content -LiteralPath $env:LATE_RECEIPT -Value 'alive'\n")
+        child = self.root / "late-child.py"
+        child.write_text(
+            "import os, time\nfrom pathlib import Path\ntime.sleep(5)\n"
+            "Path(os.environ[\"LATE_RECEIPT\"]).write_text(\"alive\", encoding=\"utf-8\")\n",
+            encoding="utf-8",
+        )
         status, log = self.run_validation("-EditorTimeoutSeconds", "4", control="timeout")
         self.assertNotEqual(status, 0, log)
         self.assertIn("Started descendant", log)
@@ -404,9 +460,17 @@ class UnityRunnerTests(unittest.TestCase):
             + ']]></message></failure></test-case></test-run>',
             encoding="utf-8",
         )
-        command = ROOT / "scripts" / "unity" / "show-editmode-log-tail.ps1"
+        command = ROOT / "scripts" / "unity" / "unity_validation.py"
         output = subprocess.run(
-            ["pwsh", "-NoProfile", "-File", str(command), "-LogPath", str(log), "-ResultsPath", str(xml)],
+            [
+                sys.executable,
+                str(command),
+                "tail",
+                "--log-path",
+                str(log),
+                "--results-path",
+                str(xml),
+            ],
             capture_output=True,
             text=True,
             timeout=10,
