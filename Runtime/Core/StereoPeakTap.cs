@@ -4,6 +4,11 @@ namespace WallstopStudios.DxAudio
     using System.Threading;
 
     /// <summary>Applies editor audition gain and captures the resulting listener samples.</summary>
+    /// <remarks>
+    /// Editor-only: <c>AudioMixBus.TryAttachPeakTap</c> creates this tap under <c>UNITY_EDITOR</c>, and the Mix
+    /// Monitor uses it from the editor assembly. Its 64-bit <c>Interlocked</c> pairs therefore run on the 64-bit
+    /// editor.
+    /// </remarks>
     internal sealed class StereoPeakTap
     {
         private const long UnreadEmpty = long.MinValue;

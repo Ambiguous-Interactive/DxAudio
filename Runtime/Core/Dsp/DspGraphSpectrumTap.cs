@@ -4,6 +4,7 @@ namespace WallstopStudios.DxAudio
     using System.Threading;
 
     /// <summary>Transfers paired stereo windows from one audition audio thread to the editor.</summary>
+    /// <remarks>Editor-only: the graph audition panel creates this tap, so its 64-bit pairs run on the 64-bit editor.</remarks>
     internal sealed class DspGraphSpectrumTap
     {
         internal int SampleRate { get; }

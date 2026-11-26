@@ -4,6 +4,11 @@ namespace WallstopStudios.DxAudio
     using System.Threading;
 
     /// <summary>Moves listener blocks from the audio callback to the editor meters.</summary>
+    /// <remarks>
+    /// Editor-only: <see cref="StereoPeakTap"/> creates this tap from <c>AudioMixBus.TryAttachPeakTap</c>, which is
+    /// compiled only under <c>UNITY_EDITOR</c>. Its 64-bit <c>Interlocked</c> reads therefore run on the 64-bit
+    /// editor, never in a player audio callback.
+    /// </remarks>
     internal sealed class ListenerMeterTap
     {
         // Over 300 ms at 48 kHz and eight channels, with a normal read every 50 ms.

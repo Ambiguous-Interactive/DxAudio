@@ -4,6 +4,7 @@ namespace WallstopStudios.DxAudio
     using System.Threading;
 
     /// <summary>Publishes graph audition peaks from one audio thread to the editor without copying PCM.</summary>
+    /// <remarks>Editor-only: the graph audition panel creates this tap, so its 64-bit pairs run on the 64-bit editor.</remarks>
     internal sealed class DspGraphMeterTap
     {
         internal DspGraphSpectrumTap Spectrum { get; }
