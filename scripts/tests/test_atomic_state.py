@@ -320,6 +320,23 @@ namespace Demo
 }
 """
 
+IMPORTED_ALIAS_FIXTURE = """using System.Threading;
+using V = Volatile;
+
+namespace Demo
+{
+    internal sealed class ImportedAlias
+    {
+        private long _state;
+
+        internal long ReadState()
+        {
+            return V.Read(ref _state);
+        }
+    }
+}
+"""
+
 RANK_FIXTURE = """using System.Threading;
 
 namespace Demo
@@ -658,6 +675,20 @@ def case_resolves_type_aliases_of_64_bit_fields() -> None:
         remove_temp_root(root)
 
 
+def case_rejects_an_alias_of_the_imported_volatile_type() -> None:
+    root = new_temp_root(prefix="atomic-state-")
+    try:
+        write_fixture_file(root, "Runtime/ImportedAlias.cs", IMPORTED_ALIAS_FIXTURE)
+        output, exit_code = invoke_atomic_state_lint(root)
+        assert_exit_code(1, f"the imported alias should fail: {output}", exit_code)
+        assert_true(
+            "ImportedAlias.cs:2:" in output and "System.Threading" in output,
+            f"an alias of the imported Volatile type must be reported: {output}",
+        )
+    finally:
+        remove_temp_root(root)
+
+
 def case_paths_scans_only_runtime_files_and_fails_closed() -> None:
     root = new_temp_root(prefix="atomic-state-")
     try:
@@ -760,6 +791,10 @@ def main() -> int:
     run_case(
         "Resolves_TypeAliasesOf64BitFields",
         case_resolves_type_aliases_of_64_bit_fields,
+    )
+    run_case(
+        "Rejects_AnAliasOfTheImportedVolatileType",
+        case_rejects_an_alias_of_the_imported_volatile_type,
     )
     run_case(
         "Paths_ScansOnlyRuntimeFilesAndFailsClosed",

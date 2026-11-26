@@ -82,7 +82,7 @@ ALIAS_FIELD = re.compile(
 VOLATILE_IMPORT = re.compile(
     r"^[ \t]*(?:global[ \t]+)?using[ \t\n]+"
     r"(?:static[ \t\n]+(?:global\s*::\s*)?System\s*\.\s*Threading\s*\.\s*(?:Volatile|Thread)|"
-    r"[A-Za-z_]\w*[ \t\n]*=[ \t\n]*(?:global\s*::\s*)?System\s*\.\s*Threading(?:\s*\.\s*(?:Volatile|Thread))?)"
+    r"[A-Za-z_]\w*[ \t\n]*=[ \t\n]*(?:(?:global\s*::\s*)?System\s*\.\s*Threading(?:\s*\.\s*(?:Volatile|Thread))?|(?:Volatile|Thread)))"
     r"[ \t\n]*;",
     re.MULTILINE,
 )
@@ -263,8 +263,12 @@ def declarators(masked: str, start: int) -> list[str]:
     names: list[str] = []
     for segment in segments:
         name = DECLARATOR.match(segment)
-        if name is not None:
-            names.append(name.group(1))
+        if name is None:
+            continue
+        rest = segment[name.end() :].lstrip()
+        if rest and rest[0] not in "=[;,.":
+            continue
+        names.append(name.group(1))
     return names
 
 
