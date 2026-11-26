@@ -103,6 +103,23 @@ MASKED_FIXTURE = """namespace Demo
 }
 """
 
+MULTI_FIELD_FIXTURE = """using System.Threading;
+
+namespace Demo
+{
+    internal sealed class Declarations
+    {
+        private long _first, _shared;
+        private volatile long _direct;
+
+        internal long ReadBoth()
+        {
+            return Volatile.Read(ref _shared) + Volatile.Read(ref _first);
+        }
+    }
+}
+"""
+
 
 def invoke_atomic_state_lint(
     root: Path, arguments: Sequence[str] = (), roots: Path | None = None
@@ -164,6 +181,32 @@ def case_ignores_comments_and_strings() -> None:
         remove_temp_root(root)
 
 
+def case_reads_every_declarator_and_rejects_volatile_long() -> None:
+    root = new_temp_root(prefix="atomic-state-")
+    try:
+        write_fixture_file(root, "Runtime/Declarations.cs", MULTI_FIELD_FIXTURE)
+        output, exit_code = invoke_atomic_state_lint(root)
+        assert_exit_code(1, f"the multi-field fixture should fail: {output}", exit_code)
+        assert_true(
+            "Declarations.cs:7:" not in output,
+            f"a plain multi-field declaration is allowed: {output}",
+        )
+        assert_true(
+            "Declarations.cs:8:" in output and "volatile 64-bit" in output,
+            f"a volatile long field must fail: {output}",
+        )
+        assert_true(
+            output.count("Declarations.cs:12:") == 2,
+            f"both declarators must be enforced: {output}",
+        )
+        assert_true(
+            "'_first'" in output and "'_shared'" in output,
+            f"both declarators must be named: {output}",
+        )
+    finally:
+        remove_temp_root(root)
+
+
 def case_paths_scans_only_runtime_files_and_fails_closed() -> None:
     root = new_temp_root(prefix="atomic-state-")
     try:
@@ -219,6 +262,10 @@ def main() -> int:
     run_case("Passes_InterlockedAnd32BitVolatile", case_passes_interlocked_and_32_bit_volatile)
     run_case("Fails_OnEach64BitFormWithLocations", case_fails_on_each_64_bit_form_with_locations)
     run_case("Ignores_CommentsAndStrings", case_ignores_comments_and_strings)
+    run_case(
+        "Reads_EveryDeclaratorAndRejectsVolatileLong",
+        case_reads_every_declarator_and_rejects_volatile_long,
+    )
     run_case(
         "Paths_ScansOnlyRuntimeFilesAndFailsClosed",
         case_paths_scans_only_runtime_files_and_fails_closed,

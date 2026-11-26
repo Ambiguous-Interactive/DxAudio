@@ -12,7 +12,9 @@ apply half of one update and half of another.
 
 ``Interlocked.Read`` and ``Interlocked.Exchange`` are atomic on every player.
 This lint scans ``Runtime/`` and rejects ``Volatile.Read`` or
-``Volatile.Write`` on a field declared ``long``, ``ulong`` or ``double``.
+``Volatile.Write`` on a field declared ``long``, ``ulong`` or ``double``,
+and rejects a ``volatile long`` or ``volatile ulong`` field outright. Every
+declarator in a multi-field declaration is read.
 
 Comments, character literals and every string shape are masked before the
 scan, so prose that names a banned form cannot fail it. ``--paths`` scans
@@ -41,14 +43,15 @@ SCAN_ROOTS = (
     else ["Runtime"]
 )
 
-FIELD = re.compile(
+FIELD_START = re.compile(
     r"^[ \t]*(?:public|internal|protected|private)(?:[ \t]+(?:internal|protected))?"
     r"[ \t]+(?:(?:static|readonly|volatile|new)[ \t]+)*"
-    r"(long|ulong|double)[ \t]*(\[\s*\])?[ \t]+([A-Za-z_]\w*)[ \t]*(?:[;=,])",
+    r"(long|ulong|double)[ \t]*(?:\[\s*\])?[ \t]+",
     re.MULTILINE,
 )
 USAGE = re.compile(r"\bVolatile\s*\.\s*(Read|Write)\s*\(\s*ref\s+([^,)]+)")
 IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
+DECLARATOR = re.compile(r"^[ \t]*([A-Za-z_]\w*)")
 
 
 def mask(source: str) -> str:
@@ -102,14 +105,48 @@ def mask(source: str) -> str:
     return "".join(kept)
 
 
-def shared_fields(masked: str) -> tuple[set[str], int]:
-    """Return the names of 64-bit fields and how many declarations were read."""
+def declaration_end(masked: str, start: int) -> int:
+    """Return the offset of the semicolon that ends the declaration starting at ``start``."""
+    depth = 0
+    for index in range(start, len(masked)):
+        character = masked[index]
+        if character in "([{":
+            depth += 1
+        elif character in ")]}":
+            depth = max(0, depth - 1)
+        elif character == ";" and depth == 0:
+            return index
+    return len(masked)
+
+
+def shared_fields(masked: str) -> tuple[set[str], int, list[int]]:
+    """Return 64-bit field names, their count, and the lines of ``volatile`` declarations."""
     names: set[str] = set()
     declarations = 0
-    for match in FIELD.finditer(masked):
-        names.add(match.group(3))
-        declarations += 1
-    return names, declarations
+    volatile_lines: list[int] = []
+    for match in FIELD_START.finditer(masked):
+        if "volatile" in match.group(0).split():
+            volatile_lines.append(masked.count("\n", 0, match.start()) + 1)
+        end = declaration_end(masked, match.end())
+        declaration = masked[match.end() : end]
+        depth = 0
+        segment_start = 0
+        segments: list[str] = []
+        for offset, character in enumerate(declaration):
+            if character in "([{":
+                depth += 1
+            elif character in ")]}":
+                depth = max(0, depth - 1)
+            elif character == "," and depth == 0:
+                segments.append(declaration[segment_start:offset])
+                segment_start = offset + 1
+        segments.append(declaration[segment_start:])
+        for segment in segments:
+            name = DECLARATOR.match(segment)
+            if name is not None:
+                names.add(name.group(1))
+                declarations += 1
+    return names, declarations, volatile_lines
 
 
 def display_for(full_path: Path) -> str:
@@ -174,11 +211,13 @@ def check(path: Path) -> tuple[list[str], int]:
     except OSError:
         return [f"{display_for(path)}: cannot read the file."], 0
     masked = mask(source)
-    fields, declarations = shared_fields(masked)
-    if not fields:
-        return [], declarations
+    fields, declarations, volatile_lines = shared_fields(masked)
     display = display_for(path)
-    failures: list[str] = []
+    failures: list[str] = [
+        f"{display}:{line}: volatile 64-bit field is not atomic on a 32-bit player; "
+        "remove volatile and use Interlocked.Read and Interlocked.Exchange."
+        for line in volatile_lines
+    ]
     for match in USAGE.finditer(masked):
         expression = match.group(2).strip()
         if not fields.intersection(IDENTIFIER.findall(expression)):

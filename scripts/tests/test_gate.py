@@ -314,22 +314,21 @@ def run_gate_driver(python: str, statements: List[str]) -> Tuple[str, int]:
         remove_temp_root(temp_root)
 
 
-def case_scoped_lane_table_rewrites_the_three_lint_steps(python: str) -> None:
+def case_scoped_lane_table_rewrites_the_lint_steps(python: str) -> None:
     output, exit_code = run_gate_driver(
         python,
         [
             'scoped = gate.scoped_lanes(gate.DiffScope(changed_csharp=("Runtime/A.cs", "Runtime/B.cs")))',
             "steps = {step.name: list(step.args) for _, lane in scoped for step in lane}",
             "static = {step.name: list(step.args) for _, lane in gate.LANES for step in lane}",
-            'print(json.dumps({"null": steps["csharp.null-assertions"], "usings": steps["csharp.usings"], "restore": steps["csharp.tool-restore"] == static["csharp.tool-restore"], "format": steps["csharp.format"] == static["csharp.format"], "suite": steps["tests.self-tests"] == static["tests.self-tests"], "total": len(steps), "static_total": len(static)}))',
+            'print(json.dumps({"lints": {name: steps[name] for name in gate.CSHARP_LINT_STEPS}, "restore": steps["csharp.tool-restore"] == static["csharp.tool-restore"], "format": steps["csharp.format"] == static["csharp.format"], "suite": steps["tests.self-tests"] == static["tests.self-tests"], "total": len(steps), "static_total": len(static)}))',
         ],
     )
     assert_exit_code(0, f"the driver must succeed (got {exit_code}): {output}", exit_code)
     result = json.loads(output)
-    for name in ("null", "usings"):
-        args = result[name]
+    for name, args in result["lints"].items():
         assert_true(
-            args[-3:] == ["--paths", "Runtime/A.cs", "Runtime/B.cs"] and "lint_csharp_" in " ".join(args),
+            args[-3:] == ["--paths", "Runtime/A.cs", "Runtime/B.cs"],
             f"the {name} step must scan exactly the changed files, got {args}",
         )
     assert_true(result["restore"] is True, "the tool-restore step must stay whole-tree")
@@ -678,7 +677,7 @@ def main() -> int:
         ("LaunchFailure_SurfacesTheReasonInConsoleAndReport", lambda: case_launch_failure_surfaces_the_reason_in_console_and_report(python)),
         ("ReportWriteFailure_IsVisibleWithoutCrashingTheGate", lambda: case_report_write_failure_is_visible_without_crashing_the_gate(python)),
         ("LaneCrash_SurfacesTheReasonInConsoleAndReport", lambda: case_lane_crash_surfaces_the_reason_in_console_and_report(python)),
-        ("ScopedLaneTable_RewritesTheThreeLintSteps", lambda: case_scoped_lane_table_rewrites_the_three_lint_steps(python)),
+        ("ScopedLaneTable_RewritesTheLintSteps", lambda: case_scoped_lane_table_rewrites_the_lint_steps(python)),
         ("ScopedLaneTable_DropsTheCSharpLaneWhenNoCSharpChanged", lambda: case_scoped_lane_table_drops_the_csharp_lane_when_no_csharp_changed(python)),
         ("ScopedLaneTable_DropsTheUnaffectedStepsAndRemapsDependencies", lambda: case_scoped_lane_table_drops_the_unaffected_steps_and_remaps_dependencies(python)),
         ("ScopedLaneTable_ScopesTheSuiteSelection", lambda: case_scoped_lane_table_scopes_the_suite_selection(python)),
