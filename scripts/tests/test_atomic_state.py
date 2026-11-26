@@ -229,6 +229,25 @@ namespace Demo
 }
 """
 
+GLOBAL_IMPORT_FIXTURE = """using static global::System.Threading.Volatile;
+using W = global::System.Threading.Volatile;
+using static
+    System.Threading.Thread;
+
+namespace Demo
+{
+    internal sealed class QualifiedImport
+    {
+        private long _state;
+
+        internal long ReadState()
+        {
+            return Read(ref _state);
+        }
+    }
+}
+"""
+
 EDGE_FIXTURE = """using System.Threading;
 
 namespace Demo
@@ -451,6 +470,22 @@ def case_rejects_static_imports_of_volatile() -> None:
         remove_temp_root(root)
 
 
+def case_rejects_qualified_and_multiline_static_imports() -> None:
+    root = new_temp_root(prefix="atomic-state-")
+    try:
+        write_fixture_file(root, "Runtime/QualifiedImport.cs", GLOBAL_IMPORT_FIXTURE)
+        output, exit_code = invoke_atomic_state_lint(root)
+        assert_exit_code(1, f"a qualified or multiline import should fail: {output}", exit_code)
+        for line in (1, 2, 3):
+            assert_true(
+                f"QualifiedImport.cs:{line}:" in output,
+                f"must report the static import on line {line}: {output}",
+            )
+        assert_true("static import" in output, f"the reason must be named: {output}")
+    finally:
+        remove_temp_root(root)
+
+
 def case_paths_scans_only_runtime_files_and_fails_closed() -> None:
     root = new_temp_root(prefix="atomic-state-")
     try:
@@ -529,6 +564,10 @@ def main() -> int:
     run_case(
         "Rejects_StaticImportsOfVolatile",
         case_rejects_static_imports_of_volatile,
+    )
+    run_case(
+        "Rejects_QualifiedAndMultilineStaticImports",
+        case_rejects_qualified_and_multiline_static_imports,
     )
     run_case(
         "Paths_ScansOnlyRuntimeFilesAndFailsClosed",

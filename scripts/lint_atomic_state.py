@@ -68,9 +68,10 @@ IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
 DECLARATOR = re.compile(r"^[ \t]*([A-Za-z_]\w*)")
 TYPE_ALIASES = {"Int64": "long", "UInt64": "ulong", "Double": "double"}
 VOLATILE_IMPORT = re.compile(
-    r"^[ \t]*(?:global[ \t]+)?using[ \t]+"
-    r"(?:static[ \t]+System\s*\.\s*Threading\s*\.\s*(?:Volatile|Thread)|"
-    r"[A-Za-z_]\w*[ \t]*=[ \t]*System\s*\.\s*Threading\s*\.\s*(?:Volatile|Thread))[ \t]*;",
+    r"^[ \t]*(?:global[ \t]+)?using[ \t\n]+"
+    r"(?:static[ \t\n]+(?:global\s*::\s*)?System\s*\.\s*Threading\s*\.\s*(?:Volatile|Thread)|"
+    r"[A-Za-z_]\w*[ \t\n]*=[ \t\n]*(?:global\s*::\s*)?System\s*\.\s*Threading\s*\.\s*(?:Volatile|Thread))"
+    r"[ \t\n]*;",
     re.MULTILINE,
 )
 
