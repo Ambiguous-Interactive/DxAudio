@@ -8,15 +8,20 @@ namespace WallstopStudios.DxAudio
     /// A 32-bit seqlock publishes the cutoff and its reset generation as three ints. <c>Interlocked</c>
     /// on a <c>long</c> is atomic on a 32-bit player but takes a process-global lock, and the audio
     /// callback must never wait on one. The writer is the main thread at cue start; the reader retries
-    /// only while those three stores are in flight.
+    /// only while those three stores are in flight, then falls back to the last whole pair so a writer
+    /// preempted on a single-core device cannot stall the callback.
     /// </remarks>
     internal sealed class SfxLowPass
     {
+        private const int MaximumReadAttempts = 8;
+
         private readonly DspFilter[] _filters;
         private readonly long[] _applied;
         private int _sequence;
         private int _generation;
         private int _cutoffBits;
+        private int _readGeneration;
+        private int _readCutoffBits;
 
         internal SfxLowPass(int sampleRate, int blockFrames, int maximumChannels)
         {
@@ -42,12 +47,12 @@ namespace WallstopStudios.DxAudio
 
         internal void Process(float[] buffer, int channels)
         {
-            int sequence;
-            int cutoffBits;
-            int generation;
-            while (true)
+            int cutoffBits = 0;
+            int generation = 0;
+            bool consistent = false;
+            for (int attempt = 0; attempt < MaximumReadAttempts; ++attempt)
             {
-                sequence = Volatile.Read(ref _sequence);
+                int sequence = Volatile.Read(ref _sequence);
                 if ((sequence & 1) != 0)
                 {
                     continue;
@@ -57,8 +62,17 @@ namespace WallstopStudios.DxAudio
                 generation = Volatile.Read(ref _generation);
                 if (sequence == Volatile.Read(ref _sequence))
                 {
+                    _readCutoffBits = cutoffBits;
+                    _readGeneration = generation;
+                    consistent = true;
                     break;
                 }
+            }
+
+            if (!consistent)
+            {
+                cutoffBits = _readCutoffBits;
+                generation = _readGeneration;
             }
 
             float cutoff = BitConverter.Int32BitsToSingle(cutoffBits);
