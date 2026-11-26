@@ -70,7 +70,7 @@ TYPE_ALIASES = {"Int64": "long", "UInt64": "ulong", "Double": "double"}
 VOLATILE_IMPORT = re.compile(
     r"^[ \t]*(?:global[ \t]+)?using[ \t\n]+"
     r"(?:static[ \t\n]+(?:global\s*::\s*)?System\s*\.\s*Threading\s*\.\s*(?:Volatile|Thread)|"
-    r"[A-Za-z_]\w*[ \t\n]*=[ \t\n]*(?:global\s*::\s*)?System\s*\.\s*Threading\s*\.\s*(?:Volatile|Thread))"
+    r"[A-Za-z_]\w*[ \t\n]*=[ \t\n]*(?:global\s*::\s*)?System\s*\.\s*Threading(?:\s*\.\s*(?:Volatile|Thread))?)"
     r"[ \t\n]*;",
     re.MULTILINE,
 )
@@ -376,7 +376,7 @@ def check(path: Path) -> tuple[list[str], int]:
     display = display_for(path)
     failures: list[str] = [
         f"{display}:{masked.count(chr(10), 0, match.start()) + 1}: static import or alias of "
-        "System.Threading.Volatile or System.Threading.Thread is not allowed; name the atomic call explicitly."
+        "System.Threading (or its Volatile/Thread type) is not allowed; name the atomic call explicitly."
         for match in VOLATILE_IMPORT.finditer(masked)
     ]
     failures.extend(

@@ -287,6 +287,22 @@ namespace Demo
 }
 """
 
+NAMESPACE_ALIAS_FIXTURE = """using Threading = System.Threading;
+
+namespace Demo
+{
+    internal sealed class Alias
+    {
+        private long _state;
+
+        internal long ReadState()
+        {
+            return Threading.Volatile.Read(ref _state);
+        }
+    }
+}
+"""
+
 RANK_FIXTURE = """using System.Threading;
 
 namespace Demo
@@ -597,6 +613,20 @@ def case_excludes_array_index_identifiers_from_the_storage_match() -> None:
         remove_temp_root(root)
 
 
+def case_rejects_namespace_aliases_of_threading() -> None:
+    root = new_temp_root(prefix="atomic-state-")
+    try:
+        write_fixture_file(root, "Runtime/Alias.cs", NAMESPACE_ALIAS_FIXTURE)
+        output, exit_code = invoke_atomic_state_lint(root)
+        assert_exit_code(1, f"a namespace alias should fail: {output}", exit_code)
+        assert_true(
+            "Alias.cs:1:" in output and "System.Threading" in output,
+            f"the namespace alias must be reported: {output}",
+        )
+    finally:
+        remove_temp_root(root)
+
+
 def case_paths_scans_only_runtime_files_and_fails_closed() -> None:
     root = new_temp_root(prefix="atomic-state-")
     try:
@@ -691,6 +721,10 @@ def main() -> int:
     run_case(
         "Excludes_ArrayIndexIdentifiersFromStorage",
         case_excludes_array_index_identifiers_from_the_storage_match,
+    )
+    run_case(
+        "Rejects_NamespaceAliasesOfThreading",
+        case_rejects_namespace_aliases_of_threading,
     )
     run_case(
         "Paths_ScansOnlyRuntimeFilesAndFailsClosed",
