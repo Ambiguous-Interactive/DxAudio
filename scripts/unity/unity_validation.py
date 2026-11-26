@@ -204,6 +204,8 @@ def _has_leading_doctype(text: str) -> bool:
     while True:
         if prefix.startswith("<?"):
             end = prefix.find("?>")
+            if end >= 0:
+                end += 2
         elif prefix.startswith("<!--"):
             end = prefix.find("-->")
             if end >= 0:

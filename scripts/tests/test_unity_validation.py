@@ -121,6 +121,11 @@ class NUnitValidationTests(unittest.TestCase):
                 '<!--comment--><!DOCTYPE test-run [<!ENTITY x "expanded">]><test-run>&x;</test-run>'
             )
         )
+        _expect_validation_failure(
+            lambda: validation.parse_nunit_result_from_text(
+                '<?xml version="1.0"?><!DOCTYPE test-run><test-run/>'
+            )
+        )
 
     def test_accepts_doctype_text_inside_test_output(self) -> None:
         document = _nunit(
@@ -258,10 +263,10 @@ class MainTests(unittest.TestCase):
             root = Path(directory)
             log = root / "unity.log"
             results = root / "results.xml"
-            log.write_text("secret-password\n", encoding="utf-8")
+            log.write_text("synthetic-redaction-value\n", encoding="utf-8")
             results.write_text(
                 '<test-run><test-case fullname="Case.Failed" result="Failed" duration="2.325">'
-                "<failure><message>bad secret-password value</message></failure>"
+                "<failure><message>bad synthetic-redaction-value value</message></failure>"
                 "</test-case></test-run>",
                 encoding="utf-8",
             )
@@ -270,7 +275,7 @@ class MainTests(unittest.TestCase):
                 patch.dict(
                     os.environ,
                     {
-                        "UNITY_PASSWORD": "secret-password",
+                        "UNITY_PASSWORD": "synthetic-redaction-value",
                         "RUNNER_TEMP": "",
                         "GITHUB_STEP_SUMMARY": "",
                     },
@@ -283,7 +288,7 @@ class MainTests(unittest.TestCase):
                 )
             assert status == 0
             text = output.getvalue()
-            assert "secret-password" not in text
+            assert "synthetic-redaction-value" not in text
             assert "1 failed case(s)" in text
             assert "2.325s  Case.Failed" in text
 

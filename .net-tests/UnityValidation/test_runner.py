@@ -196,7 +196,7 @@ for name in ("WallstopStudios.UnityHelpers.Analyzers.dll", "nunit.analyzers.dll"
 def process_is_alive(pid: int) -> bool:
     """Return whether one process id still names a live process."""
     if os.name == "nt":
-        completed = subprocess.run(
+        completed = subprocess.run(  # noqa: S603, S607 - fixed system command with an integer PID.
             ["tasklist", "/FI", f"PID eq {pid}"],
             capture_output=True,
             text=True,
