@@ -38,9 +38,11 @@ namespace WallstopStudios.DxAudio
 
         internal void Begin(float cutoffHertz)
         {
-            // Store the cutoff word before the sequence marker, so a reader that runs while this writer
-            // is preempted still sees the requested cutoff instead of a dry block. The generation then
-            // publishes the reset under the seqlock, even when the next play reuses the cutoff.
+            /*
+                Store the cutoff word before the sequence marker, so a reader that runs while this writer
+                is preempted still sees the requested cutoff instead of a dry block. The generation then
+                publishes the reset under the seqlock, even when the next play reuses the cutoff.
+            */
             Volatile.Write(ref _cutoffBits, BitConverter.SingleToInt32Bits(cutoffHertz));
             int sequence = Volatile.Read(ref _sequence);
             Volatile.Write(ref _sequence, sequence + 1);
@@ -73,9 +75,11 @@ namespace WallstopStudios.DxAudio
 
             if (!consistent)
             {
-                // A preempted writer may have stored the cutoff before its generation. The cutoff is a
-                // whole 32-bit value, so use the latest one with the last whole generation; the next
-                // consistent read supplies the matching generation and any reset.
+                /*
+                    A preempted writer may have stored the cutoff before its generation. The cutoff is a
+                    whole 32-bit value, so use the latest one with the last whole generation; the next
+                    consistent read supplies the matching generation and any reset.
+                */
                 cutoffBits = Volatile.Read(ref _cutoffBits);
                 generation = _readGeneration;
             }
