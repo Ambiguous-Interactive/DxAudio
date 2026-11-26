@@ -16,9 +16,9 @@ This lint scans ``Runtime/`` and rejects ``Volatile.Read``, ``Volatile.Write``,
 ``long``, ``ulong``, ``double``, ``System.Int64``, ``System.UInt64``, or
 ``System.Double``, plus a bare ``volatile`` 64-bit field. A bare array field
 is a 32-bit object reference and is allowed; only its elements are 64-bit.
-Every declarator in a multi-field declaration is read, and a ``ref`` argument
-is read with balanced brackets so a method call, cast, or multidimensional
-element stays whole.
+Every declarator in a multi-field declaration is read, a type alias of a
+64-bit type is resolved, and a ``ref`` argument is read with balanced
+brackets so a method call, cast, or multidimensional element stays whole.
 
 Comments, character literals and the literal text of every string shape are
 masked before the scan, while interpolation holes stay visible as code: a
@@ -67,6 +67,18 @@ USAGE = re.compile(
 IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
 DECLARATOR = re.compile(r"^[ \t]*([A-Za-z_]\w*)")
 TYPE_ALIASES = {"Int64": "long", "UInt64": "ulong", "Double": "double"}
+TYPE_ALIAS_IMPORT = re.compile(
+    r"^[ \t]*(?:global[ \t]+)?using[ \t]+(?P<alias>[A-Za-z_]\w*)[ \t\n]*=[ \t\n]*"
+    r"(?:global\s*::\s*)?(?:System\s*\.\s*)?(?P<type>long|ulong|double|Int64|UInt64|Double)[ \t]*;",
+    re.MULTILINE,
+)
+ALIAS_FIELD = re.compile(
+    r"^[ \t]*(?:public|internal|protected|private)(?:[ \t]+(?:internal|protected))?"
+    r"[ \t]+(?:(?:static|readonly|volatile|new)[ \t]+)*"
+    r"(?P<alias>[A-Za-z_]\w*)[ \t]*((?:\[\s*,*\s*\])*)[ \t]+"
+    r"(?=[A-Za-z_]\w*[ \t]*(?:[;=,\[]))",
+    re.MULTILINE,
+)
 VOLATILE_IMPORT = re.compile(
     r"^[ \t]*(?:global[ \t]+)?using[ \t\n]+"
     r"(?:static[ \t\n]+(?:global\s*::\s*)?System\s*\.\s*Threading\s*\.\s*(?:Volatile|Thread)|"
@@ -232,35 +244,60 @@ def declaration_end(masked: str, start: int) -> int:
     return len(masked)
 
 
+def declarators(masked: str, start: int) -> list[str]:
+    """Return every declarator name in the declaration that starts at ``start``."""
+    end = declaration_end(masked, start)
+    declaration = masked[start:end]
+    depth = 0
+    segment_start = 0
+    segments: list[str] = []
+    for offset, character in enumerate(declaration):
+        if character in "([{":
+            depth += 1
+        elif character in ")]}":
+            depth = max(0, depth - 1)
+        elif character == "," and depth == 0:
+            segments.append(declaration[segment_start:offset])
+            segment_start = offset + 1
+    segments.append(declaration[segment_start:])
+    names: list[str] = []
+    for segment in segments:
+        name = DECLARATOR.match(segment)
+        if name is not None:
+            names.append(name.group(1))
+    return names
+
+
 def shared_fields(masked: str) -> tuple[dict[str, tuple[str, bool]], int, list[tuple[int, str]]]:
     """Return 64-bit field types, their count, and the ``volatile`` declaration lines and types."""
     fields: dict[str, tuple[str, bool]] = {}
     declarations = 0
     volatile_lines: list[tuple[int, str]] = []
+    aliases = {
+        match.group("alias"): TYPE_ALIASES.get(match.group("type"), match.group("type"))
+        for match in TYPE_ALIAS_IMPORT.finditer(masked)
+    }
     for match in FIELD_START.finditer(masked):
         field_type = TYPE_ALIASES.get(match.group(1), match.group(1))
         is_array = match.group(2) != ""
         if "volatile" in match.group(0).split() and not is_array:
             volatile_lines.append((masked.count("\n", 0, match.start()) + 1, field_type))
-        end = declaration_end(masked, match.end())
-        declaration = masked[match.end() : end]
-        depth = 0
-        segment_start = 0
-        segments: list[str] = []
-        for offset, character in enumerate(declaration):
-            if character in "([{":
-                depth += 1
-            elif character in ")]}":
-                depth = max(0, depth - 1)
-            elif character == "," and depth == 0:
-                segments.append(declaration[segment_start:offset])
-                segment_start = offset + 1
-        segments.append(declaration[segment_start:])
-        for segment in segments:
-            name = DECLARATOR.match(segment)
-            if name is not None:
-                fields[name.group(1)] = (field_type, is_array)
-                declarations += 1
+        names = declarators(masked, match.end())
+        for name in names:
+            fields[name] = (field_type, is_array)
+        declarations += len(names)
+    for match in ALIAS_FIELD.finditer(masked):
+        alias = match.group("alias")
+        if alias in TYPE_ALIASES or alias in ("long", "ulong", "double") or alias not in aliases:
+            continue
+        field_type = aliases[alias]
+        is_array = match.group(2) != ""
+        if "volatile" in match.group(0).split() and not is_array:
+            volatile_lines.append((masked.count("\n", 0, match.start()) + 1, field_type))
+        names = declarators(masked, match.end())
+        for name in names:
+            fields[name] = (field_type, is_array)
+        declarations += len(names)
     return fields, declarations, volatile_lines
 
 

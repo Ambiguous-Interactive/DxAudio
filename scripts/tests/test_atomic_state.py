@@ -303,6 +303,23 @@ namespace Demo
 }
 """
 
+TYPE_ALIAS_FIXTURE = """using System.Threading;
+using Wide = System.Int64;
+
+namespace Demo
+{
+    internal sealed class TypeAlias
+    {
+        private Wide _state;
+
+        internal long ReadState()
+        {
+            return Volatile.Read(ref _state);
+        }
+    }
+}
+"""
+
 RANK_FIXTURE = """using System.Threading;
 
 namespace Demo
@@ -627,6 +644,20 @@ def case_rejects_namespace_aliases_of_threading() -> None:
         remove_temp_root(root)
 
 
+def case_resolves_type_aliases_of_64_bit_fields() -> None:
+    root = new_temp_root(prefix="atomic-state-")
+    try:
+        write_fixture_file(root, "Runtime/TypeAlias.cs", TYPE_ALIAS_FIXTURE)
+        output, exit_code = invoke_atomic_state_lint(root)
+        assert_exit_code(1, f"the type alias fixture should fail: {output}", exit_code)
+        assert_true(
+            "TypeAlias.cs:12:" in output and "Interlocked.Read(ref _state)" in output,
+            f"a type alias of System.Int64 must be a 64-bit field: {output}",
+        )
+    finally:
+        remove_temp_root(root)
+
+
 def case_paths_scans_only_runtime_files_and_fails_closed() -> None:
     root = new_temp_root(prefix="atomic-state-")
     try:
@@ -725,6 +756,10 @@ def main() -> int:
     run_case(
         "Rejects_NamespaceAliasesOfThreading",
         case_rejects_namespace_aliases_of_threading,
+    )
+    run_case(
+        "Resolves_TypeAliasesOf64BitFields",
+        case_resolves_type_aliases_of_64_bit_fields,
     )
     run_case(
         "Paths_ScansOnlyRuntimeFilesAndFailsClosed",
