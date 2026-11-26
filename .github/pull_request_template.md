@@ -27,4 +27,5 @@ Fixes #
 - [ ] `dotnet test .net-tests` passes.
 - [ ] Unity EditMode tests pass.
 - [ ] `CHANGELOG.md` has a user-facing entry for observable changes.
+- [ ] `CHANGELOG.md` `Changed` and `Fixed` entries name behavior a release shipped.
 - [ ] New files carry `.meta` companions.

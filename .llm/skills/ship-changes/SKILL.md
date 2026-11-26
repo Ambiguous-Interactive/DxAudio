@@ -38,7 +38,9 @@ Escalate on failure. Never relax a budget, skip a lane, or delete a test to get 
 ## CHANGELOG
 
 `CHANGELOG.md` is user-facing only: features, fixes, visible behavior, serialized-data changes. No tests, CI, tooling, or release mechanics. One or two sentences, at most 300
-rendered characters, verb-first, issue reference at the end. Never edit a released section.
+rendered characters, verb-first, issue reference at the end. Never edit a released section. It describes the package
+since the last release: a `Changed` or `Fixed` entry must name behavior a release shipped, and a fix or change to an
+unreleased feature folds into that feature's `Added` entry. See [changelog](../../references/changelog.md).
 
 ## Pull requests
 

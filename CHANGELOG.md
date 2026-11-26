@@ -29,10 +29,10 @@ All notable changes to this package are documented here. The format follows
 - Bypass individual node effects during graph audition without saving the change to the graph asset ([#132](https://github.com/Ambiguous-Interactive/DxAudio/issues/132)).
 - Add DxAudio Problems with named validation rules, project severities, and shared or personal silences ([#135](https://github.com/Ambiguous-Interactive/DxAudio/issues/135)).
 - Add a Stereo Width effect for DSP chains and graphs to narrow or widen stereo signals ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
-- Add a room Reverb effect for DSP chains and graphs with adjustable decay and wet level ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
-- Add a Phaser effect for DSP chains and graphs with adjustable sweep rate and depth ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
+- Add a room Reverb effect for DSP chains and graphs with adjustable decay, wet level, and low CPU cost across several voices ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
+- Add a Phaser effect for DSP chains and graphs with adjustable sweep rate, depth, and low CPU cost across several voices ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add a Tremolo effect for DSP chains and graphs with adjustable rate and depth ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
-- Add a Chorus effect for DSP chains and graphs to widen sounds with adjustable rate, depth, and mix ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
+- Add a Chorus effect for DSP chains and graphs to widen sounds with adjustable rate, depth, and mix at low CPU cost across several voices ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add a Noise Gate for DSP chains and graphs to fade quiet tails while keeping stereo channels linked ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add a Delay effect for DSP chains and graphs, with adjustable repeat spacing, feedback, and echo level ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Add independent sound and music volume settings that scale voices during playback ([#116](https://github.com/Ambiguous-Interactive/DxAudio/issues/116)).
@@ -40,10 +40,7 @@ All notable changes to this package are documented here. The format follows
 ### Changed
 
 - Apply a shared dark and light theme to the authoring selection, DSP graph, and drawn EQ ([#130](https://github.com/Ambiguous-Interactive/DxAudio/issues/130)).
-- Reduce CPU time for Phaser when several voices play at once ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
-- Reduce CPU time for Chorus when several voices play at once ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 - Reduce CPU time for stereo Distortion when several voices play at once ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
-- Reduce CPU time for Reverb when several voices play at once ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 
 ### Fixed
 

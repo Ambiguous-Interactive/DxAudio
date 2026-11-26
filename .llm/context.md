@@ -181,6 +181,11 @@ sentence on one line, at most 300 rendered characters; Prettier preserves the au
 `.editorconfig`, which `.prettierrc.json` and `.csharpierrc` carry. See
 [simple-writing](./skills/simple-writing/SKILL.md).
 
+`CHANGELOG.md` describes the package since the last release, not since the last commit. An `[Unreleased]` `Changed`,
+`Fixed`, or `Security` entry must name behavior a release actually shipped; fold a fix or change to an unreleased
+feature into that feature's `Added` entry. Decide with git against the newest release tag, never memory. See
+[changelog](./references/changelog.md).
+
 ### Visual evidence
 
 For every visual change, attach before-and-after comparisons to the pull request description. Use PNGs for stills and animated WebP or GIF files at 45 frames per second or higher
