@@ -56,7 +56,7 @@ SCAN_ROOTS = (
 FIELD_START = re.compile(
     r"^[ \t]*(?:public|internal|protected|private)(?:[ \t]+(?:internal|protected))?"
     r"[ \t]+(?:(?:static|readonly|volatile|new)[ \t]+)*"
-    r"(?:System\s*\.\s*)?(long|ulong|double|Int64|UInt64|Double)[ \t]*((?:\[\s*,?\s*\])*)[ \t]+"
+    r"(?:System\s*\.\s*)?(long|ulong|double|Int64|UInt64|Double)[ \t]*((?:\[\s*,*\s*\])*)[ \t]+"
     r"(?=[A-Za-z_]\w*[ \t]*(?:[;=,\[]))",
     re.MULTILINE,
 )

@@ -248,6 +248,22 @@ namespace Demo
 }
 """
 
+RANK_FIXTURE = """using System.Threading;
+
+namespace Demo
+{
+    internal sealed class Rank
+    {
+        private long[,,] _samples;
+
+        internal long ReadSamples()
+        {
+            return Volatile.Read(ref _samples[0, 0, 0]);
+        }
+    }
+}
+"""
+
 EDGE_FIXTURE = """using System.Threading;
 
 namespace Demo
@@ -265,6 +281,11 @@ namespace Demo
         internal long ReadWide()
         {
             return Thread.VolatileRead(ref _wide);
+        }
+
+        internal long ReadQualified()
+        {
+            return global::System.Threading.Volatile.Read(ref _wide);
         }
     }
 }
@@ -406,6 +427,10 @@ def case_reports_supported_replacements_and_array_references() -> None:
             "Interlocked.Read(ref _wide)" in output,
             f"a System.Int64 field must get the long advice: {output}",
         )
+        assert_true(
+            "Edge.cs:22:" in output,
+            f"a global:: fully qualified access must be scanned: {output}",
+        )
     finally:
         remove_temp_root(root)
 
@@ -482,6 +507,20 @@ def case_rejects_qualified_and_multiline_static_imports() -> None:
                 f"must report the static import on line {line}: {output}",
             )
         assert_true("static import" in output, f"the reason must be named: {output}")
+    finally:
+        remove_temp_root(root)
+
+
+def case_recognizes_three_dimensional_array_elements() -> None:
+    root = new_temp_root(prefix="atomic-state-")
+    try:
+        write_fixture_file(root, "Runtime/Rank.cs", RANK_FIXTURE)
+        output, exit_code = invoke_atomic_state_lint(root)
+        assert_exit_code(1, f"a three-dimensional element should fail: {output}", exit_code)
+        assert_true(
+            "Rank.cs:11:" in output and "Interlocked.Read(ref _samples[0, 0, 0])" in output,
+            f"a three-dimensional element must stay whole: {output}",
+        )
     finally:
         remove_temp_root(root)
 
@@ -568,6 +607,10 @@ def main() -> int:
     run_case(
         "Rejects_QualifiedAndMultilineStaticImports",
         case_rejects_qualified_and_multiline_static_imports,
+    )
+    run_case(
+        "Recognizes_ThreeDimensionalArrayElements",
+        case_recognizes_three_dimensional_array_elements,
     )
     run_case(
         "Paths_ScansOnlyRuntimeFilesAndFailsClosed",
