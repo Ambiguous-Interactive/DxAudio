@@ -13,20 +13,23 @@ the user-visible guarantee into that feature's `Added` entry and drop the commit
 This follows the sibling `unity-helpers` rule "Unreleased Features: Edit In Place" and the Keep a Changelog principle
 that a changelog is written for people, not generated from a diff.
 
-| Change                                                  | Correct entry                                            |
-| ------------------------------------------------------- | -------------------------------------------------------- |
-| Fix a defect in a feature first added in `[Unreleased]` | Extend that feature's `Added` entry. No `Fixed` entry.   |
-| Change behavior of a feature in `[Unreleased]`          | Extend that feature's `Added` entry. No `Changed` entry. |
-| Fix a defect in behavior a release shipped              | `Fixed` entry.                                           |
-| Change behavior a release shipped                       | `Changed` entry.                                         |
-| Performance work on an `[Unreleased]` feature           | Fold the final cost into that feature's `Added` entry.   |
+| Change                                                           | Correct entry                                             |
+| ---------------------------------------------------------------- | --------------------------------------------------------- |
+| Fix a defect in a feature first added in `[Unreleased]`          | Extend that feature's `Added` entry. No `Fixed` entry.    |
+| Change behavior of a feature in `[Unreleased]`                   | Extend that feature's `Added` entry. No `Changed` entry.  |
+| Fix a security defect in a feature first added in `[Unreleased]` | Extend that feature's `Added` entry. No `Security` entry. |
+| Fix a defect in behavior a release shipped                       | `Fixed` entry.                                            |
+| Change behavior a release shipped                                | `Changed` entry.                                          |
+| Performance work on an `[Unreleased]` feature                    | Fold the final cost into that feature's `Added` entry.    |
 
-A release candidate reads `[Unreleased]` to choose the version bump. An unreleased feature filed only under `Changed`
-or `Fixed` hides the minor bump its `Added` entry would earn, and it tells a consumer to expect a patch.
+A release candidate reads `[Unreleased]` to choose the version bump. An unreleased feature filed only under `Changed`,
+`Fixed`, or `Security` hides the minor bump its `Added` entry would earn, and it tells a consumer to expect a patch.
 
-## Decide with git
+## Decide with git and the released behavior
 
-Use the newest release tag, not memory. Ask whether the file, symbol, or behavior existed at that tag:
+Use the newest release tag, not memory. File and symbol history is a fast first check, not proof: a release can move
+behavior into a new file or symbol, or keep an old file while changing only part of it. The decisive question is
+whether the behavior itself shipped.
 
 ```bash
 git tag --sort=-v:refname | head -1
@@ -34,8 +37,10 @@ git ls-tree -r --name-only <tag> -- Runtime/Core/Dsp
 git show <tag>:Runtime/Core/Dsp/DspReverb.cs
 ```
 
-If the file or symbol is absent at the tag, the feature is unreleased and its fixes and changes belong in `Added`.
-If it is present, a `Fixed` or `Changed` entry is accurate.
+If the behavior is absent at the tag, the feature is unreleased and its fixes and changes belong in `Added`. If
+consumers received the behavior from that release, a `Fixed`, `Changed`, or `Security` entry is accurate. When the
+file check is ambiguous, read the tagged code, tests, or docs before choosing the section. A moved or renamed file
+still holds the same shipped behavior.
 
 ## Example
 
