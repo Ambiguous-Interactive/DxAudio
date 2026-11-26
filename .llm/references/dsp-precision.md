@@ -148,8 +148,8 @@ not a Unity timing, so it is not used for the decision. The noisier runs do not 
 ## Decision
 
 - Keep the rendered sample path and filter integrators in float. The error is inaudible for normal corners and
-  qualities, the filter is stable for ten million samples, and a migration costs CPU for no measurable benefit in
-  the normal range.
+  qualities, the filter is stable for ten million samples, and a migration has no measurable signal benefit in the
+  normal range.
 - Keep `MusicRamp` and its elapsed time in float. Its target value is exact. At 30-144 Hz a one-hour fade differs by
   at most 0.14%; the 1000 Hz case is 1.99% late. That is below a perceptual step for a fade.
 - When long compressor or limiter releases are supported, use double for the gain state and their public time
