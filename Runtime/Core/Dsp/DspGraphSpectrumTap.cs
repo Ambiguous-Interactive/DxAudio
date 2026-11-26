@@ -26,11 +26,11 @@ namespace WallstopStudios.DxAudio
         internal void Select(int node)
         {
             // The editor is the sole writer. A generation distinguishes A → B → A from an unchanged A.
-            long previous = Volatile.Read(ref _selection);
+            long previous = Interlocked.Read(ref _selection);
             if (unchecked((int)previous) != node)
             {
                 long generation = (previous >> 32) + 1;
-                Volatile.Write(ref _selection, (generation << 32) | unchecked((uint)node));
+                Interlocked.Exchange(ref _selection, (generation << 32) | unchecked((uint)node));
             }
         }
 
@@ -41,7 +41,7 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
-            bool current = _capturedSelection == Volatile.Read(ref _selection);
+            bool current = _capturedSelection == Interlocked.Read(ref _selection);
             if (current)
             {
                 Array.Copy(_input, input, _input.Length);
@@ -60,7 +60,7 @@ namespace WallstopStudios.DxAudio
                 return -1;
             }
 
-            long selection = Volatile.Read(ref _selection);
+            long selection = Interlocked.Read(ref _selection);
             if (_capturedSelection != selection)
             {
                 _capturedSelection = selection;

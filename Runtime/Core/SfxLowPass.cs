@@ -27,12 +27,12 @@ namespace WallstopStudios.DxAudio
         {
             // One atomic request carries both the cutoff and the reset, even when the next play uses the same cutoff.
             long generation = (long)unchecked(++_generation) << 32;
-            Volatile.Write(ref _request, generation | (uint)BitConverter.SingleToInt32Bits(cutoffHertz));
+            Interlocked.Exchange(ref _request, generation | (uint)BitConverter.SingleToInt32Bits(cutoffHertz));
         }
 
         internal void Process(float[] buffer, int channels)
         {
-            long request = Volatile.Read(ref _request);
+            long request = Interlocked.Read(ref _request);
             float cutoff = BitConverter.Int32BitsToSingle(unchecked((int)request));
             if (cutoff <= 0f || channels <= 0 || _filters.Length < channels)
             {

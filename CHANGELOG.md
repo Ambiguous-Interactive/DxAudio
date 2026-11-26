@@ -44,6 +44,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Fixed
 
+- Keep shared 64-bit audio state atomic on 32-bit players, so a torn gain, cutoff, sample rate, or meter pair cannot reach the audio thread ([#192](https://github.com/Ambiguous-Interactive/DxAudio/issues/192)).
 - Keep short SFX rate-limit windows at their true length after hours of uptime, so rapid cues do not slow down ([#189](https://github.com/Ambiguous-Interactive/DxAudio/issues/189)).
 - Reject DSP graph layouts that would bypass the buffer limit through integer overflow ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).
 

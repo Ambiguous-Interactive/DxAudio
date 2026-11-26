@@ -88,7 +88,7 @@ namespace WallstopStudios.DxAudio
                 return default;
             }
 
-            (float left, float right) = Unpack(Volatile.Read(ref _edgePeaks[edge]));
+            (float left, float right) = Unpack(Interlocked.Read(ref _edgePeaks[edge]));
             return (true, left, right);
         }
 
@@ -105,7 +105,7 @@ namespace WallstopStudios.DxAudio
 
         internal void ObserveEdge(int edge, int from)
         {
-            Volatile.Write(ref _edgePeaks[edge], _nodePeaks[from].Latest);
+            Interlocked.Exchange(ref _edgePeaks[edge], _nodePeaks[from].Latest);
         }
 
         internal void ObserveDelayedEdge(int edge, float[] line, int start, int count, int channels)
@@ -119,7 +119,7 @@ namespace WallstopStudios.DxAudio
                 right = Math.Max(right, rightWrapped);
             }
 
-            Volatile.Write(ref _edgePeaks[edge], Pack(left, right));
+            Interlocked.Exchange(ref _edgePeaks[edge], Pack(left, right));
         }
 
         private struct PeakHold
@@ -154,15 +154,15 @@ namespace WallstopStudios.DxAudio
                     _clipExpires = expires;
                 }
 
-                Volatile.Write(ref Latest, Pack(left, right));
-                Volatile.Write(ref _held, Pack(_left, _right));
+                Interlocked.Exchange(ref Latest, Pack(left, right));
+                Interlocked.Exchange(ref _held, Pack(_left, _right));
                 Volatile.Write(ref _clip, frame < _clipExpires ? 1 : 0);
             }
 
             internal (bool, float, float, float, float, bool) Read()
             {
-                (float left, float right) = Unpack(Volatile.Read(ref Latest));
-                (float heldLeft, float heldRight) = Unpack(Volatile.Read(ref _held));
+                (float left, float right) = Unpack(Interlocked.Read(ref Latest));
+                (float heldLeft, float heldRight) = Unpack(Interlocked.Read(ref _held));
                 return (true, left, right, heldLeft, heldRight, Volatile.Read(ref _clip) == 1);
             }
         }
