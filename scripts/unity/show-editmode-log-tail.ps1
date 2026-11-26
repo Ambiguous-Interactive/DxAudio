@@ -11,10 +11,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $arguments = @('tail')
-if (-not [string]::IsNullOrWhiteSpace($UnityVersion)) { $arguments += @('--unity-version', $UnityVersion) }
-if (-not [string]::IsNullOrWhiteSpace($Label)) { $arguments += @('--label', $Label) }
-if (-not [string]::IsNullOrWhiteSpace($LogPath)) { $arguments += @('--log-path', $LogPath) }
-if (-not [string]::IsNullOrWhiteSpace($ResultsPath)) { $arguments += @('--results-path', $ResultsPath) }
+$arguments += "--unity-version=$UnityVersion"
+$arguments += "--label=$Label"
+if (-not [string]::IsNullOrWhiteSpace($LogPath)) { $arguments += "--log-path=$LogPath" }
+if (-not [string]::IsNullOrWhiteSpace($ResultsPath)) { $arguments += "--results-path=$ResultsPath" }
 
 & uv run --no-project (Join-Path $PSScriptRoot 'unity_validation.py') @arguments
-exit $LASTEXITCODE
+if ($LASTEXITCODE -ne 0) {
+    throw "Unity log report failed with exit code $LASTEXITCODE."
+}

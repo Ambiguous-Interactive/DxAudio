@@ -123,7 +123,7 @@ Instruction counts track code cost. Use Unity wall time to assess deadline headr
 
 ## Numeric precision
 
-Sample state and music ramps stay in `float`; phase, reverb gain and the noise-gate envelope stay in `double`. The
+Sample state and music ramps stay in `float`; phase, reverb gain exponent and the noise-gate envelope stay in `double`. The
 measured comparison is in [dsp-precision](./dsp-precision.md); a migration is a separate change.
 
 ## Device and format notes

@@ -73,7 +73,8 @@ if control == "chatty":
         time.sleep(1)
 if control == "timeout":
     child = Path(__file__).with_name("late-child.py")
-    subprocess.Popen([sys.executable, str(child)])
+    process = subprocess.Popen([sys.executable, str(child)])
+    Path(os.environ["LATE_PID"]).write_text(str(process.pid), encoding="utf-8")
     with log.open("a", encoding="utf-8") as stream:
         stream.write("Started descendant\n")
     time.sleep(20)
@@ -173,6 +174,8 @@ elif control != "missing-receipt":
         raise SystemExit(1)
     method = value("-executeMethod")
     integration = method.endswith(".RunWithIntegration")
+    if integration != bool(os.environ.get("DXMESSAGING_VERSION")):
+        raise SystemExit(2)
     with log.open("a", encoding="utf-8") as stream:
         if integration and control != "wrong-player-receipt":
             stream.write("DxAudio integration player script validation passed.\n")
@@ -188,6 +191,25 @@ out = pathlib.Path(sys.argv[sys.argv.index("--output-dir") + 1])
 for name in ("WallstopStudios.UnityHelpers.Analyzers.dll", "nunit.analyzers.dll"):
     (out / name).write_bytes(b"fake binary")
 '''
+
+
+def process_is_alive(pid: int) -> bool:
+    """Return whether one process id still names a live process."""
+    if os.name == "nt":
+        completed = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return str(pid) in completed.stdout
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 class UnityRunnerTests(unittest.TestCase):
@@ -230,6 +252,7 @@ class UnityRunnerTests(unittest.TestCase):
             "DXAUDIO_CONSUMER_ARCHIVE": str(archive),
             "CONTROL": control,
             "LATE_RECEIPT": str(self.root / "late-receipt"),
+            "LATE_PID": str(self.root / "late.pid"),
             "GITHUB_STEP_SUMMARY": str(summary),
         }
         flags = {
@@ -367,7 +390,14 @@ class UnityRunnerTests(unittest.TestCase):
         self.assertNotEqual(status, 0, log)
         self.assertIn("Started descendant", log)
         self.assertIn("did not exit within 4 seconds", log)
+        pid_file = self.root / "late.pid"
+        deadline = time.time() + 5
+        while not pid_file.exists() and time.time() < deadline:
+            time.sleep(0.05)
+        self.assertTrue(pid_file.exists(), "the descendant did not report its process id")
+        pid = int(pid_file.read_text(encoding="utf-8").strip())
         time.sleep(3)
+        self.assertFalse(process_is_alive(pid), "the timeout left the descendant running")
         self.assertFalse((self.root / "late-receipt").exists())
 
     def process_observation(self):

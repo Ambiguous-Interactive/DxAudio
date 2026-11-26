@@ -19,7 +19,9 @@ production path changed here. The migration, if any, is a separate change.
 - Unity timing is not measured in this workspace. The Unity host bridge and editor are unavailable, so the CPU rows
   are a .NET proxy on the same Core source. A Unity run must confirm them before a migration.
 
-The probe program and raw logs are in `.artifacts/session-097/precision/` (gitignored).
+The probe source is in [dsp-precision-probe.cs.txt](./dsp-precision-probe.cs.txt), the summarized output used by the
+tables is in [dsp-precision-data.md](./dsp-precision-data.md), and the raw run logs are in
+`.artifacts/session-097/precision/` (gitignored).
 
 ## One-pole state
 
@@ -39,18 +41,21 @@ smoother stalls at 0.999986, which is below one sample of audible difference at 
 
 ## Music ramps
 
-`MusicRamp` accumulates elapsed time in float and clamps at its duration. Its final value is exact at every tested
-duration and frame rate. The only visible effect is that a very long ramp can finish early.
+`MusicRamp` accumulates elapsed time in float and clamps at its duration. The float path reaches its target value
+exactly. The table compares the elapsed time when the float path reaches its duration with the double reference
+elapsed at that same frame. A negative difference means the float path stopped before the reference reached the
+duration. The value error is `|float value - reference value|` at that frame.
 
-| Duration | Frame rate           | Float finish | Exact finish   | Value error     |
-| -------- | -------------------- | ------------ | -------------- | --------------- |
-| 60 s     | 30, 60, 144, 1000 Hz | 60.000 s     | up to 60.022 s | 0 except 144 Hz |
-| 600 s    | 144 Hz               | 600.000 s    | 599.389 s      | 1.019e-3        |
-| 600 s    | 1000 Hz              | 600.000 s    | 599.472 s      | 8.800e-4        |
-| 3600 s   | 30 Hz                | 3600.000 s   | 3595.133 s     | 1.352e-3        |
+| Duration | Frame rate           | Float elapsed at finish | Double elapsed at that frame | Value error at that frame |
+| -------- | -------------------- | ----------------------- | ---------------------------- | ------------------------- |
+| 60 s     | 30, 60, 144, 1000 Hz | 60.000 s                | 60.000 to 60.022 s           | 0                         |
+| 600 s    | 144 Hz               | 600.000 s               | 599.389 s                    | 1.019e-3                  |
+| 600 s    | 1000 Hz              | 600.000 s               | 599.472 s                    | 8.800e-4                  |
+| 3600 s   | 30 Hz                | 3600.000 s              | 3595.133 s                   | 1.352e-3                  |
 
-A 60 s fade is exact within the frame step. A one-hour fade can finish 0.13% early at 30 Hz. This is below a
-perceptual step for a fade and does not justify double state. Keep `MusicRamp.ElapsedSeconds` in float.
+A 60 s fade is exact within the frame step. A one-hour fade reaches its target up to 4.87 s early at 30 Hz, which
+is 0.14% of its duration. This is below a perceptual step for a fade and does not justify double state. Keep
+`MusicRamp.ElapsedSeconds` in float.
 
 ## Recursive filter state
 
@@ -88,9 +93,10 @@ float-state error against a double state with the same coefficient, starting at 
 | 60 s    | 1.524e-2 dB     | 5.111e-2 dB      |
 | 600 s   | 1.998e-2 dB     | 1.142 dB         |
 
-After a 600 s release and 60 s of silence, the production compressor reports -13.141494 dB against -10.858049 dB
-for the double envelope. The limiter gain is 0.335830688 against 0.321371940, a difference of 0.0145. A normal
-release of 0.1 s or less is exact for any practical purpose. Releases of tens of seconds, which the public setters
+The table isolates state width from a -12 dB start. The production compressor also starts lower after its attack,
+so its absolute gain is not directly comparable; the precision loss is the same state-width effect. A separate
+limiter simulation from 0.25 measured 0.335830688 against 0.321371940, a difference of 0.0145. A normal release of
+0.1 s or less is exact for any practical purpose. Releases of tens of seconds, which the public setters
 currently accept, can stall in float and hold more reduction than the knob says. If long releases are a supported
 use, move only those gain fields to double. A clamp on the documented release range is a smaller alternative.
 
@@ -107,9 +113,10 @@ the cue was dropped although its window had opened.
 | 24 h    | 0.01 s   | 6,353,799 | 8,640,000 | 4,405,489    | 20 ms       |
 | 72 h    | 0.05 s   | 4,474,734 | 5,184,000 | 4,017,598    | 65 ms       |
 
-The float clock cannot hold a 10 ms window after an hour: about 14% of windows are late at 1 h and 26% at 8 h.
-A 0.5 s window is unaffected until 72 h, where one window opened 5 ms early. The rate limit is a minimum, so a late
-window is safe but changes how often a cue repeats. For rapid footsteps, impacts, or UI clicks this is audible.
+The float clock cannot hold a 10 ms window after an hour: about 14% of the ideal windows are late at 1 h and about
+52% at 8 h; 26% are missing at 8 h. A separate 72 h run at a 0.5 s interval accepted 518,401 windows against 518,400
+ideal, with one window opening 5 ms early. The rate limit is a minimum, so a late window is safe but changes how often
+a cue repeats. For rapid footsteps, impacts, or UI clicks this is audible.
 The fix is a double time source (`Time.unscaledTimeAsDouble` or `AudioSettings.dspTime`) and a double throttle map.
 That is a public time-unit change and must be a separate migration.
 
@@ -139,11 +146,11 @@ not a Unity timing, so it is not used for the decision. The noisier runs do not 
 - Keep the rendered sample path and filter integrators in float. The error is inaudible for normal corners and
   qualities, the filter is stable for ten million samples, and a migration costs CPU for no measurable benefit in
   the normal range.
-- Keep `MusicRamp` and its elapsed time in float. Its endpoint is exact and a long fade finishes within 0.14% of its
-  duration.
+- Keep `MusicRamp` and its elapsed time in float. Its target value is exact and a long fade reaches it within 0.14%
+  of its duration.
 - When long compressor or limiter releases are supported, use double for the gain state and their public time
   inputs. At 0.1 s and below the current float state is exact.
 - Change the rate-limit clock before a game runs for hours with short intervals. `SfxThrottle` needs a double time
   source and double stored times; this is the clearest audible precision loss in the package.
-- Keep double already used for phase, delay-line gains, reverb gain computation, and the noise-gate envelope.
-  Those paths are not sample-rate state and their extra cost is already paid.
+- Keep double already used for phase, delay-line gains, reverb gain exponent computation, and the noise-gate
+  envelope. Those paths are not sample-rate state and their extra cost is already paid.

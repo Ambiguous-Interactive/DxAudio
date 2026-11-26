@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """Validate DxAudio in a disposable Unity project.
 
 This is the typed-Python replacement for the Windows-only validation
@@ -43,6 +47,7 @@ if TYPE_CHECKING:
 UNITY_VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+f\d+$")
 LABEL_PATTERN = re.compile(r"^[A-Za-z0-9-]+$")
 COUNT_PATTERN = re.compile(r"^[0-9]{1,9}$")
+MAX_RESULT_BYTES = 64 * 1024 * 1024
 COMPLETION_PATTERN = re.compile(
     r"^Test run completed\. Exiting with code (?P<code>[0-9]{1,3})(?:[ .(][^\r\n]*)?$"
 )
@@ -68,7 +73,7 @@ TOKEN_PATTERN = re.compile(
 )
 LICENSE_ID_PATTERN = re.compile(r'(?i)(<License\s+id=")[^"]+(")')
 BEARER_PATTERN = re.compile(
-    r"(?i)(\b(?:Authorization:\s*Bearer|Successfully updated the access token|"
+    r"(?i)(\b(?:Authorization:\s*(?:Bearer|Basic)|Successfully updated the access token|"
     r"Access token\s*[:=])[^\S\r\n]*[\"']?)[A-Za-z0-9_+/=.\-]{5,}"
 )
 ASSIGNMENT_PATTERN = re.compile(
@@ -193,18 +198,37 @@ def write_redacted_tail(path: Path, max_lines: int = 40) -> None:
         print(f"  | {line}", flush=True)
 
 
+def _has_leading_doctype(text: str) -> bool:
+    """Return true only when a DTD declaration precedes the root element."""
+    prefix = text.lstrip("\ufeff \t\r\n")
+    while prefix.startswith("<?xml"):
+        end = prefix.find("?>")
+        if end < 0:
+            return True
+        prefix = prefix[end + 2 :].lstrip("\ufeff \t\r\n")
+    return prefix.upper().startswith(("<!DOCTYPE", "<!ENTITY"))
+
+
 def parse_nunit_result_from_text(text: str) -> ET.Element:
     """Parse one NUnit result, refusing a DTD or an external entity."""
-    if "<!DOCTYPE" in text.upper() or "<!ENTITY" in text.upper():
+    if len(text) - MAX_RESULT_BYTES > 0:
+        raise ValidationFailure("Unity result XML exceeds the 64 MiB limit.")
+    if _has_leading_doctype(text):
         raise ValidationFailure("Unity result XML uses a DTD; DtdProcessing is prohibited.")
     try:
-        return ET.fromstring(text)  # noqa: S314 - trusted editor output; DTD and entities are refused above.
+        return ET.fromstring(text)  # noqa: S314 - trusted editor output; leading DTD and entities are refused above.
     except ET.ParseError as error:
         raise ValidationFailure(f"Unity result XML could not be read: {error}") from error
 
 
 def parse_nunit_result(path: Path) -> ET.Element:
     """Read an NUnit result file, refusing a DTD or an external entity."""
+    try:
+        size = path.stat().st_size
+    except OSError as error:
+        raise ValidationFailure(f"Unity result XML could not be read: {error}") from error
+    if size - MAX_RESULT_BYTES > 0:
+        raise ValidationFailure("Unity result XML exceeds the 64 MiB limit.")
     return parse_nunit_result_from_text(path.read_text(encoding="utf-8", errors="replace"))
 
 
@@ -452,6 +476,8 @@ def invoke_unity(
             if origin is None:
                 time.sleep(0.25)
                 continue
+            if process.poll() is not None:
+                break
             _kill_tree(process)
             observation.origin = origin
             try:
@@ -812,6 +838,8 @@ def run(options: argparse.Namespace) -> int:
                 flush=True,
             )
             time.sleep(delay)
+            if retry_window <= (time.monotonic() - launch_started):
+                break
             log_path.unlink(missing_ok=True)
     except Exception as error:
         write_redacted_tail(log_path)

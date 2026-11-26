@@ -20,27 +20,29 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $arguments = @('run')
-foreach ($pair in @(
-    @('--unity-version', $UnityVersion),
-    @('--unity-editor-path', $UnityEditorPath),
-    @('--package-root', $PackageRoot),
-    @('--dxmessaging-version', $DxMessagingVersion),
-    @('--label', $Label),
-    @('--consumer-archive', $ConsumerArchive),
-    @('--unity-import-archive', $UnityImportArchive)
-)) {
-    if (-not [string]::IsNullOrWhiteSpace($pair[1])) {
-        $arguments += @($pair[0], $pair[1])
-    }
+
+function Add-ValueArgument([string]$name, [string]$value) {
+    # One token keeps option-like values (for example a label that starts with a
+    # dash) from being parsed as flags. An explicit empty value still overrides
+    # the environment default, as the historical parameter binding did.
+    $script:arguments += "$name=$value"
 }
+
+Add-ValueArgument '--unity-version' $UnityVersion
+Add-ValueArgument '--unity-editor-path' $UnityEditorPath
+Add-ValueArgument '--package-root' $PackageRoot
+Add-ValueArgument '--dxmessaging-version' $DxMessagingVersion
+Add-ValueArgument '--label' $Label
+Add-ValueArgument '--consumer-archive' $ConsumerArchive
+Add-ValueArgument '--unity-import-archive' $UnityImportArchive
 if ($ArchiveSmoke) { $arguments += '--archive-smoke' }
 if ($IntegrationPlayerSmoke) { $arguments += '--integration-player-smoke' }
-$arguments += @(
-    '--editor-timeout-seconds', $EditorTimeoutSeconds,
-    '--editor-stall-seconds', $EditorStallSeconds,
-    '--completion-grace-seconds', $CompletionGraceSeconds,
-    '--activation-retry-budget-seconds', $ActivationRetryBudgetSeconds
-)
+Add-ValueArgument '--editor-timeout-seconds' ([string]$EditorTimeoutSeconds)
+Add-ValueArgument '--editor-stall-seconds' ([string]$EditorStallSeconds)
+Add-ValueArgument '--completion-grace-seconds' ([string]$CompletionGraceSeconds)
+Add-ValueArgument '--activation-retry-budget-seconds' ([string]$ActivationRetryBudgetSeconds)
 
 & uv run --no-project (Join-Path $PSScriptRoot 'unity_validation.py') @arguments
-exit $LASTEXITCODE
+if ($LASTEXITCODE -ne 0) {
+    throw "Unity validation failed with exit code $LASTEXITCODE."
+}

@@ -70,6 +70,7 @@ class RedactionTests(unittest.TestCase):
         text = (
             "serial SECRET-SERIAL and password p@ss\n"
             "Authorization: Bearer abcdef1234567890\n"
+            "Authorization: Basic c2VjcmV0OnBhc3M=\n"
             '<License id="FAKE-LICENSE">\n'
             "-----BEGIN PRIVATE KEY-----\nQmFzZTY0U2VjcmV0\n-----END PRIVATE KEY-----\n"
             "ghp_fakefakefakefake12345678 and AKIA0000FAKE0000FAKE\n"
@@ -86,6 +87,7 @@ class RedactionTests(unittest.TestCase):
             "SECRET-SERIAL",
             "p@ss",
             "abcdef1234567890",
+            "c2VjcmV0OnBhc3M",
             "FAKE-LICENSE",
             "QmFzZTY0U2VjcmV0",
             "ghp_fakefakefakefake12345678",
@@ -113,6 +115,16 @@ class NUnitValidationTests(unittest.TestCase):
             )
         )
 
+    def test_accepts_doctype_text_inside_test_output(self) -> None:
+        document = _nunit(
+            passed=1,
+            total=1,
+            cases='<test-case fullname="Case.Text" result="Passed" duration="0.100">'
+            "<output><![CDATA[<!DOCTYPE harmless>]]></output></test-case>",
+        )
+        root = validation.parse_nunit_result_from_text(document)
+        assert validation.assert_passing_nunit_result(root) == 1
+
     def test_rejects_an_invalid_duration(self) -> None:
         root = validation.parse_nunit_result_from_text(
             _nunit(cases='<test-case fullname="Case.One" result="Passed" duration="NaN"/>')
@@ -131,7 +143,10 @@ class TimingTests(unittest.TestCase):
             "</test-suite></test-run>"
         )
         output = io.StringIO()
-        with contextlib.redirect_stdout(output):
+        with (
+            patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": ""}),
+            contextlib.redirect_stdout(output),
+        ):
             validation.write_nunit_timings(validation.parse_nunit_result_from_text(document))
         text = output.getvalue()
         assert text.index("2.850s  Case.Slow") < text.index("0.100s  Case.Fast")
@@ -149,7 +164,10 @@ class TimingTests(unittest.TestCase):
             "</test-run>"
         )
         output = io.StringIO()
-        with contextlib.redirect_stdout(output):
+        with (
+            patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": ""}),
+            contextlib.redirect_stdout(output),
+        ):
             validation.write_nunit_timings(validation.parse_nunit_result_from_text(document))
         text = output.getvalue()
         assert "DxAudio DSP render: Noise Gate, added p95 534.00 us" in text
@@ -244,7 +262,11 @@ class MainTests(unittest.TestCase):
             with (
                 patch.dict(
                     os.environ,
-                    {"UNITY_PASSWORD": "secret-password", "RUNNER_TEMP": ""},
+                    {
+                        "UNITY_PASSWORD": "secret-password",
+                        "RUNNER_TEMP": "",
+                        "GITHUB_STEP_SUMMARY": "",
+                    },
                     clear=False,
                 ),
                 contextlib.redirect_stdout(output),
