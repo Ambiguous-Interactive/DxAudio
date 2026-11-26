@@ -551,7 +551,7 @@ namespace WallstopStudios.DxAudio
                 A loop stands for a state, so it is never rate-limited: stopping and restarting one in a
                 frame, or two owners starting the same hum together, must both get their loop.
             */
-            float now = Time.unscaledTime;
+            double now = Time.unscaledTimeAsDouble;
             if (!looping && !_throttle.IsReady(cue, now, cue.MinimumIntervalSeconds))
             {
                 handle = default;

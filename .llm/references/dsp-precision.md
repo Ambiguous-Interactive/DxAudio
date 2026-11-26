@@ -154,8 +154,10 @@ not a Unity timing, so it is not used for the decision. The noisier runs do not 
   at most 0.14%; the 1000 Hz case is 1.99% late. That is below a perceptual step for a fade.
 - When long compressor or limiter releases are supported, use double for the gain state and their public time
   inputs. At 0.1 s and below the current float state is exact.
-- Change the rate-limit clock before a game runs for hours with short intervals. `SfxThrottle` needs a double time
-  source and double stored times; this is the clearest audible precision loss in the package.
+- The rate-limit clock uses a double time source and double stored times (issue
+  [#189](https://github.com/Ambiguous-Interactive/DxAudio/issues/189)). `SfxPlayer` reads
+  `Time.unscaledTimeAsDouble`; the float overloads of `SfxThrottle` remain for callers that hold a float clock. This
+  was the clearest audible precision loss in the package.
 - Keep double already used for phase, reverb gain exponent computation, and the noise-gate envelope. The
   delay-line gain itself is stored as float. Those paths are not sample-rate state and their extra cost is already
   paid.

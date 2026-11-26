@@ -49,6 +49,25 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void ADoubleClockKeepsAShortWindowAtALargeUptime()
+        {
+            SfxThrottle<string> throttle = new();
+            const double Start = 1_000_000d;
+            Assert.That(throttle.TryBegin("step", Start, 0.01d), Is.True);
+            Assert.That(throttle.IsReady("step", Start + 0.009d, 0.01d), Is.False);
+            Assert.That(throttle.TryBegin("step", Start + 0.01d, 0.01d), Is.True, "the clock kept the 10 ms window");
+        }
+
+        [Test]
+        public void FloatAndDoubleClocksShareOneWindow()
+        {
+            SfxThrottle<string> throttle = new();
+            Assert.That(throttle.TryBegin("step", 2f, 1f), Is.True);
+            Assert.That(throttle.IsReady("step", 2.5d, 1d), Is.False, "the float window applies to a double read");
+            Assert.That(throttle.IsReady("step", 3d, 1d), Is.True);
+        }
+
+        [Test]
         public void ClearingForgetsEveryKey()
         {
             SfxThrottle<string> throttle = new();
