@@ -136,6 +136,11 @@ or `Feature`. Bodies stay under 300 lines; bulk material moves to `.llm/referenc
     "unset" from "chosen". Naming `Unknown` in code is a compile error by design: handle it through the default branch
     or a positive list of the real values. `scripts/lint_enum_defaults.py` enforces this in the fast check, the gate,
     and CI.
+17. Cross-thread 64-bit state reads and writes through `Interlocked.Read` and `Interlocked.Exchange`, never
+    `Volatile.Read` or `Volatile.Write`. IL2CPP implements `volatile` as a plain access plus a memory barrier, so a
+    32-bit player (ARMv7 Android, wasm32 WebGL) reads or writes a `long` as two words; the audio thread can observe
+    half of one update mixed with half of another. `scripts/lint_atomic_state.py` enforces this in the fast check, the
+    gate, and CI.
 
 ### Testing
 

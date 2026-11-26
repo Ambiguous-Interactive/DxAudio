@@ -35,10 +35,16 @@ warn_unreachable = true
 module = "package_check"
 follow_imports = "silent"
 
+# The shared harness test helper predates strict mypy and keeps its explicit Any;
+# the strict test modules import it, so follow it silently instead of reporting it.
+[[tool.mypy.overrides]]
+module = "_test_helpers"
+follow_imports = "silent"
+
 [tool.pyright]
 pythonVersion = "3.11"
 typeCheckingMode = "strict"
-extraPaths = ["../../.github/scripts", "../unity"]
+extraPaths = ["../../.github/scripts", "../unity", "../tests"]
 # List every new Python source here. Keep the legacy inventory explicit while migrating it.
 include = [
     "../../.github/scripts/auto_release.py",
@@ -52,6 +58,8 @@ include = [
     "../../.net-tests/DspInstructions/check_dsp_instructions.py",
     "check.py",
     "../brand_check.py",
+    "../lint_atomic_state.py",
+    "../tests/test_atomic_state.py",
     "../unity/unity_validation.py",
     "../tests/test_unity_validation.py",
 ]

@@ -114,6 +114,12 @@ LANES: Tuple[Tuple[str, Tuple[Step, ...]], ...] = (
                 (*_PYTHON_LAUNCHER, "scripts/lint_enum_defaults.py"),
                 ("csharp.format",),
             ),
+            Step(
+                "csharp.atomic-state",
+                "C# atomic-state lint",
+                (*_PYTHON_LAUNCHER, "scripts/lint_atomic_state.py"),
+                ("csharp.format",),
+            ),
         ),
     ),
     (
@@ -235,6 +241,7 @@ CSHARP_LINT_STEPS: Dict[str, str] = {
     "csharp.null-assertions": "scripts/lint_csharp_null_assertions.py",
     "csharp.usings": "scripts/lint_csharp_usings.py",
     "csharp.enum-defaults": "scripts/lint_enum_defaults.py",
+    "csharp.atomic-state": "scripts/lint_atomic_state.py",
 }
 
 
