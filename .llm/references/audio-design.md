@@ -121,6 +121,11 @@ The instruction check allows at most 2% growth in any case. Unity EditMode repor
 in both integration states. The wall-time references remain 1% of the block window for Delay and 2% for other effects.
 Instruction counts track code cost. Use Unity wall time to assess deadline headroom.
 
+## Numeric precision
+
+Sample state and music ramps stay in `float`; phase, reverb gain exponent and the noise-gate envelope stay in `double`. The
+measured comparison is in [dsp-precision](./dsp-precision.md); a migration is a separate change.
+
 ## Device and format notes
 
 - `AudioSource` configuration is per pooled voice and owned by `SfxPlayer`. Do not reconfigure an `AudioSource` per play

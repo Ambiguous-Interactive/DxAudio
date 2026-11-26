@@ -37,21 +37,20 @@
         ".net-tests/UnityValidation/test_runner.py",
         "scripts/unity/run-editmode-tests.ps1",
         "scripts/unity/show-editmode-log-tail.ps1",
-        "scripts/unity/unity-log.ps1",
-        "scripts/unity/unity-process.ps1"
+        "scripts/unity/unity_validation.py"
       ]
     },
     "unity-controls": {
       "path": ".github/workflows/ci.yml",
       "job": "package-checks",
       "run": "python3 .net-tests/UnityValidation/test_runner.py",
-      "files": [".net-tests/UnityValidation/test_runner.py", "scripts/unity/unity-process.ps1", "scripts/unity/unity-log.ps1"]
+      "files": [".net-tests/UnityValidation/test_runner.py", "scripts/unity/unity_validation.py"]
     },
     "unity-archive": {
       "path": ".github/workflows/unity-tests.yml",
       "job": "unity-tests",
       "run": "./scripts/unity/run-editmode-tests.ps1 -ArchiveSmoke",
-      "files": ["scripts/unity/run-editmode-tests.ps1", ".net-tests/UnityValidation/test_runner.py"]
+      "files": ["scripts/unity/run-editmode-tests.ps1", ".net-tests/UnityValidation/test_runner.py", "scripts/unity/unity_validation.py"]
     },
     "metadata": {
       "path": ".github/workflows/ci.yml",
@@ -149,7 +148,7 @@
       "path": ".github/workflows/unity-tests.yml",
       "job": "unity-tests",
       "run": "./scripts/unity/show-editmode-log-tail.ps1",
-      "files": ["scripts/unity/unity-log.ps1", ".net-tests/UnityValidation/test_runner.py"]
+      "files": [".net-tests/UnityValidation/test_runner.py", "scripts/unity/unity_validation.py"]
     },
     "harness-self-tests": {
       "path": ".github/workflows/llm-lint.yml",
@@ -185,7 +184,12 @@
       "path": ".github/workflows/unity-tests.yml",
       "job": "unity-tests",
       "run": "./scripts/unity/run-editmode-tests.ps1 -IntegrationPlayerSmoke -Label consumer-archive-integration -DxMessagingVersion \"3.3.0\"",
-      "files": [".net-tests/UnityValidation/ArchiveSmoke.cs", ".net-tests/UnityValidation/test_runner.py", "scripts/unity/run-editmode-tests.ps1"]
+      "files": [
+        ".net-tests/UnityValidation/ArchiveSmoke.cs",
+        ".net-tests/UnityValidation/test_runner.py",
+        "scripts/unity/run-editmode-tests.ps1",
+        "scripts/unity/unity_validation.py"
+      ]
     },
     "csharpier": {
       "path": ".github/workflows/ci.yml",
@@ -245,7 +249,7 @@
       "path": ".github/workflows/llm-lint.yml",
       "job": "lint",
       "run": "uv run --no-project python .net-tests/UnityValidation/test_runner.py",
-      "files": [".net-tests/UnityValidation/test_runner.py", "scripts/unity/unity-process.ps1", "scripts/unity/unity-log.ps1"]
+      "files": [".net-tests/UnityValidation/test_runner.py", "scripts/unity/unity_validation.py"]
     },
     "unity-workflow-controls": {
       "path": ".github/workflows/ci.yml",

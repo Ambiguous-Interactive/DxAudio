@@ -1,9 +1,6 @@
 #Requires -Version 7.0
-# Print a redacted tail of one EditMode run's log, then its NUnit failures. One
-# job runs the suite once per optional-integration state, so -Label selects the
-# run. Run under failure() when a test step fails or times out; a timed-out step
-# never reaches its own failure handler, so this step is the only reader of the
-# streamed log.
+# Compatibility entry point for the Unity failure-report steps. The redacted
+# log and NUnit output are owned by unity_validation.py.
 [CmdletBinding()]
 param(
     [string]$UnityVersion = $env:UNITY_VERSION,
@@ -12,45 +9,15 @@ param(
     [string]$ResultsPath = ''
 )
 
-Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $false
+$arguments = @('tail')
+$arguments += "--unity-version=$UnityVersion"
+$arguments += "--label=$Label"
+if (-not [string]::IsNullOrWhiteSpace($LogPath)) { $arguments += "--log-path=$LogPath" }
+if (-not [string]::IsNullOrWhiteSpace($ResultsPath)) { $arguments += "--results-path=$ResultsPath" }
 
-. (Join-Path $PSScriptRoot 'unity-log.ps1')
-
-if ($env:RUNNER_TEMP -and $UnityVersion) {
-    $runName = Get-EditModeRunName -UnityVersion $UnityVersion -Label $Label
-    if ([string]::IsNullOrWhiteSpace($LogPath)) {
-        $LogPath = Join-Path $env:RUNNER_TEMP "dxaudio-results-$runName/editmode.log"
-    }
-    if ([string]::IsNullOrWhiteSpace($ResultsPath)) {
-        $ResultsPath = Join-Path $env:RUNNER_TEMP "dxaudio-results-$runName/editmode-results.xml"
-    }
-}
-
-Write-Host "Unity EditMode log tail (redacted):"
-Write-RedactedLogTail -Path $LogPath
-
-# An exit code alone cannot say which test failed; the result file can.
-if ($ResultsPath -and (Test-Path -LiteralPath $ResultsPath -PathType Leaf)) {
-    Write-Host "Unity EditMode failures:"
-    try {
-        $results = Read-UnityNUnitResult -Path $ResultsPath
-        $failed = 0
-        foreach ($case in $results.SelectNodes('//test-case[@result="Failed" or @result="Error"]')) {
-            ++$failed
-            $message = ''
-            $failure = $case.SelectSingleNode('failure/message')
-            if ($null -ne $failure) {
-                $message = (ConvertTo-SafeUnityReport -Text $failure.InnerText) -replace '\s+', ' '
-            }
-            $name = (ConvertTo-SafeUnityReport -Text $case.GetAttribute('fullname')) -replace '\s+', ' '
-            Write-Host "  | ${name}: $($message.Trim())"
-        }
-        Write-Host "  $failed failed case(s)."
-        Write-UnityNUnitTimings -Document $results
-    } catch {
-        Write-Host "  | $(ConvertTo-SafeUnityReport -Text "Could not read result: $($_.Exception.Message)")"
-    }
-} else {
-    Write-Host 'Unity EditMode failures: no result file.'
+& uv run --no-project (Join-Path $PSScriptRoot 'unity_validation.py') @arguments
+if ($LASTEXITCODE -ne 0) {
+    throw "Unity log report failed with exit code $LASTEXITCODE."
 }

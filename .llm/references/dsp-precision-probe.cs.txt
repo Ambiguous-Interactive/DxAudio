@@ -1,0 +1,533 @@
+// DxAudio DSP precision probe (issue #185).
+//
+// This is a scratch harness, not part of the shipped package. Build it as a
+// net10.0 console project with Runtime/Core/**/*.cs and this project file:
+//
+// <Project Sdk="Microsoft.NET.Sdk">
+//   <PropertyGroup>
+//     <OutputType>Exe</OutputType>
+//     <TargetFramework>net10.0</TargetFramework>
+//     <LangVersion>9.0</LangVersion>
+//     <Nullable>disable</Nullable>
+//     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+//     <Optimize>true</Optimize>
+//   </PropertyGroup>
+//   <ItemGroup>
+//     <Compile Include="../Runtime/Core/**/*.cs" />
+//     <Compile Include="Program.cs" />
+//   </ItemGroup>
+// </Project>
+//
+// Run with one pinned CPU, for example:
+//   taskset -c 0 dotnet bin/Release/net10.0/precision.dll
+//
+namespace PrecisionProbe
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Globalization;
+    using WallstopStudios.DxAudio;
+
+    internal static class Program
+    {
+        private const int Rate = 48000;
+        private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
+
+        private static void Main()
+        {
+            Console.WriteLine("host=" + Environment.MachineName + " os=" + Environment.OSVersion.VersionString + " arch=" + System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture);
+            Console.WriteLine("dotnet=" + Environment.Version + " processors=" + Environment.ProcessorCount);
+            OnePoleState();
+            RampDuration();
+            RecursiveFilter();
+            FilterLong();
+            EnvelopeState();
+            EnvelopeScale();
+            ThrottleTime();
+            FilterCpu();
+        }
+
+        private static void OnePoleState()
+        {
+            double[] timeConstants = { 0.01, 1, 60, 600, 3600 };
+            long samples = 28_800_000;
+            Console.WriteLine("ONEPOLE");
+            foreach (double seconds in timeConstants)
+            {
+                float coefficient = AudioMath.OnePoleCoefficient((float)seconds, Rate);
+                float floatState = 0f;
+                double doubleState = 0d;
+                double maxError = 0;
+                long lastChange = 0;
+                float previous = 0f;
+                for (long i = 0; i < samples; ++i)
+                {
+                    floatState += (1f - floatState) * coefficient;
+                    doubleState += (1d - doubleState) * coefficient;
+                    if (i % 1024 == 0)
+                    {
+                        double error = Math.Abs(floatState - doubleState);
+                        if (maxError < error) { maxError = error; }
+                    }
+                    if (floatState != previous) { lastChange = i; previous = floatState; }
+                }
+                Console.WriteLine(string.Format(Invariant,
+                    "seconds={0:F2} coefficient={1:E8} float_final={2:F9} double_final={3:F9} max_error={4:E3} last_change_sample={5} float_stalled={6}",
+                    seconds, coefficient, floatState, doubleState, maxError, lastChange, lastChange < samples - 2048));
+            }
+        }
+
+        private static void RampDuration()
+        {
+            Console.WriteLine("RAMP");
+            double[] durations = { 1, 10, 60, 600, 3600 };
+            double[] frameRates = { 30, 60, 144, 1000 };
+            foreach (double duration in durations)
+            {
+                foreach (double fps in frameRates)
+                {
+                    float delta = (float)(1d / fps);
+                    MusicRamp ramp = new MusicRamp(0f, 1f, (float)duration, MusicEase.Linear);
+                    double elapsed = 0d;
+                    long frames = 0;
+                    while (!ramp.IsFinished && frames < 10_000_000)
+                    {
+                        ramp.Advance(delta);
+                        elapsed += 1d / fps;
+                        ++frames;
+                    }
+                    double exact = Math.Min(1d, elapsed / duration);
+                    Console.WriteLine(string.Format(Invariant,
+                        "duration={0:F0} fps={1:F0} finished={2} frames={3} float_elapsed={4:F6} exact_elapsed={5:F6} value={6:F9} exact_value={7:F9} error={8:E3}",
+                        duration, fps, ramp.IsFinished, frames, ramp.ElapsedSeconds, elapsed, ramp.Value, exact, Math.Abs(ramp.Value - exact)));
+                }
+            }
+        }
+
+        private static void FilterLong()
+        {
+            Console.WriteLine("FILTER_LONG");
+            int rate = 192000;
+            float hertz = 10f;
+            float quality = 20f;
+            int samples = 10_000_000;
+            float[] input = MakeTone(rate, hertz * 2f, samples);
+            float[] floatOutput = (float[])input.Clone();
+            DspFilter filter = new DspFilter();
+            filter.Mode = DspFilterMode.LowPass;
+            filter.FrequencyHz = hertz;
+            filter.Quality = quality;
+            filter.TryPrepare(rate, 1024, 1);
+            for (int offset = 0; offset < floatOutput.Length; offset += 1024)
+            {
+                int count = Math.Min(1024, floatOutput.Length - offset);
+                filter.Process(floatOutput, offset, count, 1);
+            }
+            double[] reference = DoubleFilter.Process(input, rate, hertz, quality);
+            double firstMax = 0;
+            double lastMax = 0;
+            bool stable = true;
+            for (int i = 0; i < reference.Length; ++i)
+            {
+                double error = Math.Abs(floatOutput[i] - reference[i]);
+                if (i < 1_000_000 && firstMax < error) { firstMax = error; }
+                if (i >= reference.Length - 1_000_000 && lastMax < error) { lastMax = error; }
+                if (!IsFinite(floatOutput[i])) { stable = false; }
+            }
+            Console.WriteLine(string.Format(Invariant,
+                "rate={0} hz={1:F1} q={2:F4} samples={3} stable={4} first_1m_max_error={5:E3} last_1m_max_error={6:E3} drift_ratio={7:F2}",
+                rate, hertz, quality, samples, stable, firstMax, lastMax, firstMax == 0 ? 0 : lastMax / firstMax));
+        }
+
+        private static void EnvelopeState()
+        {
+            Console.WriteLine("ENVELOPE");
+            float releaseCoefficient = AudioMath.OnePoleCoefficient(600f, Rate);
+            float compressorGain = -12f;
+            double exactGain = -12d;
+            for (int i = 0; i < Rate * 60; ++i)
+            {
+                compressorGain += (0f - compressorGain) * releaseCoefficient;
+                exactGain += (0d - exactGain) * releaseCoefficient;
+            }
+            Console.WriteLine(string.Format(Invariant,
+                "compressor_release=600s coefficient={0:E8} float_gain_db={1:F6} exact_gain_db={2:F6} error_db={3:E3}",
+                releaseCoefficient, compressorGain, exactGain, Math.Abs(compressorGain - exactGain)));
+            DspCompressor compressor = new DspCompressor();
+            compressor.ThresholdDecibels = -20f;
+            compressor.Ratio = 4f;
+            compressor.AttackSeconds = 0.005f;
+            compressor.ReleaseSeconds = 600f;
+            compressor.TryPrepare(Rate, 1024, 2);
+            float[] loud = new float[1024 * 2];
+            for (int i = 0; i < loud.Length; ++i) { loud[i] = (float)Math.Sin(i * 0.02); }
+            for (int block = 0; block < 47; ++block) { compressor.Process(loud, 0, loud.Length, 2); }
+            float[] silence = new float[1024 * 2];
+            for (int block = 0; block < 2813; ++block) { compressor.Process(silence, 0, silence.Length, 2); }
+            Console.WriteLine(string.Format(Invariant,
+                "compressor_actual_after_60s={0:F6} double_state_prediction={1:F6}",
+                compressor.GainReductionDecibels, exactGain));
+
+            float limiterGain = 0.25f;
+            double limiterExact = 0.25d;
+            for (int i = 0; i < Rate * 60; ++i)
+            {
+                limiterGain += (1f - limiterGain) * releaseCoefficient;
+                limiterExact += (1d - limiterExact) * releaseCoefficient;
+            }
+            Console.WriteLine(string.Format(Invariant,
+                "limiter_release=600s float_gain={0:F9} exact_gain={1:F9} error={2:E3}",
+                limiterGain, limiterExact, Math.Abs(limiterGain - limiterExact)));
+        }
+
+        private static void RecursiveFilter()
+        {
+            Console.WriteLine("FILTER");
+            foreach (int rate in new[] { 48000, 96000, 192000 })
+            {
+                foreach (float hertz in new[] { 10f, 20f, 40f })
+                {
+                    foreach (float quality in new[] { 0.7071f, 20f })
+                    {
+                        float[] input = MakeTone(rate, hertz * 2f, 1_000_000);
+                        float[] floatOutput = (float[])input.Clone();
+                        DspFilter filter = new DspFilter();
+                        filter.Mode = DspFilterMode.LowPass;
+                        filter.FrequencyHz = hertz;
+                        filter.Quality = quality;
+                        filter.TryPrepare(rate, 1024, 1);
+                        for (int offset = 0; offset < floatOutput.Length; offset += 1024)
+                        {
+                            int count = Math.Min(1024, floatOutput.Length - offset);
+                            filter.Process(floatOutput, offset, count, 1);
+                        }
+                        double[] reference = DoubleFilter.Process(input, rate, hertz, quality);
+                        double maxError = 0;
+                        double sumSquares = 0;
+                        double referencePeak = 0;
+                        bool stable = true;
+                        for (int i = 0; i < reference.Length; ++i)
+                        {
+                            double error = Math.Abs(floatOutput[i] - reference[i]);
+                            if (maxError < error) { maxError = error; }
+                            sumSquares += error * error;
+                            if (referencePeak < Math.Abs(reference[i])) { referencePeak = Math.Abs(reference[i]); }
+                            if (!IsFinite(floatOutput[i])) { stable = false; }
+                        }
+                        double rms = Math.Sqrt(sumSquares / reference.Length);
+                        double errorDb = maxError <= 0 ? -999 : 20 * Math.Log10(maxError);
+                        double referenceDb = referencePeak <= 0 ? -999 : 20 * Math.Log10(referencePeak);
+                        Console.WriteLine(string.Format(Invariant,
+                            "rate={0} hz={1:F1} q={2:F4} stable={3} peak={4:F6} peak_db={5:F2} max_error={6:E3} max_error_db={7:F2} rms_error={8:E3} error_below_peak_db={9:F2}",
+                            rate, hertz, quality, stable, referencePeak, referenceDb, maxError, errorDb, rms, referenceDb - errorDb));
+                    }
+                }
+            }
+        }
+
+        private static void EnvelopeScale()
+        {
+            Console.WriteLine("ENVELOPE_SCALE");
+            foreach (float release in new[] { 0.01f, 0.1f, 1f, 10f, 60f, 600f })
+            {
+                float coefficient = AudioMath.OnePoleCoefficient(release, Rate);
+                float floatGain = -12f;
+                double exactGain = -12d;
+                double oneSecondError = 0;
+                double sixtySecondError = 0;
+                for (int i = 0; i < Rate * 60; ++i)
+                {
+                    floatGain += (0f - floatGain) * coefficient;
+                    exactGain += (0d - exactGain) * coefficient;
+                    if (i == Rate - 1) { oneSecondError = Math.Abs(floatGain - exactGain); }
+                }
+                sixtySecondError = Math.Abs(floatGain - exactGain);
+                Console.WriteLine(string.Format(Invariant,
+                    "release={0:F2} coefficient={1:E8} error_after_1s_db={2:E3} error_after_60s_db={3:E3}",
+                    release, coefficient, oneSecondError, sixtySecondError));
+            }
+        }
+
+        private static void ThrottleTime()
+        {
+            Console.WriteLine("THROTTLE");
+            const double stepSeconds = 0.005d;
+            foreach (double hours in new[] { 1d, 8d, 24d, 72d })
+            {
+                foreach (float interval in new[] { 0.01f, 0.05f, 0.1f, 0.5f })
+                {
+                    SfxThrottle<string> throttle = new SfxThrottle<string>();
+                    int minSteps = (int)Math.Round(interval / stepSeconds);
+                    long accepted = 0;
+                    long ideal = 0;
+                    long early = 0;
+                    long late = 0;
+                    long minGap = long.MaxValue;
+                    long maxGap = 0;
+                    long lastStep = -1;
+                    long steps = (long)(hours * 3600d / stepSeconds);
+                    for (long step = 0; step < steps; ++step)
+                    {
+                        double now = step * stepSeconds;
+                        float nowFloat = (float)now;
+                        if (throttle.TryBegin("cue", nowFloat, interval))
+                        {
+                            ++accepted;
+                            if (lastStep >= 0)
+                            {
+                                long gap = step - lastStep;
+                                if (gap < minGap) { minGap = gap; }
+                                if (maxGap < gap) { maxGap = gap; }
+                                if (gap < minSteps) { ++early; }
+                                if (minSteps < gap) { ++late; }
+                            }
+                            lastStep = step;
+                        }
+                    }
+                    ideal = steps / minSteps;
+                    Console.WriteLine(string.Format(Invariant,
+                        "hours={0:F0} interval={1:F3} accepted={2} ideal={3} early={4} late={5} min_gap_steps={6} max_gap_steps={7} min_gap_ms={8:F1} max_gap_ms={9:F1}",
+                        hours, interval, accepted, ideal, early, late, minGap, maxGap, minGap * stepSeconds * 1000, maxGap * stepSeconds * 1000));
+                }
+            }
+        }
+
+        private static void FilterCpu()
+        {
+            Console.WriteLine("CPU");
+            foreach (int voices in new[] { 1, 8 })
+            {
+                double[] floatTimes = Measure(voices, false, 240);
+                double[] doubleTimes = Measure(voices, true, 240);
+                Console.WriteLine(string.Format(Invariant,
+                    "voices={0} float_p50_us={1:F2} float_p95_us={2:F2} double_p50_us={3:F2} double_p95_us={4:F2}",
+                    voices, Percentile(floatTimes, 50), Percentile(floatTimes, 95), Percentile(doubleTimes, 50), Percentile(doubleTimes, 95)));
+            }
+            DspFilter[] allocFilters = new DspFilter[8];
+            for (int i = 0; i < allocFilters.Length; ++i)
+            {
+                allocFilters[i] = new DspFilter();
+                allocFilters[i].Mode = DspFilterMode.LowPass;
+                allocFilters[i].FrequencyHz = 40f;
+                allocFilters[i].Quality = 20f;
+                allocFilters[i].TryPrepare(Rate, 1024, 2);
+            }
+            float[] allocBuffer = new float[1024 * 2];
+            for (int warm = 0; warm < 256; ++warm)
+            {
+                for (int v = 0; v < allocFilters.Length; ++v) { allocFilters[v].Process(allocBuffer, 0, allocBuffer.Length, 2); }
+            }
+            long allocBefore = GC.GetAllocatedBytesForCurrentThread();
+            for (int block = 0; block < 1000; ++block)
+            {
+                for (int v = 0; v < allocFilters.Length; ++v) { allocFilters[v].Process(allocBuffer, 0, allocBuffer.Length, 2); }
+            }
+            long allocAfter = GC.GetAllocatedBytesForCurrentThread();
+            Console.WriteLine("alloc_after_warm_1000_blocks_float8=" + (allocAfter - allocBefore));
+            Console.WriteLine("state_bytes_float_8stereo=" + (8 * 2 * 2 * 4) + " state_bytes_double_8stereo=" + (8 * 2 * 2 * 8));
+        }
+
+        private static double[] Measure(int voices, bool wide, int samples)
+        {
+            DspFilter[] filters = new DspFilter[voices];
+            DoubleStereoFilter[] references = new DoubleStereoFilter[voices];
+            float[][] inputs = new float[voices][];
+            float[] baseInput = new float[1024 * 2];
+            for (int i = 0; i < baseInput.Length; ++i) { baseInput[i] = (float)Math.Sin(i * 0.01); }
+            for (int i = 0; i < voices; ++i)
+            {
+                inputs[i] = (float[])baseInput.Clone();
+                if (wide) { references[i] = new DoubleStereoFilter(Rate, 40f, 20f); }
+                else
+                {
+                    filters[i] = new DspFilter();
+                    filters[i].Mode = DspFilterMode.LowPass;
+                    filters[i].FrequencyHz = 40f;
+                    filters[i].Quality = 20f;
+                    filters[i].TryPrepare(Rate, 1024, 2);
+                }
+            }
+            for (int warm = 0; warm < 64; ++warm)
+            {
+                for (int v = 0; v < voices; ++v)
+                {
+                    Array.Copy(baseInput, inputs[v], baseInput.Length);
+                    if (wide) { references[v].Process(inputs[v]); }
+                    else { filters[v].Process(inputs[v], 0, inputs[v].Length, 2); }
+                }
+            }
+            double[] times = new double[samples];
+            for (int sample = 0; sample < samples; ++sample)
+            {
+                for (int v = 0; v < voices; ++v) { Array.Copy(baseInput, inputs[v], baseInput.Length); }
+                long start = System.Diagnostics.Stopwatch.GetTimestamp();
+                for (int v = 0; v < voices; ++v)
+                {
+                    if (wide) { references[v].Process(inputs[v]); }
+                    else { filters[v].Process(inputs[v], 0, inputs[v].Length, 2); }
+                }
+                times[sample] = (System.Diagnostics.Stopwatch.GetTimestamp() - start) * 1_000_000d / System.Diagnostics.Stopwatch.Frequency;
+            }
+            Array.Sort(times);
+            return times;
+        }
+
+        private static double Percentile(double[] sorted, double percentile)
+        {
+            int index = (int)Math.Ceiling(percentile / 100d * sorted.Length) - 1;
+            return sorted[Math.Clamp(index, 0, sorted.Length - 1)];
+        }
+
+        private static float[] MakeTone(int rate, float hertz, int samples)
+        {
+            float[] buffer = new float[samples];
+            for (int i = 0; i < samples; ++i)
+            {
+                buffer[i] = 0.5f * (float)Math.Sin(2 * Math.PI * hertz * i / rate);
+            }
+            return buffer;
+        }
+
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+
+        private sealed class DoubleStereoFilter
+        {
+            private readonly double _targetG;
+            private readonly double _targetK;
+            private readonly double _targetPeakGain;
+            private readonly double _smoothing;
+            private readonly double[] _one = new double[2];
+            private readonly double[] _two = new double[2];
+            private readonly DspFilterMode _mode;
+            private double _g;
+            private double _k;
+            private double _peakGain;
+
+            internal DoubleStereoFilter(int rate, float hertz, float quality)
+            {
+                _targetG = Math.Tan(Math.PI * hertz / rate);
+                _targetK = 1d / quality;
+                _targetPeakGain = 1d;
+                _smoothing = AudioMath.OnePoleCoefficient(0.01f, rate);
+                _mode = DspFilterMode.LowPass;
+                _g = _targetG;
+                _k = _targetK;
+                _peakGain = _targetPeakGain;
+            }
+
+            internal void Process(float[] buffer)
+            {
+                double g = _g;
+                double k = _k;
+                double peakGain = _peakGain;
+                DspFilterMode mode = _mode;
+                for (int index = 0; index < buffer.Length; index += 2)
+                {
+                    // Match the production filter's per-frame control ramp and
+                    // coefficient rebuild so the timing compares the same work.
+                    g += (_targetG - g) * _smoothing;
+                    k += (_targetK - k) * _smoothing;
+                    peakGain += (_targetPeakGain - peakGain) * _smoothing;
+                    double damping = mode == DspFilterMode.Bell ? k / Math.Sqrt(peakGain) : k;
+                    double a1 = 1d / (1d + (g * (g + damping)));
+                    double a2 = g * a1;
+                    double a3 = g * a2;
+                    for (int channel = 0; channel < 2; ++channel)
+                    {
+                        int sample = index + channel;
+                        double input = buffer[sample];
+                        double v3 = input - _two[channel];
+                        double band = (a1 * _one[channel]) + (a2 * v3);
+                        double low = _two[channel] + (a2 * _one[channel]) + (a3 * v3);
+                        _one[channel] = (2d * band) - _one[channel];
+                        _two[channel] = (2d * low) - _two[channel];
+                        buffer[sample] = (float)Shape(mode, input, band, low, damping, peakGain);
+                    }
+                }
+                _g = g;
+                _k = k;
+                _peakGain = peakGain;
+            }
+
+            private static double Shape(DspFilterMode mode, double input, double band, double low, double damping, double peakGain)
+            {
+                switch (mode)
+                {
+                    case DspFilterMode.LowPass:
+                        return low;
+                    case DspFilterMode.HighPass:
+                        return input - (damping * band) - low;
+                    case DspFilterMode.BandPass:
+                        return damping * band;
+                    case DspFilterMode.Notch:
+                        return input - (damping * band);
+                    case DspFilterMode.Peak:
+                    case DspFilterMode.Bell:
+                        return input + ((peakGain - 1d) * damping * band);
+                    default:
+                        return input;
+                }
+            }
+        }
+
+        private sealed class DoubleFilter
+        {
+            private readonly double _g;
+            private readonly double _k;
+            private double _one;
+            private double _two;
+
+            internal DoubleFilter(int rate, float hertz, float quality)
+            {
+                _g = Math.Tan(Math.PI * hertz / rate);
+                _k = 1d / quality;
+            }
+
+            internal void Process(float[] buffer, int offset, int count)
+            {
+                double g = _g;
+                double k = _k;
+                double damping = k;
+                double a1 = 1d / (1d + (g * (g + damping)));
+                double a2 = g * a1;
+                double a3 = g * a2;
+                for (int frame = offset; frame < offset + count; ++frame)
+                {
+                    double input = buffer[frame];
+                    double v3 = input - _two;
+                    double band = (a1 * _one) + (a2 * v3);
+                    double low = _two + (a2 * _one) + (a3 * v3);
+                    _one = (2d * band) - _one;
+                    _two = (2d * low) - _two;
+                    buffer[frame] = (float)low;
+                }
+            }
+
+            internal static double[] Process(float[] input, int rate, float hertz, float quality)
+            {
+                double[] output = new double[input.Length];
+                double g = Math.Tan(Math.PI * hertz / rate);
+                double k = 1d / quality;
+                double one = 0;
+                double two = 0;
+                double a1 = 1d / (1d + (g * (g + k)));
+                double a2 = g * a1;
+                double a3 = g * a2;
+                for (int frame = 0; frame < input.Length; ++frame)
+                {
+                    double sample = input[frame];
+                    double v3 = sample - two;
+                    double band = (a1 * one) + (a2 * v3);
+                    double low = two + (a2 * one) + (a3 * v3);
+                    one = (2d * band) - one;
+                    two = (2d * low) - two;
+                    output[frame] = low;
+                }
+                return output;
+            }
+        }
+    }
+}
