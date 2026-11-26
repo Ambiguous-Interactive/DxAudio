@@ -46,6 +46,7 @@ namespace Demo
         private long _shared;
         private int _count;
         private object _window;
+        private readonly long[] _sharedPeaks = new long[2];
 
         internal long ReadShared()
         {
@@ -57,6 +58,7 @@ namespace Demo
             Interlocked.Exchange(ref _shared, value);
             Volatile.Write(ref _count, 1);
             Volatile.Write(ref _window, new object());
+            _ = Volatile.Read(ref _sharedPeaks);
         }
     }
 }
@@ -120,6 +122,59 @@ namespace Demo
 }
 """
 
+INTERPOLATED_FIXTURE = """using System.Threading;
+
+namespace Demo
+{
+    internal sealed class Interpolated
+    {
+        private long _state;
+
+        internal string ReadState()
+        {
+            return $"count {Volatile.Read(ref _state)}";
+        }
+
+        internal string Prose()
+        {
+            return $"Volatile.Read(ref _state) is prose";
+        }
+
+        internal string Escaped()
+        {
+            return $"{{Volatile.Read(ref _state)}}";
+        }
+
+        internal string Nested()
+        {
+            return $"{Format("Volatile.Read(ref _state)")}";
+        }
+    }
+}
+"""
+
+EDGE_FIXTURE = """using System.Threading;
+
+namespace Demo
+{
+    internal sealed class Edge
+    {
+        private ulong _unsigned;
+        private System.Int64 _wide;
+
+        internal long ReadUnsigned()
+        {
+            return (long)Volatile.Read(ref _unsigned);
+        }
+
+        internal long ReadWide()
+        {
+            return Thread.VolatileRead(ref _wide);
+        }
+    }
+}
+"""
+
 
 def invoke_atomic_state_lint(
     root: Path, arguments: Sequence[str] = (), roots: Path | None = None
@@ -164,6 +219,10 @@ def case_fails_on_each_64_bit_form_with_locations() -> None:
             )
         assert_true("4 non-atomic access(es)" in output, f"must count every access: {output}")
         assert_true(
+            "CompareExchange" in output,
+            f"a double read needs the CompareExchange form: {output}",
+        )
+        assert_true(
             "Interlocked.Read" in output and "Interlocked.Exchange" in output,
             f"must name the replacement: {output}",
         )
@@ -202,6 +261,55 @@ def case_reads_every_declarator_and_rejects_volatile_long() -> None:
         assert_true(
             "'_first'" in output and "'_shared'" in output,
             f"both declarators must be named: {output}",
+        )
+    finally:
+        remove_temp_root(root)
+
+
+def case_scans_interpolation_holes_and_ignores_prose() -> None:
+    root = new_temp_root(prefix="atomic-state-")
+    try:
+        write_fixture_file(root, "Runtime/Interpolated.cs", INTERPOLATED_FIXTURE)
+        output, exit_code = invoke_atomic_state_lint(root)
+        assert_exit_code(1, f"the interpolation fixture should fail: {output}", exit_code)
+        assert_true(
+            "Interpolated.cs:11:" in output,
+            f"an interpolation hole is code and must be scanned: {output}",
+        )
+        assert_true(
+            "Interpolated.cs:16:" not in output,
+            f"literal prose must stay masked: {output}",
+        )
+        assert_true(
+            "Interpolated.cs:21:" not in output,
+            f"escaped braces are prose, not a hole: {output}",
+        )
+        assert_true(
+            "Interpolated.cs:26:" not in output,
+            f"a nested string literal in a hole must stay masked: {output}",
+        )
+        assert_true("1 non-atomic access" in output, f"only the hole is a violation: {output}")
+    finally:
+        remove_temp_root(root)
+
+
+def case_reports_supported_replacements_and_array_references() -> None:
+    root = new_temp_root(prefix="atomic-state-")
+    try:
+        write_fixture_file(root, "Runtime/Edge.cs", EDGE_FIXTURE)
+        output, exit_code = invoke_atomic_state_lint(root)
+        assert_exit_code(1, f"the edge fixture should fail: {output}", exit_code)
+        assert_true(
+            "Edge.cs:12:" in output and "long field" in output,
+            f"a ulong field must name the long-field replacement: {output}",
+        )
+        assert_true(
+            "Edge.cs:17:" in output and "Thread.VolatileRead" in output,
+            f"Thread.VolatileRead must be named: {output}",
+        )
+        assert_true(
+            "Interlocked.Read(ref _wide)" in output,
+            f"a System.Int64 field must get the long advice: {output}",
         )
     finally:
         remove_temp_root(root)
@@ -265,6 +373,14 @@ def main() -> int:
     run_case(
         "Reads_EveryDeclaratorAndRejectsVolatileLong",
         case_reads_every_declarator_and_rejects_volatile_long,
+    )
+    run_case(
+        "Scans_InterpolationHolesAndIgnoresProse",
+        case_scans_interpolation_holes_and_ignores_prose,
+    )
+    run_case(
+        "Reports_SupportedReplacementsAndArrayReferences",
+        case_reports_supported_replacements_and_array_references,
     )
     run_case(
         "Paths_ScansOnlyRuntimeFilesAndFailsClosed",

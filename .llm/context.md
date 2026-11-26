@@ -136,11 +136,12 @@ or `Feature`. Bodies stay under 300 lines; bulk material moves to `.llm/referenc
     "unset" from "chosen". Naming `Unknown` in code is a compile error by design: handle it through the default branch
     or a positive list of the real values. `scripts/lint_enum_defaults.py` enforces this in the fast check, the gate,
     and CI.
-17. Cross-thread 64-bit state reads and writes through `Interlocked.Read` and `Interlocked.Exchange`, never
-    `Volatile.Read`, `Volatile.Write`, or a `volatile` 64-bit field. IL2CPP implements `volatile` as a plain access
-    plus a memory barrier, so a 32-bit player (ARMv7 Android, wasm32 WebGL) reads or writes a `long` as two words; the
-    audio thread can observe half of one update mixed with half of another. `scripts/lint_atomic_state.py` enforces
-    this in the fast check, the gate, and CI.
+17. Cross-thread 64-bit state never uses `Volatile.Read`, `Volatile.Write`, `Thread.VolatileRead`,
+    `Thread.VolatileWrite`, or a `volatile` 64-bit field. IL2CPP implements `volatile` as a plain access plus a
+    memory barrier, so a 32-bit player reads or writes a `long` as two words. On a 64-bit host, use
+    `Interlocked.Read`/`Interlocked.Exchange`; on a 32-bit player path, use a 32-bit seqlock or another lock-free
+    protocol, because `Interlocked` on a `long` takes a process-global lock and the audio callback must not wait.
+    `scripts/lint_atomic_state.py` enforces the banned forms in the fast check, the gate, and CI.
 
 ### Testing
 

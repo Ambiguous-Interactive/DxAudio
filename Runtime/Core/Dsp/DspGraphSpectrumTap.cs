@@ -41,7 +41,7 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
-            bool current = _capturedSelection == Interlocked.Read(ref _selection);
+            bool current = Interlocked.Read(ref _capturedSelection) == Interlocked.Read(ref _selection);
             if (current)
             {
                 Array.Copy(_input, input, _input.Length);
@@ -61,9 +61,10 @@ namespace WallstopStudios.DxAudio
             }
 
             long selection = Interlocked.Read(ref _selection);
-            if (_capturedSelection != selection)
+            if (Interlocked.Read(ref _capturedSelection) != selection)
             {
-                _capturedSelection = selection;
+                // The _ready handshake serializes this field; Interlocked keeps the 64-bit compare whole.
+                Interlocked.Exchange(ref _capturedSelection, selection);
                 _written = 0;
             }
 

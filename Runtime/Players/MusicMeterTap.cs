@@ -61,6 +61,8 @@ namespace WallstopStudios.DxAudio
             private int _busy;
             private int _next;
             private int _count;
+
+            // Written and read only while _busy is held; the CAS publishes the whole window.
             private double _observedAt;
 
             internal SampleWindow(int sampleCount)

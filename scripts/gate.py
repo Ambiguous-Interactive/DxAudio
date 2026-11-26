@@ -9,7 +9,7 @@ writes a machine-readable JSON record so gate measurements can be compared
 across runs and hosts.
 
 The scoped steps consult the same fail-safe diff verdicts CI's llm-lint
-scope step uses: the three C# source lints are per-file policies and scan
+scope step uses: the C# source lints are per-file policies and scan
 the branch's changed C# files when a comparison base resolves and skip
 when no C# changed; the Markdown formatter, the packaging dry run, and the
 self-test suite skip when the diff cannot affect them, and the suite runs
@@ -229,7 +229,7 @@ LANES: Tuple[Tuple[str, Tuple[Step, ...]], ...] = (
 ALL_STEPS: Tuple[Step, ...] = tuple(step for _, lane_steps in LANES for step in lane_steps)
 STEP_NAMES: frozenset[str] = frozenset(step.name for step in ALL_STEPS)
 
-# The three C# source lints are per-file policies over the same walk roots:
+# The C# source lints are per-file policies over the same walk roots:
 # a file the branch did not touch cannot newly violate one, so the gate scans
 # them with the branch's changed paths when a comparison base resolves. The
 # merge-base tree is the tree CI already validated whole-tree, so a scoped

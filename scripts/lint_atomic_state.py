@@ -11,17 +11,24 @@ gain pairs, a selected node and generation, and meter pairs. A torn read can
 apply half of one update and half of another.
 
 ``Interlocked.Read`` and ``Interlocked.Exchange`` are atomic on every player.
-This lint scans ``Runtime/`` and rejects ``Volatile.Read`` or
-``Volatile.Write`` on a field declared ``long``, ``ulong`` or ``double``,
-and rejects a ``volatile long`` or ``volatile ulong`` field outright. Every
-declarator in a multi-field declaration is read.
+This lint scans ``Runtime/`` and rejects ``Volatile.Read``, ``Volatile.Write``,
+``Thread.VolatileRead``, and ``Thread.VolatileWrite`` on a field declared
+``long``, ``ulong``, ``double``, ``System.Int64``, ``System.UInt64``, or
+``System.Double``, plus a bare ``volatile`` 64-bit field. A bare array field
+is a 32-bit object reference and is allowed; only its elements are 64-bit.
+Every declarator in a multi-field declaration is read.
 
-Comments, character literals and every string shape are masked before the
-scan, so prose that names a banned form cannot fail it. ``--paths`` scans
-only the named C# files, and a path outside the scan roots is skipped just
-as the whole-tree walk never enters it. ``VOLATILE_ATOMICITY_ROOTS``
-overrides the roots for the self-test. Exit codes: 0 = clean, 1 = a 64-bit
-``Volatile`` access remains, 2 = usage error.
+Comments, character literals and the literal text of every string shape are
+masked before the scan, while interpolation holes stay visible as code: a
+read inside ``$"{...}"`` is caught, but prose that only names the call is
+not. The scan is textual, so a static import or alias of ``Volatile``, a
+field declared in another partial file, and a parameter or local that
+shadows a 64-bit field by name are not resolved; such a shadow is already a
+naming violation in this repository. ``--paths`` scans only the named C#
+files, and a path outside the scan roots is skipped just as the whole-tree
+walk never enters it. ``VOLATILE_ATOMICITY_ROOTS`` overrides the roots for
+the self-test. Exit codes: 0 = clean, 1 = a 64-bit ``Volatile`` access
+remains, 2 = usage error.
 """
 
 from __future__ import annotations
@@ -46,16 +53,123 @@ SCAN_ROOTS = (
 FIELD_START = re.compile(
     r"^[ \t]*(?:public|internal|protected|private)(?:[ \t]+(?:internal|protected))?"
     r"[ \t]+(?:(?:static|readonly|volatile|new)[ \t]+)*"
-    r"(long|ulong|double)[ \t]*(?:\[\s*\])?[ \t]+",
+    r"(?:System\s*\.\s*)?(long|ulong|double|Int64|UInt64|Double)[ \t]*(\[\s*\])?[ \t]+"
+    r"(?=[A-Za-z_]\w*[ \t]*(?:[;=,\[]))",
     re.MULTILINE,
 )
-USAGE = re.compile(r"\bVolatile\s*\.\s*(Read|Write)\s*\(\s*ref\s+([^,)]+)")
+USAGE = re.compile(
+    r"\b(?:Volatile\s*\.\s*(?P<direct>Read|Write)|Thread\s*\.\s*(?P<thread>VolatileRead|VolatileWrite))"
+    r"\s*\(\s*ref\s+(?P<expression>[^,)]+)"
+)
 IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
 DECLARATOR = re.compile(r"^[ \t]*([A-Za-z_]\w*)")
+TYPE_ALIASES = {"Int64": "long", "UInt64": "ulong", "Double": "double"}
+
+
+def _char_end(source: str, start: int) -> int:
+    """Return the index just past the character literal at ``start``."""
+    index = start + 1
+    while index < len(source):
+        if source[index] == "\\":
+            index += 2
+            continue
+        if source[index] == "'":
+            return index + 1
+        index += 1
+    return len(source)
+
+
+def _string_bounds(source: str, start: int) -> tuple[int, int, int, bool]:
+    """Return a string's end, content start, content end, and interpolated flag."""
+    verbatim = (start > 0 and source[start - 1] == "@") or (start > 1 and source[start - 2] == "@")
+    raw = source.startswith('"""', start)
+    interpolated = (start > 0 and source[start - 1] == "$") or (
+        start > 1 and source[start - 2] == "$"
+    )
+    quote = 3 if raw else 1
+    index = start + quote
+    while index < len(source):
+        if interpolated and source.startswith("{{", index):
+            index += 2
+            continue
+        if interpolated and source[index] == "{":
+            hole = _hole_end(source, index + 1)
+            if hole < 0:
+                break
+            index = hole + 1
+            continue
+        if raw and source.startswith('"""', index):
+            return index + 3, start + quote, index, interpolated
+        if not raw and verbatim and source.startswith('""', index):
+            index += 2
+            continue
+        if not raw and not verbatim and source[index] == "\\":
+            index += 2
+            continue
+        if not raw and source[index] == '"':
+            return index + 1, start + quote, index, interpolated
+        index += 1
+    return len(source), start + quote, len(source), interpolated
+
+
+def _hole_end(body: str, start: int) -> int:
+    """Return the brace that closes the interpolation hole starting at ``start``, or -1."""
+    depth = 1
+    index = start
+    while index < len(body):
+        if body.startswith("//", index):
+            newline = body.find("\n", index)
+            index = len(body) if newline < 0 else newline
+            continue
+        if body.startswith("/*", index):
+            close = body.find("*/", index + 2)
+            index = len(body) if close < 0 else close + 2
+            continue
+        character = body[index]
+        if character == '"':
+            index = _string_bounds(body, index)[0]
+            continue
+        if character == "'":
+            index = _char_end(body, index)
+            continue
+        if character == "{":
+            depth += 1
+        elif character == "}":
+            depth -= 1
+            if depth == 0:
+                return index
+        index += 1
+    return -1
+
+
+def _mask_interpolated(body: str) -> str:
+    """Blank literal text but keep each interpolation hole visible as code."""
+    kept: list[str] = []
+    index = 0
+    while index < len(body):
+        character = body[index]
+        if character in "{}" and index + 1 < len(body) and body[index + 1] == character:
+            kept.append("  ")
+            index += 2
+            continue
+        if character == "{":
+            end = _hole_end(body, index + 1)
+            if end < 0:
+                kept.append(" ")
+                index += 1
+                continue
+            kept.append("{")
+            kept.append(mask(body[index + 1 : end]))
+            kept.append("}")
+            index = end + 1
+            continue
+        kept.append("\n" if character == "\n" else " ")
+        index += 1
+    return "".join(kept)
 
 
 def mask(source: str) -> str:
-    """Blank comments, character literals and string bodies, keeping line numbers stable."""
+    """Blank comments and literal text, keeping interpolation holes and line numbers intact."""
     kept: list[str] = []
     index = 0
     length = len(source)
@@ -73,31 +187,20 @@ def mask(source: str) -> str:
             index = end
             continue
         if character == "'":
-            end = index + 1
-            while end < length and source[end] != "'":
-                end += 2 if source[end] == "\\" else 1
-            kept.append(" " * min(end + 1 - index, length - index))
-            index = end + 1
+            end = _char_end(source, index)
+            kept.append(" " * min(end - index, length - index))
+            index = end
             continue
         if character == '"':
-            verbatim = index > 0 and source[index - 1] == "@"
-            raw = source.startswith('"""', index)
-            end = index + (3 if raw else 1)
-            while end < length:
-                if raw and source.startswith('"""', end):
-                    end += 3
-                    break
-                if not raw and verbatim and source.startswith('""', end):
-                    end += 2
-                    continue
-                if not raw and not verbatim and source[end] == "\\":
-                    end += 2
-                    continue
-                if not raw and source[end] == '"':
-                    end += 1
-                    break
-                end += 1
-            kept.append("".join("\n" if item == "\n" else " " for item in source[index:end]))
+            end, content_start, content_end, interpolated = _string_bounds(source, index)
+            quote = content_start - index
+            kept.append(" " * quote)
+            kept.append(
+                _mask_interpolated(source[content_start:content_end])
+                if interpolated
+                else " " * (content_end - content_start)
+            )
+            kept.append(" " * quote)
             index = end
             continue
         kept.append(character)
@@ -119,14 +222,16 @@ def declaration_end(masked: str, start: int) -> int:
     return len(masked)
 
 
-def shared_fields(masked: str) -> tuple[set[str], int, list[int]]:
-    """Return 64-bit field names, their count, and the lines of ``volatile`` declarations."""
-    names: set[str] = set()
+def shared_fields(masked: str) -> tuple[dict[str, tuple[str, bool]], int, list[tuple[int, str]]]:
+    """Return 64-bit field types, their count, and the ``volatile`` declaration lines and types."""
+    fields: dict[str, tuple[str, bool]] = {}
     declarations = 0
-    volatile_lines: list[int] = []
+    volatile_lines: list[tuple[int, str]] = []
     for match in FIELD_START.finditer(masked):
+        field_type = TYPE_ALIASES.get(match.group(1), match.group(1))
         if "volatile" in match.group(0).split():
-            volatile_lines.append(masked.count("\n", 0, match.start()) + 1)
+            volatile_lines.append((masked.count("\n", 0, match.start()) + 1, field_type))
+        is_array = match.group(2) is not None
         end = declaration_end(masked, match.end())
         declaration = masked[match.end() : end]
         depth = 0
@@ -144,9 +249,9 @@ def shared_fields(masked: str) -> tuple[set[str], int, list[int]]:
         for segment in segments:
             name = DECLARATOR.match(segment)
             if name is not None:
-                names.add(name.group(1))
+                fields[name.group(1)] = (field_type, is_array)
                 declarations += 1
-    return names, declarations, volatile_lines
+    return fields, declarations, volatile_lines
 
 
 def display_for(full_path: Path) -> str:
@@ -204,6 +309,19 @@ def scoped_files(argv: Sequence[str]) -> list[Path] | None:
     return sorted(files, key=str)
 
 
+def _replacement(types: set[str], expression: str, read: bool) -> str:
+    """Name the supported atomic replacement for a matching field's type."""
+    if "ulong" in types:
+        return "a long field with Interlocked.Read or Interlocked.Exchange"
+    if "double" in types:
+        if read:
+            return f"Interlocked.CompareExchange(ref {expression}, 0d, 0d)"
+        return f"Interlocked.Exchange(ref {expression}, value)"
+    if read:
+        return f"Interlocked.Read(ref {expression})"
+    return f"Interlocked.Exchange(ref {expression}, value)"
+
+
 def check(path: Path) -> tuple[list[str], int]:
     """Return every 64-bit ``Volatile`` access in one file and its field count."""
     try:
@@ -215,17 +333,35 @@ def check(path: Path) -> tuple[list[str], int]:
     display = display_for(path)
     failures: list[str] = [
         f"{display}:{line}: volatile 64-bit field is not atomic on a 32-bit player; "
-        "remove volatile and use Interlocked.Read and Interlocked.Exchange."
-        for line in volatile_lines
+        + (
+            "use a long field with Interlocked.Read or Interlocked.Exchange."
+            if field_type == "ulong"
+            else "remove volatile and use Interlocked.Read and Interlocked.Exchange."
+        )
+        for line, field_type in volatile_lines
     ]
     for match in USAGE.finditer(masked):
-        expression = match.group(2).strip()
-        if not fields.intersection(IDENTIFIER.findall(expression)):
+        expression = match.group("expression").strip()
+        matched = [
+            (name, fields[name]) for name in IDENTIFIER.findall(expression) if name in fields
+        ]
+        if not matched:
             continue
+        # A bare array field is a 32-bit object reference; only its elements are 64-bit.
+        matched = [
+            (name, info)
+            for name, info in matched
+            if not info[1] or re.search(rf"\b{re.escape(name)}\s*\[", expression) is not None
+        ]
+        if not matched:
+            continue
+        direct = match.group("direct")
+        call = f"Volatile.{direct}" if direct else f"Thread.{match.group('thread')}"
+        read = direct == "Read" or match.group("thread") == "VolatileRead"
+        replacement = _replacement({info[0] for _, info in matched}, expression, read)
         line = masked.count("\n", 0, match.start()) + 1
-        replacement = "Interlocked.Read" if match.group(1) == "Read" else "Interlocked.Exchange"
         failures.append(
-            f"{display}:{line}: Volatile.{match.group(1)} on 64-bit '{expression}' is not atomic "
+            f"{display}:{line}: {call} on 64-bit '{expression}' is not atomic "
             f"on a 32-bit player; use {replacement}."
         )
     return failures, declarations
