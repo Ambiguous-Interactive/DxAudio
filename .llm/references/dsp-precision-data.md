@@ -1,8 +1,8 @@
 # DSP precision probe output
 
 Summarized output from `dsp-precision-probe.cs.txt` on Linux ARM64 with .NET 10.0.15 and one pinned CPU.
-The report tables use these rows. Repeated timing rows are in the separate logs under
-`.artifacts/session-097/precision/`.
+The report tables use these rows. The CPU table uses the three repeated runs below; the signal and envelope
+rows are from the first run and are deterministic. Raw logs are under `.artifacts/session-097/precision/`.
 
 ```text
 host=b6a7f01e1aca os=Unix 6.18.58.1 arch=Arm64
@@ -76,7 +76,12 @@ hours=72 interval=0.010 accepted=17413000 ideal=25920000 early=0 late=15464689 m
 hours=72 interval=0.050 accepted=4474734 ideal=5184000 early=0 late=4017598 min_gap_steps=10 max_gap_steps=13 min_gap_ms=50.0 max_gap_ms=65.0
 hours=72 interval=0.100 accepted=2451840 ideal=2592000 early=0 late=1778183 min_gap_steps=20 max_gap_steps=22 min_gap_ms=100.0 max_gap_ms=110.0
 hours=72 interval=0.500 accepted=518401 ideal=518400 early=1 late=0 min_gap_steps=99 max_gap_steps=100 min_gap_ms=495.0 max_gap_ms=500.0
-voices=1 float_p50_us=17.50 float_p95_us=17.70 double_p50_us=18.10 double_p95_us=21.30
-voices=8 float_p50_us=132.00 float_p95_us=168.10 double_p50_us=141.20 double_p95_us=195.70
 alloc_after_warm_1000_blocks_float8=0
+
+run1 voices=1 float_p50_us=17.80 float_p95_us=18.10 double_p50_us=15.80 double_p95_us=18.30
+run1 voices=8 float_p50_us=138.50 float_p95_us=151.10 double_p50_us=116.70 double_p95_us=140.90
+run2 voices=1 float_p50_us=14.90 float_p95_us=17.40 double_p50_us=15.00 double_p95_us=17.30
+run2 voices=8 float_p50_us=128.80 float_p95_us=177.80 double_p50_us=127.40 double_p95_us=163.40
+run3 voices=1 float_p50_us=14.90 float_p95_us=17.50 double_p50_us=15.70 double_p95_us=18.40
+run3 voices=8 float_p50_us=127.90 float_p95_us=161.50 double_p50_us=127.00 double_p95_us=172.60
 ```

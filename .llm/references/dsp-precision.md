@@ -52,10 +52,12 @@ duration. The value error is `|float value - reference value|` at that frame.
 | 600 s    | 144 Hz               | 600.000 s               | 599.389 s                    | 1.019e-3                  |
 | 600 s    | 1000 Hz              | 600.000 s               | 599.472 s                    | 8.800e-4                  |
 | 3600 s   | 30 Hz                | 3600.000 s              | 3595.133 s                   | 1.352e-3                  |
+| 3600 s   | 1000 Hz              | 3600.000 s              | 3671.471 s                   | 0                         |
 
-A 60 s fade is exact within the frame step. A one-hour fade reaches its target up to 4.87 s early at 30 Hz, which
-is 0.14% of its duration. This is below a perceptual step for a fade and does not justify double state. Keep
-`MusicRamp.ElapsedSeconds` in float.
+A 60 s fade differs by at most 22 ms across the tested frame rates. At 30-144 Hz, a one-hour fade stops at most
+4.87 s early, which is 0.14% of its duration. At 1000 Hz the same fade can stop 71.47 s late, or 1.99%. These are
+extreme frame rates; the target value is exact. The timing difference is below a perceptual step for a fade and does
+not justify double state. Keep `MusicRamp.ElapsedSeconds` in float.
 
 ## Recursive filter state
 
@@ -127,12 +129,14 @@ pinned runs.
 
 | Voices | Float p50      | Float p95      | Double p50     | Double p95     |
 | ------ | -------------- | -------------- | -------------- | -------------- |
-| 1      | 14.9-17.5 us   | 17.5-17.8 us   | 18.1-21.3 us   | 18.2-27.9 us   |
-| 8      | 135.5-136.5 us | 161.0-175.5 us | 141.0-155.9 us | 165.7-206.1 us |
+| 1      | 14.9-17.8 us   | 17.4-18.1 us   | 15.0-15.8 us   | 17.3-18.4 us   |
+| 8      | 127.9-138.5 us | 151.1-177.8 us | 116.7-127.4 us | 140.9-172.6 us |
 
-Double state adds about 20% at one voice and 4% to 15% at eight voices on this host. The production float path
-measured 0 B across 1,000 warmed eight-voice blocks, so the current render path remains allocation-free. A double
-sample buffer would add 16 KiB per 1,024-frame stereo voice (8 KiB float against 16 KiB double); the tested
+Double state is within run noise of float here and measured slightly lower at eight voices. The prototype now uses
+independent per-voice input buffers and per-channel state and matches the production control ramp, coefficient
+rebuild, and shape switch. Double state is therefore not a CPU reason to avoid a migration. The production float
+path measured 0 B across 1,000 warmed eight-voice blocks, so the current render path remains allocation-free. A
+double sample buffer would add 16 KiB per 1,024-frame stereo voice (8 KiB float against 16 KiB double); the tested
 prototype does not use one.
 
 A second proxy compiled the same subset with `mcs` and ran it on Debian Mono 6.8.0.105, ARM64, one pinned CPU. One
@@ -146,11 +150,12 @@ not a Unity timing, so it is not used for the decision. The noisier runs do not 
 - Keep the rendered sample path and filter integrators in float. The error is inaudible for normal corners and
   qualities, the filter is stable for ten million samples, and a migration costs CPU for no measurable benefit in
   the normal range.
-- Keep `MusicRamp` and its elapsed time in float. Its target value is exact and a long fade reaches it within 0.14%
-  of its duration.
+- Keep `MusicRamp` and its elapsed time in float. Its target value is exact. At 30-144 Hz a one-hour fade differs by
+  at most 0.14%; the 1000 Hz case is 1.99% late. That is below a perceptual step for a fade.
 - When long compressor or limiter releases are supported, use double for the gain state and their public time
   inputs. At 0.1 s and below the current float state is exact.
 - Change the rate-limit clock before a game runs for hours with short intervals. `SfxThrottle` needs a double time
   source and double stored times; this is the clearest audible precision loss in the package.
-- Keep double already used for phase, delay-line gains, reverb gain exponent computation, and the noise-gate
-  envelope. Those paths are not sample-rate state and their extra cost is already paid.
+- Keep double already used for phase, reverb gain exponent computation, and the noise-gate envelope. The
+  delay-line gain itself is stored as float. Those paths are not sample-rate state and their extra cost is already
+  paid.

@@ -1,7 +1,7 @@
 // DxAudio DSP precision probe (issue #185).
 //
 // This is a scratch harness, not part of the shipped package. Build it as a
-// net10.0 console project with Runtime/Core/**/*.cs and the csproj below:
+// net10.0 console project with Runtime/Core/**/*.cs and this project file:
 //
 // <Project Sdk="Microsoft.NET.Sdk">
 //   <PropertyGroup>
@@ -330,10 +330,14 @@ namespace PrecisionProbe
         private static double[] Measure(int voices, bool wide, int samples)
         {
             DspFilter[] filters = new DspFilter[voices];
-            DoubleFilter[] references = new DoubleFilter[voices];
+            DoubleStereoFilter[] references = new DoubleStereoFilter[voices];
+            float[][] inputs = new float[voices][];
+            float[] baseInput = new float[1024 * 2];
+            for (int i = 0; i < baseInput.Length; ++i) { baseInput[i] = (float)Math.Sin(i * 0.01); }
             for (int i = 0; i < voices; ++i)
             {
-                if (wide) { references[i] = new DoubleFilter(Rate, 40f, 20f); }
+                inputs[i] = (float[])baseInput.Clone();
+                if (wide) { references[i] = new DoubleStereoFilter(Rate, 40f, 20f); }
                 else
                 {
                     filters[i] = new DspFilter();
@@ -343,24 +347,24 @@ namespace PrecisionProbe
                     filters[i].TryPrepare(Rate, 1024, 2);
                 }
             }
-            float[] buffer = new float[1024 * 2];
-            for (int i = 0; i < buffer.Length; ++i) { buffer[i] = (float)Math.Sin(i * 0.01); }
             for (int warm = 0; warm < 64; ++warm)
             {
                 for (int v = 0; v < voices; ++v)
                 {
-                    if (wide) { references[v].Process(buffer, 0, buffer.Length); }
-                    else { filters[v].Process(buffer, 0, buffer.Length, 2); }
+                    Array.Copy(baseInput, inputs[v], baseInput.Length);
+                    if (wide) { references[v].Process(inputs[v]); }
+                    else { filters[v].Process(inputs[v], 0, inputs[v].Length, 2); }
                 }
             }
             double[] times = new double[samples];
             for (int sample = 0; sample < samples; ++sample)
             {
+                for (int v = 0; v < voices; ++v) { Array.Copy(baseInput, inputs[v], baseInput.Length); }
                 long start = System.Diagnostics.Stopwatch.GetTimestamp();
                 for (int v = 0; v < voices; ++v)
                 {
-                    if (wide) { references[v].Process(buffer, 0, buffer.Length); }
-                    else { filters[v].Process(buffer, 0, buffer.Length, 2); }
+                    if (wide) { references[v].Process(inputs[v]); }
+                    else { filters[v].Process(inputs[v], 0, inputs[v].Length, 2); }
                 }
                 times[sample] = (System.Diagnostics.Stopwatch.GetTimestamp() - start) * 1_000_000d / System.Diagnostics.Stopwatch.Frequency;
             }
@@ -387,6 +391,86 @@ namespace PrecisionProbe
         private static bool IsFinite(float value)
         {
             return !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+
+        private sealed class DoubleStereoFilter
+        {
+            private readonly double _targetG;
+            private readonly double _targetK;
+            private readonly double _targetPeakGain;
+            private readonly double _smoothing;
+            private readonly double[] _one = new double[2];
+            private readonly double[] _two = new double[2];
+            private readonly DspFilterMode _mode;
+            private double _g;
+            private double _k;
+            private double _peakGain;
+
+            internal DoubleStereoFilter(int rate, float hertz, float quality)
+            {
+                _targetG = Math.Tan(Math.PI * hertz / rate);
+                _targetK = 1d / quality;
+                _targetPeakGain = 1d;
+                _smoothing = AudioMath.OnePoleCoefficient(0.01f, rate);
+                _mode = DspFilterMode.LowPass;
+                _g = _targetG;
+                _k = _targetK;
+                _peakGain = _targetPeakGain;
+            }
+
+            internal void Process(float[] buffer)
+            {
+                double g = _g;
+                double k = _k;
+                double peakGain = _peakGain;
+                DspFilterMode mode = _mode;
+                for (int index = 0; index < buffer.Length; index += 2)
+                {
+                    // Match the production filter's per-frame control ramp and
+                    // coefficient rebuild so the timing compares the same work.
+                    g += (_targetG - g) * _smoothing;
+                    k += (_targetK - k) * _smoothing;
+                    peakGain += (_targetPeakGain - peakGain) * _smoothing;
+                    double damping = mode == DspFilterMode.Bell ? k / Math.Sqrt(peakGain) : k;
+                    double a1 = 1d / (1d + (g * (g + damping)));
+                    double a2 = g * a1;
+                    double a3 = g * a2;
+                    for (int channel = 0; channel < 2; ++channel)
+                    {
+                        int sample = index + channel;
+                        double input = buffer[sample];
+                        double v3 = input - _two[channel];
+                        double band = (a1 * _one[channel]) + (a2 * v3);
+                        double low = _two[channel] + (a2 * _one[channel]) + (a3 * v3);
+                        _one[channel] = (2d * band) - _one[channel];
+                        _two[channel] = (2d * low) - _two[channel];
+                        buffer[sample] = (float)Shape(mode, input, band, low, damping, peakGain);
+                    }
+                }
+                _g = g;
+                _k = k;
+                _peakGain = peakGain;
+            }
+
+            private static double Shape(DspFilterMode mode, double input, double band, double low, double damping, double peakGain)
+            {
+                switch (mode)
+                {
+                    case DspFilterMode.LowPass:
+                        return low;
+                    case DspFilterMode.HighPass:
+                        return input - (damping * band) - low;
+                    case DspFilterMode.BandPass:
+                        return damping * band;
+                    case DspFilterMode.Notch:
+                        return input - (damping * band);
+                    case DspFilterMode.Peak:
+                    case DspFilterMode.Bell:
+                        return input + ((peakGain - 1d) * damping * band);
+                    default:
+                        return input;
+                }
+            }
         }
 
         private sealed class DoubleFilter
