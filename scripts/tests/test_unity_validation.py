@@ -115,6 +115,13 @@ class NUnitValidationTests(unittest.TestCase):
             )
         )
 
+    def test_rejects_a_doctype_after_a_comment(self) -> None:
+        _expect_validation_failure(
+            lambda: validation.parse_nunit_result_from_text(
+                '<!--comment--><!DOCTYPE test-run [<!ENTITY x "expanded">]><test-run>&x;</test-run>'
+            )
+        )
+
     def test_accepts_doctype_text_inside_test_output(self) -> None:
         document = _nunit(
             passed=1,

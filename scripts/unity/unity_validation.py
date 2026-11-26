@@ -201,11 +201,18 @@ def write_redacted_tail(path: Path, max_lines: int = 40) -> None:
 def _has_leading_doctype(text: str) -> bool:
     """Return true only when a DTD declaration precedes the root element."""
     prefix = text.lstrip("\ufeff \t\r\n")
-    while prefix.startswith("<?xml"):
-        end = prefix.find("?>")
+    while True:
+        if prefix.startswith("<?"):
+            end = prefix.find("?>")
+        elif prefix.startswith("<!--"):
+            end = prefix.find("-->")
+            if end >= 0:
+                end += 3
+        else:
+            break
         if end < 0:
             return True
-        prefix = prefix[end + 2 :].lstrip("\ufeff \t\r\n")
+        prefix = prefix[end:].lstrip("\ufeff \t\r\n")
     return prefix.upper().startswith(("<!DOCTYPE", "<!ENTITY"))
 
 
