@@ -264,6 +264,29 @@ namespace Demo
 }
 """
 
+INDEX_FIXTURE = """using System.Threading;
+
+namespace Demo
+{
+    internal sealed class Indexed
+    {
+        private int[] _values;
+        private long[] _longs;
+        private long _index;
+
+        internal int ReadInt()
+        {
+            return Volatile.Read(ref _values[_index]);
+        }
+
+        internal long ReadLong()
+        {
+            return Volatile.Read(ref _longs[_index]);
+        }
+    }
+}
+"""
+
 RANK_FIXTURE = """using System.Threading;
 
 namespace Demo
@@ -555,6 +578,25 @@ def case_recognizes_globally_qualified_field_types() -> None:
         remove_temp_root(root)
 
 
+def case_excludes_array_index_identifiers_from_the_storage_match() -> None:
+    root = new_temp_root(prefix="atomic-state-")
+    try:
+        write_fixture_file(root, "Runtime/Indexed.cs", INDEX_FIXTURE)
+        output, exit_code = invoke_atomic_state_lint(root)
+        assert_exit_code(1, f"the long-array element should fail: {output}", exit_code)
+        assert_true(
+            "Indexed.cs:18:" in output,
+            f"a long-array element indexed by a long must be flagged: {output}",
+        )
+        assert_true(
+            "Indexed.cs:13:" not in output,
+            f"an int-array element indexed by a long must stay clean: {output}",
+        )
+        assert_true("1 non-atomic access" in output, f"only the long element is 64-bit: {output}")
+    finally:
+        remove_temp_root(root)
+
+
 def case_paths_scans_only_runtime_files_and_fails_closed() -> None:
     root = new_temp_root(prefix="atomic-state-")
     try:
@@ -645,6 +687,10 @@ def main() -> int:
     run_case(
         "Recognizes_GloballyQualifiedFieldTypes",
         case_recognizes_globally_qualified_field_types,
+    )
+    run_case(
+        "Excludes_ArrayIndexIdentifiersFromStorage",
+        case_excludes_array_index_identifiers_from_the_storage_match,
     )
     run_case(
         "Paths_ScansOnlyRuntimeFilesAndFailsClosed",

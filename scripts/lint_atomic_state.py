@@ -335,6 +335,23 @@ def _argument_end(masked: str, start: int) -> int:
     return len(masked)
 
 
+def _storage_identifiers(expression: str) -> list[str]:
+    """Return identifiers outside array indexers; an index is not the storage being read."""
+    kept: list[str] = []
+    depth = 0
+    for character in expression:
+        if character == "[":
+            depth += 1
+            kept.append(" ")
+            continue
+        if character == "]":
+            depth = max(0, depth - 1)
+            kept.append(" ")
+            continue
+        kept.append(" " if depth != 0 else character)
+    return IDENTIFIER.findall("".join(kept))
+
+
 def _replacement(types: set[str], expression: str, read: bool) -> str:
     """Name the supported atomic replacement for a matching field's type."""
     if "ulong" in types:
@@ -375,7 +392,7 @@ def check(path: Path) -> tuple[list[str], int]:
         start = match.end()
         expression = masked[start : _argument_end(masked, start)].strip()
         matched = [
-            (name, fields[name]) for name in IDENTIFIER.findall(expression) if name in fields
+            (name, fields[name]) for name in _storage_identifiers(expression) if name in fields
         ]
         if not matched:
             continue
