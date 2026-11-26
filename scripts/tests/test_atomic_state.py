@@ -248,6 +248,22 @@ namespace Demo
 }
 """
 
+GLOBAL_FIELD_FIXTURE = """using System.Threading;
+
+namespace Demo
+{
+    internal sealed class QualifiedField
+    {
+        private global::System.Int64 _state;
+
+        internal long ReadState()
+        {
+            return Volatile.Read(ref _state);
+        }
+    }
+}
+"""
+
 RANK_FIXTURE = """using System.Threading;
 
 namespace Demo
@@ -525,6 +541,20 @@ def case_recognizes_three_dimensional_array_elements() -> None:
         remove_temp_root(root)
 
 
+def case_recognizes_globally_qualified_field_types() -> None:
+    root = new_temp_root(prefix="atomic-state-")
+    try:
+        write_fixture_file(root, "Runtime/QualifiedField.cs", GLOBAL_FIELD_FIXTURE)
+        output, exit_code = invoke_atomic_state_lint(root)
+        assert_exit_code(1, f"a globally qualified field should fail: {output}", exit_code)
+        assert_true(
+            "QualifiedField.cs:11:" in output and "Interlocked.Read(ref _state)" in output,
+            f"a global::System.Int64 field must be a 64-bit field: {output}",
+        )
+    finally:
+        remove_temp_root(root)
+
+
 def case_paths_scans_only_runtime_files_and_fails_closed() -> None:
     root = new_temp_root(prefix="atomic-state-")
     try:
@@ -611,6 +641,10 @@ def main() -> int:
     run_case(
         "Recognizes_ThreeDimensionalArrayElements",
         case_recognizes_three_dimensional_array_elements,
+    )
+    run_case(
+        "Recognizes_GloballyQualifiedFieldTypes",
+        case_recognizes_globally_qualified_field_types,
     )
     run_case(
         "Paths_ScansOnlyRuntimeFilesAndFailsClosed",
