@@ -188,6 +188,47 @@ namespace Demo
 }
 """
 
+MULTILINE_FIXTURE = """using System.Threading;
+
+namespace Demo
+{
+    internal sealed class Multiline
+    {
+        private long _state;
+        private const string Text = @"first
+second
+Volatile.Read(ref _state) is prose";
+
+        internal long ReadState()
+        {
+            return Volatile.Read(ref _state);
+        }
+    }
+}
+"""
+
+STATIC_IMPORT_FIXTURE = """using static System.Threading.Volatile;
+using V = System.Threading.Volatile;
+
+namespace Demo
+{
+    internal sealed class Imported
+    {
+        private long _state;
+
+        internal long ReadState()
+        {
+            return Read(ref _state);
+        }
+
+        internal long ReadAlias()
+        {
+            return V.Read(ref _state);
+        }
+    }
+}
+"""
+
 EDGE_FIXTURE = """using System.Threading;
 
 namespace Demo
@@ -377,6 +418,39 @@ def case_parses_balanced_ref_expressions_and_multidimensional_arrays() -> None:
         remove_temp_root(root)
 
 
+def case_preserves_line_numbers_after_multiline_strings() -> None:
+    root = new_temp_root(prefix="atomic-state-")
+    try:
+        write_fixture_file(root, "Runtime/Multiline.cs", MULTILINE_FIXTURE)
+        output, exit_code = invoke_atomic_state_lint(root)
+        assert_exit_code(1, f"the multiline fixture should fail: {output}", exit_code)
+        assert_true(
+            "Multiline.cs:14:" in output,
+            f"a multiline string must not shift the reported line: {output}",
+        )
+        assert_true(
+            "Multiline.cs:10:" not in output and "Multiline.cs:12:" not in output,
+            f"the prose and the shifted line must not be reported: {output}",
+        )
+    finally:
+        remove_temp_root(root)
+
+
+def case_rejects_static_imports_of_volatile() -> None:
+    root = new_temp_root(prefix="atomic-state-")
+    try:
+        write_fixture_file(root, "Runtime/Imported.cs", STATIC_IMPORT_FIXTURE)
+        output, exit_code = invoke_atomic_state_lint(root)
+        assert_exit_code(1, f"a static import should fail: {output}", exit_code)
+        assert_true(
+            "Imported.cs:1:" in output and "Imported.cs:2:" in output,
+            f"both the static import and the alias must be reported: {output}",
+        )
+        assert_true("static import" in output, f"the reason must be named: {output}")
+    finally:
+        remove_temp_root(root)
+
+
 def case_paths_scans_only_runtime_files_and_fails_closed() -> None:
     root = new_temp_root(prefix="atomic-state-")
     try:
@@ -447,6 +521,14 @@ def main() -> int:
     run_case(
         "Parses_BalancedRefExpressionsAndMultidimensionalArrays",
         case_parses_balanced_ref_expressions_and_multidimensional_arrays,
+    )
+    run_case(
+        "Preserves_LineNumbersAfterMultilineStrings",
+        case_preserves_line_numbers_after_multiline_strings,
+    )
+    run_case(
+        "Rejects_StaticImportsOfVolatile",
+        case_rejects_static_imports_of_volatile,
     )
     run_case(
         "Paths_ScansOnlyRuntimeFilesAndFailsClosed",

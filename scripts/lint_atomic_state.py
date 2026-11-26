@@ -23,14 +23,15 @@ element stays whole.
 Comments, character literals and the literal text of every string shape are
 masked before the scan, while interpolation holes stay visible as code: a
 read inside ``$"{...}"`` is caught, but prose that only names the call is
-not. The scan is textual, so a static import or alias of ``Volatile``, a
-field declared in another partial file, and a parameter or local that
-shadows a 64-bit field by name are not resolved; such a shadow is already a
-naming violation in this repository. ``--paths`` scans only the named C#
-files, and a path outside the scan roots is skipped just as the whole-tree
-walk never enters it. ``VOLATILE_ATOMICITY_ROOTS`` overrides the roots for
-the self-test. Exit codes: 0 = clean, 1 = a 64-bit ``Volatile`` access
-remains, 2 = usage error.
+not. A static import or alias of ``System.Threading.Volatile`` or
+``System.Threading.Thread`` is rejected outright, because a bare ``Read`` or
+``Write`` would hide from the scan. The scan is textual: a field declared in
+another partial file and a parameter or local that shadows a 64-bit field by
+name are not resolved; such a shadow is already a naming violation in this
+repository. ``--paths`` scans only the named C# files, and a path outside
+the scan roots is skipped just as the whole-tree walk never enters it.
+``VOLATILE_ATOMICITY_ROOTS`` overrides the roots for the self-test. Exit
+codes: 0 = clean, 1 = a 64-bit ``Volatile`` access remains, 2 = usage error.
 """
 
 from __future__ import annotations
@@ -66,6 +67,12 @@ USAGE = re.compile(
 IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
 DECLARATOR = re.compile(r"^[ \t]*([A-Za-z_]\w*)")
 TYPE_ALIASES = {"Int64": "long", "UInt64": "ulong", "Double": "double"}
+VOLATILE_IMPORT = re.compile(
+    r"^[ \t]*(?:global[ \t]+)?using[ \t]+"
+    r"(?:static[ \t]+System\s*\.\s*Threading\s*\.\s*(?:Volatile|Thread)|"
+    r"[A-Za-z_]\w*[ \t]*=[ \t]*System\s*\.\s*Threading\s*\.\s*(?:Volatile|Thread))[ \t]*;",
+    re.MULTILINE,
+)
 
 
 def _char_end(source: str, start: int) -> int:
@@ -197,11 +204,11 @@ def mask(source: str) -> str:
             end, content_start, content_end, interpolated = _string_bounds(source, index)
             quote = content_start - index
             kept.append(" " * quote)
-            kept.append(
-                _mask_interpolated(source[content_start:content_end])
-                if interpolated
-                else " " * (content_end - content_start)
-            )
+            if interpolated:
+                kept.append(_mask_interpolated(source[content_start:content_end]))
+            else:
+                body = source[content_start:content_end]
+                kept.append("".join("\n" if item == "\n" else " " for item in body))
             kept.append(" " * quote)
             index = end
             continue
@@ -350,6 +357,11 @@ def check(path: Path) -> tuple[list[str], int]:
     fields, declarations, volatile_lines = shared_fields(masked)
     display = display_for(path)
     failures: list[str] = [
+        f"{display}:{masked.count(chr(10), 0, match.start()) + 1}: static import or alias of "
+        "System.Threading.Volatile or System.Threading.Thread is not allowed; name the atomic call explicitly."
+        for match in VOLATILE_IMPORT.finditer(masked)
+    ]
+    failures.extend(
         f"{display}:{line}: volatile 64-bit field is not atomic on a 32-bit player; "
         + (
             "use a long field with Interlocked.Read or Interlocked.Exchange."
@@ -357,7 +369,7 @@ def check(path: Path) -> tuple[list[str], int]:
             else "remove volatile and use Interlocked.Read and Interlocked.Exchange."
         )
         for line, field_type in volatile_lines
-    ]
+    )
     for match in USAGE.finditer(masked):
         start = match.end()
         expression = masked[start : _argument_end(masked, start)].strip()
