@@ -67,12 +67,13 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(throttle.IsReady("step", 3d, 1d), Is.True);
         }
 
-        [Test]
-        public void TheFloatOverloadKeepsItsFloatBoundary()
+        [TestCase(0.003f, 0.015f, 0.012f)]
+        public void TheFloatOverloadKeepsTheLegacyComparison(float last, float now, float interval)
         {
             SfxThrottle<string> throttle = new();
-            Assert.That(throttle.TryBegin("step", 0.003f, 0.012f), Is.True);
-            Assert.That(throttle.IsReady("step", 0.015f, 0.012f), Is.True, "float subtraction rounds 0.015f - 0.003f up to 0.012f");
+            Assert.That(throttle.TryBegin("step", last, interval), Is.True);
+
+            Assert.That(throttle.IsReady("step", now, interval), Is.EqualTo(interval <= now - last), "the float overload must use the legacy float comparison");
         }
 
         [Test]
