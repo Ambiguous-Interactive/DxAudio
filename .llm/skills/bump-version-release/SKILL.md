@@ -12,9 +12,13 @@ DxAudio publishes with npm trusted publishing through GitHub OIDC. There is no `
 ## Steps
 
 Weekly releases use the [releasing runbook](../../references/RELEASING.md).
-Add user-facing notes under `CHANGELOG.md` `## [Unreleased]`. Mark public
-API breaks and include migration steps. A breaking change bumps the minor
-version during 0.x and the major version from 1.0.0.
+Add user-facing notes under `CHANGELOG.md` `## [Unreleased]`. The section
+describes changes since the last release; the baseline is the newest tag with
+a published GitHub Release, not the newest tag alone. Fold fixes and changes
+to an unreleased feature into its `Added` entry
+([changelog](../../references/changelog.md)). Mark public API breaks and
+include migration steps. A breaking change bumps the minor version during 0.x
+and the major version from 1.0.0.
 
 For a manual release, bump `package.json`, sync the context version with
 `npm run lint:llm:fix`, and date the changelog section. Merge the version
