@@ -551,7 +551,7 @@ namespace WallstopStudios.DxAudio
                 A loop stands for a state, so it is never rate-limited: stopping and restarting one in a
                 frame, or two owners starting the same hum together, must both get their loop.
             */
-            float now = Time.unscaledTime;
+            double now = Time.unscaledTimeAsDouble;
             if (!looping && !_throttle.IsReady(cue, now, cue.MinimumIntervalSeconds))
             {
                 handle = default;
@@ -603,7 +603,7 @@ namespace WallstopStudios.DxAudio
                 host.Graph = cue.Graph;
             }
             _priorities[index] = cue.Priority;
-            _startedAt[index] = now;
+            _startedAt[index] = (float)now;
 #if UNITY_EDITOR
             // Keep the sampled victim even if more unobserved plays steal this slot before the next sample.
             if (interrupts && _observedPlays[index].observed == _leases[index])

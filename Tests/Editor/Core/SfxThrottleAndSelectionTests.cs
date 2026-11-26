@@ -49,6 +49,34 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void ADoubleClockKeepsAShortWindowAtALargeUptime()
+        {
+            SfxThrottle<string> throttle = new();
+            const double Start = 1_000_000d;
+            Assert.That(throttle.TryBegin("step", Start, 0.01d), Is.True);
+            Assert.That(throttle.IsReady("step", Start + 0.009d, 0.01d), Is.False);
+            Assert.That(throttle.TryBegin("step", Start + 0.01d, 0.01d), Is.True, "the clock kept the 10 ms window");
+        }
+
+        [Test]
+        public void FloatAndDoubleClocksShareOneWindow()
+        {
+            SfxThrottle<string> throttle = new();
+            Assert.That(throttle.TryBegin("step", 2f, 1f), Is.True);
+            Assert.That(throttle.IsReady("step", 2.5d, 1d), Is.False, "the float window applies to a double read");
+            Assert.That(throttle.IsReady("step", 3d, 1d), Is.True);
+        }
+
+        [TestCase(0.003f, 0.015f, 0.012f)]
+        public void TheFloatOverloadKeepsTheLegacyComparison(float last, float now, float interval)
+        {
+            SfxThrottle<string> throttle = new();
+            Assert.That(throttle.TryBegin("step", last, interval), Is.True);
+
+            Assert.That(throttle.IsReady("step", now, interval), Is.EqualTo(interval <= now - last), "the float overload must use the legacy float comparison");
+        }
+
+        [Test]
         public void ClearingForgetsEveryKey()
         {
             SfxThrottle<string> throttle = new();
