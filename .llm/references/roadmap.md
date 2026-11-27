@@ -72,6 +72,23 @@ that demonstrates the README flows.
 
 **Acceptance:** links resolve, the sample compiles, and the npm payload excludes sample and documentation folders.
 
+## 7. Composable synthesis
+
+**Issue:** [#195](https://github.com/Ambiguous-Interactive/DxAudio/issues/195) records the decisions; steps land
+one issue at a time.
+
+**Problem:** sounds are authored as imported clips. A graph asset that renders sound at build time or at runtime,
+with reusable modules, vibe-driven randomization, and runtime control that reaches Web, needs its foundations
+decided and measured first.
+
+**Scope:** engine-free random foundation and acoustic measurement kit, impact and pluck sources, the offline
+renderer, clip sinks, inputs as knobs or wires, modules, vibes, clock and loops, bake and JSON interchange, and a
+WebGL CI lane with live control. Steps and ordering live in the session plan; decisions in
+[procedural synthesis](./procedural-synthesis.md).
+
+**Acceptance:** every step keeps the design contract (bake equals live, same seed same sound, control within two
+frames, no allocation on a warmed audio path) with a test; measurements land in `progress/`.
+
 ## Current baseline
 
 Measured during bootstrap on Unity 6000.6.7f1:

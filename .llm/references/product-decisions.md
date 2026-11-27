@@ -143,6 +143,27 @@ Test group isolation, downstream master processing, latency, and streaming befor
 
 **Reopen if:** maintaining the floor blocks a measured, necessary API.
 
+## Composable synthesis: four sinks, clip-first
+
+**Decision:** a DxAudio synthesis graph renders as data, through four sinks: a baked clip asset, a clip rendered
+at warm-up, a live native voice, and a live Web stream. Clips come first: bake at build time or render at warm-up,
+and go live only where a parameter must keep moving, as a reported capability rather than an assumption. The graph
+interchange format is DxAudio's own JSON schema (`format: "dxaudio-graph"`), not Unity's serialized form. A module
+is a graph asset referenced by other graphs and flattened at build or render time, never a pasted copy. Vibes hold
+ranges and locks over exposed knobs with exactly three random amounts: mutate, explore, and roll.
+
+**Reason:** Web is the constraint that sets the shape. `OnAudioFilterRead` and the Scriptable Audio Pipeline are
+unsupported there, streaming clips are unsupported, and mixers expose volume only; non-streaming
+`AudioClip.Create` with `SetData` and `PlayScheduled` are supported. Clips therefore run everywhere and live
+synthesis does not. An own schema makes one node registry drive the editor menu, validation, and the generated
+specification, and lets a refused file name the exact node and reason. Modules by reference mean one fix lands in
+every graph that uses the module, while per-instance seed derivation keeps two instances decorrelated. The three
+vibe amounts separate nudging what exists from searching around it and from starting over. Full record:
+[procedural synthesis](./procedural-synthesis.md).
+
+**Reopen if:** Unity ships a managed audio path on Web, a measured game needs live synthesis whose render cost
+fits its platforms, or a serialized-data path replaces the schema without a second format to keep in sync.
+
 ## MIT No Attribution
 
 **Decision:** MIT-0.
