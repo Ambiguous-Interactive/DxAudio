@@ -13,19 +13,23 @@ so future sessions do not relitigate it.
 **Decision:** sound reaches the player through four sinks: a baked clip asset, a clip rendered at
 warm-up, a live native voice, and a live Web stream.
 
-| Sink                     | Platforms | Notes                                                                         |
-| ------------------------ | --------- | ----------------------------------------------------------------------------- |
-| Baked clip asset         | all       | zero runtime cost; build-time or editor command                               |
-| Rendered clip at warm-up | all       | `AudioClip.Create(stream: false)` plus `SetData`; parameters frozen at render |
-| Live voice               | native    | render-ahead blocks through `OnAudioFilterRead`                               |
-| Live stream              | Web       | `.jslib` Web Audio bridge or `PlayScheduled` chaining                         |
+| Sink                     | Platforms | Notes                                                                                                            |
+| ------------------------ | --------- | ---------------------------------------------------------------------------------------------------------------- |
+| Baked clip asset         | all       | zero runtime cost; build-time or editor command                                                                  |
+| Rendered clip at warm-up | all       | `AudioClip.Create(stream: false)` plus `SetData`; Web support is partial and gated by the capability report (R5) |
+| Live voice               | native    | render-ahead blocks through `OnAudioFilterRead`                                                                  |
+| Live stream              | Web       | `.jslib` Web Audio bridge or `PlayScheduled` chaining                                                            |
 
 **Reason:** on Web, `OnAudioFilterRead` and the Scriptable Audio Pipeline are unsupported, streaming
 clips are unsupported, non-streaming `AudioClip.Create` with `SetData` is partially supported, and
 `PlayScheduled` is supported. Mixer support on Web is volume only. Verified against Unity
-documentation; the first two sinks are therefore the only paths that work everywhere today. Sources:
+documentation; the first two sinks are therefore the only paths that run everywhere today, with one
+documented Web caveat: the 2021.3 manual describes `AudioClip.SetData` only for Decompress-on-Load
+clips, so whether a runtime-created clip can be populated on Web is verified by the Web CI lane before
+step R5 relies on it, and the capability report turns any gap into a validator problem. Sources:
 [OnAudioFilterRead](https://docs.unity3d.com/2021.3/Documentation/ScriptReference/MonoBehaviour.OnAudioFilterRead.html),
-[AudioClip.Create](https://docs.unity3d.com/2021.3/Documentation/ScriptReference/AudioClip.Create.html), and
+[AudioClip.Create](https://docs.unity3d.com/2021.3/Documentation/ScriptReference/AudioClip.Create.html),
+[AudioClip.SetData](https://docs.unity3d.com/2021.3/Documentation/ScriptReference/AudioClip.SetData.html), and
 [PlayScheduled](https://docs.unity3d.com/2021.3/Documentation/ScriptReference/AudioSource.PlayScheduled.html)
 in the 2021.3 scripting reference, plus the
 [Audio in WebGL](https://docs.unity3d.com/2021.3/Documentation/Manual/webgl-audio.html) manual. The Scriptable
