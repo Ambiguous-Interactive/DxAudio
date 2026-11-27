@@ -65,7 +65,7 @@ USAGE = re.compile(
     r"\s*\(\s*ref\s+"
 )
 IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
-DECLARATOR = re.compile(r"^[ \t]*([A-Za-z_]\w*)")
+DECLARATOR = re.compile(r"^\s*([A-Za-z_]\w*)")
 TYPE_ALIASES = {"Int64": "long", "UInt64": "ulong", "Double": "double"}
 TYPE_ALIAS_IMPORT = re.compile(
     r"^[ \t]*(?:global[ \t]+)?using[ \t]+(?P<alias>[A-Za-z_]\w*)[ \t\n]*=[ \t\n]*"

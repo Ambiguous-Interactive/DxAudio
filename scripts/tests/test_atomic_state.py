@@ -337,6 +337,23 @@ namespace Demo
 }
 """
 
+MULTILINE_FIELD_FIXTURE = """using System.Threading;
+
+namespace Demo
+{
+    internal sealed class MultilineFields
+    {
+        private long _first,
+            _second;
+
+        internal long ReadSecond()
+        {
+            return Volatile.Read(ref _second);
+        }
+    }
+}
+"""
+
 RANK_FIXTURE = """using System.Threading;
 
 namespace Demo
@@ -689,6 +706,20 @@ def case_rejects_an_alias_of_the_imported_volatile_type() -> None:
         remove_temp_root(root)
 
 
+def case_collects_multiline_declarators() -> None:
+    root = new_temp_root(prefix="atomic-state-")
+    try:
+        write_fixture_file(root, "Runtime/MultilineFields.cs", MULTILINE_FIELD_FIXTURE)
+        output, exit_code = invoke_atomic_state_lint(root)
+        assert_exit_code(1, f"the multiline declarator should fail: {output}", exit_code)
+        assert_true(
+            "MultilineFields.cs:12:" in output and "Interlocked.Read(ref _second)" in output,
+            f"a declarator after a newline must be recorded: {output}",
+        )
+    finally:
+        remove_temp_root(root)
+
+
 def case_paths_scans_only_runtime_files_and_fails_closed() -> None:
     root = new_temp_root(prefix="atomic-state-")
     try:
@@ -795,6 +826,10 @@ def main() -> int:
     run_case(
         "Rejects_AnAliasOfTheImportedVolatileType",
         case_rejects_an_alias_of_the_imported_volatile_type,
+    )
+    run_case(
+        "Collects_MultilineDeclarators",
+        case_collects_multiline_declarators,
     )
     run_case(
         "Paths_ScansOnlyRuntimeFilesAndFailsClosed",
