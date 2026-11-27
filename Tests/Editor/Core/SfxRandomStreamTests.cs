@@ -354,6 +354,21 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(generator.NextUInt64(), Is.EqualTo(0xBE15272CDF80B6C2UL), "the published step's first output");
         }
 
+        [Test]
+        public void TheDefaultStructSeedsItselfOnItsFirstDraw()
+        {
+            SfxXoshiro256StarStar generator = default;
+            SfxXoshiro256StarStar zeroSeeded = new(0UL);
+            for (int index = 0; index < 100; ++index)
+            {
+                Assert.That(generator.NextUInt64(), Is.EqualTo(zeroSeeded.NextUInt64()), "the default struct draws like the zero-seeded one");
+            }
+
+            SfxRandomStream stream = new(0UL);
+            SfxXoshiro256StarStar fresh = new(0UL);
+            Assert.That(stream.NextDouble(), Is.EqualTo(fresh.NextDouble()), "the zero seed makes a working stream");
+        }
+
         [TestCase(double.NaN, 0.5d, TestName = "A NaN first uniform")]
         [TestCase(0.5d, double.NaN, TestName = "A NaN second uniform")]
         public void TheGaussianPairRejectsAnUnusableUniform(double firstUniform, double secondUniform)

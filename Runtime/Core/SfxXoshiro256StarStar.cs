@@ -27,15 +27,7 @@ namespace WallstopStudios.DxAudio
         public SfxXoshiro256StarStar(ulong seed)
         {
             _seed = seed;
-            ulong state = seed;
-            state += SfxRandomSeeds.Gamma;
-            _s0 = SfxRandomSeeds.Mix64(state);
-            state += SfxRandomSeeds.Gamma;
-            _s1 = SfxRandomSeeds.Mix64(state);
-            state += SfxRandomSeeds.Gamma;
-            _s2 = SfxRandomSeeds.Mix64(state);
-            state += SfxRandomSeeds.Gamma;
-            _s3 = SfxRandomSeeds.Mix64(state);
+            (_s0, _s1, _s2, _s3) = Expand(seed);
         }
 
         private static ulong RotateLeft(ulong value, int count)
@@ -43,9 +35,30 @@ namespace WallstopStudios.DxAudio
             return (value << count) | (value >> (64 - count));
         }
 
+        /// <summary>Expands one 64-bit seed into the four state words through the splitmix64 finalizer.</summary>
+        private static (ulong S0, ulong S1, ulong S2, ulong S3) Expand(ulong seed)
+        {
+            ulong state = seed;
+            state += SfxRandomSeeds.Gamma;
+            ulong s0 = SfxRandomSeeds.Mix64(state);
+            state += SfxRandomSeeds.Gamma;
+            ulong s1 = SfxRandomSeeds.Mix64(state);
+            state += SfxRandomSeeds.Gamma;
+            ulong s2 = SfxRandomSeeds.Mix64(state);
+            state += SfxRandomSeeds.Gamma;
+            ulong s3 = SfxRandomSeeds.Mix64(state);
+            return (s0, s1, s2, s3);
+        }
+
         /// <summary>Returns the next 64 pseudorandom value and advances the state.</summary>
         public ulong NextUInt64()
         {
+            if ((_s0 | _s1 | _s2 | _s3) == 0UL)
+            {
+                // A default struct never ran the constructor, so zero words cannot advance; seed once from the seed field.
+                (_s0, _s1, _s2, _s3) = Expand(_seed);
+            }
+
             ulong result = RotateLeft(_s1 * 5UL, 7) * 9UL;
             ulong scrambled = _s1 << 17;
             _s2 ^= _s0;
