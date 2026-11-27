@@ -37,11 +37,11 @@ namespace WallstopStudios.DxAudio
 
         public override int GetHashCode()
         {
-            // The published fold over the words and the spare's bits, so hashes match across runs, NaN spares included.
+            // The published fold over the words and the spare's bits; adding zero makes a negative zero hash like positive zero, which Equals matches.
             ulong hash = SfxRandomSeeds.Fold(S0, S1);
             hash = SfxRandomSeeds.Fold(hash, S2);
             hash = SfxRandomSeeds.Fold(hash, S3);
-            hash = SfxRandomSeeds.Fold(hash, unchecked((ulong)BitConverter.DoubleToInt64Bits(SpareGaussian)));
+            hash = SfxRandomSeeds.Fold(hash, unchecked((ulong)BitConverter.DoubleToInt64Bits(SpareGaussian + 0d)));
             return unchecked((int)(hash ^ (hash >> 32)));
         }
     }

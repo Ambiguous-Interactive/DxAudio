@@ -395,6 +395,11 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(state.GetHashCode(), Is.EqualTo(hash), "one state keeps its hash");
             Assert.That(new RandomStreamState(1UL, 2UL, 3UL, 4UL, 0.5d).GetHashCode(), Is.EqualTo(hash), "equal states hash alike");
             Assert.That(new RandomStreamState(1UL, 2UL, 3UL, 4UL, double.NaN).GetHashCode(), Is.EqualTo(nanHash), "NaN spares hash alike");
+            Assert.That(
+                new RandomStreamState(1UL, 2UL, 3UL, 4UL, -0d).GetHashCode(),
+                Is.EqualTo(new RandomStreamState(1UL, 2UL, 3UL, 4UL, 0d).GetHashCode()),
+                "negative and positive zero hash alike"
+            );
             Assert.That(new SfxXoshiro256StarStar(7UL).GetHashCode(), Is.EqualTo(generatorHash), "equal generators hash alike");
         }
 
