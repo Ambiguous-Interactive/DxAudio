@@ -85,7 +85,7 @@ namespace WallstopStudios.DxAudio
 
         public double NextGaussian(double mean, double standardDeviation)
         {
-            if (!(0d < standardDeviation))
+            if (!(0d < standardDeviation) || double.IsInfinity(standardDeviation))
             {
                 return mean;
             }

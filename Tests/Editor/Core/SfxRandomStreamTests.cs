@@ -219,6 +219,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [TestCase(0d, TestName = "A zero deviation")]
         [TestCase(-1d, TestName = "A negative deviation")]
         [TestCase(double.NaN, TestName = "A NaN deviation")]
+        [TestCase(double.PositiveInfinity, TestName = "An infinite deviation")]
         public void AConstantGaussianConsumesNoDraw(double standardDeviation)
         {
             SfxRandomStream stream = new(11UL);

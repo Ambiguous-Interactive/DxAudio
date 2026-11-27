@@ -32,8 +32,9 @@ namespace WallstopStudios.DxAudio
         double NextExponential(double rate);
 
         /// <summary>
-        /// Returns a Gaussian draw. A standard deviation of zero or less returns <paramref name="mean"/> and
-        /// spends no draw; a real draw keeps one spare standard normal so the draw count stays stable.
+        /// Returns a Gaussian draw. A standard deviation of zero or less, or a non-finite deviation, returns
+        /// <paramref name="mean"/> and spends no draw; a real draw keeps one spare standard normal so the draw
+        /// count stays stable.
         /// </summary>
         double NextGaussian(double mean, double standardDeviation);
 
