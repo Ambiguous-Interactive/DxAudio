@@ -43,7 +43,10 @@ namespace WallstopStudios.DxAudio
         /// <summary>Captures the full position, including any spare Gaussian draw.</summary>
         RandomStreamState Capture();
 
-        /// <summary>Restores a captured position, so the same future draws come out again.</summary>
+        /// <summary>
+        /// Restores a captured position, so the same future draws come out again. A hand-built all-zero state is
+        /// refused and nothing changes, matching the struct's refusal.
+        /// </summary>
         void Restore(in RandomStreamState state);
     }
 }

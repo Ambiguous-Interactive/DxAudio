@@ -138,7 +138,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             double[] firstDraws = DrawsFrom(first, Draws);
             double[] secondDraws = DrawsFrom(second, Draws);
 
-            Assert.That(Pearson(firstDraws, secondDraws), Is.LessThan(0.05d), "the first 10,000 draws stay decorrelated");
+            Assert.That(Math.Abs(Pearson(firstDraws, secondDraws)), Is.LessThan(0.05d), "the first 10,000 draws stay decorrelated in either direction");
         }
 
         [TestCase(1UL)]
@@ -352,6 +352,46 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             // First output of the published xoshiro256** step for seed 42, computed independently from the reference algorithm.
             SfxXoshiro256StarStar generator = new(42UL);
             Assert.That(generator.NextUInt64(), Is.EqualTo(0xBE15272CDF80B6C2UL), "the published step's first output");
+        }
+
+        [TestCase(double.NaN, 0.5d, TestName = "A NaN first uniform")]
+        [TestCase(0.5d, double.NaN, TestName = "A NaN second uniform")]
+        public void TheGaussianPairRejectsAnUnusableUniform(double firstUniform, double secondUniform)
+        {
+            SfxRandomMath.GaussianPairFromUniform(firstUniform, secondUniform, 5d, 2d, out double first, out double second);
+            Assert.That(first, Is.EqualTo(5d), "the first draw falls back to the mean");
+            Assert.That(second, Is.EqualTo(5d), "the second draw falls back to the mean");
+        }
+
+        [Test]
+        public void NextFloatStaysFiniteAcrossTheWholeFloatRange()
+        {
+            SfxRandomStream stream = new(31UL);
+            for (int index = 0; index < 10_000; ++index)
+            {
+                float draw = stream.NextFloat(float.MinValue, float.MaxValue);
+                Assert.That(float.IsNaN(draw) || float.IsInfinity(draw), Is.False, "the whole range stayed finite");
+            }
+        }
+
+        [Test]
+        public void AnAllZeroStateIsRefusedWithoutMovingThePosition()
+        {
+            SfxRandomStream stream = new(13UL);
+            stream.NextGaussian(0d, 1d); // a pending spare must survive a refused restore
+            RandomStreamState before = stream.Capture();
+
+            stream.Restore(default);
+
+            Assert.That(stream.Capture(), Is.EqualTo(before), "the refused restore changed nothing");
+
+            SfxXoshiro256StarStar generator = new(13UL);
+            generator.NextUInt64();
+            RandomStreamState saved = generator.Capture();
+
+            generator.Restore(default);
+
+            Assert.That(generator.Capture(), Is.EqualTo(saved), "the struct refused the zeroed state");
         }
 
         [Test]

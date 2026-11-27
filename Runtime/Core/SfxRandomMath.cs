@@ -25,12 +25,20 @@ namespace WallstopStudios.DxAudio
 
         /// <summary>
         /// A Box-Muller Gaussian pair for a mean and standard deviation. The uniforms come from a stream in [0, 1),
-        /// so 1 - u sits in (0, 1] and the logarithm stays finite. A standard deviation of zero or less, or a
-        /// uniform outside [0, 1), returns the mean for both draws.
+        /// so 1 - u sits in (0, 1] and the logarithm stays finite. A standard deviation of zero or less, or a NaN
+        /// or out-of-range uniform, returns the mean for both draws.
         /// </summary>
         public static void GaussianPairFromUniform(double firstUniform, double secondUniform, double mean, double standardDeviation, out double firstDraw, out double secondDraw)
         {
-            if (!(0d < standardDeviation) || firstUniform < 0d || 1d <= firstUniform || secondUniform < 0d || 1d <= secondUniform)
+            if (
+                !(0d < standardDeviation)
+                || double.IsNaN(firstUniform)
+                || firstUniform < 0d
+                || 1d <= firstUniform
+                || double.IsNaN(secondUniform)
+                || secondUniform < 0d
+                || 1d <= secondUniform
+            )
             {
                 firstDraw = mean;
                 secondDraw = mean;

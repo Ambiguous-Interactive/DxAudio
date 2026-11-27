@@ -40,7 +40,8 @@ namespace WallstopStudios.DxAudio
                 return min;
             }
 
-            double drawn = min + ((max - min) * NextDouble());
+            double span = (double)max - min;
+            double drawn = min + (span * NextDouble());
             float value = (float)drawn;
             if (max < value)
             {
@@ -114,6 +115,11 @@ namespace WallstopStudios.DxAudio
 
         public void Restore(in RandomStreamState state)
         {
+            if (state.S0 == 0UL && state.S1 == 0UL && state.S2 == 0UL && state.S3 == 0UL)
+            {
+                return;
+            }
+
             _generator.Restore(state);
             _spareGaussian = state.SpareGaussian;
         }

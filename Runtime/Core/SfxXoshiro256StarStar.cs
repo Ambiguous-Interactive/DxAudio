@@ -69,9 +69,17 @@ namespace WallstopStudios.DxAudio
             return new RandomStreamState(_s0, _s1, _s2, _s3, double.NaN);
         }
 
-        /// <summary>Restores the four state words from a captured position.</summary>
+        /// <summary>
+        /// Restores the four state words from a captured position. A hand-built all-zero state is refused and the
+        /// words stay where they are, because a zeroed xoshiro256** can never advance.
+        /// </summary>
         public void Restore(in RandomStreamState state)
         {
+            if (state.S0 == 0UL && state.S1 == 0UL && state.S2 == 0UL && state.S3 == 0UL)
+            {
+                return;
+            }
+
             _s0 = state.S0;
             _s1 = state.S1;
             _s2 = state.S2;
