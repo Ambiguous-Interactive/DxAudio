@@ -1049,6 +1049,12 @@ def drive(options: argparse.Namespace) -> int:
     """Serve one built WebGL player and drive it in a headless browser."""
     if not options.build_dir:
         raise ValidationFailure("The WebGL drive needs --build-dir pointing at the built player.")
+    for name, value in (("port", int(options.port)), ("cdp_port", int(options.cdp_port))):
+        if not 0 <= value <= 65535:
+            raise ValidationFailure(f"The WebGL drive needs {name} in 0..65535; got {value}.")
+    timeout_seconds = float(options.timeout_seconds)
+    if timeout_seconds <= 0.0:
+        raise ValidationFailure("The WebGL drive needs a positive --timeout-seconds.")
     report_dir = options.report_dir or str(Path(options.build_dir).parent / "webgl-drive")
     try:
         return webgl_drive.run_drive(
@@ -1058,7 +1064,8 @@ def drive(options: argparse.Namespace) -> int:
                 browser=str(options.browser),
                 port=int(options.port),
                 cdp_port=int(options.cdp_port),
-                timeout_seconds=float(options.timeout_seconds),
+                timeout_seconds=timeout_seconds,
+                redact=safe_report,
             )
         )
     except webgl_drive.DriveFailure as error:

@@ -41,8 +41,8 @@ def _expect_drive_failure(body: Callable[[], object]) -> str:
     raise AssertionError("expected DriveFailure")
 
 
-def _event(kind: str, rms: float, duration: float = 0.4) -> dict[str, object]:
-    return {"kind": kind, "when": 0.5, "rms": rms, "duration": duration, "channels": 2}
+def _event(kind: str, rms: float, when: float = 0.5, duration: float = 0.4) -> dict[str, object]:
+    return {"kind": kind, "when": when, "rms": rms, "duration": duration, "channels": 2}
 
 
 def _report(**overrides: object) -> dict[str, object]:
@@ -51,10 +51,10 @@ def _report(**overrides: object) -> dict[str, object]:
         "underruns": 0,
         "rms": 0.3545,
         "events": [
-            _event("start", 0.3530),
-            _event("start", 0.3545),
-            _event("start", 0.1760),
-            _event("start", 0.1780),
+            _event("start", 0.3530, 0.5),
+            _event("start", 0.3545, 0.9),
+            _event("start", 0.1760, 1.7),
+            _event("start", 0.1780, 1.8),
             {"kind": "buffer", "rms": 0.3540, "duration": 0.8, "channels": 2},
         ],
         "played": {"dry": True, "shaped": True},
@@ -101,26 +101,45 @@ class StageServeCopyTests(unittest.TestCase):
 
 
 class MeasureInertnessTests(unittest.TestCase):
-    def _events(self, *pairs: tuple[float, float]) -> list[webgl_drive.AudioEvent]:
+    def _events(self, *triples: tuple[float, float, float]) -> list[webgl_drive.AudioEvent]:
         return [
-            webgl_drive.AudioEvent(kind="start", rms=rms, duration=duration, when=0.5)
-            for rms, duration in pairs
+            webgl_drive.AudioEvent(kind="start", rms=rms, duration=duration, when=when)
+            for rms, duration, when in triples
         ]
 
     def test_splits_the_levels_and_reports_one_half(self) -> None:
-        events = self._events((0.3530, 0.4), (0.3545, 0.4), (0.1760, 0.4), (0.1780, 0.4))
+        events = self._events(
+            (0.3530, 0.4, 0.5),
+            (0.3545, 0.4, 0.9),
+            (0.1760, 0.4, 1.7),
+            (0.1780, 0.4, 1.8),
+        )
         measurement = webgl_drive.measure_inertness(events)
         assert measurement is not None
         assert abs(measurement.ratio - 0.5) <= 0.02
         assert measurement.dry_events == 2
         assert measurement.shaped_events == 2
 
+    def test_labels_follow_the_time_gap_not_the_first_level(self) -> None:
+        # A short fade-in chunk at the head of the dry cue sits below the
+        # shaped level; the time-gap split must keep it in the dry window.
+        events = self._events(
+            (0.1000, 0.02, 0.5),
+            (0.3530, 0.4, 0.52),
+            (0.1760, 0.4, 1.7),
+            (0.1780, 0.4, 1.72),
+        )
+        measurement = webgl_drive.measure_inertness(events)
+        assert measurement is not None
+        assert abs(measurement.ratio - 0.5) <= 0.05
+        assert measurement.dry_events == 2
+
     def test_rejects_one_level_only(self) -> None:
-        events = self._events((0.35, 0.4), (0.36, 0.4))
+        events = self._events((0.35, 0.4, 0.5), (0.36, 0.4, 0.9))
         assert webgl_drive.measure_inertness(events) is None
 
     def test_rejects_below_floor_or_without_duration(self) -> None:
-        events = self._events((0.35, 0.4), (0.01, 0.4), (0.18, 0.0))
+        events = self._events((0.35, 0.4, 0.5), (0.01, 0.4, 0.9), (0.18, 0.0, 1.4))
         assert webgl_drive.measure_inertness(events) is None
 
 
@@ -137,29 +156,40 @@ class EvaluateReportTests(unittest.TestCase):
         assert any("inert on Web" in message for message in notes)
 
     def test_missing_done_and_played_flags_fail(self) -> None:
-        assert any(
-            "never saw the smoke finish" in message
-            for message in self._messages(_report(done=False))
-        )
+        assert "fail" in self._findings(_report(done=False))
         shaped_missing = _report(played={"dry": True, "shaped": False})
         assert any(
             "did not confirm both cues" in message for message in self._messages(shaped_missing)
         )
 
     def test_silent_output_fails(self) -> None:
-        silent = _report(rms=0.0, events=[_event("start", 0.0), _event("start", 0.0)])
+        silent = _report(rms=0.0, events=[_event("start", 0.0, 0.5), _event("start", 0.0, 0.9)])
+        assert "fail" in self._findings(silent)
         assert any("silent" in message for message in self._messages(silent))
 
     def test_a_shaped_level_outside_the_band_fails(self) -> None:
         shaped = _report(
             events=[
-                _event("start", 0.3530),
-                _event("start", 0.3545),
-                _event("start", 0.9500),
-                _event("start", 0.9800),
+                _event("start", 0.3530, 0.5),
+                _event("start", 0.3545, 0.9),
+                _event("start", 0.9500, 1.7),
+                _event("start", 0.9800, 1.8),
             ]
         )
+        assert "fail" in self._findings(shaped)
         assert any("outside the inert band" in message for message in self._messages(shaped))
+
+    def test_a_uniform_audible_level_fails(self) -> None:
+        uniform = _report(
+            events=[
+                _event("start", 0.3000, 0.5),
+                _event("start", 0.3010, 0.9),
+                _event("start", 0.2990, 1.7),
+                _event("start", 0.3005, 1.8),
+            ]
+        )
+        assert "fail" in self._findings(uniform)
+        assert any("outside the inert band" in message for message in self._messages(uniform))
 
     def test_no_surface_warns_and_stays_green_on_the_markers(self) -> None:
         bare = _report(events=[], started=0, rms=0.0)
@@ -179,10 +209,10 @@ class EvaluateReportTests(unittest.TestCase):
         quiet = _report(
             rms=0.0177,
             events=[
-                _event("start", 0.0177),
-                _event("start", 0.0179),
-                _event("start", 0.0088),
-                _event("start", 0.0090),
+                _event("start", 0.0177, 0.5),
+                _event("start", 0.0179, 0.9),
+                _event("start", 0.0088, 1.7),
+                _event("start", 0.0090, 1.8),
             ],
         )
         severities = self._findings(quiet)
@@ -436,7 +466,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "type": "page",
                     "url": "http://127.0.0.1:1/index.html",
-                    "webSocketDebuggerUrl": "ws://127.0.0.1:%d/devtools/page/1" % (port + 1),
+                    "webSocketDebuggerUrl": "ws://127.0.0.1:%d/devtools/page/1" % ws_port,
                 }
             ]).encode("utf-8")
             self.send_response(200)
@@ -463,8 +493,9 @@ def recv_exact(connection, count):
 
 ws_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 ws_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-ws_server.bind(("127.0.0.1", port + 1))
+ws_server.bind(("127.0.0.1", 0))
 ws_server.listen(1)
+ws_port = ws_server.getsockname()[1]
 
 def handle_ws():
     connection, _ = ws_server.accept()

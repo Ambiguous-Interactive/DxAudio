@@ -6,8 +6,16 @@
       - AudioContext creation, sample rate, and running state
       - `createBuffer` calls with the buffer RMS (the input side)
       - `AudioBufferSourceNode.start` calls with the scheduled time and buffer RMS
-        (the output side), counting one underrun per start scheduled in the past
+        (the output side), counting one underrun per late explicit schedule
       - script-processor output blocks, worklet modules, and worklet nodes
+
+    Measured limitation: buffer-source and script-processor levels read the
+    PCM Unity hands to Web Audio, not samples captured after the graph. Unity
+    mixes voices (including per-voice volume) inside its WASM audio engine, so
+    those levels reflect the rendered mix for Unity builds, but a hypothetical
+    downstream mute this shim cannot see would read as audible. Destination
+    capture needs graph-changing instrumentation and stays with the spec's
+    later tolerance runs.
 
     It also watches the console for the smoke player's `dxaudio-web-smoke`
     markers, so the driver can read which cues played and whether the sequence
@@ -78,7 +86,7 @@
             var NativeAudioContext = window.AudioContext;
             window.AudioContext = class extends NativeAudioContext {
                 constructor() {
-                    super();
+                    super(...arguments);
                     trackContext("live", this);
                 }
             };
@@ -87,7 +95,7 @@
             var NativeOfflineAudioContext = window.OfflineAudioContext;
             window.OfflineAudioContext = class extends NativeOfflineAudioContext {
                 constructor() {
-                    super();
+                    super(...arguments);
                     trackContext("offline", this);
                 }
             };
@@ -115,6 +123,9 @@
         if (sourcePrototype && sourcePrototype.start) {
             var nativeStart = sourcePrototype.start;
             sourcePrototype.start = function (when) {
+                // Record only starts the native call accepted: a rejected
+                // start never plays and must not enter the measurement.
+                var result = nativeStart.apply(this, arguments);
                 var context = this.context;
                 var scheduled = typeof when === "number" ? when : context ? context.currentTime : 0.0;
                 var rms = this.buffer ? bufferRms(this.buffer) : 0.0;
@@ -128,43 +139,55 @@
                 });
                 report.started += 1;
                 noteRms(rms);
-                if (typeof when === "number" && context && when < context.currentTime - 0.005) {
+                // start(0) and start() both request immediate playback; only
+                // an explicit time in the past is a late schedule.
+                if (typeof when === "number" && when > 0 && context && when < context.currentTime - 0.005) {
                     report.underruns += 1;
                 }
-                return nativeStart.apply(this, arguments);
+                return result;
             };
         }
 
         if (base && base.createScriptProcessor) {
             var nativeCreateScriptProcessor = base.createScriptProcessor;
+            var nativeOnAudioProcess = window.ScriptProcessorNode ? Object.getOwnPropertyDescriptor(ScriptProcessorNode.prototype, "onaudioprocess") : null;
             base.createScriptProcessor = function () {
                 var processor = nativeCreateScriptProcessor.apply(this, arguments);
                 report.processors += 1;
                 var handler = null;
                 var listening = false;
+                var listenOnce = function () {
+                    if (listening) {
+                        return;
+                    }
+                    listening = true;
+                    // Registered after the player's own handler, so this
+                    // measures the block the player filled, not silence.
+                    processor.addEventListener("audioprocess", function (event) {
+                        var buffer = event.outputBuffer;
+                        if (!buffer) {
+                            return;
+                        }
+                        var rms = bufferRms(buffer);
+                        note({
+                            kind: "process",
+                            rms: rms,
+                            duration: buffer.duration,
+                            channels: buffer.numberOfChannels,
+                        });
+                        noteRms(rms);
+                    });
+                };
                 Object.defineProperty(processor, "onaudioprocess", {
                     get: function () {
                         return handler;
                     },
                     set: function (value) {
                         handler = value;
-                        if (!listening) {
-                            listening = true;
-                            processor.addEventListener("audioprocess", function (event) {
-                                var buffer = event.outputBuffer;
-                                if (!buffer) {
-                                    return;
-                                }
-                                var rms = bufferRms(buffer);
-                                note({
-                                    kind: "process",
-                                    rms: rms,
-                                    duration: buffer.duration,
-                                    channels: buffer.numberOfChannels,
-                                });
-                                noteRms(rms);
-                            });
+                        if (nativeOnAudioProcess && nativeOnAudioProcess.set) {
+                            nativeOnAudioProcess.set.call(processor, value);
                         }
+                        queueMicrotask(listenOnce);
                     },
                 });
                 return processor;
@@ -181,10 +204,10 @@
         if (window.AudioWorkletNode) {
             var NativeAudioWorkletNode = window.AudioWorkletNode;
             window.AudioWorkletNode = class extends NativeAudioWorkletNode {
-                constructor(context, name) {
-                    super(context, name);
+                constructor() {
+                    super(...arguments);
                     report.worklets += 1;
-                    note({ kind: "worklet", name: String(name || "") });
+                    note({ kind: "worklet", name: String(arguments[1] || "") });
                 }
             };
         }

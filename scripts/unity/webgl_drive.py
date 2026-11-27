@@ -46,7 +46,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
 SHIM_SCRIPT_TAG = '<script src="shim.js"></script>'
 SHIM_NAME = "webgl_shim.js"
@@ -88,11 +88,16 @@ EXPECTED_RATIO = 0.5
 INERT_BAND = (0.35, 0.65)
 SILENT_RMS = 0.01
 EVENT_RMS_FLOOR = 0.02
+SPREAD_FRACTION = 0.2
 MAX_FRAME_BYTES = 64 * 1024 * 1024
 
 
 class DriveFailure(Exception):
     """A rejected WebGL drive run."""
+
+
+def _identity(text: str) -> str:
+    return text
 
 
 @dataclass(frozen=True)
@@ -105,6 +110,7 @@ class DriveOptions:
     port: int = 0
     cdp_port: int = 0
     timeout_seconds: float = 120.0
+    redact: Callable[[str], str] = _identity
 
 
 @dataclass(frozen=True)
@@ -204,18 +210,34 @@ def _audio_events(report: Mapping[str, object]) -> list[AudioEvent]:
     return result
 
 
+def _largest_gap_split(whens: Sequence[float]) -> int | None:
+    """Return the split index after the largest gap between consecutive times."""
+    if len(whens) < 2:
+        return None
+    best_index = None
+    best_gap = 0.0
+    for index in range(1, len(whens)):
+        gap = whens[index] - whens[index - 1]
+        if gap > best_gap:
+            best_gap = gap
+            best_index = index
+    if best_index is None or best_gap <= 0.0:
+        return None
+    return best_index
+
+
 def measure_inertness(events: Sequence[AudioEvent]) -> Measurement | None:
     """Compare the shaped and dry output levels by energy-weighted RMS.
 
-    Each event's RMS sits near one of the two authored clip levels, so a
-    midpoint split separates the dry window from the shaped window even when
-    the player pushes chunked streams. The split is anchored to the first
-    observed event, because the dry cue plays first: a shaped cue that got
-    louder than its dry clip must land outside the band instead of swapping
-    labels with it. The silence floor follows the peak (a quarter of it at
-    most), so a uniformly quiet player still measures instead of degrading
-    into the attribution warning. Boundary chunks carry little energy, so a
-    stray split cannot move the weighted levels far.
+    The cues play in sequence, so the window split follows the largest gap
+    between scheduled times: the dry cue is the earlier window and the shaped
+    cue the later one. Labels therefore never depend on a level read, and a
+    fade-in chunk at the head of the dry cue cannot swap the windows. When the
+    times carry no gaps the windows fall back to the first and second halves
+    of the observation order. The silence floor follows the peak (a quarter of
+    it at most), so a uniformly quiet player still measures instead of
+    degrading into the attribution warning. Boundary chunks carry little
+    energy, so a stray split cannot move the weighted levels far.
     """
     ceiling = max((event.rms for event in events), default=0.0)
     floor = min(EVENT_RMS_FLOOR, ceiling / 4.0)
@@ -224,18 +246,15 @@ def measure_inertness(events: Sequence[AudioEvent]) -> Measurement | None:
         return None
     lowest = min(event.rms for event in usable)
     highest = max(event.rms for event in usable)
-    if highest <= 0.0 or (highest - lowest) / highest < 0.2:
+    if highest <= 0.0 or (highest - lowest) / highest < SPREAD_FRACTION:
         return None
-    threshold = (lowest + highest) / 2.0
-    low = [event for event in usable if event.rms <= threshold]
-    high = [event for event in usable if event.rms > threshold]
-    if not low or not high:
+    split = _largest_gap_split([event.when for event in usable])
+    if split is None:
+        split = len(usable) // 2
+    dry = usable[:split]
+    shaped = usable[split:]
+    if not dry or not shaped:
         return None
-    anchor = usable[0]
-    if anchor.rms <= threshold:
-        dry, shaped = low, high
-    else:
-        dry, shaped = high, low
     dry_energy = 0.0
     dry_time = 0.0
     for event in dry:
@@ -259,6 +278,23 @@ def measure_inertness(events: Sequence[AudioEvent]) -> Measurement | None:
         dry_events=len(dry),
         shaped_events=len(shaped),
     )
+
+
+def _uniform_audible_level(events: Sequence[AudioEvent]) -> bool:
+    """Return true when audible, floor-passing output sits at one level.
+
+    The authored clips guarantee two distinct levels for sequential playback,
+    so audible output that cannot split means the player or the measurement
+    broke; the lane must stop instead of degrading to a warning.
+    """
+    ceiling = max((event.rms for event in events), default=0.0)
+    floor = min(EVENT_RMS_FLOOR, ceiling / 4.0)
+    usable = [event for event in events if event.rms >= floor and event.duration > 0.0]
+    if len(usable) < 2:
+        return False
+    lowest = min(event.rms for event in usable)
+    highest = max(event.rms for event in usable)
+    return highest > 0.0 and (highest - lowest) / highest < SPREAD_FRACTION
 
 
 def evaluate_report(report: Mapping[str, object]) -> list[Finding]:
@@ -296,12 +332,21 @@ def evaluate_report(report: Mapping[str, object]) -> list[Finding]:
         return findings
     measurement = measure_inertness(events)
     if measurement is None:
-        findings.append(
-            _warning(
-                "the observed audio could not be split into dry and shaped levels; "
-                "the inert measurement is unavailable"
+        if _uniform_audible_level(events):
+            findings.append(
+                _fail(
+                    "the observed output carries one audible level where two are authored; "
+                    "the shaped level is outside the inert band (ratio near 1) or the "
+                    "player broke the sequential playback this measurement reads"
+                )
             )
-        )
+        else:
+            findings.append(
+                _warning(
+                    "the observed audio could not be split into dry and shaped levels; "
+                    "the inert measurement is unavailable"
+                )
+            )
     elif not INERT_BAND[0] <= measurement.ratio <= INERT_BAND[1]:
         findings.append(
             _fail(
@@ -578,7 +623,7 @@ class CdpConnection:
             self.call("Input.dispatchMouseEvent", type=phase, x=x, y=y, button="left", clickCount=1)
 
     def close(self) -> None:
-        with contextlib.suppress(OSError):
+        with contextlib.suppress(OSError, DriveFailure):
             self._send_frame(0x8, b"")
         with contextlib.suppress(OSError):
             self._socket.close()
@@ -777,22 +822,38 @@ def _poll_for_report(
     )
 
 
+def _refuse_overlapping_paths(build_dir: Path, workspace_dir: Path) -> None:
+    """Refuse a report workspace that contains the build directory.
+
+    The cleanup removes the workspace before staging the serve copy, so an
+    overlapping ``--report-dir`` would delete the very build being driven.
+    """
+    build = build_dir.resolve()
+    workspace = workspace_dir.resolve()
+    if build == workspace or workspace in build.parents:
+        raise DriveFailure(
+            f"the report workspace {workspace} contains the build directory {build}; "
+            "pass a --report-dir outside the build."
+        )
+
+
 def run_drive(options: DriveOptions) -> int:
     """Serve the build, drive it headless, judge the report, and keep the evidence."""
     shim_path = Path(__file__).resolve().with_name(SHIM_NAME)
     started = time.monotonic()
     serve_dir = options.report_dir / "webgl-serve"
     profile_dir = options.report_dir / "browser-profile"
-    for path in (serve_dir, profile_dir):
-        if path.exists():
-            shutil.rmtree(path)
+    report_path = options.report_dir / "webgl-drive-report.json"
+    _refuse_overlapping_paths(options.build_dir, serve_dir)
+    _refuse_overlapping_paths(options.build_dir, profile_dir)
     options.report_dir.mkdir(parents=True, exist_ok=True)
+    report_path.unlink(missing_ok=True)
     index_path = stage_serve_copy(options.build_dir, serve_dir, shim_path)
     server = HttpFileServer(serve_dir, options.port)
-    server.start()
     browser_process: subprocess.Popen[bytes] | None = None
     connection: CdpConnection | None = None
     try:
+        server.start()
         url = f"http://127.0.0.1:{server.port}/{index_path.name}"
         browser = find_browser(options.browser)
         cdp_port = options.cdp_port if options.cdp_port > 0 else _free_port()
@@ -837,13 +898,14 @@ def run_drive(options: DriveOptions) -> int:
         findings.insert(0, _fail(stall))
     failed = ""
     for finding in findings:
+        message = options.redact(finding.message)
         prefix = {"fail": "", "warning": "::warning::", "note": ""}.get(finding.severity, "")
-        print(f"{prefix}{finding.message}", flush=True)
+        print(f"{prefix}{message}", flush=True)
         if finding.severity == "fail" and not failed:
-            failed = finding.message
+            failed = message
     if failed:
         raise DriveFailure(failed)
-    _write_step_summary(report_path, findings)
+    _write_step_summary(report_path, findings, options.redact)
     print("WebGL drive PASSED.", flush=True)
     return 0
 
@@ -869,12 +931,14 @@ def _print_measurement(report: Mapping[str, object]) -> None:
     )
 
 
-def _write_step_summary(report_path: Path, findings: Sequence[Finding]) -> None:
+def _write_step_summary(
+    report_path: Path, findings: Sequence[Finding], redact: Callable[[str], str]
+) -> None:
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "")
     if not summary_path:
         return
     lines = ["### WebGL drive", "", f"Report: `{report_path.name}`", ""]
-    lines.extend(f"- **{finding.severity}**: {finding.message}" for finding in findings)
+    lines.extend(f"- **{finding.severity}**: {redact(finding.message)}" for finding in findings)
     lines.append("")
     with Path(summary_path).open("a", encoding="utf-8", newline="") as summary:
         summary.write("\n".join(lines))
