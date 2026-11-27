@@ -261,13 +261,19 @@ jobs:
           DXAUDIO_CONSUMER_ARCHIVE: ${{ steps.pack.outputs.tarball }}
           RELEASE_VALIDATION: ${{ inputs.unitypackage_smoke || startsWith(github.ref, 'refs/heads/release-verify/v') }}
         run: |
+          # One check per invocation: the runner only inspects the last
+          # command's exit code, so a later success would mask an earlier
+          # validation failure without these guards.
           uv run --no-project scripts/unity/unity_validation.py run --archive-smoke
+          if ($LASTEXITCODE -ne 0) { throw "Unity validation failed with exit code $LASTEXITCODE." }
           uv run --no-project scripts/unity/unity_validation.py run --integration-player-smoke --label consumer-archive-integration --dxmessaging-version "3.3.0"
+          if ($LASTEXITCODE -ne 0) { throw "Unity validation failed with exit code $LASTEXITCODE." }
           if ($env:RELEASE_VALIDATION -eq 'true') {
             uv run --no-project .github/scripts/release_assets.py build $env:DXAUDIO_CONSUMER_ARCHIVE
             if ($LASTEXITCODE -ne 0) { throw 'Could not build the Unity import archive.' }
             $archive = [IO.Path]::ChangeExtension($env:DXAUDIO_CONSUMER_ARCHIVE, '.unitypackage')
-            uv run --no-project scripts/unity/unity_validation.py run --unity-import-archive $archive --label unitypackage-import
+            uv run --no-project scripts/unity/unity_validation.py run --unity-import-archive=$archive --label=unitypackage-import
+            if ($LASTEXITCODE -ne 0) { throw "Unity validation failed with exit code $LASTEXITCODE." }
           }
 
       - name: Require current PR head after Unity validation
