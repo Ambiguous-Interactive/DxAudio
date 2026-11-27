@@ -44,7 +44,7 @@ namespace WallstopStudios.DxAudio.Samples
             {
                 // Fade both ends so a one-shot does not click and a loop does not restart audibly.
                 float position = index / (float)sampleCount;
-                float envelope = Mathf.Min(position * 20f, (1f - position) * 20f);
+                float envelope = Mathf.Min(position * 20f, (1f - position) * 20f, 1f);
                 float secondsAtSample = index / (float)SampleRate;
                 samples[index] = Mathf.Sin(2f * Mathf.PI * frequencyHz * secondsAtSample) * 0.5f * envelope;
             }

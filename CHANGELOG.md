@@ -45,6 +45,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Fixed
 
+- Keep the Basic Usage sample tones inside the [-1, 1] range Unity requires, so the demo no longer clips its blip, hum, and music ([#198](https://github.com/Ambiguous-Interactive/DxAudio/issues/198)).
 - Keep the SFX per-play low-pass cutoff intact on 32-bit players, so a cue cannot start with a stale cutoff ([#192](https://github.com/Ambiguous-Interactive/DxAudio/issues/192)).
 - Keep short SFX rate-limit windows at their true length after hours of uptime, so rapid cues do not slow down ([#189](https://github.com/Ambiguous-Interactive/DxAudio/issues/189)).
 - Reject DSP graph layouts that would bypass the buffer limit through integer overflow ([#27](https://github.com/Ambiguous-Interactive/DxAudio/issues/27)).

@@ -543,7 +543,9 @@ def _manifest_dependencies(dxmessaging_version: str) -> dict[str, object]:
     return manifest
 
 
-def _check_receipt(log_path: Path, receipt: str, import_smoke: bool) -> None:
+def _check_receipt(
+    log_path: Path, receipt: str, import_smoke: bool, receipt_kind: str = "player script"
+) -> None:
     lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
     if any(line == receipt for line in lines):
         return
@@ -553,8 +555,32 @@ def _check_receipt(log_path: Path, receipt: str, import_smoke: bool) -> None:
             f"Unity did not emit the expected import validation receipt: {receipt}"
         )
     raise ValidationFailure(
-        f"Unity did not emit the expected player script validation receipt: {receipt}"
+        f"Unity did not emit the expected {receipt_kind} validation receipt: {receipt}"
     )
+
+
+def _validate_webgl_build(build_path: Path) -> None:
+    """Verify one WebGL build output and print its artifact inventory."""
+    index_path = build_path / "index.html"
+    if not index_path.is_file():
+        raise ValidationFailure(
+            f"Unity did not produce an index.html for the WebGL build: {build_path}"
+        )
+    wasm_files = sorted(build_path.rglob("*.wasm"))
+    data_files = sorted(build_path.rglob("*.data"))
+    if not wasm_files:
+        raise ValidationFailure("The WebGL build is missing its wasm artifact.")
+    if not data_files:
+        raise ValidationFailure("The WebGL build is missing its data artifact.")
+    total_bytes = 0
+    file_count = 0
+    for path in sorted(build_path.rglob("*")):
+        if path.is_file():
+            file_count += 1
+            total_bytes += path.stat().st_size
+    print(f"WebGL build inventory: {file_count} file(s), {total_bytes} byte(s).", flush=True)
+    for path in (index_path, wasm_files[0], data_files[0]):
+        print(f"  | {path.name}: {path.stat().st_size} byte(s)", flush=True)
 
 
 def _validate_results(
@@ -680,6 +706,58 @@ def _run_smoke(
     return [], "", 0.0
 
 
+def _stage_webgl_build(
+    package_root: Path,
+    project_path: Path,
+    assets_path: Path,
+    manifest: dict[str, object],
+) -> tuple[list[str], str]:
+    """Stage the package and the smoke scripts for one WebGL player build."""
+    prepare_script = Path(__file__).resolve().parents[2] / "scripts/unity/prepare-package.py"
+    prepare_args = [
+        sys.executable,
+        str(prepare_script),
+        "--source",
+        str(package_root),
+        "--destination",
+        str(project_path / "DxAudio"),
+    ]
+    staged = subprocess.run(  # noqa: S603 - fixed interpreter and repository script.
+        prepare_args,
+        cwd=package_root,
+        capture_output=True,
+        text=True,
+        errors="replace",
+        check=False,
+    )
+    if staged.returncode != 0:
+        raise ValidationFailure(
+            "Could not stage the analysis package (exit code "
+            f"{staged.returncode}).\n{staged.stdout}\n{staged.stderr}"
+        )
+    dependencies = manifest["dependencies"]
+    if not isinstance(dependencies, dict):
+        raise ValidationFailure("The package manifest has no dependency table.")
+    dependencies["com.wallstop-studios.dxaudio"] = "file:../DxAudio"
+    sources = (
+        (package_root / ".net-tests/UnityValidation/WebGlSmokeScene.cs", assets_path / "Editor"),
+        (package_root / ".net-tests/UnityValidation/WebGlSmokePlayer.cs", assets_path),
+    )
+    for source, destination in sources:
+        if not source.is_file():
+            raise ValidationFailure(f"The WebGL smoke script is missing: {source.name}")
+        destination.mkdir(parents=True, exist_ok=True)
+        (destination / source.name).write_bytes(source.read_bytes())
+    return (
+        [
+            "-quit",
+            "-executeMethod",
+            "WallstopStudios.DxAudio.Validation.WebGlSmokeScene.Run",
+        ],
+        "DxAudio WebGL build validation passed.",
+    )
+
+
 def run(options: argparse.Namespace) -> int:
     """Create the disposable project and validate one Unity run."""
     unity_version = options.unity_version
@@ -703,8 +781,10 @@ def run(options: argparse.Namespace) -> int:
     if artifacts_path.exists():
         shutil.rmtree(artifacts_path)
     artifacts_path.mkdir(parents=True)
+    webgl_mode = bool(options.webgl_build)
+    log_name = "webgl.log" if webgl_mode else "editmode.log"
     results_path = artifacts_path / "editmode-results.xml"
-    log_path = artifacts_path / "editmode.log"
+    log_path = artifacts_path / log_name
 
     project_path = Path(runner_temp) / f"dxaudio-unity-{run_label}"
     if project_path.exists():
@@ -719,14 +799,22 @@ def run(options: argparse.Namespace) -> int:
     manifest = _manifest_dependencies(options.dxmessaging_version)
     player_smoke = options.archive_smoke or options.integration_player_smoke
     import_smoke = bool(options.unity_import_archive)
+    if webgl_mode and (player_smoke or import_smoke or options.dxmessaging_version):
+        raise ValidationFailure(
+            "The WebGL build runs on its own: pass --webgl-build without the archive, "
+            "import, or DxMessaging modes."
+        )
+    webgl_args: list[str] = []
+    smoke_args: list[str] = []
+    receipt = ""
+    smoke_timeout = 0.0
     if options.unity_import_archive or player_smoke:
         smoke_args, receipt, smoke_timeout = _run_smoke(
             options, package_root, assets_path, packages_path, manifest
         )
+    elif webgl_mode:
+        webgl_args, receipt = _stage_webgl_build(package_root, project_path, assets_path, manifest)
     else:
-        smoke_args = []
-        receipt = ""
-        smoke_timeout = 0.0
         staged_package = project_path / "DxAudio"
         sample_path = assets_path / "BasicUsage"
         docs_path = assets_path / "DocSnippets"
@@ -793,6 +881,10 @@ def run(options: argparse.Namespace) -> int:
     if import_smoke or player_smoke:
         unity_args.extend(smoke_args)
         editor_timeout = smoke_timeout
+    elif webgl_mode:
+        unity_args.extend(["-buildTarget", "WebGL"])
+        unity_args.extend(webgl_args)
+        editor_timeout = float(min(options.editor_timeout_seconds, 3600))
     else:
         unity_args.extend(
             ["-runTests", "-testPlatform", "EditMode", "-testResults", str(results_path)]
@@ -810,6 +902,8 @@ def run(options: argparse.Namespace) -> int:
     environment["DXMESSAGING_VERSION"] = options.dxmessaging_version
     if options.unity_import_archive:
         environment["DXAUDIO_UNITYPACKAGE"] = options.unity_import_archive
+    if webgl_mode:
+        environment["DXAUDIO_WEBGL_OUTPUT"] = str(artifacts_path / "webgl-build")
 
     observation_path = artifacts_path / "process-observation.json"
     launch_started = time.monotonic()
@@ -828,7 +922,7 @@ def run(options: argparse.Namespace) -> int:
                 remaining,
                 options.editor_stall_seconds,
                 options.completion_grace_seconds,
-                not (player_smoke or import_smoke),
+                not (player_smoke or import_smoke or webgl_mode),
             )
             if (
                 observation.origin != "process-exit"
@@ -885,6 +979,10 @@ def run(options: argparse.Namespace) -> int:
     if import_smoke or player_smoke:
         _check_receipt(log_path, receipt, import_smoke)
         return 0
+    if webgl_mode:
+        _check_receipt(log_path, receipt, import_smoke, "WebGL build")
+        _validate_webgl_build(artifacts_path / "webgl-build")
+        return 0
     if not results_path.is_file():
         write_redacted_tail(log_path)
         raise ValidationFailure(f"Unity did not write an EditMode result file. Log: {log_path}")
@@ -903,6 +1001,7 @@ def run(options: argparse.Namespace) -> int:
 
 def tail(options: argparse.Namespace) -> int:
     """Print a redacted log tail and the failed NUnit cases for one run."""
+    lane = "EditMode" if options.log_name == "editmode.log" else "WebGL build"
     log_path = Path(options.log_path) if options.log_path else Path()
     results_path = Path(options.results_path) if options.results_path else Path()
     runner_temp = os.environ.get("RUNNER_TEMP", "")
@@ -910,15 +1009,15 @@ def tail(options: argparse.Namespace) -> int:
         run_label = run_name(options.unity_version, options.label)
         base = Path(runner_temp) / f"dxaudio-results-{run_label}"
         if not options.log_path:
-            log_path = base / "editmode.log"
+            log_path = base / options.log_name
         if not options.results_path:
             results_path = base / "editmode-results.xml"
-    print("Unity EditMode log tail (redacted):", flush=True)
+    print(f"Unity {lane} log tail (redacted):", flush=True)
     write_redacted_tail(log_path)
     if not results_path or not results_path.is_file():
-        print("Unity EditMode failures: no result file.", flush=True)
+        print(f"Unity {lane} failures: no result file.", flush=True)
         return 0
-    print("Unity EditMode failures:", flush=True)
+    print(f"Unity {lane} failures:", flush=True)
     try:
         root = parse_nunit_result(results_path)
         failed = 0
@@ -961,6 +1060,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--archive-smoke", action="store_true")
     run_parser.add_argument("--integration-player-smoke", action="store_true")
     run_parser.add_argument("--unity-import-archive", default="")
+    run_parser.add_argument("--webgl-build", action="store_true")
     run_parser.add_argument("--editor-timeout-seconds", type=int, default=2400)
     run_parser.add_argument("--editor-stall-seconds", type=int, default=300)
     run_parser.add_argument("--completion-grace-seconds", type=int, default=120)
@@ -969,6 +1069,7 @@ def build_parser() -> argparse.ArgumentParser:
     tail_parser = subparsers.add_parser("tail", help="print a redacted log tail")
     tail_parser.add_argument("--unity-version", default=os.environ.get("UNITY_VERSION", ""))
     tail_parser.add_argument("--label", default=os.environ.get("UNITY_TEST_LABEL", ""))
+    tail_parser.add_argument("--log-name", default="editmode.log")
     tail_parser.add_argument("--log-path", default="")
     tail_parser.add_argument("--results-path", default="")
     tail_parser.set_defaults(handler=tail)
