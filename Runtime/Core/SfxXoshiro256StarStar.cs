@@ -76,9 +76,19 @@ namespace WallstopStudios.DxAudio
             return (NextUInt64() >> 11) * UniformScale;
         }
 
-        /// <summary>Captures the four state words. A struct keeps no spare, so the spare is NaN.</summary>
+        /// <summary>
+        /// Captures the four state words. A default struct that has not drawn yet reports the seeded position its
+        /// first draw would take, so a capture from before that draw stays restorable. A struct keeps no spare, so
+        /// the spare is NaN.
+        /// </summary>
         public RandomStreamState Capture()
         {
+            if ((_s0 | _s1 | _s2 | _s3) == 0UL)
+            {
+                (ulong s0, ulong s1, ulong s2, ulong s3) = Expand(_seed);
+                return new RandomStreamState(s0, s1, s2, s3, double.NaN);
+            }
+
             return new RandomStreamState(_s0, _s1, _s2, _s3, double.NaN);
         }
 
@@ -111,7 +121,12 @@ namespace WallstopStudios.DxAudio
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_seed, _s0, _s1, _s2, _s3);
+            // The published fold over the five fields, so hash codes match for the same position across runs.
+            ulong hash = SfxRandomSeeds.Fold(_seed, _s0);
+            hash = SfxRandomSeeds.Fold(hash, _s1);
+            hash = SfxRandomSeeds.Fold(hash, _s2);
+            hash = SfxRandomSeeds.Fold(hash, _s3);
+            return unchecked((int)(hash ^ (hash >> 32)));
         }
     }
 }

@@ -55,11 +55,19 @@ namespace WallstopStudios.DxAudio
             return hash;
         }
 
+        /// <summary>
+        /// The one key fold from the published formula: mix64(state + Gamma * (k + 1)). Derivation folds keys with
+        /// this step; hashing folds fields with it.
+        /// </summary>
+        public static ulong Fold(ulong state, ulong key)
+        {
+            return Mix64(state + (Gamma * (key + 1UL)));
+        }
+
         /// <summary>Derives a seed from a root and one key, folding the key with the golden-ratio step.</summary>
         public static ulong Derive(ulong rootSeed, ulong key)
         {
-            ulong state = Mix64(rootSeed);
-            return Mix64(state + (Gamma * (key + 1UL)));
+            return Fold(Mix64(rootSeed), key);
         }
 
         /// <summary>
@@ -68,9 +76,7 @@ namespace WallstopStudios.DxAudio
         /// </summary>
         public static ulong Derive(ulong rootSeed, ulong firstKey, ulong secondKey)
         {
-            ulong state = Mix64(rootSeed);
-            state = Mix64(state + (Gamma * (firstKey + 1UL)));
-            return Mix64(state + (Gamma * (secondKey + 1UL)));
+            return Fold(Fold(Mix64(rootSeed), firstKey), secondKey);
         }
 
         /// <summary>

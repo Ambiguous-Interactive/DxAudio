@@ -369,6 +369,35 @@ namespace WallstopStudios.DxAudio.Tests.Editor
             Assert.That(stream.NextDouble(), Is.EqualTo(fresh.NextDouble()), "the zero seed makes a working stream");
         }
 
+        [Test]
+        public void ACaptureBeforeTheFirstDrawIsRestorable()
+        {
+            SfxXoshiro256StarStar generator = default;
+            RandomStreamState saved = generator.Capture();
+            Assert.That(saved.S0 == 0UL && saved.S1 == 0UL && saved.S2 == 0UL && saved.S3 == 0UL, Is.False, "the capture holds the seeded position, not zeros");
+
+            generator.NextUInt64();
+            generator.Restore(saved);
+
+            SfxXoshiro256StarStar reference = new(0UL);
+            Assert.That(generator.NextUInt64(), Is.EqualTo(reference.NextUInt64()), "the restored default replays its first draw");
+        }
+
+        [Test]
+        public void EqualStatesHashAlikeAndStably()
+        {
+            RandomStreamState state = new(1UL, 2UL, 3UL, 4UL, 0.5d);
+            int hash = state.GetHashCode();
+            int nanHash = new RandomStreamState(1UL, 2UL, 3UL, 4UL, double.NaN).GetHashCode();
+            SfxXoshiro256StarStar generator = new(7UL);
+            int generatorHash = generator.GetHashCode();
+
+            Assert.That(state.GetHashCode(), Is.EqualTo(hash), "one state keeps its hash");
+            Assert.That(new RandomStreamState(1UL, 2UL, 3UL, 4UL, 0.5d).GetHashCode(), Is.EqualTo(hash), "equal states hash alike");
+            Assert.That(new RandomStreamState(1UL, 2UL, 3UL, 4UL, double.NaN).GetHashCode(), Is.EqualTo(nanHash), "NaN spares hash alike");
+            Assert.That(new SfxXoshiro256StarStar(7UL).GetHashCode(), Is.EqualTo(generatorHash), "equal generators hash alike");
+        }
+
         [TestCase(double.NaN, 0.5d, TestName = "A NaN first uniform")]
         [TestCase(0.5d, double.NaN, TestName = "A NaN second uniform")]
         public void TheGaussianPairRejectsAnUnusableUniform(double firstUniform, double secondUniform)

@@ -37,7 +37,12 @@ namespace WallstopStudios.DxAudio
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(S0, S1, S2, S3, SpareGaussian);
+            // The published fold over the words and the spare's bits, so hashes match across runs, NaN spares included.
+            ulong hash = SfxRandomSeeds.Fold(S0, S1);
+            hash = SfxRandomSeeds.Fold(hash, S2);
+            hash = SfxRandomSeeds.Fold(hash, S3);
+            hash = SfxRandomSeeds.Fold(hash, unchecked((ulong)BitConverter.DoubleToInt64Bits(SpareGaussian)));
+            return unchecked((int)(hash ^ (hash >> 32)));
         }
     }
 }

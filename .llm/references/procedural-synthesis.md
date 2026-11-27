@@ -27,8 +27,10 @@ documentation; the first two sinks are therefore the only paths that work everyw
 [OnAudioFilterRead](https://docs.unity3d.com/2021.3/Documentation/ScriptReference/MonoBehaviour.OnAudioFilterRead.html),
 [AudioClip.Create](https://docs.unity3d.com/2021.3/Documentation/ScriptReference/AudioClip.Create.html), and
 [PlayScheduled](https://docs.unity3d.com/2021.3/Documentation/ScriptReference/AudioSource.PlayScheduled.html)
-in the 2021.3 scripting reference. The Scriptable Audio Pipeline and Web streaming limits, the volume-only mixer
-support, and the complete source list are recorded with citations in the local `progress/synthesis/01-web-platform.md`.
+in the 2021.3 scripting reference, plus the
+[Audio in WebGL](https://docs.unity3d.com/2021.3/Documentation/Manual/webgl-audio.html) manual. The Scriptable
+Audio Pipeline and Web streaming limits, the volume-only mixer support, and the complete source list are recorded
+with citations in the local `progress/synthesis/01-web-platform.md`.
 
 **Reopen if:** Unity ships a managed audio path on Web, or a measured game needs a sink this table
 cannot express.
