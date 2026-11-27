@@ -4,6 +4,11 @@ namespace WallstopStudios.DxAudio
     using System.Threading;
 
     /// <summary>Applies editor audition gain and captures the resulting listener samples.</summary>
+    /// <remarks>
+    /// Editor-only: <c>AudioMixBus.TryAttachPeakTap</c> creates this tap under <c>UNITY_EDITOR</c>, and the Mix
+    /// Monitor uses it from the editor assembly. Its 64-bit <c>Interlocked</c> pairs therefore run on the 64-bit
+    /// editor.
+    /// </remarks>
     internal sealed class StereoPeakTap
     {
         private const long UnreadEmpty = long.MinValue;
@@ -13,7 +18,7 @@ namespace WallstopStudios.DxAudio
         {
             set
             {
-                long state = Volatile.Read(ref _audition);
+                long state = Interlocked.Read(ref _audition);
                 while (true)
                 {
                     long observed = Interlocked.CompareExchange(ref _audition, Pack(Left(state), value), state);
@@ -101,7 +106,7 @@ namespace WallstopStudios.DxAudio
             }
 
             // Clear and publish whole pairs so a read cannot move only one channel to the next interval.
-            long previous = Volatile.Read(ref _pending);
+            long previous = Interlocked.Read(ref _pending);
             while (true)
             {
                 long next = previous == UnreadEmpty ? Pack(left, right) : Pack(Math.Max(left, Left(previous)), Math.Max(right, Right(previous)));
@@ -138,7 +143,7 @@ namespace WallstopStudios.DxAudio
 
         private void ApplyAudition(float[] samples, int channels)
         {
-            long state = Volatile.Read(ref _audition);
+            long state = Interlocked.Read(ref _audition);
             float start = Left(state);
             float target = Right(state);
             if (target == 1f && start == 1f)

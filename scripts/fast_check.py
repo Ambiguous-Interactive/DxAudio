@@ -246,7 +246,7 @@ def build_steps(plan: FastCheckPlan) -> Tuple[Tuple[CheckStep, ...], Tuple[Check
                 ("dotnet", "tool", "run", "csharpier", "--", "format", *plan.csharp),
             )
         )
-        # The three source lints are independent read-only scans of the same
+        # The source lints are independent read-only scans of the same
         # C# tree, so they run side by side after the format. They are
         # per-file policies, so they scan only the changed files: an
         # unchanged file cannot newly violate one, and the per-edit loop
@@ -255,6 +255,7 @@ def build_steps(plan: FastCheckPlan) -> Tuple[Tuple[CheckStep, ...], Tuple[Check
             ("csharp.null-assertions", "scripts/lint_csharp_null_assertions.py"),
             ("csharp.usings", "scripts/lint_csharp_usings.py"),
             ("csharp.enum-defaults", "scripts/lint_enum_defaults.py"),
+            ("csharp.atomic-state", "scripts/lint_atomic_state.py"),
         ):
             quick.append(
                 CheckStep(name, name, (*_PYTHON_LAUNCHER, script, "--paths", *plan.csharp), ("csharp.format",))

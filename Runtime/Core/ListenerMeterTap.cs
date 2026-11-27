@@ -4,6 +4,11 @@ namespace WallstopStudios.DxAudio
     using System.Threading;
 
     /// <summary>Moves listener blocks from the audio callback to the editor meters.</summary>
+    /// <remarks>
+    /// Editor-only: <see cref="StereoPeakTap"/> creates this tap from <c>AudioMixBus.TryAttachPeakTap</c>, which is
+    /// compiled only under <c>UNITY_EDITOR</c>. Its 64-bit <c>Interlocked</c> reads therefore run on the 64-bit
+    /// editor, never in a player audio callback.
+    /// </remarks>
     internal sealed class ListenerMeterTap
     {
         // Over 300 ms at 48 kHz and eight channels, with a normal read every 50 ms.
@@ -11,7 +16,7 @@ namespace WallstopStudios.DxAudio
         private const int Mask = Capacity - 1;
         private const int HeaderSize = 3;
 
-        internal int SampleRate => unchecked((int)Volatile.Read(ref _format));
+        internal int SampleRate => unchecked((int)Interlocked.Read(ref _format));
 
         private readonly float[] _queue = new float[Capacity];
         private readonly TruePeakFilter _filter = new();
@@ -32,13 +37,13 @@ namespace WallstopStudios.DxAudio
         internal void SetSampleRate(int sampleRate)
         {
             // Publish the rate and its revision together, including resets at the same rate.
-            int revision = unchecked((int)(Volatile.Read(ref _format) >> 32) + 1);
-            Volatile.Write(ref _format, ((long)revision << 32) | (uint)sampleRate);
+            int revision = unchecked((int)(Interlocked.Read(ref _format) >> 32) + 1);
+            Interlocked.Exchange(ref _format, ((long)revision << 32) | (uint)sampleRate);
         }
 
         internal void Enqueue(float[] samples, int channels)
         {
-            int revision = (int)(Volatile.Read(ref _format) >> 32);
+            int revision = (int)(Interlocked.Read(ref _format) >> 32);
             // ProcessBuffer can also be driven explicitly while Unity is delivering audio.
             if (Interlocked.CompareExchange(ref _writing, 1, 0) != 0)
             {
@@ -60,7 +65,7 @@ namespace WallstopStudios.DxAudio
         internal bool TryRead(out float peak, out bool overrun, MasterLoudness loudness)
         {
             int end = Volatile.Read(ref _written);
-            long format = Volatile.Read(ref _format);
+            long format = Interlocked.Read(ref _format);
             int revision = (int)(format >> 32);
             int sampleRate = unchecked((int)format);
             if (_readRevision != revision)

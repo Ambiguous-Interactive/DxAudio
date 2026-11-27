@@ -4,6 +4,7 @@ namespace WallstopStudios.DxAudio
     using System.Threading;
 
     /// <summary>Transfers paired stereo windows from one audition audio thread to the editor.</summary>
+    /// <remarks>Editor-only: the graph audition panel creates this tap, so its 64-bit pairs run on the 64-bit editor.</remarks>
     internal sealed class DspGraphSpectrumTap
     {
         internal int SampleRate { get; }
@@ -26,11 +27,11 @@ namespace WallstopStudios.DxAudio
         internal void Select(int node)
         {
             // The editor is the sole writer. A generation distinguishes A → B → A from an unchanged A.
-            long previous = Volatile.Read(ref _selection);
+            long previous = Interlocked.Read(ref _selection);
             if (unchecked((int)previous) != node)
             {
                 long generation = (previous >> 32) + 1;
-                Volatile.Write(ref _selection, (generation << 32) | unchecked((uint)node));
+                Interlocked.Exchange(ref _selection, (generation << 32) | unchecked((uint)node));
             }
         }
 
@@ -41,7 +42,7 @@ namespace WallstopStudios.DxAudio
                 return false;
             }
 
-            bool current = _capturedSelection == Volatile.Read(ref _selection);
+            bool current = Interlocked.Read(ref _capturedSelection) == Interlocked.Read(ref _selection);
             if (current)
             {
                 Array.Copy(_input, input, _input.Length);
@@ -60,10 +61,11 @@ namespace WallstopStudios.DxAudio
                 return -1;
             }
 
-            long selection = Volatile.Read(ref _selection);
-            if (_capturedSelection != selection)
+            long selection = Interlocked.Read(ref _selection);
+            if (Interlocked.Read(ref _capturedSelection) != selection)
             {
-                _capturedSelection = selection;
+                // The _ready handshake serializes this field; Interlocked keeps the 64-bit compare whole.
+                Interlocked.Exchange(ref _capturedSelection, selection);
                 _written = 0;
             }
 
