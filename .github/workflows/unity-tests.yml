@@ -206,7 +206,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_TEST_LABEL: no-integration
           DXMESSAGING_VERSION: ""
-        run: ./scripts/unity/run-editmode-tests.ps1
+        run: uv run --no-project scripts/unity/unity_validation.py run
 
       - name: Run EditMode tests with the optional integration
         id: run_editmode_integration
@@ -220,7 +220,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_TEST_LABEL: integration
           DXMESSAGING_VERSION: "3.3.0"
-        run: ./scripts/unity/run-editmode-tests.ps1
+        run: uv run --no-project scripts/unity/unity_validation.py run
 
       - name: Report the log tail without the optional integration
         if: ${{ failure() && steps.run_editmode_plain.outcome == 'failure' }}
@@ -232,7 +232,7 @@ jobs:
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        run: ./scripts/unity/show-editmode-log-tail.ps1
+        run: uv run --no-project scripts/unity/unity_validation.py tail
 
       - name: Report the log tail with the optional integration
         if: ${{ failure() && steps.run_editmode_integration.outcome == 'failure' }}
@@ -244,7 +244,7 @@ jobs:
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        run: ./scripts/unity/show-editmode-log-tail.ps1
+        run: uv run --no-project scripts/unity/unity_validation.py tail
 
       - name: Verify standalone player scripts with and without the optional integration
         if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
@@ -261,13 +261,13 @@ jobs:
           DXAUDIO_CONSUMER_ARCHIVE: ${{ steps.pack.outputs.tarball }}
           RELEASE_VALIDATION: ${{ inputs.unitypackage_smoke || startsWith(github.ref, 'refs/heads/release-verify/v') }}
         run: |
-          ./scripts/unity/run-editmode-tests.ps1 -ArchiveSmoke
-          ./scripts/unity/run-editmode-tests.ps1 -IntegrationPlayerSmoke -Label consumer-archive-integration -DxMessagingVersion "3.3.0"
+          uv run --no-project scripts/unity/unity_validation.py run --archive-smoke
+          uv run --no-project scripts/unity/unity_validation.py run --integration-player-smoke --label consumer-archive-integration --dxmessaging-version "3.3.0"
           if ($env:RELEASE_VALIDATION -eq 'true') {
             uv run --no-project .github/scripts/release_assets.py build $env:DXAUDIO_CONSUMER_ARCHIVE
             if ($LASTEXITCODE -ne 0) { throw 'Could not build the Unity import archive.' }
             $archive = [IO.Path]::ChangeExtension($env:DXAUDIO_CONSUMER_ARCHIVE, '.unitypackage')
-            ./scripts/unity/run-editmode-tests.ps1 -UnityImportArchive $archive -Label unitypackage-import
+            uv run --no-project scripts/unity/unity_validation.py run --unity-import-archive $archive --label unitypackage-import
           }
 
       - name: Require current PR head after Unity validation
