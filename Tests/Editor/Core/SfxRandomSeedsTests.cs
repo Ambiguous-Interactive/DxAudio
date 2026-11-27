@@ -23,9 +23,15 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
-        public void ChainingKeysMatchesTheTwoKeyOverload()
+        public void DerivingFoldsKeysInThePublishedOrder()
         {
-            Assert.That(SfxRandomSeeds.Derive(7UL, 100UL, 1UL), Is.EqualTo(SfxRandomSeeds.Derive(SfxRandomSeeds.Derive(7UL, 100UL), 1UL)), "the variadic form is the chained form");
+            // Vectors computed from the published formula, spec 02: the state starts at mix64 of the root, and
+            // each key folds once as mix64(state + Gamma * (k + 1)). They pin the fold order against an
+            // independent computation.
+            Assert.That(SfxRandomSeeds.Derive(7UL, 100UL), Is.EqualTo(0x7B49F1065D5FADA7UL), "the one-key fold");
+            Assert.That(SfxRandomSeeds.Derive(7UL, 100UL, 1UL), Is.EqualTo(0xF70A9BF473A46594UL), "the two-key fold");
+            Assert.That(SfxRandomSeeds.NodeSeed(7UL, "graph/bed", 2UL), Is.EqualTo(0x7627EA94936FD162UL), "a node seed");
+            Assert.That(SfxRandomSeeds.NodeSeed(0UL, "impacts/hit", 0UL), Is.EqualTo(0x5D704D09B56EA1B5UL), "a second node seed");
         }
 
         [TestCase(0UL, "impacts/hit", 0UL, TestName = "The first instance of a path")]

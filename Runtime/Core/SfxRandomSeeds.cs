@@ -62,10 +62,15 @@ namespace WallstopStudios.DxAudio
             return Mix64(state + (Gamma * (key + 1UL)));
         }
 
-        /// <summary>Derives a seed from a root and two keys, chaining the one-key form.</summary>
+        /// <summary>
+        /// Derives a seed from a root and two keys, folding each key in the published order: the state starts at
+        /// mix64 of the root, and every key folds once without re-mixing the state in between.
+        /// </summary>
         public static ulong Derive(ulong rootSeed, ulong firstKey, ulong secondKey)
         {
-            return Derive(Derive(rootSeed, firstKey), secondKey);
+            ulong state = Mix64(rootSeed);
+            state = Mix64(state + (Gamma * (firstKey + 1UL)));
+            return Mix64(state + (Gamma * (secondKey + 1UL)));
         }
 
         /// <summary>
