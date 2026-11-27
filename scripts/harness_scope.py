@@ -115,6 +115,9 @@ SUBJECTS_BY_PATH: Dict[str, Tuple[str, ...]] = {
     "scripts/unity/unity_validation.py": ("test_unity_validation.py",),
     "scripts/unity/unity_validation.py.meta": ("test_unity_validation.py",),
     "scripts/tests/test_unity_validation.py.meta": ("test_unity_validation.py",),
+    # Retired compatibility shims (issues #171 and #120) keep their entries so
+    # a deletion still selects the Unity validation contract suite, instead of
+    # failing safe to the full suite.
     "scripts/unity/run-editmode-tests.ps1": ("test_unity_validation.py",),
     "scripts/unity/show-editmode-log-tail.ps1": ("test_unity_validation.py",),
     "scripts/unity/unity-log.ps1": ("test_unity_validation.py",),

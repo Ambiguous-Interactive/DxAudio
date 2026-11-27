@@ -32,13 +32,8 @@
     "unity": {
       "path": ".github/workflows/unity-tests.yml",
       "job": "unity-tests",
-      "run": "./scripts/unity/run-editmode-tests.ps1",
-      "files": [
-        ".net-tests/UnityValidation/test_runner.py",
-        "scripts/unity/run-editmode-tests.ps1",
-        "scripts/unity/show-editmode-log-tail.ps1",
-        "scripts/unity/unity_validation.py"
-      ]
+      "run": "uv run --no-project scripts/unity/unity_validation.py run",
+      "files": [".net-tests/UnityValidation/test_runner.py", "scripts/unity/unity_validation.py"]
     },
     "unity-controls": {
       "path": ".github/workflows/ci.yml",
@@ -49,8 +44,8 @@
     "unity-archive": {
       "path": ".github/workflows/unity-tests.yml",
       "job": "unity-tests",
-      "run": "./scripts/unity/run-editmode-tests.ps1 -ArchiveSmoke",
-      "files": ["scripts/unity/run-editmode-tests.ps1", ".net-tests/UnityValidation/test_runner.py", "scripts/unity/unity_validation.py"]
+      "run": "uv run --no-project scripts/unity/unity_validation.py run --archive-smoke",
+      "files": [".net-tests/UnityValidation/test_runner.py", "scripts/unity/unity_validation.py"]
     },
     "metadata": {
       "path": ".github/workflows/ci.yml",
@@ -147,7 +142,7 @@
     "unity-failure-report": {
       "path": ".github/workflows/unity-tests.yml",
       "job": "unity-tests",
-      "run": "./scripts/unity/show-editmode-log-tail.ps1",
+      "run": "uv run --no-project scripts/unity/unity_validation.py tail",
       "files": [".net-tests/UnityValidation/test_runner.py", "scripts/unity/unity_validation.py"]
     },
     "harness-self-tests": {
@@ -183,13 +178,8 @@
     "unity-integration-player": {
       "path": ".github/workflows/unity-tests.yml",
       "job": "unity-tests",
-      "run": "./scripts/unity/run-editmode-tests.ps1 -IntegrationPlayerSmoke -Label consumer-archive-integration -DxMessagingVersion \"3.3.0\"",
-      "files": [
-        ".net-tests/UnityValidation/ArchiveSmoke.cs",
-        ".net-tests/UnityValidation/test_runner.py",
-        "scripts/unity/run-editmode-tests.ps1",
-        "scripts/unity/unity_validation.py"
-      ]
+      "run": "uv run --no-project scripts/unity/unity_validation.py run --integration-player-smoke --label consumer-archive-integration --dxmessaging-version \"3.3.0\"",
+      "files": [".net-tests/UnityValidation/ArchiveSmoke.cs", ".net-tests/UnityValidation/test_runner.py", "scripts/unity/unity_validation.py"]
     },
     "csharpier": {
       "path": ".github/workflows/ci.yml",
