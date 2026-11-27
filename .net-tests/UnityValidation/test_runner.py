@@ -167,6 +167,22 @@ if "-runTests" in args:
         with log.open("a", encoding="utf-8") as stream:
             stream.write("[Licensing::Client] Error: Code 20111\n")
         raise SystemExit(4)
+elif "-buildTarget" in args:
+    if not (project / "DxAudio").is_dir():
+        raise SystemExit(1)
+    method = value("-executeMethod")
+    if not method.endswith(".WebGlSmokeScene.Run") or value("-buildTarget") != "WebGL":
+        raise SystemExit(2)
+    if control != "webgl-missing-receipt":
+        output = os.environ.get("DXAUDIO_WEBGL_OUTPUT", "")
+        if control != "webgl-missing-artifacts" and output:
+            build = Path(output)
+            (build / "Build").mkdir(parents=True, exist_ok=True)
+            (build / "index.html").write_text("<html></html>", encoding="utf-8")
+            (build / "Build" / "smoke.wasm").write_bytes(b"wasm")
+            (build / "Build" / "smoke.data").write_bytes(b"data")
+        with log.open("a", encoding="utf-8") as stream:
+            stream.write("DxAudio WebGL build validation passed.\n")
 elif control != "missing-receipt":
     if "-runTests" in args or "-quit" not in args:
         raise SystemExit(2)
@@ -226,7 +242,13 @@ class UnityRunnerTests(unittest.TestCase):
             (self.fixture / path / (path + ".asmdef")).write_text("{}", encoding="utf-8")
         (self.fixture / "package.json").write_text("{}", encoding="utf-8")
         (self.fixture / ".net-tests" / "prepare_analyzers.py").write_text(FAKE_FETCH, encoding="utf-8")
-        for path in ("UnityHelpers.ruleset", "UnityValidation/ArchiveSmoke.cs", "UnityValidation/AnalyzerActivation.cs"):
+        for path in (
+            "UnityHelpers.ruleset",
+            "UnityValidation/ArchiveSmoke.cs",
+            "UnityValidation/AnalyzerActivation.cs",
+            "UnityValidation/WebGlSmokeScene.cs",
+            "UnityValidation/WebGlSmokePlayer.cs",
+        ):
             shutil.copy2(ROOT / ".net-tests" / path, self.fixture / ".net-tests" / path)
         (self.fixture / ".github/scripts").mkdir(parents=True)
         shutil.copy2(ROOT / ".github/scripts/compile_docs_snippets.py", self.fixture / ".github/scripts")
@@ -314,6 +336,38 @@ class UnityRunnerTests(unittest.TestCase):
         for control, integration, expected in cases:
             with self.subTest(control=control):
                 status, log = self.run_validation(control=control, integration=integration)
+                self.assertNotEqual(status, 0, log)
+                self.assertIn(expected, log)
+
+    def test_webgl_build_requires_receipt_and_artifacts(self):
+        status, log = self.run_validation("--webgl-build")
+        self.assertEqual(status, 0, log)
+        project = self.root / f"dxaudio-unity-{VERSION}-control"
+        self.assertTrue((project / "Assets/Editor/WebGlSmokeScene.cs").is_file())
+        self.assertTrue((project / "Assets/WebGlSmokePlayer.cs").is_file())
+        manifest = json.loads((project / "Packages/manifest.json").read_text(encoding="utf-8-sig"))
+        self.assertNotIn("testables", manifest)
+        self.assertNotIn("com.unity.test-framework", manifest["dependencies"])
+        self.assertEqual(
+            manifest["dependencies"]["com.wallstop-studios.dxaudio"], "file:../DxAudio"
+        )
+        build = self.root / f"dxaudio-results-{VERSION}-control" / "webgl-build"
+        self.assertTrue((build / "index.html").is_file())
+        self.assertTrue(list(build.rglob("*.wasm")), "the build inventory needs a wasm artifact")
+        self.assertTrue(list(build.rglob("*.data")), "the build inventory needs a data artifact")
+        self.assertIn("WebGL build inventory:", log)
+        self.assertFalse(
+            (self.root / f"dxaudio-results-{VERSION}-control" / "editmode-results.xml").exists()
+        )
+        self.assertTrue(
+            (self.root / f"dxaudio-results-{VERSION}-control" / "webgl.log").is_file()
+        )
+        for control, expected in (
+            ("webgl-missing-receipt", "did not emit the expected WebGL build validation receipt"),
+            ("webgl-missing-artifacts", "did not produce an index.html for the WebGL build"),
+        ):
+            with self.subTest(control=control):
+                status, log = self.run_validation("--webgl-build", control=control)
                 self.assertNotEqual(status, 0, log)
                 self.assertIn(expected, log)
 
