@@ -16,10 +16,12 @@ on:
 concurrency:
   # The organization enrollment contract (build-lock #274) requires literal
   # `cancel-in-progress: true`: a queued superseded run wastes a paid
-  # self-hosted seat. Cancellation is safe for licensed work because the
-  # acquire action releases before activation, the cleanup chain runs under
-  # `if: always()`, and the scheduled reaper recovers a dead holder.
-  group: webgl-build-${{ github.event.pull_request.number || github.ref }}
+  # self-hosted seat. The event name is part of the group so a push to main
+  # cannot cancel a manual run for another event. Cancellation is safe for
+  # licensed work because the acquire action releases before activation, the
+  # cleanup chain runs under `if: always()`, and the scheduled reaper recovers
+  # a dead holder.
+  group: webgl-build-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:

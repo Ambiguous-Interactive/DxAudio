@@ -799,6 +799,11 @@ def run(options: argparse.Namespace) -> int:
     manifest = _manifest_dependencies(options.dxmessaging_version)
     player_smoke = options.archive_smoke or options.integration_player_smoke
     import_smoke = bool(options.unity_import_archive)
+    if webgl_mode and (player_smoke or import_smoke or options.dxmessaging_version):
+        raise ValidationFailure(
+            "The WebGL build runs on its own: pass --webgl-build without the archive, "
+            "import, or DxMessaging modes."
+        )
     webgl_args: list[str] = []
     smoke_args: list[str] = []
     receipt = ""
@@ -996,6 +1001,7 @@ def run(options: argparse.Namespace) -> int:
 
 def tail(options: argparse.Namespace) -> int:
     """Print a redacted log tail and the failed NUnit cases for one run."""
+    lane = "EditMode" if options.log_name == "editmode.log" else "WebGL build"
     log_path = Path(options.log_path) if options.log_path else Path()
     results_path = Path(options.results_path) if options.results_path else Path()
     runner_temp = os.environ.get("RUNNER_TEMP", "")
@@ -1006,12 +1012,12 @@ def tail(options: argparse.Namespace) -> int:
             log_path = base / options.log_name
         if not options.results_path:
             results_path = base / "editmode-results.xml"
-    print("Unity EditMode log tail (redacted):", flush=True)
+    print(f"Unity {lane} log tail (redacted):", flush=True)
     write_redacted_tail(log_path)
     if not results_path or not results_path.is_file():
-        print("Unity EditMode failures: no result file.", flush=True)
+        print(f"Unity {lane} failures: no result file.", flush=True)
         return 0
-    print("Unity EditMode failures:", flush=True)
+    print(f"Unity {lane} failures:", flush=True)
     try:
         root = parse_nunit_result(results_path)
         failed = 0

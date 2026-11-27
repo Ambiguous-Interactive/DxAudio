@@ -168,6 +168,8 @@ if "-runTests" in args:
             stream.write("[Licensing::Client] Error: Code 20111\n")
         raise SystemExit(4)
 elif "-buildTarget" in args:
+    if "-quit" not in args:
+        raise SystemExit(2)
     if not (project / "DxAudio").is_dir():
         raise SystemExit(1)
     method = value("-executeMethod")
@@ -180,7 +182,8 @@ elif "-buildTarget" in args:
             (build / "Build").mkdir(parents=True, exist_ok=True)
             (build / "index.html").write_text("<html></html>", encoding="utf-8")
             (build / "Build" / "smoke.wasm").write_bytes(b"wasm")
-            (build / "Build" / "smoke.data").write_bytes(b"data")
+            if control != "webgl-partial-artifacts":
+                (build / "Build" / "smoke.data").write_bytes(b"data")
         with log.open("a", encoding="utf-8") as stream:
             stream.write("DxAudio WebGL build validation passed.\n")
 elif control != "missing-receipt":
@@ -365,9 +368,19 @@ class UnityRunnerTests(unittest.TestCase):
         for control, expected in (
             ("webgl-missing-receipt", "did not emit the expected WebGL build validation receipt"),
             ("webgl-missing-artifacts", "did not produce an index.html for the WebGL build"),
+            ("webgl-partial-artifacts", "The WebGL build is missing its data artifact."),
         ):
             with self.subTest(control=control):
                 status, log = self.run_validation("--webgl-build", control=control)
+                self.assertNotEqual(status, 0, log)
+                self.assertIn(expected, log)
+        for arguments, expected in (
+            (("--webgl-build", "--archive-smoke"), "The WebGL build runs on its own"),
+            (("--webgl-build", "--integration-player-smoke"), "The WebGL build runs on its own"),
+            (("--webgl-build", "--dxmessaging-version", "3.3.0"), "The WebGL build runs on its own"),
+        ):
+            with self.subTest(arguments=arguments):
+                status, log = self.run_validation(*arguments, archive=self.archive)
                 self.assertNotEqual(status, 0, log)
                 self.assertIn(expected, log)
 
