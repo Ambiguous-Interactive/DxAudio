@@ -179,11 +179,7 @@
       "path": ".github/workflows/unity-tests.yml",
       "job": "unity-tests",
       "run": "uv run --no-project scripts/unity/unity_validation.py run --integration-player-smoke --label consumer-archive-integration --dxmessaging-version \"3.3.0\"",
-      "files": [
-        ".net-tests/UnityValidation/ArchiveSmoke.cs",
-        ".net-tests/UnityValidation/test_runner.py",
-        "scripts/unity/unity_validation.py"
-      ]
+      "files": [".net-tests/UnityValidation/ArchiveSmoke.cs", ".net-tests/UnityValidation/test_runner.py", "scripts/unity/unity_validation.py"]
     },
     "csharpier": {
       "path": ".github/workflows/ci.yml",
