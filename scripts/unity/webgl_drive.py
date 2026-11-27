@@ -88,6 +88,7 @@ EXPECTED_RATIO = 0.5
 INERT_BAND = (0.35, 0.65)
 SILENT_RMS = 0.01
 EVENT_RMS_FLOOR = 0.02
+MAX_FRAME_BYTES = 64 * 1024 * 1024
 
 
 class DriveFailure(Exception):
@@ -211,10 +212,14 @@ def measure_inertness(events: Sequence[AudioEvent]) -> Measurement | None:
     the player pushes chunked streams. The split is anchored to the first
     observed event, because the dry cue plays first: a shaped cue that got
     louder than its dry clip must land outside the band instead of swapping
-    labels with it. Boundary chunks carry little energy, so a stray split
-    cannot move the weighted levels far.
+    labels with it. The silence floor follows the peak (a quarter of it at
+    most), so a uniformly quiet player still measures instead of degrading
+    into the attribution warning. Boundary chunks carry little energy, so a
+    stray split cannot move the weighted levels far.
     """
-    usable = [event for event in events if event.rms >= EVENT_RMS_FLOOR and event.duration > 0.0]
+    ceiling = max((event.rms for event in events), default=0.0)
+    floor = min(EVENT_RMS_FLOOR, ceiling / 4.0)
+    usable = [event for event in events if event.rms >= floor and event.duration > 0.0]
     if len(usable) < 2:
         return None
     lowest = min(event.rms for event in usable)
@@ -320,6 +325,13 @@ def evaluate_report(report: Mapping[str, object]) -> list[Finding]:
     if page_errors:
         shown = "; ".join(str(entry) for entry in page_errors[:3])
         findings.append(_warning(f"the page reported {len(page_errors)} error(s): {shown}"))
+    dropped = _coerce_int(report.get("droppedEvents"))
+    if dropped > 0:
+        findings.append(
+            _warning(
+                f"the shim dropped {dropped} event(s) at its record cap; the report is partial"
+            )
+        )
     return findings
 
 
@@ -491,34 +503,38 @@ class CdpConnection:
 
     def __init__(self, host: str, port: int, path: str, timeout_seconds: float = 10.0) -> None:
         self._socket = socket.create_connection((host, port), timeout=timeout_seconds)
-        self._timeout_seconds = timeout_seconds
-        self._next_id = 0
-        key = base64.b64encode(os.urandom(16)).decode("ascii")
-        request = (
-            f"GET {path} HTTP/1.1\r\n"
-            f"Host: {host}:{port}\r\n"
-            "Upgrade: websocket\r\n"
-            "Connection: Upgrade\r\n"
-            f"Sec-WebSocket-Key: {key}\r\n"
-            "Sec-WebSocket-Version: 13\r\n"
-            "\r\n"
-        )
-        self._send_all(request.encode("ascii"))
-        expected = base64.b64encode(
-            hashlib.sha1((key + WEBSOCKET_GUID).encode("ascii")).digest()  # noqa: S324 - RFC 6455 mandates SHA-1 here.
-        ).decode("ascii")
-        response = self._read_http_head()
-        header_lines = response.split("\r\n")
-        status_parts = header_lines[0].split() if header_lines else []
-        if len(status_parts) < 2 or status_parts[1] != "101":
-            raise DriveFailure(f"the browser refused the DevTools upgrade: {header_lines[0]!r}")
-        headers: dict[str, str] = {}
-        for line in header_lines[1:]:
-            name, separator, value = line.partition(":")
-            if separator:
-                headers[name.strip().lower()] = value.strip()
-        if headers.get("sec-websocket-accept", "") != expected:
-            raise DriveFailure("the browser returned a wrong Sec-WebSocket-Accept value.")
+        try:
+            self._timeout_seconds = timeout_seconds
+            self._next_id = 0
+            key = base64.b64encode(os.urandom(16)).decode("ascii")
+            request = (
+                f"GET {path} HTTP/1.1\r\n"
+                f"Host: {host}:{port}\r\n"
+                "Upgrade: websocket\r\n"
+                "Connection: Upgrade\r\n"
+                f"Sec-WebSocket-Key: {key}\r\n"
+                "Sec-WebSocket-Version: 13\r\n"
+                "\r\n"
+            )
+            self._send_all(request.encode("ascii"))
+            expected = base64.b64encode(
+                hashlib.sha1((key + WEBSOCKET_GUID).encode("ascii")).digest()  # noqa: S324 - RFC 6455 mandates SHA-1 here.
+            ).decode("ascii")
+            response = self._read_http_head()
+            header_lines = response.split("\r\n")
+            status_parts = header_lines[0].split() if header_lines else []
+            if len(status_parts) < 2 or status_parts[1] != "101":
+                raise DriveFailure(f"the browser refused the DevTools upgrade: {header_lines[0]!r}")
+            headers: dict[str, str] = {}
+            for line in header_lines[1:]:
+                name, separator, value = line.partition(":")
+                if separator:
+                    headers[name.strip().lower()] = value.strip()
+            if headers.get("sec-websocket-accept", "") != expected:
+                raise DriveFailure("the browser returned a wrong Sec-WebSocket-Accept value.")
+        except BaseException:
+            self._socket.close()
+            raise
 
     def call(self, method: str, **parameters: object) -> dict[str, object]:
         """Send one DevTools command and return its result, skipping events."""
@@ -530,7 +546,10 @@ class CdpConnection:
         while True:
             if time.monotonic() > deadline:
                 raise DriveFailure(f"the browser did not answer {method} in time.")
-            payload = _as_mapping(json.loads(self._read_message()))
+            try:
+                payload = _as_mapping(json.loads(self._read_message()))
+            except ValueError as error:
+                raise DriveFailure(f"the browser sent invalid JSON: {error}") from error
             if payload is None or payload.get("id") != message_id:
                 continue
             if "error" in payload:
@@ -617,6 +636,10 @@ class CdpConnection:
             length = struct.unpack(">H", self._recv_exact(2))[0]
         elif length == 127:
             length = struct.unpack(">Q", self._recv_exact(8))[0]
+        if length > MAX_FRAME_BYTES:
+            raise DriveFailure(
+                f"the browser sent a {length}-byte DevTools frame; the cap is {MAX_FRAME_BYTES}."
+            )
         mask = self._recv_exact(4) if masked else b""
         payload = self._recv_exact(length)
         if masked:
@@ -680,6 +703,38 @@ def _wait_for_document_ready(connection: CdpConnection, timeout_seconds: float) 
     return False
 
 
+def _read_report(connection: CdpConnection) -> tuple[dict[str, object], str]:
+    """Read the shim report once, returning it (possibly empty) with a problem note.
+
+    The report read never raises: a broken socket or malformed payload must
+    still return whatever evidence exists so the caller can keep it.
+    """
+    try:
+        raw = connection.evaluate_text(REPORT_EXPRESSION)
+    except DriveFailure as error:
+        return {}, f"the report could not be read ({error})"
+    if not raw:
+        return {}, "the shim never installed window.__audioReport"
+    try:
+        report = _as_mapping(json.loads(raw))
+    except ValueError as error:
+        return {}, f"the shim report was not valid JSON ({error})"
+    if report is None:
+        return {}, "the shim report is not a JSON object"
+    return report, ""
+
+
+def _stall_summary(report: Mapping[str, object]) -> str:
+    """Summarize what the shim saw when the done marker never arrived."""
+    markers = _as_list(report.get("events"))
+    marker_count = len(markers) if markers is not None else 0
+    return (
+        f"started={report.get('started')}, peak RMS={report.get('rms')}, "
+        f"done={report.get('done')}, played={report.get('played')}, "
+        f"events={marker_count}, errors={report.get('errors')}"
+    )
+
+
 def _poll_for_report(
     connection: CdpConnection,
     browser_process: subprocess.Popen[bytes],
@@ -688,45 +743,38 @@ def _poll_for_report(
     """Poll until the shim records the done marker, then read the full report.
 
     The second element names why the marker never arrived; it stays empty on a
-    finished run so the caller can preserve the partial report as evidence.
+    finished run. Neither a broken socket nor a malformed report raises here:
+    the caller keeps whatever partial evidence exists.
     """
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         if browser_process.poll() is not None:
-            return {}, (
+            report, _ = _read_report(connection)
+            return report, (
                 f"the browser exited with code {browser_process.returncode} "
                 "before the smoke finished"
             )
-        finished = connection.evaluate(DONE_PROBE_EXPRESSION)
+        try:
+            finished = connection.evaluate(DONE_PROBE_EXPRESSION)
+        except DriveFailure as error:
+            report, _ = _read_report(connection)
+            return report, f"the page stopped answering ({error})"
         if finished is True:
-            raw = connection.evaluate_text(REPORT_EXPRESSION)
-            report = _as_mapping(json.loads(raw)) if raw else None
-            if report is None:
-                raise DriveFailure("the shim report is not a JSON object.")
-            return report, ""
+            report, problem = _read_report(connection)
+            if report:
+                return report, ""
+            return {}, problem or "the smoke finished but produced no report"
         time.sleep(0.5)
+    report, _ = _read_report(connection)
+    if report:
+        return report, (
+            f"the smoke never reached its done marker within {timeout_seconds:.0f} seconds "
+            f"({_stall_summary(report)})"
+        )
     return {}, (
         f"the smoke never reached its done marker within {timeout_seconds:.0f} seconds "
-        f"({_describe_stall(connection)})"
+        "(the shim never installed window.__audioReport)"
     )
-
-
-def _describe_stall(connection: CdpConnection) -> str:
-    """Summarize what the shim saw when the done marker never arrived."""
-    try:
-        raw = connection.evaluate_text(REPORT_EXPRESSION)
-        report = _as_mapping(json.loads(raw)) if raw else None
-        if report is None:
-            return "the shim never installed window.__audioReport"
-        markers = _as_list(report.get("events"))
-        marker_count = len(markers) if markers is not None else 0
-        return (
-            f"started={report.get('started')}, peak RMS={report.get('rms')}, "
-            f"done={report.get('done')}, played={report.get('played')}, "
-            f"events={marker_count}, errors={report.get('errors')}"
-        )
-    except DriveFailure:
-        return "the page stopped answering while waiting for the done marker"
 
 
 def run_drive(options: DriveOptions) -> int:
@@ -774,10 +822,15 @@ def run_drive(options: DriveOptions) -> int:
         report_path.write_text(
             json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )
-    print(
-        f"WebGL drive: report read in {time.monotonic() - started:.1f}s -> {report_path}",
-        flush=True,
-    )
+        print(
+            f"WebGL drive: report read in {time.monotonic() - started:.1f}s -> {report_path}",
+            flush=True,
+        )
+    else:
+        print(
+            f"WebGL drive: no report to keep after {time.monotonic() - started:.1f}s.",
+            flush=True,
+        )
     _print_measurement(report)
     findings = evaluate_report(report)
     if stall:
@@ -788,9 +841,9 @@ def run_drive(options: DriveOptions) -> int:
         print(f"{prefix}{finding.message}", flush=True)
         if finding.severity == "fail" and not failed:
             failed = finding.message
-    _write_step_summary(report_path, findings)
     if failed:
         raise DriveFailure(failed)
+    _write_step_summary(report_path, findings)
     print("WebGL drive PASSED.", flush=True)
     return 0
 

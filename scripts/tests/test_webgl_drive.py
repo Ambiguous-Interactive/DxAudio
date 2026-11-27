@@ -172,6 +172,22 @@ class EvaluateReportTests(unittest.TestCase):
         messages = self._messages(noisy)
         assert any("2 scheduled start(s)" in message for message in messages)
         assert any("3 error(s)" in message for message in messages)
+        truncated = _report(droppedEvents=7)
+        assert any("dropped 7 event(s)" in message for message in self._messages(truncated))
+
+    def test_quiet_output_still_measures(self) -> None:
+        quiet = _report(
+            rms=0.0177,
+            events=[
+                _event("start", 0.0177),
+                _event("start", 0.0179),
+                _event("start", 0.0088),
+                _event("start", 0.0090),
+            ],
+        )
+        severities = self._findings(quiet)
+        assert "fail" not in severities
+        assert any("inert on Web" in message for message in self._messages(quiet))
 
 
 class BrowserDiscoveryTests(unittest.TestCase):
@@ -343,9 +359,17 @@ class FakeBrowserDriveTests(unittest.TestCase):
         message = _expect_drive_failure(lambda: self._run("no-played", 30.0))
         assert "did not confirm both cues" in message
 
-    def test_a_hung_smoke_times_out(self) -> None:
+    def test_a_hung_smoke_times_out_but_keeps_its_report(self) -> None:
         message = _expect_drive_failure(lambda: self._run("no-done", 3.0))
         assert "done marker" in message
+        report_path = self.root / "report" / "webgl-drive-report.json"
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        assert report["done"] is False
+
+    def test_a_missing_shim_times_out_without_a_report(self) -> None:
+        message = _expect_drive_failure(lambda: self._run("no-shim", 3.0))
+        assert "never installed window.__audioReport" in message
+        assert not (self.root / "report" / "webgl-drive-report.json").exists()
 
 
 FAKE_BROWSER = r"""#!/usr/bin/env python3
@@ -512,10 +536,10 @@ def handle_ws():
         if "document.readyState" in expression:
             value_out = "complete"
         elif "JSON.stringify" in expression:
-            value_out = json.dumps(report)
+            value_out = None if control == "no-shim" else json.dumps(report)
         elif method == "Runtime.evaluate":
             probes += 1
-            value_out = control != "no-done" and probes >= 3
+            value_out = control not in ("no-done", "no-shim") and probes >= 3
         else:
             value_out = None
         send_text(

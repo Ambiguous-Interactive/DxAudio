@@ -141,26 +141,30 @@
                 var processor = nativeCreateScriptProcessor.apply(this, arguments);
                 report.processors += 1;
                 var handler = null;
+                var listening = false;
                 Object.defineProperty(processor, "onaudioprocess", {
                     get: function () {
                         return handler;
                     },
                     set: function (value) {
                         handler = value;
-                        processor.addEventListener("audioprocess", function (event) {
-                            var buffer = event.outputBuffer;
-                            if (!buffer) {
-                                return;
-                            }
-                            var rms = bufferRms(buffer);
-                            note({
-                                kind: "process",
-                                rms: rms,
-                                duration: buffer.duration,
-                                channels: buffer.numberOfChannels,
+                        if (!listening) {
+                            listening = true;
+                            processor.addEventListener("audioprocess", function (event) {
+                                var buffer = event.outputBuffer;
+                                if (!buffer) {
+                                    return;
+                                }
+                                var rms = bufferRms(buffer);
+                                note({
+                                    kind: "process",
+                                    rms: rms,
+                                    duration: buffer.duration,
+                                    channels: buffer.numberOfChannels,
+                                });
+                                noteRms(rms);
                             });
-                            noteRms(rms);
-                        });
+                        }
                     },
                 });
                 return processor;
@@ -185,27 +189,37 @@
             };
         }
 
-        var nativeLog = console.log ? console.log.bind(console) : function () {};
-        console.log = function () {
-            var text = "";
-            for (var index = 0; index < arguments.length; ++index) {
-                text += String(arguments[index]) + " ";
+        var watchConsole = function (method) {
+            if (!console[method]) {
+                return false;
             }
-            if (text.indexOf("dxaudio-web-smoke") >= 0) {
-                if (text.indexOf('"cue":"dry"') >= 0) {
-                    report.played.dry = true;
+            var native = console[method].bind(console);
+            console[method] = function () {
+                var text = "";
+                for (var index = 0; index < arguments.length; ++index) {
+                    text += String(arguments[index]) + " ";
                 }
-                if (text.indexOf('"cue":"shaped"') >= 0) {
-                    report.played.shaped = true;
+                if (text.indexOf("dxaudio-web-smoke") >= 0) {
+                    // The player logs ok:false when Play refuses a cue, so a
+                    // marker alone must not count as played.
+                    var ok = text.indexOf('"ok":true') >= 0;
+                    if (text.indexOf('"cue":"dry"') >= 0) {
+                        report.played.dry = ok;
+                    }
+                    if (text.indexOf('"cue":"shaped"') >= 0) {
+                        report.played.shaped = ok;
+                    }
+                    if (text.indexOf('"event":"done"') >= 0) {
+                        report.done = true;
+                    }
+                    note({ kind: "marker", text: text.slice(0, 400) });
                 }
-                if (text.indexOf('"event":"done"') >= 0) {
-                    report.done = true;
-                }
-                note({ kind: "marker", text: text.slice(0, 400) });
-            }
-            return nativeLog.apply(console, arguments);
+                return native.apply(console, arguments);
+            };
+            return console[method] !== native;
         };
-        report.consoleWrapped = typeof console.log === "function" && console.log !== nativeLog;
+        report.consoleWrapped = watchConsole("log");
+        watchConsole("info");
 
         window.addEventListener("error", function (event) {
             if (report.errors.length < 32) {
