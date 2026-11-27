@@ -25,9 +25,7 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         [Test]
         public void DerivingFoldsKeysInThePublishedOrder()
         {
-            // Vectors computed from the published formula, spec 02: the state starts at mix64 of the root, and
-            // each key folds once as mix64(state + Gamma * (k + 1)). They pin the fold order against an
-            // independent computation.
+            // Vectors from the published formula (spec 02): mix64(root), then each key folds mix64(s + Gamma * (k + 1)).
             Assert.That(SfxRandomSeeds.Derive(7UL, 100UL), Is.EqualTo(0x7B49F1065D5FADA7UL), "the one-key fold");
             Assert.That(SfxRandomSeeds.Derive(7UL, 100UL, 1UL), Is.EqualTo(0xF70A9BF473A46594UL), "the two-key fold");
             Assert.That(SfxRandomSeeds.NodeSeed(7UL, "graph/bed", 2UL), Is.EqualTo(0x7627EA94936FD162UL), "a node seed");
