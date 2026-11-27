@@ -8,6 +8,7 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
+- Add engine-free random streams with per-node seed derivation, draw discipline, and allocation-free uniform, exponential, and Gaussian draws for composable synthesis ([#196](https://github.com/Ambiguous-Interactive/DxAudio/issues/196)).
 - Add a Play Mode Mix Monitor to inspect SFX voice history and clip details, and filter drop markers ([#133](https://github.com/Ambiguous-Interactive/DxAudio/issues/133)).
 - Show music deck fades and applied duck gain in the Mix Monitor timeline ([#133](https://github.com/Ambiguous-Interactive/DxAudio/issues/133)).
 - Show overlapping music duck holds and their releases in the Mix Monitor timeline ([#133](https://github.com/Ambiguous-Interactive/DxAudio/issues/133)).
