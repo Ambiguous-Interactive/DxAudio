@@ -273,6 +273,16 @@ def _window_rms(window: Sequence[AudioEvent]) -> float:
     return sqrt(energy / time)
 
 
+def _surface_inventory(report: Mapping[str, object]) -> int:
+    """Count the Web Audio surfaces the shim saw, without output measurement."""
+    contexts = _as_list(report.get("contexts"))
+    return (
+        (len(contexts) if contexts is not None else 0)
+        + _coerce_int(report.get("worklets"))
+        + _coerce_int(report.get("processors"))
+    )
+
+
 def evaluate_report(report: Mapping[str, object]) -> list[Finding]:
     """Judge one shim report against the lane's contract and record the red finding."""
     findings: list[Finding] = []
@@ -290,12 +300,23 @@ def evaluate_report(report: Mapping[str, object]) -> list[Finding]:
         )
     events = _audio_events(report)
     if not events:
-        findings.append(
-            _warning(
-                "no Web Audio output surface was observed; the lane fell back to the "
-                "API-level markers and the headless output stays unverified (spec 01 fallback)"
+        surface = _surface_inventory(report)
+        if surface > 0:
+            findings.append(
+                _fail(
+                    f"the player built a Web Audio surface (contexts, worklets, processors: "
+                    f"{surface} item(s)) but the shim measured no output blocks; the "
+                    "silent-output guard cannot run on an unmeasured surface, so the lane "
+                    "fails closed until the shim measures this architecture"
+                )
             )
-        )
+        else:
+            findings.append(
+                _warning(
+                    "no Web Audio output surface was observed; the lane fell back to the "
+                    "API-level markers and the headless output stays unverified (spec 01 fallback)"
+                )
+            )
         return findings
     # The silence verdict reads the output-side events only: a build could
     # create loud clip buffers it never schedules, and input RMS must not

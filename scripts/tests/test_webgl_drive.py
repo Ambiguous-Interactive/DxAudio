@@ -217,6 +217,18 @@ class EvaluateReportTests(unittest.TestCase):
         assert "fail" not in severities
         assert "warning" in severities
 
+    def test_an_unmeasured_surface_fails_closed(self) -> None:
+        unmeasured = _report(
+            events=[],
+            started=0,
+            rms=0.0,
+            contexts=[{"kind": "live", "sampleRate": 48000, "state": "running"}],
+            worklets=1,
+        )
+        severities = self._findings(unmeasured)
+        assert "fail" in severities
+        assert any("unmeasured surface" in message for message in self._messages(unmeasured))
+
     def test_underruns_and_page_errors_are_recorded(self) -> None:
         noisy = _report(underruns=2, errors=["first", "second", "third"])
         messages = self._messages(noisy)
