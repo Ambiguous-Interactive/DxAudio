@@ -249,15 +249,78 @@ jobs:
           reservation-id: ${{ steps.release_unity_lock.outputs.reservation-id }}
           incident-id: ${{ steps.release_unity_lock.outputs.incident-id }}
 
+  # The drive half of W-CI (spec map 01, items 2 to 6): serve the build the
+  # previous job uploaded, open it in headless Chromium with autoplay lifted,
+  # and judge the Web Audio report the injected shim records. The job needs no
+  # Unity seat or secret, so it runs on a hosted runner; its first green run is
+  # the red measurement that chains and graphs are inert on Web.
+  webgl-drive:
+    name: WebGL 6000.5.2f1 drive
+    needs: webgl-build
+    # Same guard as the build job: fork and Dependabot pull requests cannot
+    # reach this repository's artifacts, so the lane stays static-only for them.
+    if: >-
+      ${{
+        github.event_name != 'pull_request' ||
+        (github.event.pull_request.user.login != 'dependabot[bot]' &&
+          github.event.pull_request.head.repo.full_name == github.repository)
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        timeout-minutes: 10
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Python runner for the drive harness
+        timeout-minutes: 5
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.12.10"
+          enable-cache: false
+
+      - name: Download the WebGL build
+        timeout-minutes: 10
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dxaudio-webgl-build-6000.5.2f1
+          path: webgl-build
+
+      - name: Drive the build in headless Chromium
+        id: drive
+        timeout-minutes: 10
+        run: |
+          uv run --no-project scripts/unity/unity_validation.py drive \
+            --build-dir "$PWD/webgl-build" \
+            --report-dir "${{ runner.temp }}/webgl-drive"
+
+      - name: Report the drive log tail
+        if: ${{ failure() && steps.drive.outcome == 'failure' }}
+        timeout-minutes: 2
+        run: tail -40 "${{ runner.temp }}/webgl-drive/webgl-drive-report.json" || true
+
+      - name: Upload the drive report
+        if: ${{ always() && steps.drive.outcome != '' && steps.drive.outcome != 'skipped' }}
+        timeout-minutes: 5
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: dxaudio-webgl-drive-report-6000.5.2f1
+          path: ${{ runner.temp }}/webgl-drive
+          if-no-files-found: warn
+
   # One always-reporting context so a default-branch ruleset can require a
-  # single "WebGL CI Success". It covers the one licensed job for every event.
-  # A skipped required check counts as passing, so this job uses a falsifiable
-  # job-level `if: always()` plus exact per-job result checks.
+  # single "WebGL CI Success". It covers the licensed build job and the hosted
+  # drive job for every event. A skipped required check counts as passing, so
+  # this job uses a falsifiable job-level `if: always()` plus exact per-job
+  # result checks.
   webgl-ci-success:
     name: WebGL CI Success
     needs:
       - runner-preflight
       - webgl-build
+      - webgl-drive
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -267,6 +330,7 @@ jobs:
         env:
           RUNNER_PREFLIGHT_RESULT: ${{ needs.runner-preflight.result }}
           WEBGL_BUILD_RESULT: ${{ needs.webgl-build.result }}
+          WEBGL_DRIVE_RESULT: ${{ needs.webgl-drive.result }}
           FORK_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name !=
             github.repository }}
           DEPENDABOT_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' }}
@@ -275,7 +339,9 @@ jobs:
           if [ "${FORK_PR}" = "true" ] || [ "${DEPENDABOT_PR}" = "true" ]; then
             test "${RUNNER_PREFLIGHT_RESULT}" = skipped
             test "${WEBGL_BUILD_RESULT}" = skipped
+            test "${WEBGL_DRIVE_RESULT}" = skipped
           else
             test "${RUNNER_PREFLIGHT_RESULT}" = success
             test "${WEBGL_BUILD_RESULT}" = success
+            test "${WEBGL_DRIVE_RESULT}" = success
           fi
