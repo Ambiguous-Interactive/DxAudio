@@ -134,12 +134,32 @@ class MeasureInertnessTests(unittest.TestCase):
         assert abs(measurement.ratio - 0.5) <= 0.05
         assert measurement.dry_events == 2
 
-    def test_rejects_one_level_only(self) -> None:
+    def test_one_level_pair_measures_ratio_one(self) -> None:
+        # Two equal levels measure a ratio near 1, outside the inert band:
+        # the evaluator fails the run instead of degrading to a warning.
         events = self._events((0.35, 0.4, 0.5), (0.36, 0.4, 0.9))
-        assert webgl_drive.measure_inertness(events) is None
+        measurement = webgl_drive.measure_inertness(events)
+        assert measurement is not None
+        assert measurement.ratio > webgl_drive.INERT_BAND[1]
 
-    def test_rejects_below_floor_or_without_duration(self) -> None:
-        events = self._events((0.35, 0.4, 0.5), (0.01, 0.4, 0.9), (0.18, 0.0, 1.4))
+    def test_a_silent_shaped_window_fails_the_shaped_verdict(self) -> None:
+        # The window split runs before any level filtering, so an all-silent
+        # shaped window stays a window and the evaluator fails the run.
+        report = _report(
+            rms=0.3545,
+            events=[
+                _event("start", 0.3530, 0.5),
+                _event("start", 0.3545, 0.9),
+                _event("start", 0.0, 1.7),
+                _event("start", 0.0, 1.8),
+            ],
+        )
+        findings = webgl_drive.evaluate_report(report)
+        assert "fail" in [finding.severity for finding in findings]
+        assert any("shaped output measured silent" in finding.message for finding in findings)
+
+    def test_durations_of_zero_are_skipped(self) -> None:
+        events = self._events((0.35, 0.0, 0.5), (0.36, 0.4, 0.9))
         assert webgl_drive.measure_inertness(events) is None
 
 

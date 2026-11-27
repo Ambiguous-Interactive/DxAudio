@@ -87,8 +87,7 @@ WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 EXPECTED_RATIO = 0.5
 INERT_BAND = (0.35, 0.65)
 SILENT_RMS = 0.01
-EVENT_RMS_FLOOR = 0.02
-SPREAD_FRACTION = 0.2
+SHAPED_SILENCE_DIVISOR = 20.0
 MAX_FRAME_BYTES = 64 * 1024 * 1024
 
 
@@ -230,45 +229,25 @@ def measure_inertness(events: Sequence[AudioEvent]) -> Measurement | None:
     """Compare the shaped and dry output levels by energy-weighted RMS.
 
     The cues play in sequence, so the window split follows the largest gap
-    between scheduled times: the dry cue is the earlier window and the shaped
-    cue the later one. Labels therefore never depend on a level read, and a
-    fade-in chunk at the head of the dry cue cannot swap the windows. When the
-    times carry no gaps the windows fall back to the first and second halves
-    of the observation order. The silence floor follows the peak (a quarter of
-    it at most), so a uniformly quiet player still measures instead of
-    degrading into the attribution warning. Boundary chunks carry little
-    energy, so a stray split cannot move the weighted levels far.
+    between scheduled times, or the observation halves when the times carry no
+    gaps. The split runs BEFORE any level filtering, so a silent shaped window
+    stays a window and reads as silent instead of vanishing into the other
+    side. Inside a window, exact-zero blocks are skipped (gap silence carries
+    no energy) and the window level is the energy-weighted RMS of the rest;
+    short fade chunks carry little energy and barely move it.
     """
-    ceiling = max((event.rms for event in events), default=0.0)
-    floor = min(EVENT_RMS_FLOOR, ceiling / 4.0)
-    usable = [event for event in events if event.rms >= floor and event.duration > 0.0]
-    if len(usable) < 2:
+    ordered = [event for event in events if event.duration > 0.0]
+    if len(ordered) < 2:
         return None
-    lowest = min(event.rms for event in usable)
-    highest = max(event.rms for event in usable)
-    if highest <= 0.0 or (highest - lowest) / highest < SPREAD_FRACTION:
-        return None
-    split = _largest_gap_split([event.when for event in usable])
+    split = _largest_gap_split([event.when for event in ordered])
     if split is None:
-        split = len(usable) // 2
-    dry = usable[:split]
-    shaped = usable[split:]
+        split = len(ordered) // 2
+    dry = ordered[:split]
+    shaped = ordered[split:]
     if not dry or not shaped:
         return None
-    dry_energy = 0.0
-    dry_time = 0.0
-    for event in dry:
-        dry_energy += event.rms * event.rms * event.duration
-        dry_time += event.duration
-    shaped_energy = 0.0
-    shaped_time = 0.0
-    for event in shaped:
-        shaped_energy += event.rms * event.rms * event.duration
-        shaped_time += event.duration
-    if dry_energy <= 0.0 or shaped_energy <= 0.0 or dry_time <= 0.0 or shaped_time <= 0.0:
-        return None
-    dry_rms = sqrt(dry_energy / dry_time)
-    shaped_rms = sqrt(shaped_energy / shaped_time)
+    dry_rms = _window_rms(dry)
+    shaped_rms = _window_rms(shaped)
     if dry_rms <= 0.0:
         return None
     return Measurement(
@@ -280,21 +259,18 @@ def measure_inertness(events: Sequence[AudioEvent]) -> Measurement | None:
     )
 
 
-def _uniform_audible_level(events: Sequence[AudioEvent]) -> bool:
-    """Return true when audible, floor-passing output sits at one level.
-
-    The authored clips guarantee two distinct levels for sequential playback,
-    so audible output that cannot split means the player or the measurement
-    broke; the lane must stop instead of degrading to a warning.
-    """
-    ceiling = max((event.rms for event in events), default=0.0)
-    floor = min(EVENT_RMS_FLOOR, ceiling / 4.0)
-    usable = [event for event in events if event.rms >= floor and event.duration > 0.0]
-    if len(usable) < 2:
-        return False
-    lowest = min(event.rms for event in usable)
-    highest = max(event.rms for event in usable)
-    return highest > 0.0 and (highest - lowest) / highest < SPREAD_FRACTION
+def _window_rms(window: Sequence[AudioEvent]) -> float:
+    """Return the energy-weighted RMS of one window's non-silent blocks."""
+    energy = 0.0
+    time = 0.0
+    for event in window:
+        if event.rms <= 0.0:
+            continue
+        energy += event.rms * event.rms * event.duration
+        time += event.duration
+    if time <= 0.0:
+        return 0.0
+    return sqrt(energy / time)
 
 
 def evaluate_report(report: Mapping[str, object]) -> list[Finding]:
@@ -332,21 +308,21 @@ def evaluate_report(report: Mapping[str, object]) -> list[Finding]:
         return findings
     measurement = measure_inertness(events)
     if measurement is None:
-        if _uniform_audible_level(events):
-            findings.append(
-                _fail(
-                    "the observed output carries one audible level where two are authored; "
-                    "the shaped level is outside the inert band (ratio near 1) or the "
-                    "player broke the sequential playback this measurement reads"
-                )
+        findings.append(
+            _fail(
+                "the measurement could not attribute the cue windows from audible output; "
+                "the dry window carried no audible block or the player broke the "
+                "sequential playback this measurement reads"
             )
-        else:
-            findings.append(
-                _warning(
-                    "the observed audio could not be split into dry and shaped levels; "
-                    "the inert measurement is unavailable"
-                )
+        )
+    elif measurement.shaped_rms < measurement.dry_rms / SHAPED_SILENCE_DIVISOR:
+        findings.append(
+            _fail(
+                f"the shaped output measured silent (RMS {measurement.shaped_rms:.4f} against "
+                f"dry {measurement.dry_rms:.4f}): a silent-output regression or a muted shaped "
+                "voice on Web"
             )
+        )
     elif not INERT_BAND[0] <= measurement.ratio <= INERT_BAND[1]:
         findings.append(
             _fail(
@@ -822,17 +798,18 @@ def _poll_for_report(
     )
 
 
-def _refuse_overlapping_paths(build_dir: Path, workspace_dir: Path) -> None:
-    """Refuse a report workspace that contains the build directory.
+def _refuse_related_paths(build_dir: Path, workspace_dir: Path) -> None:
+    """Refuse a report workspace and build directory that contain each other.
 
-    The cleanup removes the workspace before staging the serve copy, so an
-    overlapping ``--report-dir`` would delete the very build being driven.
+    The cleanup removes the workspace before staging the serve copy, and
+    ``copytree`` recurses, so overlap in either direction would delete the
+    build or copy it into itself.
     """
     build = build_dir.resolve()
     workspace = workspace_dir.resolve()
-    if build == workspace or workspace in build.parents:
+    if build == workspace or workspace in build.parents or build in workspace.parents:
         raise DriveFailure(
-            f"the report workspace {workspace} contains the build directory {build}; "
+            f"the report workspace {workspace} overlaps the build directory {build}; "
             "pass a --report-dir outside the build."
         )
 
@@ -844,8 +821,8 @@ def run_drive(options: DriveOptions) -> int:
     serve_dir = options.report_dir / "webgl-serve"
     profile_dir = options.report_dir / "browser-profile"
     report_path = options.report_dir / "webgl-drive-report.json"
-    _refuse_overlapping_paths(options.build_dir, serve_dir)
-    _refuse_overlapping_paths(options.build_dir, profile_dir)
+    _refuse_related_paths(options.build_dir, serve_dir)
+    _refuse_related_paths(options.build_dir, profile_dir)
     options.report_dir.mkdir(parents=True, exist_ok=True)
     report_path.unlink(missing_ok=True)
     index_path = stage_serve_copy(options.build_dir, serve_dir, shim_path)
