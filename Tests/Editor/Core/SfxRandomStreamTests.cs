@@ -329,6 +329,32 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void ARestoredSpareCarriesThePendingGaussianDraw()
+        {
+            SfxRandomStream stream = new(23UL);
+            stream.NextGaussian(0d, 1d); // an odd count of Gaussian calls leaves the spare pending
+            RandomStreamState saved = stream.Capture();
+            Assert.That(double.IsNaN(saved.SpareGaussian), Is.False, "the capture holds a pending spare");
+
+            double[] future = DrawsFrom(stream, 32);
+
+            // Spend the spare, so only the restore can bring it back.
+            stream.NextGaussian(0d, 1d);
+            stream.Restore(saved);
+
+            Assert.That(double.IsNaN(stream.Capture().SpareGaussian), Is.False, "the restore brought the pending spare back");
+            Assert.That(DrawsFrom(stream, 32), Is.EqualTo(future), "the restored stream repeats its future");
+        }
+
+        [Test]
+        public void TheStructGeneratorMatchesItsPinnedVector()
+        {
+            // First output of the published xoshiro256** step for seed 42, computed independently from the reference algorithm.
+            SfxXoshiro256StarStar generator = new(42UL);
+            Assert.That(generator.NextUInt64(), Is.EqualTo(0xBE15272CDF80B6C2UL), "the published step's first output");
+        }
+
+        [Test]
         public void AForkCarriesItsOwnDeterministicFuture()
         {
             SfxRandomStream stream = new(99UL);
