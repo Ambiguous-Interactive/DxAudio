@@ -470,6 +470,35 @@ namespace WallstopStudios.DxAudio.Tests.Editor
         }
 
         [Test]
+        public void AnInfiniteFloatRangeAnswersWithoutADraw()
+        {
+            SfxRandomStream stream = new(11UL);
+            stream.NextGaussian(0d, 1d); // a pending spare must survive a refused draw
+            RandomStreamState before = stream.Capture();
+
+            float draw = stream.NextFloat(float.NegativeInfinity, float.PositiveInfinity);
+            Assert.That(float.IsNegativeInfinity(draw), Is.True, "the range echoes its minimum");
+
+            Assert.That(stream.Capture(), Is.EqualTo(before), "no draw was spent");
+        }
+
+        [Test]
+        public void AForkCarriesThePendingSpare()
+        {
+            SfxRandomStream pending = new(55UL);
+            pending.NextGaussian(0d, 1d);
+
+            SfxRandomStream spent = new(55UL);
+            spent.NextGaussian(0d, 1d);
+            spent.NextGaussian(0d, 1d); // consumes the spare, so the words match and the spare differs
+
+            double[] pendingFork = DrawsFrom(pending.Fork(), 32);
+            double[] spentFork = DrawsFrom(spent.Fork(), 32);
+
+            Assert.That(spentFork, Is.Not.EqualTo(pendingFork), "a fork reflects the spare as part of the position");
+        }
+
+        [Test]
         public void TheStructGeneratorFollowsThePublishedConversion()
         {
             SfxXoshiro256StarStar structGenerator = new(42UL);

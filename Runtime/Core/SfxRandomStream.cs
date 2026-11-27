@@ -1,5 +1,7 @@
 namespace WallstopStudios.DxAudio
 {
+    using System;
+
     /// <summary>
     /// The main-thread random stream: an <see cref="ISfxRandomStream"/> over a <see cref="SfxXoshiro256StarStar"/>,
     /// owning the Gaussian spare and the draw discipline. Audio-thread hot loops draw through the struct directly.
@@ -35,7 +37,7 @@ namespace WallstopStudios.DxAudio
 
         public float NextFloat(float min, float max)
         {
-            if (!(min < max))
+            if (!(min < max) || float.IsInfinity(min) || float.IsInfinity(max))
             {
                 return min;
             }
@@ -125,15 +127,17 @@ namespace WallstopStudios.DxAudio
         }
 
         /// <summary>
-        /// Derives a child seed from this stream's current position: the same position always forks to the same
-        /// stream, and the fork never follows its parent's state.
+        /// Derives a child seed from this stream's full current position — the four words and any pending spare —
+        /// so the same position always forks to the same stream and the fork never follows its parent's state.
         /// </summary>
         private ulong ForkSeed()
         {
             RandomStreamState state = Capture();
-            ulong mixed = SfxRandomSeeds.Mix64(state.S0 + (SfxRandomSeeds.Gamma * (state.S1 + 1UL)));
-            mixed = SfxRandomSeeds.Mix64(mixed + (SfxRandomSeeds.Gamma * (state.S2 + 1UL)));
-            return SfxRandomSeeds.Mix64(mixed + (SfxRandomSeeds.Gamma * (state.S3 + 1UL)));
+            ulong hash = SfxRandomSeeds.Fold(state.S0, state.S1);
+            hash = SfxRandomSeeds.Fold(hash, state.S2);
+            hash = SfxRandomSeeds.Fold(hash, state.S3);
+            hash = SfxRandomSeeds.Fold(hash, unchecked((ulong)BitConverter.DoubleToInt64Bits(state.SpareGaussian + 0d)));
+            return SfxRandomSeeds.Mix64(hash);
         }
     }
 }

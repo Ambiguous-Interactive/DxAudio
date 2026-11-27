@@ -14,8 +14,8 @@ namespace WallstopStudios.DxAudio
         double NextDouble();
 
         /// <summary>
-        /// Returns a value in [min, max]. An empty, inverted, or NaN range returns <paramref name="min"/> and
-        /// spends no draw.
+        /// Returns a value in [min, max]. An empty, inverted, NaN, or infinite range returns
+        /// <paramref name="min"/> and spends no draw.
         /// </summary>
         float NextFloat(float min, float max);
 
@@ -37,7 +37,7 @@ namespace WallstopStudios.DxAudio
         /// </summary>
         double NextGaussian(double mean, double standardDeviation);
 
-        /// <summary>Returns a new stream whose seed is derived from this stream's current position.</summary>
+        /// <summary>Returns a new stream whose seed derives from this stream's current position, including any pending spare.</summary>
         ISfxRandomStream Fork();
 
         /// <summary>Captures the full position, including any spare Gaussian draw.</summary>
