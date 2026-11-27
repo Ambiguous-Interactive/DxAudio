@@ -400,6 +400,14 @@ namespace WallstopStudios.DxAudio.Tests.Editor
                 Is.EqualTo(new RandomStreamState(1UL, 2UL, 3UL, 4UL, 0d).GetHashCode()),
                 "negative and positive zero hash alike"
             );
+            double nanPayloadA = BitConverter.Int64BitsToDouble(unchecked((long)0x7FF8000000000000UL));
+            double nanPayloadB = BitConverter.Int64BitsToDouble(unchecked((long)0x7FF8000000000001UL));
+            Assert.That(nanPayloadA, Is.EqualTo(nanPayloadB), "distinct NaN payloads compare equal");
+            Assert.That(
+                new RandomStreamState(1UL, 2UL, 3UL, 4UL, nanPayloadB).GetHashCode(),
+                Is.EqualTo(new RandomStreamState(1UL, 2UL, 3UL, 4UL, nanPayloadA).GetHashCode()),
+                "equal NaN states hash alike"
+            );
             Assert.That(new SfxXoshiro256StarStar(7UL).GetHashCode(), Is.EqualTo(generatorHash), "equal generators hash alike");
         }
 
