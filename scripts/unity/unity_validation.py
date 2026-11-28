@@ -14,6 +14,9 @@ job, selected with ``--dxmessaging-version`` and kept apart by ``--label``.
 The ``tail`` command prints a redacted log tail and the failed NUnit cases
 for a run. It is safe to call from a ``failure()`` step, which a regular
 step cannot do because a timed-out step never reaches its own handler.
+The ``drive`` command serves a ``--webgl-build`` output in a disposable copy,
+opens it in headless Chromium with autoplay lifted, and judges the Web Audio
+report the injected shim records.
 
 Examples::
 
@@ -43,6 +46,8 @@ from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+
+import webgl_drive
 
 UNITY_VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+f\d+$")
 LABEL_PATTERN = re.compile(r"^[A-Za-z0-9-]+$")
@@ -1040,6 +1045,33 @@ def tail(options: argparse.Namespace) -> int:
     return 0
 
 
+def drive(options: argparse.Namespace) -> int:
+    """Serve one built WebGL player and drive it in a headless browser."""
+    if not options.build_dir:
+        raise ValidationFailure("The WebGL drive needs --build-dir pointing at the built player.")
+    for name, value in (("port", int(options.port)), ("cdp_port", int(options.cdp_port))):
+        if not 0 <= value <= 65535:
+            raise ValidationFailure(f"The WebGL drive needs {name} in 0..65535; got {value}.")
+    timeout_seconds = float(options.timeout_seconds)
+    if timeout_seconds <= 0.0:
+        raise ValidationFailure("The WebGL drive needs a positive --timeout-seconds.")
+    report_dir = options.report_dir or str(Path(options.build_dir).parent / "webgl-drive")
+    try:
+        return webgl_drive.run_drive(
+            webgl_drive.DriveOptions(
+                build_dir=Path(options.build_dir),
+                report_dir=Path(report_dir),
+                browser=str(options.browser),
+                port=int(options.port),
+                cdp_port=int(options.cdp_port),
+                timeout_seconds=timeout_seconds,
+                redact=safe_report,
+            )
+        )
+    except webgl_drive.DriveFailure as error:
+        raise ValidationFailure(safe_report(str(error))) from error
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="unity-validation",
@@ -1073,6 +1105,19 @@ def build_parser() -> argparse.ArgumentParser:
     tail_parser.add_argument("--log-path", default="")
     tail_parser.add_argument("--results-path", default="")
     tail_parser.set_defaults(handler=tail)
+    drive_parser = subparsers.add_parser(
+        "drive",
+        help="serve a built WebGL player and drive it in a headless browser",
+    )
+    drive_parser.add_argument("--build-dir", default=os.environ.get("DXAUDIO_WEBGL_BUILD_DIR", ""))
+    drive_parser.add_argument(
+        "--report-dir", default=os.environ.get("DXAUDIO_WEBGL_REPORT_DIR", "")
+    )
+    drive_parser.add_argument("--browser", default=os.environ.get("DXAUDIO_WEB_BROWSER", ""))
+    drive_parser.add_argument("--port", type=int, default=0)
+    drive_parser.add_argument("--cdp-port", type=int, default=0)
+    drive_parser.add_argument("--timeout-seconds", type=int, default=120)
+    drive_parser.set_defaults(handler=drive)
     return parser
 
 

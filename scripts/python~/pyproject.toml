@@ -60,7 +60,9 @@ include = [
     "../brand_check.py",
     "../lint_atomic_state.py",
     "../tests/test_atomic_state.py",
+    "../tests/test_webgl_drive.py",
     "../unity/unity_validation.py",
+    "../unity/webgl_drive.py",
     "../tests/test_unity_validation.py",
 ]
 
